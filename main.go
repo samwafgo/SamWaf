@@ -2,8 +2,11 @@ package main
 
 import (
 	"SamWaf/global"
+	"SamWaf/innerbean"
 	"SamWaf/model"
+	"SamWaf/utils"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"github.com/lionsoul2014/ip2region/binding/golang/xdb"
 	"gorm.io/driver/mysql"
@@ -26,8 +29,13 @@ var (
 		//"mybing2.com:8082":  "http://djdemu.binaite.net",
 	}
 	// 用于缓存 httputil.ReverseProxy
-	hostProxy = map[string]*httputil.ReverseProxy{}
-	ipcBuff   = []byte{} //ip数据
+	hostProxy     = map[string]*httputil.ReverseProxy{}
+	ipcBuff       = []byte{} //ip数据
+	server_online = map[int]innerbean.ServerRunTime{}
+
+	//所有证书情况 对应端口 可能多个端口都是https 443，或者其他非标准端口也要实现https证书
+	all_certificate = map[int]map[string]*tls.Certificate{}
+	//all_certificate = map[int] map[string] string{}
 )
 
 type baseHandle struct{}
@@ -63,7 +71,10 @@ func CheckIP(ip string) bool {
 		return false
 	}
 }
-
+func (h *baseHandle) Error() string {
+	fs := "HTTP: %d, Code: %d, Message: %s"
+	return fmt.Sprintf(fs)
+}
 func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	host := r.Host
 	// 取出客户IP
@@ -91,11 +102,27 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		proxy := httputil.NewSingleHostReverseProxy(remoteUrl)
+		proxy.ModifyResponse = modifyResponse()
+		proxy.ErrorHandler = errorHandler()
+
 		hostProxy[host] = proxy // 放入缓存
 		proxy.ServeHTTP(w, r)
 		return
 	}
 	w.Write([]byte("403: Host forbidden " + host))
+}
+func errorHandler() func(http.ResponseWriter, *http.Request, error) {
+	return func(w http.ResponseWriter, req *http.Request, err error) {
+		fmt.Printf("Got error while modifying response: %v \n", err)
+		return
+	}
+}
+
+func modifyResponse() func(*http.Response) error {
+	return func(resp *http.Response) error {
+		resp.Header.Set("WAF", "SamWAF")
+		return nil
+	}
 }
 func main() {
 
@@ -134,34 +161,73 @@ func main() {
 
 	h := &baseHandle{}
 	http.Handle("/", h)
+	//第一步 检测合法性并加入到全局
 	for i := 0; i < len(hosts); i++ {
+		//检测https
+		if hosts[i].Ssl == 1 {
+			//查询ssl证书
+			var sslconfig model.Sslconfig
+			db.Debug().Where("code = ?", hosts[i].Code).Find(&sslconfig)
+			// 第一个域名：example.com
+			cert, err := tls.LoadX509KeyPair(sslconfig.Certfile, sslconfig.Keyfile)
+			if err != nil {
+				log.Fatal("Cannot find %s cert & key file. Error is: %s\n", hosts[i].Host, err)
+				continue
+
+			}
+			log.Println(cert)
+			//all_certificate[hosts[i].Port][hosts[i].Host] = &cert
+			mm, ok := all_certificate[hosts[i].Port] //[hosts[i].Host]
+			if !ok {
+				mm = make(map[string]*tls.Certificate)
+				all_certificate[hosts[i].Port] = mm
+			}
+			all_certificate[hosts[i].Port][hosts[i].Host] = &cert
+		}
+		_, ok := server_online[hosts[i].Port]
+		if ok == false {
+			server_online[hosts[i].Port] = innerbean.ServerRunTime{
+				ServerType: utils.GetServerByHosts(hosts[i]),
+				Port:       hosts[i].Port,
+				Status:     0,
+			}
+		}
+		//赋值到白名单里面
 		hostTarget[hosts[i].Host+":"+strconv.Itoa(hosts[i].Port)] = hosts[i].Remote_host + ":" + strconv.Itoa(hosts[i].Remote_port)
-		go func(host model.Hosts) {
-			fmt.Printf("init " + host.Host)
-			if (host.Ssl) == 1 {
-				//查询ssl证书
-				var sslconfig model.Sslconfig
-				db.Debug().Where("code = ?", host.Code).Find(&sslconfig)
-				server := &http.Server{
-					Addr:    ":" + strconv.Itoa(host.Port),
+
+	}
+	for k, v := range server_online {
+		go func(port int, innruntime innerbean.ServerRunTime) {
+
+			if (innruntime.ServerType) == "https" {
+
+				srv := &http.Server{
+					Addr:    ":" + strconv.Itoa(port),
 					Handler: h,
 					TLSConfig: &tls.Config{
-						MinVersion:               tls.VersionTLS13,
-						PreferServerCipherSuites: true,
+						NameToCertificate: make(map[string]*tls.Certificate, 0),
 					},
 				}
-				err = server.ListenAndServeTLS(sslconfig.Certfile, sslconfig.Keyfile)
+				srv.TLSConfig.NameToCertificate = all_certificate[port]
+				srv.TLSConfig.GetCertificate = func(clientInfo *tls.ClientHelloInfo) (*tls.Certificate, error) {
+					if x509Cert, ok := srv.TLSConfig.NameToCertificate[clientInfo.ServerName]; ok {
+						return x509Cert, nil
+					}
+					return nil, errors.New("config error")
+				}
+
+				err = srv.ListenAndServeTLS("", "")
 
 			} else {
 				server := &http.Server{
-					Addr:    ":" + strconv.Itoa(host.Port),
+					Addr:    ":" + strconv.Itoa(port),
 					Handler: h,
 				}
 				err = server.ListenAndServe()
 			}
 			log.Fatal(err)
 
-		}(hosts[i])
+		}(k, v)
 
 	}
 	var name string

@@ -5,6 +5,7 @@ import (
 	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/utils"
+	"bytes"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
@@ -13,6 +14,7 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -90,22 +92,41 @@ func (h *baseHandle) Error() string {
 }
 func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	host := r.Host
+	// 获取请求报文的内容长度
+	len := r.ContentLength
+
+	var bodyByte []byte
+
+	// 拷贝一份request的Body
+	if r.Body != nil {
+		bodyByte, _ = io.ReadAll(r.Body)
+		// 把刚刚读出来的再写进去，不然后面解析表单数据就解析不到了
+		r.Body = io.NopCloser(bytes.NewBuffer(bodyByte))
+	}
+	log.Println(string(bodyByte))
+
+	cookies, _ := json.Marshal(r.Cookies())
+	log.Println(string(cookies))
+
 	log.Println(r.Header)
 	header, _ := json.Marshal(r.Header)
 	log.Println(r.Proto)
 	// 取出客户IP
 	ip_and_port := strings.Split(r.RemoteAddr, ":")
 	weblogbean := innerbean.WebLog{
-		HOST:        host,
-		URL:         r.RequestURI,
-		REFERER:     r.Referer(),
-		USER_AGENT:  r.UserAgent(),
-		METHOD:      r.Method,
-		HEADER:      string(header),
-		COUNTRY:     GetCountry(ip_and_port[0]),
-		SRC_IP:      ip_and_port[0],
-		SRC_PORT:    ip_and_port[1],
-		CREATE_TIME: time.Now().Format("2006-01-02 15:04:05"),
+		HOST:           host,
+		URL:            r.RequestURI,
+		REFERER:        r.Referer(),
+		USER_AGENT:     r.UserAgent(),
+		METHOD:         r.Method,
+		HEADER:         string(header),
+		COUNTRY:        GetCountry(ip_and_port[0]),
+		SRC_IP:         ip_and_port[0],
+		SRC_PORT:       ip_and_port[1],
+		CREATE_TIME:    time.Now().Format("2006-01-02 15:04:05"),
+		CONTENT_LENGTH: len,
+		COOKIES:        string(cookies),
+		BODY:           string(bodyByte),
 	}
 	esHelper.BatchInsert(weblogbean)
 
@@ -143,7 +164,7 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 func errorHandler() func(http.ResponseWriter, *http.Request, error) {
 	return func(w http.ResponseWriter, req *http.Request, err error) {
-		fmt.Printf("Got error while modifying response: %v \n", err)
+		fmt.Printf("Got error  response: %v \n", err)
 		return
 	}
 }

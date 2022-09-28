@@ -6,6 +6,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/utils"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/lionsoul2014/ip2region/binding/golang/xdb"
@@ -36,11 +37,12 @@ var (
 	//所有证书情况 对应端口 可能多个端口都是https 443，或者其他非标准端口也要实现https证书
 	all_certificate = map[int]map[string]*tls.Certificate{}
 	//all_certificate = map[int] map[string] string{}
+	esHelper utils.EsHelper
 )
 
 type baseHandle struct{}
 
-func CheckIP(ip string) bool {
+func GetCountry(ip string) string {
 	// 2、用全局的 cBuff 创建完全基于内存的查询对象。
 	searcher, err := xdb.NewWithBuffer(ipcBuff)
 	if err != nil {
@@ -57,15 +59,26 @@ func CheckIP(ip string) bool {
 	region, err := searcher.SearchByStr(ip)
 	if err != nil {
 		fmt.Printf("failed to SearchIP(%s): %s\n", ip, err)
-		return true
+		return "无"
 	}
 
 	fmt.Printf("{region: %s, took: %s}\n", region, time.Since(tStart))
 	regions := strings.Split(region, "|")
 	println(regions[0])
-	if regions[0] == "中国" {
+	return regions[0]
+	/*if regions[0] == "中国" {
 		return true
 	} else if regions[0] == "0" {
+		return true
+	} else {
+		return false
+	}*/
+}
+func CheckIP(ip string) bool {
+	country := GetCountry(ip)
+	if country == "中国" {
+		return true
+	} else if country == "0" {
 		return true
 	} else {
 		return false
@@ -77,12 +90,29 @@ func (h *baseHandle) Error() string {
 }
 func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	host := r.Host
+	log.Println(r.Header)
+	header, _ := json.Marshal(r.Header)
+	log.Println(r.Proto)
 	// 取出客户IP
 	ip_and_port := strings.Split(r.RemoteAddr, ":")
-	println(ip_and_port[0])
-	if !CheckIP(ip_and_port[0]) {
+	weblogbean := innerbean.WebLog{
+		HOST:        host,
+		URL:         r.RequestURI,
+		REFERER:     r.Referer(),
+		USER_AGENT:  r.UserAgent(),
+		METHOD:      r.Method,
+		HEADER:      string(header),
+		COUNTRY:     GetCountry(ip_and_port[0]),
+		SRC_IP:      ip_and_port[0],
+		SRC_PORT:    ip_and_port[1],
+		CREATE_TIME: time.Now().Format("2006-01-02 15:04:05"),
+	}
+	esHelper.BatchInsert(weblogbean)
+
+	if !CheckIP(weblogbean.SRC_IP) {
 		log.Println("no china")
 		w.Write([]byte(" no china " + host))
+
 		return
 	}
 	// 取出代理ip
@@ -125,6 +155,8 @@ func modifyResponse() func(*http.Response) error {
 	}
 }
 func main() {
+
+	esHelper.Init()
 
 	fmt.Printf("current_version %s \r\n", global.Version_name)
 

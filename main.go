@@ -39,7 +39,8 @@ var (
 	//所有证书情况 对应端口 可能多个端口都是https 443，或者其他非标准端口也要实现https证书
 	all_certificate = map[int]map[string]*tls.Certificate{}
 	//all_certificate = map[int] map[string] string{}
-	esHelper utils.EsHelper
+	esHelper   utils.EsHelper
+	ruleHelper utils.RuleHelper
 )
 
 type baseHandle struct{}
@@ -176,6 +177,30 @@ func modifyResponse() func(*http.Response) error {
 	}
 }
 func main() {
+
+	ruleHelper.LoadRule("")
+	rule := &innerbean.WAF_REQUEST_FULL{
+		SRC_INFO: innerbean.WebLog{
+			HOST:           "cc9",
+			URL:            "",
+			REFERER:        "",
+			USER_AGENT:     "",
+			METHOD:         "",
+			HEADER:         "",
+			SRC_IP:         "",
+			SRC_PORT:       "",
+			COUNTRY:        "",
+			CREATE_TIME:    "",
+			CONTENT_LENGTH: 0,
+			COOKIES:        "",
+			BODY:           "",
+		},
+		ExecResult: 0,
+	}
+	ruleerr := ruleHelper.Exec("fact", rule)
+	if ruleerr != nil {
+		log.Fatal(ruleerr)
+	}
 
 	esHelper.Init()
 

@@ -22,21 +22,21 @@ func (rulehelper *RuleHelper) LoadRule(drls string) {
 	ruleBuilder := builder.NewRuleBuilder(knowledgeLibrary)
 
 	drls = `
-rule CheckValues "Check the default values" salience 10 {
+rule CheckRegionNotChina "CheckRegionNotChina" salience 10 {
     when 
-        fact.SRC_INFO.CONTENT_LENGTH == 0 && fact.SRC_INFO.HOST == "cc"
+        fact.SRC_INFO.CONTENT_LENGTH == 0 && fact.SRC_INFO.HOST == "mybaidu1.com:8081"
     then
         fact.ExecResult = 1;
-		Retract("CheckValues");
+		Retract("CheckRegionNotChina");
 }
 `
 	byteArr := pkg.NewBytesResource([]byte(drls))
-	err := ruleBuilder.BuildRuleFromResource("Tutorial", "0.0.1", byteArr)
+	err := ruleBuilder.BuildRuleFromResource("Region", "0.0.1", byteArr)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	rulehelper.knowledgeBase = knowledgeLibrary.NewKnowledgeBaseInstance("Tutorial", "0.0.1")
+	rulehelper.knowledgeBase = knowledgeLibrary.NewKnowledgeBaseInstance("Region", "0.0.1")
 
 	rulehelper.engine = engine.NewGruleEngine()
 }

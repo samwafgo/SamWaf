@@ -25,22 +25,30 @@ import (
 	"time"
 )
 
+// 主机安全配置
+type HostSafe struct {
+	RevProxy   *httputil.ReverseProxy
+	Rule       utils.RuleHelper
+	TargetHost string
+}
+
 var (
 	// 建立域名和目标map
-	hostTarget = map[string]string{
+	/*hostTarget = map[string]string{
 		//"mybaidu1.com:8082": "http://dhjemu.binaite.net",
 		//"mybing2.com:8082":  "http://djdemu.binaite.net",
-	}
+	}*/
 	// 用于缓存 httputil.ReverseProxy
-	hostProxy     = map[string]*httputil.ReverseProxy{}
+	/*hostProxy     = map[string]*httputil.ReverseProxy{}*/
+
+	hostTarget    = map[string]*HostSafe{}
 	ipcBuff       = []byte{} //ip数据
 	server_online = map[int]innerbean.ServerRunTime{}
 
 	//所有证书情况 对应端口 可能多个端口都是https 443，或者其他非标准端口也要实现https证书
 	all_certificate = map[int]map[string]*tls.Certificate{}
 	//all_certificate = map[int] map[string] string{}
-	esHelper   utils.EsHelper
-	ruleHelper utils.RuleHelper
+	esHelper utils.EsHelper
 )
 
 type baseHandle struct{}
@@ -130,24 +138,28 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		BODY:           string(bodyByte),
 	}
 	esHelper.BatchInsert(weblogbean)
-
-	if !CheckIP(weblogbean.SRC_IP) {
+	rule := &innerbean.WAF_REQUEST_FULL{
+		SRC_INFO:   weblogbean,
+		ExecResult: 0,
+	}
+	hostTarget[host].Rule.Exec("fact", rule)
+	if rule.ExecResult == 1 {
 		log.Println("no china")
+		w.Header().Set("WAF", "SAMWAF DROP")
 		w.Write([]byte(" no china " + host))
-
 		return
 	}
 	// 取出代理ip
 
 	// 直接从缓存取出
-	if fn, ok := hostProxy[host]; ok {
-		fn.ServeHTTP(w, r)
+	if hostTarget[host].RevProxy != nil {
+		hostTarget[host].RevProxy.ServeHTTP(w, r)
 		return
 	}
 
 	// 检查域名白名单
 	if target, ok := hostTarget[host]; ok {
-		remoteUrl, err := url.Parse(target)
+		remoteUrl, err := url.Parse(target.TargetHost)
 		if err != nil {
 			log.Println("target parse fail:", err)
 			return
@@ -157,7 +169,7 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		proxy.ModifyResponse = modifyResponse()
 		proxy.ErrorHandler = errorHandler()
 
-		hostProxy[host] = proxy // 放入缓存
+		hostTarget[host].RevProxy = proxy // 放入缓存
 		proxy.ServeHTTP(w, r)
 		return
 	}
@@ -178,8 +190,7 @@ func modifyResponse() func(*http.Response) error {
 }
 func main() {
 
-	ruleHelper.LoadRule("")
-	rule := &innerbean.WAF_REQUEST_FULL{
+	/*rule := &innerbean.WAF_REQUEST_FULL{
 		SRC_INFO: innerbean.WebLog{
 			HOST:           "cc9",
 			URL:            "",
@@ -200,7 +211,7 @@ func main() {
 	ruleerr := ruleHelper.Exec("fact", rule)
 	if ruleerr != nil {
 		log.Fatal(ruleerr)
-	}
+	}*/
 
 	esHelper.Init()
 
@@ -270,8 +281,18 @@ func main() {
 				Status:     0,
 			}
 		}
+
+		//加载主机对于的规则
+		ruleHelper := utils.RuleHelper{}
+		ruleHelper.LoadRule("")
+
+		hostsafe := &HostSafe{
+			RevProxy:   nil,
+			Rule:       ruleHelper,
+			TargetHost: hosts[i].Remote_host + ":" + strconv.Itoa(hosts[i].Remote_port),
+		}
 		//赋值到白名单里面
-		hostTarget[hosts[i].Host+":"+strconv.Itoa(hosts[i].Port)] = hosts[i].Remote_host + ":" + strconv.Itoa(hosts[i].Remote_port)
+		hostTarget[hosts[i].Host+":"+strconv.Itoa(hosts[i].Port)] = hostsafe
 
 	}
 	for k, v := range server_online {

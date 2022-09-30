@@ -14,4 +14,11 @@ type WebLog struct {
 	CONTENT_LENGTH int64  `json:"content_length"`
 	COOKIES        string `json:"cookies"`
 	BODY           string `json:"body"`
+	REQ_UUID       string `json:"req_uuid"`
+}
+type WAFLog struct {
+	REQ_UUID    string `json:"req_uuid"`
+	ACTION      string `json:"action"`
+	RULE        string `json:"rule"`
+	CREATE_TIME string `json:"create_time"`
 }

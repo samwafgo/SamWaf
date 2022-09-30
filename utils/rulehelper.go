@@ -2,6 +2,7 @@ package utils
 
 import (
 	"SamWaf/innerbean"
+	"SamWaf/model"
 	"github.com/hyperjumptech/grule-rule-engine/ast"
 	"github.com/hyperjumptech/grule-rule-engine/builder"
 	"github.com/hyperjumptech/grule-rule-engine/engine"
@@ -16,21 +17,21 @@ type RuleHelper struct {
 	dataCtx       ast.IDataContext
 }
 
-func (rulehelper *RuleHelper) LoadRule(drls string) {
+func (rulehelper *RuleHelper) LoadRule(ruleconfig model.Rules) {
 
 	knowledgeLibrary := ast.NewKnowledgeLibrary()
 	ruleBuilder := builder.NewRuleBuilder(knowledgeLibrary)
 
-	drls = `
-rule CheckRegionNotChina "CheckRegionNotChina" salience 10 {
-    when 
-        fact.SRC_INFO.CONTENT_LENGTH == 0 && fact.SRC_INFO.HOST == "mybaidu1.com:8081"
-    then
-        fact.ExecResult = 1;
-		Retract("CheckRegionNotChina");
-}
-`
-	byteArr := pkg.NewBytesResource([]byte(drls))
+	/*drls = `
+	rule CheckRegionNotChina "CheckRegionNotChina" salience 10 {
+	    when
+	        fact.SRC_INFO.CONTENT_LENGTH == 0 && fact.SRC_INFO.HOST == "mybaidu1.com:8081"
+	    then
+	        fact.ExecResult = 1;
+			Retract("CheckRegionNotChina");
+	}
+	`*/
+	byteArr := pkg.NewBytesResource([]byte(ruleconfig.Rulecontent))
 	err := ruleBuilder.BuildRuleFromResource("Region", "0.0.1", byteArr)
 	if err != nil {
 		log.Fatal(err)

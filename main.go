@@ -11,6 +11,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/lionsoul2014/ip2region/binding/golang/xdb"
+	"github.com/satori/go.uuid"
+	"github.com/spf13/viper"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -30,18 +32,15 @@ type HostSafe struct {
 	RevProxy   *httputil.ReverseProxy
 	Rule       utils.RuleHelper
 	TargetHost string
+	RuleData   model.Rules
 }
 
 var (
-	// 建立域名和目标map
-	/*hostTarget = map[string]string{
-		//"mybaidu1.com:8082": "http://dhjemu.binaite.net",
-		//"mybing2.com:8082":  "http://djdemu.binaite.net",
-	}*/
-	// 用于缓存 httputil.ReverseProxy
-	/*hostProxy     = map[string]*httputil.ReverseProxy{}*/
-
-	hostTarget    = map[string]*HostSafe{}
+	user_code string
+	//主机情况
+	hostTarget = map[string]*HostSafe{}
+	//主机和code的关系
+	hostCode      = map[string]string{}
 	ipcBuff       = []byte{} //ip数据
 	server_online = map[int]innerbean.ServerRunTime{}
 
@@ -112,14 +111,8 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// 把刚刚读出来的再写进去，不然后面解析表单数据就解析不到了
 		r.Body = io.NopCloser(bytes.NewBuffer(bodyByte))
 	}
-	log.Println(string(bodyByte))
-
 	cookies, _ := json.Marshal(r.Cookies())
-	log.Println(string(cookies))
-
-	log.Println(r.Header)
 	header, _ := json.Marshal(r.Header)
-	log.Println(r.Proto)
 	// 取出客户IP
 	ip_and_port := strings.Split(r.RemoteAddr, ":")
 	weblogbean := innerbean.WebLog{
@@ -136,14 +129,22 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		CONTENT_LENGTH: len,
 		COOKIES:        string(cookies),
 		BODY:           string(bodyByte),
+		REQ_UUID:       uuid.NewV4().String(),
 	}
-	esHelper.BatchInsert(weblogbean)
+	esHelper.BatchInsert("full_log", weblogbean)
 	rule := &innerbean.WAF_REQUEST_FULL{
 		SRC_INFO:   weblogbean,
 		ExecResult: 0,
 	}
 	hostTarget[host].Rule.Exec("fact", rule)
 	if rule.ExecResult == 1 {
+
+		waflogbean := innerbean.WAFLog{
+			CREATE_TIME: time.Now().Format("2006-01-02 15:04:05"),
+			RULE:        hostTarget[host].RuleData.Rulename,
+			REQ_UUID:    uuid.NewV4().String(),
+		}
+		esHelper.BatchInsertWAF("web_log", waflogbean)
 		log.Println("no china")
 		w.Header().Set("WAF", "SAMWAF DROP")
 		w.Write([]byte(" no china " + host))
@@ -172,8 +173,16 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		hostTarget[host].RevProxy = proxy // 放入缓存
 		proxy.ServeHTTP(w, r)
 		return
+	} else {
+		waflogbean := innerbean.WAFLog{
+			CREATE_TIME: time.Now().Format("2006-01-02 15:04:05"),
+			RULE:        hostTarget[host].RuleData.Rulename,
+			ACTION:      "FORBIDDEN",
+			REQ_UUID:    uuid.NewV4().String(),
+		}
+		esHelper.BatchInsertWAF("web_log", waflogbean)
+		w.Write([]byte("403: Host forbidden " + host))
 	}
-	w.Write([]byte("403: Host forbidden " + host))
 }
 func errorHandler() func(http.ResponseWriter, *http.Request, error) {
 	return func(w http.ResponseWriter, req *http.Request, err error) {
@@ -189,7 +198,21 @@ func modifyResponse() func(*http.Response) error {
 	}
 }
 func main() {
+	config := viper.New()
+	config.AddConfigPath("./conf/") // 文件所在目录
+	config.SetConfigName("config")  // 文件名
+	config.SetConfigType("yml")     // 文件类型
 
+	if err := config.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			fmt.Println("找不到配置文件..")
+		} else {
+			fmt.Println("配置文件出错..")
+		}
+	}
+
+	user_code = config.GetString("user_code") // 读取配置
+	fmt.Println(" load ini: ", user_code)
 	/*rule := &innerbean.WAF_REQUEST_FULL{
 		SRC_INFO: innerbean.WebLog{
 			HOST:           "cc9",
@@ -213,10 +236,6 @@ func main() {
 		log.Fatal(ruleerr)
 	}*/
 
-	esHelper.Init()
-
-	fmt.Printf("current_version %s \r\n", global.Version_name)
-
 	//数据库连接
 	newLogger := logger.New(
 		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer（日志输出的目标，前缀和日志包含的内容——译者注）
@@ -235,9 +254,16 @@ func main() {
 		fmt.Printf("error `%s`: %s\n", "db initial error", err)
 		return
 	}
+	var base_config model.Base_config
+
+	db.Debug().Where("name = ?", "esurl").Find(&base_config)
+	esHelper.Init(base_config.Value)
+
+	fmt.Printf("current_version %s \r\n", global.Version_name)
+
 	var hosts []model.Hosts
 
-	db.Find(&hosts)
+	db.Where("user_code = ?", user_code).Find(&hosts)
 
 	var dbPath = "data/ip2region.xdb"
 	// 1、从 dbPath 加载整个 xdb 到内存
@@ -256,7 +282,7 @@ func main() {
 		if hosts[i].Ssl == 1 {
 			//查询ssl证书
 			var sslconfig model.Sslconfig
-			db.Debug().Where("code = ?", hosts[i].Code).Find(&sslconfig)
+			db.Debug().Where("code = ? and user_code=? ", hosts[i].Code, user_code).Find(&sslconfig)
 			// 第一个域名：example.com
 			cert, err := tls.LoadX509KeyPair(sslconfig.Certfile, sslconfig.Keyfile)
 			if err != nil {
@@ -284,15 +310,22 @@ func main() {
 
 		//加载主机对于的规则
 		ruleHelper := utils.RuleHelper{}
-		ruleHelper.LoadRule("")
+
+		//查询规则
+		var ruleconfig model.Rules
+		db.Debug().Where("code = ? and user_code=? ", hosts[i].Code, user_code).Find(&ruleconfig)
+		ruleHelper.LoadRule(ruleconfig)
 
 		hostsafe := &HostSafe{
 			RevProxy:   nil,
 			Rule:       ruleHelper,
 			TargetHost: hosts[i].Remote_host + ":" + strconv.Itoa(hosts[i].Remote_port),
+			RuleData:   ruleconfig,
 		}
 		//赋值到白名单里面
 		hostTarget[hosts[i].Host+":"+strconv.Itoa(hosts[i].Port)] = hostsafe
+		//赋值到对照表里面
+		hostCode[hosts[i].Code] = hosts[i].Host + ":" + strconv.Itoa(hosts[i].Port)
 
 	}
 	for k, v := range server_online {
@@ -329,7 +362,36 @@ func main() {
 		}(k, v)
 
 	}
-	var name string
+	hostChan := make(chan model.Rules, 10)
 
-	fmt.Scanln(&name) //此处&变量名是地址
+	//定时取规则并更新
+	go func() {
+
+		for {
+			for code, host := range hostCode {
+				//hostTarget[host].Rule
+				var ruleconfig model.Rules
+				db.Debug().Where("code = ? and user_code=? ", code, user_code).Find(&ruleconfig)
+				if ruleconfig.Ruleversion > hostTarget[host].RuleData.Ruleversion {
+					//说明该code有更新
+					hostChan <- ruleconfig
+				}
+			}
+			time.Sleep(10 * time.Second) // 10s重新读取一次
+		}
+
+	}()
+
+	for {
+		select {
+		case remoteConfig := <-hostChan:
+			hostTarget[hostCode[remoteConfig.Code]].RuleData = remoteConfig
+			hostTarget[hostCode[remoteConfig.Code]].Rule.LoadRule(remoteConfig)
+			log.Println(remoteConfig)
+			break
+		default:
+			break
+		}
+	}
+
 }

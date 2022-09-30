@@ -15,10 +15,10 @@ type EsHelper struct {
 	es *elasticsearch.Client
 }
 
-func (eshelper *EsHelper) Init() {
+func (eshelper *EsHelper) Init(url string) {
 	cfg := elasticsearch.Config{
 		Addresses: []string{
-			"http://82.156.235.106:9200",
+			url,
 		},
 		// ...
 	}
@@ -30,7 +30,7 @@ func (eshelper *EsHelper) Init() {
 	log.Println(elasticsearch.Version)
 	log.Println(es.Info())
 }
-func (eshelper *EsHelper) BatchInsert(weblogs innerbean.WebLog) {
+func (eshelper *EsHelper) BatchInsert(index string, weblogs innerbean.WebLog) {
 
 	// Build the request body.
 	data, err := json.Marshal(weblogs)
@@ -38,7 +38,29 @@ func (eshelper *EsHelper) BatchInsert(weblogs innerbean.WebLog) {
 		log.Fatalf("Error marshaling document: %s", err)
 	}
 	req := esapi.IndexRequest{
-		Index: "test",
+		Index: index,
+		//DocumentID: strconv.Itoa(1 + 1),
+		Body: bytes.NewReader(data),
+		//Refresh:    "true",
+	}
+
+	// Perform the request with the client.
+	res, err := req.Do(context.Background(), eshelper.es)
+	if err != nil {
+		log.Fatalf("Error getting response: %s", err)
+	}
+	log.Print(res)
+}
+
+func (eshelper *EsHelper) BatchInsertWAF(index string, weblogs innerbean.WAFLog) {
+
+	// Build the request body.
+	data, err := json.Marshal(weblogs)
+	if err != nil {
+		log.Fatalf("Error marshaling document: %s", err)
+	}
+	req := esapi.IndexRequest{
+		Index: index,
 		//DocumentID: strconv.Itoa(1 + 1),
 		Body: bytes.NewReader(data),
 		//Refresh:    "true",

@@ -20,6 +20,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httputil"
+	_ "net/http/pprof"
 	"net/url"
 	"os"
 	"strconv"
@@ -130,6 +131,7 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		COOKIES:        string(cookies),
 		BODY:           string(bodyByte),
 		REQ_UUID:       uuid.NewV4().String(),
+		USER_CODE:      user_code,
 	}
 	esHelper.BatchInsert("full_log", weblogbean)
 	rule := &innerbean.WAF_REQUEST_FULL{
@@ -179,6 +181,7 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			RULE:        hostTarget[host].RuleData.Rulename,
 			ACTION:      "FORBIDDEN",
 			REQ_UUID:    uuid.NewV4().String(),
+			USER_CODE:   user_code,
 		}
 		esHelper.BatchInsertWAF("web_log", waflogbean)
 		w.Write([]byte("403: Host forbidden " + host))
@@ -198,6 +201,18 @@ func modifyResponse() func(*http.Response) error {
 	}
 }
 func main() {
+
+	/*runtime.GOMAXPROCS(1) // 限制 CPU 使用数，避免过载
+	runtime.SetMutexProfileFraction(1) // 开启对锁调用的跟踪
+	runtime.SetBlockProfileRate(1) // 开启对阻塞操作的跟踪
+	go func() {
+
+		err2:=http.ListenAndServe("0.0.0.0:16060", nil)
+		time.Sleep(10000)
+		log.Fatal(err2)
+	}()
+	*/
+
 	config := viper.New()
 	config.AddConfigPath("./conf/") // 文件所在目录
 	config.SetConfigName("config")  // 文件名
@@ -213,28 +228,6 @@ func main() {
 
 	user_code = config.GetString("user_code") // 读取配置
 	fmt.Println(" load ini: ", user_code)
-	/*rule := &innerbean.WAF_REQUEST_FULL{
-		SRC_INFO: innerbean.WebLog{
-			HOST:           "cc9",
-			URL:            "",
-			REFERER:        "",
-			USER_AGENT:     "",
-			METHOD:         "",
-			HEADER:         "",
-			SRC_IP:         "",
-			SRC_PORT:       "",
-			COUNTRY:        "",
-			CREATE_TIME:    "",
-			CONTENT_LENGTH: 0,
-			COOKIES:        "",
-			BODY:           "",
-		},
-		ExecResult: 0,
-	}
-	ruleerr := ruleHelper.Exec("fact", rule)
-	if ruleerr != nil {
-		log.Fatal(ruleerr)
-	}*/
 
 	//数据库连接
 	newLogger := logger.New(
@@ -389,9 +382,6 @@ func main() {
 			hostTarget[hostCode[remoteConfig.Code]].Rule.LoadRule(remoteConfig)
 			log.Println(remoteConfig)
 			break
-		default:
-			break
 		}
 	}
-
 }

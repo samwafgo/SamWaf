@@ -1,0 +1,6 @@
+go build -ldflags="-w -s"
+
+
+
+调试：
+1.go tool pprof http://127.0.0.1:16060/debug/pprof/heap 然后top可以看出一些内容

@@ -15,10 +15,12 @@ type WebLog struct {
 	COOKIES        string `json:"cookies"`
 	BODY           string `json:"body"`
 	REQ_UUID       string `json:"req_uuid"`
+	USER_CODE      string `json:"user_code"`
 }
 type WAFLog struct {
 	REQ_UUID    string `json:"req_uuid"`
 	ACTION      string `json:"action"`
 	RULE        string `json:"rule"`
 	CREATE_TIME string `json:"create_time"`
+	USER_CODE   string `json:"user_code"`
 }

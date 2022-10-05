@@ -49,6 +49,10 @@ var (
 	all_certificate = map[int]map[string]*tls.Certificate{}
 	//all_certificate = map[int] map[string] string{}
 	esHelper utils.EsHelper
+
+	hostRuleChan = make(chan model.Rules, 10) //规则链
+	engineChan   = make(chan int, 10)         //引擎链
+
 )
 
 type baseHandle struct{}
@@ -101,9 +105,16 @@ func (h *baseHandle) Error() string {
 }
 func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	host := r.Host
+	defer func() {
+		e := recover()
+		if e != nil { // 捕获该协程的panic 111111
+			fmt.Println("11recover ", e)
+		}
+	}()
 	// 获取请求报文的内容长度
 	len := r.ContentLength
 
+	//server_online[8081].Svr.Close()
 	var bodyByte []byte
 
 	// 拷贝一份request的Body
@@ -200,19 +211,7 @@ func modifyResponse() func(*http.Response) error {
 		return nil
 	}
 }
-func main() {
-
-	/*runtime.GOMAXPROCS(1) // 限制 CPU 使用数，避免过载
-	runtime.SetMutexProfileFraction(1) // 开启对锁调用的跟踪
-	runtime.SetBlockProfileRate(1) // 开启对阻塞操作的跟踪
-	go func() {
-
-		err2:=http.ListenAndServe("0.0.0.0:16060", nil)
-		time.Sleep(10000)
-		log.Fatal(err2)
-	}()
-	*/
-
+func Start_WAF() {
 	config := viper.New()
 	config.AddConfigPath("./conf/") // 文件所在目录
 	config.SetConfigName("config")  // 文件名
@@ -258,6 +257,7 @@ func main() {
 
 	db.Where("user_code = ?", user_code).Find(&hosts)
 
+	//初始化步骤[加载ip数据库]
 	var dbPath = "data/ip2region.xdb"
 	// 1、从 dbPath 加载整个 xdb 到内存
 	cBuff, err := xdb.LoadContentFromFile(dbPath)
@@ -326,36 +326,60 @@ func main() {
 
 			if (innruntime.ServerType) == "https" {
 
-				srv := &http.Server{
+				svr := &http.Server{
 					Addr:    ":" + strconv.Itoa(port),
 					Handler: h,
 					TLSConfig: &tls.Config{
 						NameToCertificate: make(map[string]*tls.Certificate, 0),
 					},
 				}
-				srv.TLSConfig.NameToCertificate = all_certificate[port]
-				srv.TLSConfig.GetCertificate = func(clientInfo *tls.ClientHelloInfo) (*tls.Certificate, error) {
-					if x509Cert, ok := srv.TLSConfig.NameToCertificate[clientInfo.ServerName]; ok {
+				serclone := server_online[k]
+				serclone.Svr = svr
+				server_online[k] = serclone
+
+				svr.TLSConfig.NameToCertificate = all_certificate[port]
+				svr.TLSConfig.GetCertificate = func(clientInfo *tls.ClientHelloInfo) (*tls.Certificate, error) {
+					if x509Cert, ok := svr.TLSConfig.NameToCertificate[clientInfo.ServerName]; ok {
 						return x509Cert, nil
 					}
 					return nil, errors.New("config error")
 				}
 
-				err = srv.ListenAndServeTLS("", "")
+				err = svr.ListenAndServeTLS("", "")
+				if err != nil {
+					log.Fatal(err)
+					return
+				}
+				println("server final")
 
 			} else {
-				server := &http.Server{
+				defer func() {
+					e := recover()
+					if e != nil { // 捕获该协程的panic 111111
+						fmt.Println("recover ", e)
+					}
+				}()
+				svr := &http.Server{
 					Addr:    ":" + strconv.Itoa(port),
 					Handler: h,
 				}
-				err = server.ListenAndServe()
+				serclone := server_online[k]
+				serclone.Svr = svr
+				server_online[k] = serclone
+				println("running2")
+				err = svr.ListenAndServe()
+				if err == http.ErrServerClosed {
+					log.Printf("[HTTPServer] http server has been close, cause:[%v]", err)
+				} else {
+					log.Fatalf("[HTTPServer] http server start fail, cause:[%v]", err)
+				}
+				println("server final")
+
 			}
-			log.Fatal(err)
 
 		}(k, v)
 
 	}
-	hostChan := make(chan model.Rules, 10)
 
 	//定时取规则并更新
 	go func() {
@@ -367,17 +391,30 @@ func main() {
 				db.Debug().Where("code = ? and user_code=? ", code, user_code).Find(&ruleconfig)
 				if ruleconfig.Ruleversion > hostTarget[host].RuleData.Ruleversion {
 					//说明该code有更新
-					hostChan <- ruleconfig
+					hostRuleChan <- ruleconfig
 				}
 			}
 			time.Sleep(10 * time.Second) // 10s重新读取一次
 		}
 
 	}()
+}
+func main() {
 
+	/*runtime.GOMAXPROCS(1) // 限制 CPU 使用数，避免过载
+	runtime.SetMutexProfileFraction(1) // 开启对锁调用的跟踪
+	runtime.SetBlockProfileRate(1) // 开启对阻塞操作的跟踪
+	go func() {
+
+		err2:=http.ListenAndServe("0.0.0.0:16060", nil)
+		time.Sleep(10000)
+		log.Fatal(err2)
+	}()
+	*/
+	Start_WAF()
 	for {
 		select {
-		case remoteConfig := <-hostChan:
+		case remoteConfig := <-hostRuleChan:
 			hostTarget[hostCode[remoteConfig.Code]].RuleData = remoteConfig
 			hostTarget[hostCode[remoteConfig.Code]].Rule.LoadRule(remoteConfig)
 			log.Println(remoteConfig)

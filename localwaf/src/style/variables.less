@@ -1,0 +1,66 @@
+/** 公共前缀 */
+@starter-prefix: tdesign-starter;
+
+// Spacer
+@spacer: 8px;
+@spacer-s: @spacer * 0.5; // 间距-4
+@spacer-l: @spacer * 1.5; // 间距-12
+@spacer-1: @spacer; // 间距-8
+@spacer-2: @spacer * 2; // 间距-16
+@spacer-3: @spacer * 3; // 间距-24
+@spacer-4: @spacer * 4; // 间距-32
+@spacer-5: @spacer * 5; // 间距-大-40
+@spacer-6: @spacer * 6; // 间距-大-48
+@spacer-7: @spacer * 7; // 间距-大-48
+@spacer-8: @spacer * 8; // 间距-大-48
+@spacer-9: @spacer * 9; // 间距-大-48
+@spacer-10: @spacer * 10; // 间距-大-80
+
+// Font
+@font-size: 10px;
+@font-size-s: @font-size * 1.2; // 字号-五级字号
+@font-size-base: @font-size * 1.4; // 字号-四级字号
+@font-size-l: @font-size * 1.6; // 字号-三级字号
+@font-size-xl: @font-size * 2; // 字号-二级字号
+@font-size-xxl: @font-size * 3.6; // 字号-一级字号
+
+// Line Height
+@text-line-height: 1.5; // 行高-常规
+@text-line-height-s: 20px; // 行高-对应五级文字
+@text-line-height-base: 22px; // 行高-对应四级文字
+@text-line-height-l: 24px; // 行高-对应三级文字
+@text-line-height-xl: 28px; // 行高-对应二级文字
+@text-line-height-xxl: 44px; //行高-对应一级文字
+
+@font-family: PingFang SC, Microsoft YaHei, Arial Regular; // 字体-磅数-常规
+@font-family-medium: PingFang SC, Microsoft YaHei, Arial Medium; // 字体-磅数-粗体
+
+// Border Radius
+@border-radius: 3px; // 圆角-全局
+@border-radius-50: 50%; // 圆角-全圆角
+
+// 滚动条颜色
+@scrollbar-color: var(--td-scrollbar-color);
+
+// 响应式断点
+@screen-sm: 768px;
+@screen-md: 992px;
+@screen-lg: 1200px;
+@screen-xl: 1400px;
+
+@screen-sm-min: @screen-sm;
+@screen-md-min: @screen-md;
+@screen-lg-min: @screen-lg;
+@screen-xl-min: @screen-xl;
+
+@screen-sm-max: (@screen-md-min - 1px);
+@screen-md-max: (@screen-lg-min - 1px);
+@screen-lg-max: (@screen-xl-min - 1px);
+
+// 动画
+@anim-time-fn-easing: cubic-bezier(0.38, 0, 0.24, 1);
+@anim-time-fn-ease-out: cubic-bezier(0, 0, 0.15, 1);
+@anim-time-fn-ease-in: cubic-bezier(0.82, 0, 1, 0.9);
+@anim-duration-base: 0.2s;
+@anim-duration-moderate: 0.24s;
+@anim-duration-slow: 0.28s;

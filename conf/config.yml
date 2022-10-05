@@ -1,1 +1,2 @@
 user_code: gps_server
+local_port: 26666

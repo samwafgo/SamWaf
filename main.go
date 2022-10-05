@@ -144,6 +144,7 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		REQ_UUID:       uuid.NewV4().String(),
 		USER_CODE:      user_code,
 	}
+	global.GWAF_LOCAL_DB.Create(weblogbean)
 	esHelper.BatchInsert("full_log", weblogbean)
 	rule := &innerbean.WAF_REQUEST_FULL{
 		SRC_INFO:   weblogbean,
@@ -225,7 +226,8 @@ func Start_WAF() {
 		}
 	}
 
-	user_code = config.GetString("user_code") // 读取配置
+	user_code = config.GetString("user_code")                   // 读取配置
+	global.GWAF_LOCAL_SERVER_PORT = config.GetInt("local_port") //读取本地端口
 	fmt.Println(" load ini: ", user_code)
 
 	//数据库连接
@@ -239,6 +241,9 @@ func Start_WAF() {
 
 		},
 	)
+
+	//初始化本地数据库
+	InitDb()
 
 	dsn := "samwaf:v&GP5e0BRpkm^RA@tcp(bj-cynosdbmysql-grp-37amo1rw.sql.tencentcdb.com:26762)/samwaf?charset=utf8mb4&parseTime=True"
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{Logger: newLogger})
@@ -412,6 +417,9 @@ func main() {
 	}()
 	*/
 	Start_WAF()
+	go func() {
+		StartLocalServer()
+	}()
 	for {
 		select {
 		case remoteConfig := <-hostRuleChan:

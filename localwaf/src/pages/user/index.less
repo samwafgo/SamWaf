@@ -1,0 +1,148 @@
+@import '@/style/variables';
+
+/deep/ .t-card__title {
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.user-left-greeting {
+  padding: 28px 32px;
+  line-height: 28px;
+  font-size: 20px;
+  background: var(--td-bg-color-container);
+  color: var(--td-text-color-primary);
+  text-align: left;
+  border-radius: @border-radius;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  .regular {
+    margin-right: 15px;
+    font-size: 14px;
+  }
+
+  .logo {
+    width: 180px;
+  }
+}
+
+.user-info-list {
+  margin-top: 16px;
+
+  .content {
+    width: 90%;
+  }
+
+  .contract {
+    width: 340px;
+    height: 88px;
+    border-radius: @border-radius;
+    margin: 8px 0;
+
+    &-title {
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      line-height: 24px;
+      margin: 20px 0 6px;
+      font-size: 14px;
+      color: var(--td-text-color-placeholder);
+    }
+
+    &-detail {
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      line-height: 40px;
+      font-size: 14px;
+      color: var(--td-text-color-secondary);
+    }
+  }
+
+  .contract:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.user-intro {
+  padding: 32px 24px;
+  background: var(--td-brand-color);
+  border-radius: @border-radius;
+  color: var(--td-text-color-primary);
+
+  .name {
+    line-height: 37px;
+    font-size: 20px;
+    margin-top: 36px;
+    color: #fff;
+  }
+
+  .position {
+    line-height: 24px;
+    font-size: 14px;
+    margin-top: 8px;
+    color: #fff;
+  }
+
+  .user-info {
+    line-height: 24px;
+    font-size: 14px;
+    color: var(--td-text-color-primary);
+
+    .hiredate,
+    .del,
+    .mail {
+      display: flex;
+    }
+
+    .t-icon {
+      height: 24px;
+      margin-right: 8px;
+    }
+
+    .del {
+      margin: 16px 0;
+    }
+  }
+}
+
+.product-container {
+  margin-top: 16px;
+  border-radius: @border-radius;
+
+  .content {
+    width: 100%;
+    margin: 24px 0 12px;
+  }
+
+  .logo {
+    width: 48px;
+  }
+}
+
+.content-container {
+  margin-top: 16px;
+  background: var(--td-bg-color-container);
+  border-radius: @border-radius;
+}
+
+.user-team {
+  margin-top: 16px;
+
+  .t-list-item {
+    padding: 15px 0;
+
+    .t-list-item__meta-avatar {
+      height: 50px;
+      width: 50px;
+      margin: 0 24px 0 0;
+    }
+
+    .t-list-item__meta-description {
+      display: inline-block;
+      color: rgb(0 0 0 / 40%);
+      font-size: 14px;
+    }
+  }
+}

@@ -1,0 +1,57 @@
+@import '@/style/variables.less';
+
+.form-basic-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--td-bg-color-container);
+  padding: 0 32px 134px;
+
+  @media (max-width: @screen-sm-max) {
+    padding: 0 32px 67px;
+
+    .form-basic-container-title {
+      margin: 32px 0 32px;
+    }
+  }
+
+  .form-basic-item {
+    width: 676px;
+
+    .form-basic-container-title {
+      font-size: 20px;
+      line-height: 24px;
+      color: var(--td-text-color-primary);
+      margin: 64px 0 32px;
+    }
+  }
+}
+
+.form-submit-container {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 30px;
+  padding-bottom: 28px;
+  background-color: var(--td-bg-color-component);
+  border-bottom-left-radius: 3px;
+  border-bottom-right-radius: 3px;
+
+  .form-submit-sub {
+    width: 676px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    .form-submit-left {
+      .form-submit-upload-span {
+        font-size: 14px;
+        line-height: 22px;
+        color: var(--td-text-color-placeholder);
+        padding-top: 8px;
+        display: inline-block;
+      }
+    }
+  }
+}

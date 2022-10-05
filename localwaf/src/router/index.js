@@ -3,9 +3,10 @@ import VueRouter from 'vue-router';
 import baseRouters from './modules/base';
 import componentsRouters from './modules/components';
 import othersRouters from './modules/others';
+import waflogRouters from './modules/waflog';
 
 // 存放动态路由
-export const asyncRouterList = [...baseRouters, ...componentsRouters, ...othersRouters];
+export const asyncRouterList = [...baseRouters, ...componentsRouters, ...othersRouters,...waflogRouters];
 
 // 存放固定的路由
 const defaultRouterList = [

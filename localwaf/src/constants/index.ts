@@ -44,3 +44,10 @@ export const NOTIFICATION_TYPES = {
   middle: 'warning',
   high: 'danger',
 };
+
+// 攻击类型TAG类型
+export const ATTACK_TYPES = {
+  CC: 0,
+  CMD: 1,
+  WEBUPLOAD: 2,
+};

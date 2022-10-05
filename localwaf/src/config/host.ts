@@ -1,7 +1,7 @@
 export default {
   development: {
     // 开发环境接口请求
-    API: '',
+    API: 'http://127.0.0.1:26666/samwaf',
     // 开发环境 cdn 路径
     CDN: '',
   },

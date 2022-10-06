@@ -1,7 +1,7 @@
 <template>
   <t-row :gutter="[16, 16]">
     <t-col :xs="12" :xl="9">
-      <t-card title="统计数据" subtitle="(万元)" class="dashboard-chart-card">
+      <t-card title="月度攻击情况" subtitle="(次)" class="dashboard-chart-card">
         <template #actions>
           <div class="dashboard-chart-title-container">
             <t-date-range-picker

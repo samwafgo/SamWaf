@@ -147,9 +147,9 @@ export default Vue.extend({
       rowClassName: (rowKey: string) => `${rowKey}-class`,
       // 与pagination对齐
       pagination: {
-        defaultPageSize: 20,
         total: 0,
-        defaultCurrent: 1,
+        current: 1,
+        pageSize:10
       },
       searchValue: '',
       confirmVisible: false,
@@ -169,43 +169,52 @@ export default Vue.extend({
     },
   },
   mounted() {
-    let that = this
-    this.$request
-      .get('/waflog/attack/list', {
-        params: {
-           pageSize: that.pagination.defaultPageSize,
-           pageIndex: that.pagination.defaultCurrent,
-        }
-      })
-      .then((res) => {
-        let resdata = res.data
-        console.log(resdata)
-        if (resdata.code === 200) {
-
-          //const { list = [] } = resdata.data.list;
-
-          this.data = resdata.data.list;
-          this.pagination = {
-            ...this.pagination,
-            total: resdata.data.total,
-          };
-        }
-      })
-      .catch((e: Error) => {
-        console.log(e);
-      })
-      .finally(() => {
-        this.dataLoading = false;
-      });
-    this.dataLoading = true;
+    this.getList("")
   },
 
   methods: {
+    getList(keyword){
+      let that = this
+      this.$request
+        .get('/waflog/attack/list', {
+          params: {
+             pageSize: that.pagination.pageSize,
+             pageIndex: that.pagination.current,
+          }
+        })
+        .then((res) => {
+          let resdata = res.data
+          console.log(resdata)
+          if (resdata.code === 200) {
+
+            //const { list = [] } = resdata.data.list;
+
+            this.data = resdata.data.list;
+            this.pagination = {
+              ...this.pagination,
+              total: resdata.data.total,
+            };
+          }
+        })
+        .catch((e: Error) => {
+          console.log(e);
+        })
+        .finally(() => {
+          this.dataLoading = false;
+        });
+      this.dataLoading = true;
+    },
     getContainer() {
       return document.querySelector('.tdesign-starter-layout');
     },
     rehandlePageChange(curr, pageInfo) {
       console.log('分页变化', curr, pageInfo);
+      this.pagination.current = curr.current
+      if(this.pagination.pageSize != curr.pageSize){
+          this.pagination.current = 1
+          this.pagination.pageSize = curr.pageSize
+      }
+      this.getList("")
     },
     rehandleSelectChange(selectedRowKeys: number[]) {
       this.selectedRowKeys = selectedRowKeys;

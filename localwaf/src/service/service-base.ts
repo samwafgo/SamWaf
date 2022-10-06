@@ -17,25 +17,25 @@ interface TendItem {
 
 export const PANE_LIST: Array<DashboardPanel> = [
   {
-    title: '总收入',
-    number: '¥ 28,425.00',
+    title: '今日攻击数',
+    number: '11100334',
     upTrend: '20.5%',
     leftType: 'echarts-line',
   },
   {
-    title: '总退款',
-    number: '¥ 768.00',
+    title: '今天总访问量',
+    number: '1111768',
     downTrend: '20.5%',
     leftType: 'echarts-bar',
   },
   {
-    title: '活跃用户（个）',
+    title: '活跃IP（个）',
     number: '1126',
     downTrend: '20.5%',
     leftType: 'icon-usergroup',
   },
   {
-    title: '订单（个）',
+    title: '分布地区（个）',
     number: 527,
     downTrend: '20.5%',
     leftType: 'icon-file-paste',

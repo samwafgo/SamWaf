@@ -63,6 +63,23 @@ func StartLocalServer() {
 		}
 
 	})
+
+	var waf_attack_detail_req request.WafAttackLogDetailReq
+	r.GET("/samwaf/waflog/attack/detail", func(c *gin.Context) {
+		err := c.ShouldBind(&waf_attack_detail_req)
+		if err == nil {
+
+			var weblog innerbean.WebLog
+			global.GWAF_LOCAL_DB.Debug().Where("REQ_UUID=?", waf_attack_detail_req.REQ_UUID).Find(&weblog)
+
+			c.JSON(http.StatusOK, response.Response{
+				Code: 200,
+				Data: weblog,
+				Msg:  "获取成功",
+			})
+		}
+
+	})
 	r.Run(":" + strconv.Itoa(global.GWAF_LOCAL_SERVER_PORT)) // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")
 	log.Println("本地 port:%d", global.GWAF_LOCAL_SERVER_PORT)
 }

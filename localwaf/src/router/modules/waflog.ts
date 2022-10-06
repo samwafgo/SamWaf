@@ -10,16 +10,18 @@ export default [
     meta: { title: '安全防护日志', icon: ViewModuleIcon },
     children: [
       {
-        path: 'wafvisitlog',
-        name: 'WafVisitLog',
-        component: () => import('@/pages/waf-log/visit/index.vue'),
-        meta: { title: '访问日志' },
-      },
-      {
         path: 'wafattacklog',
         name: 'WafAttackLog',
         component: () => import('@/pages/waf-log/attack/index.vue'),
         meta: { title: '攻击日志' },
+      },
+      {
+        path: 'wafattacklogdetail',
+        name: 'WafAttackLogDetail',
+        component: () => import('@/pages/waf-log/attack/detail/index.vue'),
+        meta: { title: '攻击详情' ,hidden: true,keepAlive:false}
+        ,
+
       },
     ],
   },

@@ -16,6 +16,8 @@ type WebLog struct {
 	BODY           string `json:"body"`
 	REQ_UUID       string `json:"req_uuid"`
 	USER_CODE      string `json:"user_code"`
+	ACTION         string `json:"action"`
+	RULE           string `json:"rule"`
 }
 type WAFLog struct {
 	REQ_UUID    string `json:"req_uuid"`

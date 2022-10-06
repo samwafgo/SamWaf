@@ -54,7 +54,7 @@
           </template>
 
           <template #op="slotProps">
-            <a class="t-button-link" @click="handleClickDetail()">详情</a>
+            <a class="t-button-link" @click="handleClickDetail(slotProps)">详情</a>
             <a class="t-button-link" @click="handleClickDelete(slotProps)">删除</a>
           </template>
         </t-table>
@@ -140,7 +140,7 @@ export default Vue.extend({
           title: '操作',
         },
       ],
-      rowKey: 'index',
+      rowKey: 'REQ_UUID',
       tableLayout: 'auto',
       verticalAlign: 'top',
       hover: true,
@@ -222,8 +222,23 @@ export default Vue.extend({
     rehandleChange(changeParams, triggerAndData) {
       console.log('统一Change', changeParams, triggerAndData);
     },
-    handleClickDetail() {
-      this.$router.push('/detail/base');
+    handleClickDetail(e) {
+      console.log(e)
+      const { req_uuid } = e.row
+      console.log(req_uuid)
+      /* this.$router.push(
+      {name:'WafAttackLogDetail',params: {
+          req_uuid: req_uuid,
+        },
+      }, */
+      this.$router.push(
+      {
+        path:'/waf/wafattacklogdetail',
+        query: {
+          req_uuid: req_uuid,
+        },
+      },
+    );
     },
     handleSetupContract() {
       this.$router.push('/form/base');

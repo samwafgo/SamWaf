@@ -3,6 +3,7 @@ package main
 import (
 	"SamWaf/global"
 	"SamWaf/innerbean"
+	"SamWaf/model"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -16,6 +17,7 @@ func InitDb() {
 		global.GWAF_LOCAL_DB = db
 		// Migrate the schema
 		db.AutoMigrate(&innerbean.WebLog{})
+		db.AutoMigrate(&model.Hosts{})
 
 	}
 }

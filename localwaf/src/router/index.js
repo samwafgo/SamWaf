@@ -5,8 +5,10 @@ import componentsRouters from './modules/components';
 import othersRouters from './modules/others';
 import waflogRouters from './modules/waflog';
 
+import wafHostRouters from './modules/wafhost';
+
 // 存放动态路由
-export const asyncRouterList = [...baseRouters,...waflogRouters, ...componentsRouters, ...othersRouters];
+export const asyncRouterList = [...baseRouters,...wafHostRouters,...waflogRouters, ...componentsRouters, ...othersRouters];
 
 // 存放固定的路由
 const defaultRouterList = [

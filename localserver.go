@@ -3,6 +3,7 @@ package main
 import (
 	"SamWaf/global"
 	"SamWaf/innerbean"
+	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/model/waflog/request"
 	"github.com/gin-gonic/gin"
@@ -75,6 +76,46 @@ func StartLocalServer() {
 			c.JSON(http.StatusOK, response.Response{
 				Code: 200,
 				Data: weblog,
+				Msg:  "获取成功",
+			})
+		}
+
+	})
+
+	var waf_host_req request.WafHostSearchReq
+	r.GET("/samwaf/wafhost/host/list", func(c *gin.Context) {
+		err := c.ShouldBind(&waf_host_req)
+		if err == nil {
+
+			var total int64 = 0
+			var webhosts []model.Hosts
+			global.GWAF_LOCAL_DB.Debug().Limit(waf_host_req.PageSize).Offset(waf_host_req.PageSize * (waf_host_req.PageIndex - 1)).Find(&webhosts)
+			global.GWAF_LOCAL_DB.Debug().Model(&model.Hosts{}).Count(&total)
+
+			c.JSON(http.StatusOK, response.Response{
+				Code: 200,
+				Data: response.PageResult{
+					List:      webhosts,
+					Total:     total,
+					PageIndex: waf_attack.PageIndex,
+					PageSize:  waf_attack.PageSize,
+				},
+				Msg: "获取成功",
+			})
+		}
+
+	})
+	var waf_host_detail_req request.WafHostDetailReq
+	r.GET("/samwaf/wafhost/host/detail", func(c *gin.Context) {
+		err := c.ShouldBind(&waf_host_detail_req)
+		if err == nil {
+
+			var webhost model.Hosts
+			global.GWAF_LOCAL_DB.Debug().Where("CODE=?", waf_host_detail_req.CODE).Find(&webhost)
+
+			c.JSON(http.StatusOK, response.Response{
+				Code: 200,
+				Data: webhost,
 				Msg:  "获取成功",
 			})
 		}

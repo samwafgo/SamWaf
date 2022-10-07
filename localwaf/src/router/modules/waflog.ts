@@ -7,7 +7,7 @@ export default [
     name: 'waf',
     component: Layout,
     redirect: '/waf-log/visit',
-    meta: { title: '安全防护日志', icon: ViewModuleIcon },
+    meta: { title: '防护日志', icon: ViewModuleIcon },
     children: [
       {
         path: 'wafattacklog',

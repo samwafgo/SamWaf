@@ -16,6 +16,7 @@ type WebLog struct {
 	BODY           string `json:"body"`
 	REQ_UUID       string `json:"req_uuid"`
 	USER_CODE      string `json:"user_code"`
+	HOST_CODE      string `json:"host_code"` //关联查询
 	ACTION         string `json:"action"`
 	RULE           string `json:"rule"`
 }

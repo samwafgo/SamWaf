@@ -9,4 +9,6 @@ type WafHostAddReq struct {
 	Remote_host   string `json:"remote_host"`   //远端域名
 	Remote_port   int    `json:"remote_port"`   //远端端口
 	REMARKS       string `json:"remarks"`       //备注
+	Certfile      string `json:"certfile"`      // 证书文件
+	Keyfile       string `json:"keyfile"`       // 密钥文件
 }

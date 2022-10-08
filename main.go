@@ -13,16 +13,12 @@ import (
 	"github.com/lionsoul2014/ip2region/binding/golang/xdb"
 	"github.com/satori/go.uuid"
 	"github.com/spf13/viper"
-	"gorm.io/driver/mysql"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 	"io"
 	"log"
 	"net/http"
 	"net/http/httputil"
 	_ "net/http/pprof"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -230,37 +226,12 @@ func Start_WAF() {
 	global.GWAF_LOCAL_SERVER_PORT = config.GetInt("local_port") //读取本地端口
 	fmt.Println(" load ini: ", global.GWAF_USER_CODE)
 
-	//数据库连接
-	newLogger := logger.New(
-		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer（日志输出的目标，前缀和日志包含的内容——译者注）
-		logger.Config{
-			SlowThreshold:             time.Second,   // 慢 SQL 阈值
-			LogLevel:                  logger.Silent, // 日志级别
-			IgnoreRecordNotFoundError: true,          // 忽略ErrRecordNotFound（记录未找到）错误
-			Colorful:                  false,         // 禁用彩色打印
-
-		},
-	)
-
 	//初始化本地数据库
 	InitDb()
 
-	dsn := "samwaf:v&GP5e0BRpkm^RA@tcp(bj-cynosdbmysql-grp-37amo1rw.sql.tencentcdb.com:26762)/samwaf?charset=utf8mb4&parseTime=True"
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{Logger: newLogger})
-	if err != nil {
-		fmt.Printf("error `%s`: %s\n", "db initial error", err)
-		return
-	}
-	var base_config model.Base_config
-
-	db.Debug().Where("name = ?", "esurl").Find(&base_config)
-	//esHelper.Init(base_config.Value) todo 暂时屏蔽es
-
-	fmt.Printf("current_version %s \r\n", global.Version_name)
-
 	var hosts []model.Hosts
 
-	db.Where("user_code = ?", global.GWAF_USER_CODE).Find(&hosts)
+	global.GWAF_LOCAL_DB.Where("user_code = ?", global.GWAF_USER_CODE).Find(&hosts)
 
 	//初始化步骤[加载ip数据库]
 	var dbPath = "data/ip2region.xdb"
@@ -278,11 +249,7 @@ func Start_WAF() {
 	for i := 0; i < len(hosts); i++ {
 		//检测https
 		if hosts[i].Ssl == 1 {
-			//查询ssl证书
-			var sslconfig model.Sslconfig
-			db.Debug().Where("code = ? and user_code=? ", hosts[i].Code, global.GWAF_USER_CODE).Find(&sslconfig)
-			// 第一个域名：example.com
-			cert, err := tls.LoadX509KeyPair(sslconfig.Certfile, sslconfig.Keyfile)
+			cert, err := tls.X509KeyPair([]byte(hosts[i].Certfile), []byte(hosts[i].Keyfile))
 			if err != nil {
 				log.Fatal("Cannot find %s cert & key file. Error is: %s\n", hosts[i].Host, err)
 				continue
@@ -311,7 +278,7 @@ func Start_WAF() {
 
 		//查询规则
 		var ruleconfig model.Rules
-		db.Debug().Where("code = ? and user_code=? ", hosts[i].Code, global.GWAF_USER_CODE).Find(&ruleconfig)
+		global.GWAF_LOCAL_DB.Debug().Where("code = ? and user_code=? ", hosts[i].Code, global.GWAF_USER_CODE).Find(&ruleconfig)
 		ruleHelper.LoadRule(ruleconfig)
 
 		hostsafe := &HostSafe{
@@ -393,7 +360,7 @@ func Start_WAF() {
 			for code, host := range hostCode {
 				//hostTarget[host].Rule
 				var ruleconfig model.Rules
-				db.Debug().Where("code = ? and user_code=? ", code, global.GWAF_USER_CODE).Find(&ruleconfig)
+				global.GWAF_LOCAL_DB.Debug().Where("code = ? and user_code=? ", code, global.GWAF_USER_CODE).Find(&ruleconfig)
 				if ruleconfig.Ruleversion > hostTarget[host].RuleData.Ruleversion {
 					//说明该code有更新
 					hostRuleChan <- ruleconfig

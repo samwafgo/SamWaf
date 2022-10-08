@@ -79,6 +79,14 @@
               <t-radio value="1">加密证书（需上传证书）</t-radio>
             </t-radio-group>
           </t-form-item>
+          <t-form-item label="证书串" name="certfile" v-if="formData.ssl=='1'">
+            <t-textarea :style="{ width: '480px' }" v-model="formData.certfile" placeholder="请输入内容" name="certfile">
+            </t-textarea>
+          </t-form-item>
+          <t-form-item label="密钥串" name="keyfile" v-if="formData.ssl=='1'">
+            <t-textarea :style="{ width: '480px' }" v-model="formData.keyfile" placeholder="请输入内容" name="keyfile">
+            </t-textarea>
+          </t-form-item>
           <t-form-item label="后端系统类型" name="remote_system">
             <t-select v-model="formData.remote_system" clearable :style="{ width: '480px' }">
               <t-option v-for="(item, index) in remote_system_options" :value="item.value" :label="item.label" :key="index">
@@ -100,8 +108,8 @@
             <t-input-number :style="{ width: '150px' }" v-model="formData.remote_port" placeholder="请输入网站的端口一般是80/443"></t-input-number>
           </t-form-item>
 
-          <t-form-item label="备注" name="mark">
-            <t-textarea :style="{ width: '480px' }" v-model="textareaValue" placeholder="请输入内容" name="description">
+          <t-form-item label="备注" name="remarks">
+            <t-textarea :style="{ width: '480px' }" v-model="textareaValue" placeholder="请输入内容" name="remarks">
             </t-textarea>
           </t-form-item>
           <t-form-item style="float: right">
@@ -126,8 +134,16 @@
           <t-form-item label="加密证书" name="ssl">
             <t-radio-group v-model="formEditData.ssl">
               <t-radio value="0">非加密</t-radio>
-              <t-radio value="1">加密证书（需上传证书）</t-radio>
+              <t-radio value="1">加密证书（需填写证书）</t-radio>
             </t-radio-group>
+          </t-form-item>
+          <t-form-item label="证书串" name="certfile" v-if="formEditData.ssl=='1'">
+            <t-textarea :style="{ width: '480px' }" v-model="formEditData.certfile" placeholder="请输入内容" name="certfile">
+            </t-textarea>
+          </t-form-item>
+          <t-form-item label="密钥串" name="keyfile" v-if="formEditData.ssl=='1'">
+            <t-textarea :style="{ width: '480px' }" v-model="formEditData.keyfile" placeholder="请输入内容" name="keyfile">
+            </t-textarea>
           </t-form-item>
           <t-form-item label="后端系统类型" name="remote_system">
             <t-select v-model="formEditData.remote_system" clearable :style="{ width: '480px' }">
@@ -150,8 +166,8 @@
             <t-input-number :style="{ width: '150px' }" v-model="formEditData.remote_port" placeholder="请输入网站的端口一般是80/443"></t-input-number>
           </t-form-item>
 
-          <t-form-item label="备注" name="mark">
-            <t-textarea :style="{ width: '480px' }" v-model="textareaValue" placeholder="请输入内容" name="description">
+          <t-form-item label="备注" name="remarks">
+            <t-textarea :style="{ width: '480px' }" v-model="textareaValue" placeholder="请输入内容" name="remarks">
             </t-textarea>
           </t-form-item>
           <t-form-item style="float: right">
@@ -186,7 +202,7 @@ const INITIAL_DATA = {
   port: 80,
   remote_host: 'baidu2.com',
   remote_port: 80,
-  ssl:0,
+  ssl:'0',
   remote_system:"宝塔",
   remote_app:"API业务系统",
   guard_status: '',
@@ -506,6 +522,7 @@ export default Vue.extend({
           console.log(resdata)
           if (resdata.code === 200) {
             that.detail_data = resdata.data;
+            that.detail_data.ssl = that.detail_data.ssl.toString()
             that.formEditData =  {...that.detail_data}
           }
         })

@@ -150,6 +150,8 @@ func StartLocalServer() {
 				REMOTE_APP:    waf_host_add_req.REMOTE_APP,
 				Remote_host:   waf_host_add_req.Remote_host,
 				Remote_port:   waf_host_add_req.Remote_port,
+				Certfile:      waf_host_add_req.Certfile,
+				Keyfile:       waf_host_add_req.Keyfile,
 				REMARKS:       waf_host_add_req.REMARKS,
 				CREATE_TIME:   time.Now(),
 				UPDATE_TIME:   time.Now(),
@@ -242,7 +244,10 @@ func StartLocalServer() {
 				"Remote_host":   waf_host_edit_req.Remote_host,
 				"Remote_port":   waf_host_edit_req.Remote_port,
 				"REMARKS":       waf_host_edit_req.REMARKS,
-				"UPDATE_TIME":   time.Now(),
+
+				"Certfile":    waf_host_edit_req.Certfile,
+				"Keyfile":     waf_host_edit_req.Keyfile,
+				"UPDATE_TIME": time.Now(),
 			}
 			//var edit_waf_host model.Hosts
 			//global.GWAF_LOCAL_DB.Debug().Where("CODE=?", waf_host_edit_req.CODE).Find(edit_waf_host)

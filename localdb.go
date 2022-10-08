@@ -18,6 +18,6 @@ func InitDb() {
 		// Migrate the schema
 		db.AutoMigrate(&innerbean.WebLog{})
 		db.AutoMigrate(&model.Hosts{})
-
+		db.AutoMigrate(&model.Rules{})
 	}
 }

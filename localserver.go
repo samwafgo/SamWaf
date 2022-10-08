@@ -40,9 +40,20 @@ func StartLocalServer() {
 	r := gin.Default()
 	r.Use(Cors()) //解决跨域
 
-	r.GET("/ping", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"message": "pong",
+	r.GET("/samwaf/resetWAF", func(c *gin.Context) {
+		/*defer func() {
+			c.JSON(http.StatusOK, response.Response{
+				Code: -1,
+				Data: "",
+				Msg:  "重启指令失败",
+			})
+		}()*/
+		//重启WAF引擎
+		engineChan <- 1
+		c.JSON(http.StatusOK, response.Response{
+			Code: 200,
+			Data: "",
+			Msg:  "已发起重启指令",
 		})
 	})
 	var waf_attack request.WafAttackLogSearch

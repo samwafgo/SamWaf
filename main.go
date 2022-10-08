@@ -37,7 +37,6 @@ type HostSafe struct {
 }
 
 var (
-	user_code string
 	//主机情况
 	hostTarget = map[string]*HostSafe{}
 	//主机和code的关系
@@ -142,10 +141,10 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		COOKIES:        string(cookies),
 		BODY:           string(bodyByte),
 		REQ_UUID:       uuid.NewV4().String(),
-		USER_CODE:      user_code,
+		USER_CODE:      global.GWAF_USER_CODE,
 	}
 	global.GWAF_LOCAL_DB.Create(weblogbean)
-	esHelper.BatchInsert("full_log", weblogbean)
+	//esHelper.BatchInsert("full_log", weblogbean)
 	rule := &innerbean.WAF_REQUEST_FULL{
 		SRC_INFO:   weblogbean,
 		ExecResult: 0,
@@ -188,14 +187,14 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		proxy.ServeHTTP(w, r)
 		return
 	} else {
-		waflogbean := innerbean.WAFLog{
+		/*waflogbean := innerbean.WAFLog{
 			CREATE_TIME: time.Now().Format("2006-01-02 15:04:05"),
 			RULE:        hostTarget[host].RuleData.Rulename,
 			ACTION:      "FORBIDDEN",
 			REQ_UUID:    uuid.NewV4().String(),
 			USER_CODE:   user_code,
-		}
-		esHelper.BatchInsertWAF("web_log", waflogbean)
+		}*/
+		//esHelper.BatchInsertWAF("web_log", waflogbean)
 		w.Write([]byte("403: Host forbidden " + host))
 	}
 }
@@ -226,9 +225,10 @@ func Start_WAF() {
 		}
 	}
 
-	user_code = config.GetString("user_code")                   // 读取配置
+	global.GWAF_USER_CODE = config.GetString("user_code") // 读取配置
+	global.GWAF_TENANT_ID = global.GWAF_USER_CODE
 	global.GWAF_LOCAL_SERVER_PORT = config.GetInt("local_port") //读取本地端口
-	fmt.Println(" load ini: ", user_code)
+	fmt.Println(" load ini: ", global.GWAF_USER_CODE)
 
 	//数据库连接
 	newLogger := logger.New(
@@ -254,13 +254,13 @@ func Start_WAF() {
 	var base_config model.Base_config
 
 	db.Debug().Where("name = ?", "esurl").Find(&base_config)
-	esHelper.Init(base_config.Value)
+	//esHelper.Init(base_config.Value) todo 暂时屏蔽es
 
 	fmt.Printf("current_version %s \r\n", global.Version_name)
 
 	var hosts []model.Hosts
 
-	db.Where("user_code = ?", user_code).Find(&hosts)
+	db.Where("user_code = ?", global.GWAF_USER_CODE).Find(&hosts)
 
 	//初始化步骤[加载ip数据库]
 	var dbPath = "data/ip2region.xdb"
@@ -280,7 +280,7 @@ func Start_WAF() {
 		if hosts[i].Ssl == 1 {
 			//查询ssl证书
 			var sslconfig model.Sslconfig
-			db.Debug().Where("code = ? and user_code=? ", hosts[i].Code, user_code).Find(&sslconfig)
+			db.Debug().Where("code = ? and user_code=? ", hosts[i].Code, global.GWAF_USER_CODE).Find(&sslconfig)
 			// 第一个域名：example.com
 			cert, err := tls.LoadX509KeyPair(sslconfig.Certfile, sslconfig.Keyfile)
 			if err != nil {
@@ -311,7 +311,7 @@ func Start_WAF() {
 
 		//查询规则
 		var ruleconfig model.Rules
-		db.Debug().Where("code = ? and user_code=? ", hosts[i].Code, user_code).Find(&ruleconfig)
+		db.Debug().Where("code = ? and user_code=? ", hosts[i].Code, global.GWAF_USER_CODE).Find(&ruleconfig)
 		ruleHelper.LoadRule(ruleconfig)
 
 		hostsafe := &HostSafe{
@@ -393,7 +393,7 @@ func Start_WAF() {
 			for code, host := range hostCode {
 				//hostTarget[host].Rule
 				var ruleconfig model.Rules
-				db.Debug().Where("code = ? and user_code=? ", code, user_code).Find(&ruleconfig)
+				db.Debug().Where("code = ? and user_code=? ", code, global.GWAF_USER_CODE).Find(&ruleconfig)
 				if ruleconfig.Ruleversion > hostTarget[host].RuleData.Ruleversion {
 					//说明该code有更新
 					hostRuleChan <- ruleconfig

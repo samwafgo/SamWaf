@@ -6,10 +6,14 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/model/waflog/request"
+	"errors"
 	"github.com/gin-gonic/gin"
+	uuid "github.com/satori/go.uuid"
+	"gorm.io/gorm"
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 func Cors() gin.HandlerFunc {
@@ -118,6 +122,154 @@ func StartLocalServer() {
 				Data: webhost,
 				Msg:  "获取成功",
 			})
+		}
+
+	})
+
+	var waf_host_add_req request.WafHostAddReq
+	r.POST("/samwaf/wafhost/host/add", func(c *gin.Context) {
+		err := c.ShouldBind(&waf_host_add_req)
+		if err == nil {
+
+			if (!errors.Is(global.GWAF_LOCAL_DB.First(&model.Hosts{}, "host = ? and port= ?", waf_host_add_req.Host, waf_host_add_req.Port).Error, gorm.ErrRecordNotFound)) {
+				c.JSON(http.StatusOK, response.Response{
+					Code: 404,
+					Msg:  "当前网站和端口已经存在", //可以后续考虑再次加入已存在的host的返回，前台进行编辑
+				})
+				return
+			}
+			var waf_host = &model.Hosts{
+				USER_CODE:     global.GWAF_USER_CODE,
+				Tenant_id:     global.GWAF_TENANT_ID,
+				Code:          uuid.NewV4().String(),
+				Host:          waf_host_add_req.Host,
+				Port:          waf_host_add_req.Port,
+				Ssl:           waf_host_add_req.Ssl,
+				GUARD_STATUS:  0,
+				REMOTE_SYSTEM: waf_host_add_req.REMOTE_SYSTEM,
+				REMOTE_APP:    waf_host_add_req.REMOTE_APP,
+				Remote_host:   waf_host_add_req.Remote_host,
+				Remote_port:   waf_host_add_req.Remote_port,
+				REMARKS:       waf_host_add_req.REMARKS,
+				CREATE_TIME:   time.Now(),
+				UPDATE_TIME:   time.Now(),
+			}
+			//waf_host_add_req.USER_CODE =
+			global.GWAF_LOCAL_DB.Debug().Create(waf_host)
+
+			c.JSON(http.StatusOK, response.Response{
+				Code: 200,
+				Data: "",
+				Msg:  "添加成功",
+			})
+		} else {
+			log.Println("添加解析失败")
+			c.JSON(http.StatusOK, response.Response{
+				Code: -1,
+				Data: err.Error(),
+				Msg:  "添加失败",
+			})
+			return
+		}
+
+	})
+
+	var waf_host_del_req request.WafHostDelReq
+	r.GET("/samwaf/wafhost/host/del", func(c *gin.Context) {
+		err := c.ShouldBind(&waf_host_del_req)
+		if err == nil {
+
+			var webhost model.Hosts
+			err = global.GWAF_LOCAL_DB.Where("CODE = ?", waf_host_del_req.CODE).First(&webhost).Error
+			if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
+				c.JSON(http.StatusOK, response.Response{
+					Code: -1,
+					Data: err.Error(),
+					Msg:  "请检测参数",
+				})
+				return
+			}
+			if err != nil {
+				c.JSON(http.StatusOK, response.Response{
+					Code: -1,
+					Data: err.Error(),
+					Msg:  "发生错误",
+				})
+				return
+			}
+			err = global.GWAF_LOCAL_DB.Where("CODE = ?", waf_host_del_req.CODE).Delete(model.Hosts{}).Error
+
+			if err != nil {
+				c.JSON(http.StatusOK, response.Response{
+					Code: -1,
+					Data: err.Error(),
+					Msg:  "删除失败",
+				})
+				return
+			}
+
+			c.JSON(http.StatusOK, response.Response{
+				Code: 200,
+				Data: "",
+				Msg:  "删除成功",
+			})
+		}
+
+	})
+
+	var waf_host_edit_req request.WafHostEditReq
+	r.POST("/samwaf/wafhost/host/edit", func(c *gin.Context) {
+		err := c.ShouldBind(&waf_host_edit_req)
+		if err == nil {
+
+			var webhost model.Hosts
+			global.GWAF_LOCAL_DB.Debug().Where("host = ? and port= ?", waf_host_edit_req.Host, waf_host_edit_req.Port).Find(&webhost)
+
+			if webhost.Id != 0 && webhost.Code != waf_host_edit_req.CODE {
+				c.JSON(http.StatusOK, response.Response{
+					Code: 404,
+					Msg:  "当前网站和端口已经存在", //可以后续考虑再次加入已存在的host的返回，前台进行编辑
+				})
+				return
+			}
+			hostMap := map[string]interface{}{
+				"Host":          waf_host_edit_req.Host,
+				"Port":          waf_host_edit_req.Port,
+				"Ssl":           waf_host_edit_req.Ssl,
+				"GUARD_STATUS":  0,
+				"REMOTE_SYSTEM": waf_host_edit_req.REMOTE_SYSTEM,
+				"REMOTE_APP":    waf_host_edit_req.REMOTE_APP,
+				"Remote_host":   waf_host_edit_req.Remote_host,
+				"Remote_port":   waf_host_edit_req.Remote_port,
+				"REMARKS":       waf_host_edit_req.REMARKS,
+				"UPDATE_TIME":   time.Now(),
+			}
+			//var edit_waf_host model.Hosts
+			//global.GWAF_LOCAL_DB.Debug().Where("CODE=?", waf_host_edit_req.CODE).Find(edit_waf_host)
+
+			err = global.GWAF_LOCAL_DB.Debug().Model(model.Hosts{}).Where("CODE=?", waf_host_edit_req.CODE).Updates(hostMap).Error
+			if err != nil {
+				c.JSON(http.StatusOK, response.Response{
+					Code: 200,
+					Data: err.Error(),
+					Msg:  "编辑失败",
+				})
+			} else {
+				c.JSON(http.StatusOK, response.Response{
+					Code: 200,
+					Data: "",
+					Msg:  "编辑成功",
+				})
+			}
+
+		} else {
+			log.Println("添加解析失败")
+			c.JSON(http.StatusOK, response.Response{
+				Code: -1,
+				Data: err.Error(),
+				Msg:  "编辑失败",
+			})
+			return
 		}
 
 	})

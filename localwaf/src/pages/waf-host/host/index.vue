@@ -55,6 +55,7 @@
 
           <template #op="slotProps">
             <a class="t-button-link" @click="handleClickDetail(slotProps)">详情</a>
+            <a class="t-button-link" @click="handleClickEdit(slotProps)">编辑</a>
             <a class="t-button-link" @click="handleClickDelete(slotProps)">删除</a>
           </template>
         </t-table>
@@ -78,16 +79,27 @@
               <t-radio value="1">加密证书（需上传证书）</t-radio>
             </t-radio-group>
           </t-form-item>
-          <t-form-item label="后端域名" name="remote_host">
-            <t-input :style="{ width: '480px' }" v-model="formData.remote_host" placeholder="请输入产品描述"></t-input>
-          </t-form-item>
-          <t-form-item label="产品类型" name="type">
-            <t-select v-model="formData.type" clearable :style="{ width: '480px' }">
-              <t-option v-for="(item, index) in options" :value="item.value" :label="item.label" :key="index">
+          <t-form-item label="后端系统类型" name="remote_system">
+            <t-select v-model="formData.remote_system" clearable :style="{ width: '480px' }">
+              <t-option v-for="(item, index) in remote_system_options" :value="item.value" :label="item.label" :key="index">
                 {{ item.label }}
               </t-option>
             </t-select>
           </t-form-item>
+          <t-form-item label="后端应用类型" name="remote_app">
+            <t-select v-model="formData.remote_app" clearable :style="{ width: '480px' }">
+              <t-option v-for="(item, index) in remote_app_options" :value="item.value" :label="item.label" :key="index">
+                {{ item.label }}
+              </t-option>
+            </t-select>
+          </t-form-item>
+          <t-form-item label="后端域名" name="remote_host">
+            <t-input :style="{ width: '480px' }" v-model="formData.remote_host" placeholder="请输入后端域名"></t-input>
+          </t-form-item>
+          <t-form-item label="后端端口" name="remote_port">
+            <t-input-number :style="{ width: '150px' }" v-model="formData.remote_port" placeholder="请输入网站的端口一般是80/443"></t-input-number>
+          </t-form-item>
+
           <t-form-item label="备注" name="mark">
             <t-textarea :style="{ width: '480px' }" v-model="textareaValue" placeholder="请输入内容" name="description">
             </t-textarea>
@@ -100,8 +112,58 @@
       </div>
     </t-dialog>
 
+    <!-- 编辑网站防御弹窗 -->
+    <t-dialog header="编辑网站防御" :visible.sync="editFormVisible" :width="680" :footer="false">
+      <div slot="body">
+        <!-- 表单内容 -->
+        <t-form :data="formEditData" ref="form" :rules="rules" @submit="onSubmitEdit" :labelWidth="100">
+          <t-form-item label="网站" name="host">
+            <t-input :style="{ width: '480px' }" v-model="formEditData.host" placeholder="请输入网站的网址"></t-input>
+          </t-form-item>
+          <t-form-item label="端口" name="port">
+            <t-input-number :style="{ width: '150px' }" v-model="formEditData.port" placeholder="请输入网站的端口一般是80/443"></t-input-number>
+          </t-form-item>
+          <t-form-item label="加密证书" name="ssl">
+            <t-radio-group v-model="formEditData.ssl">
+              <t-radio value="0">非加密</t-radio>
+              <t-radio value="1">加密证书（需上传证书）</t-radio>
+            </t-radio-group>
+          </t-form-item>
+          <t-form-item label="后端系统类型" name="remote_system">
+            <t-select v-model="formEditData.remote_system" clearable :style="{ width: '480px' }">
+              <t-option v-for="(item, index) in remote_system_options" :value="item.value" :label="item.label" :key="index">
+                {{ item.label }}
+              </t-option>
+            </t-select>
+          </t-form-item>
+          <t-form-item label="后端应用类型" name="remote_app">
+            <t-select v-model="formEditData.remote_app" clearable :style="{ width: '480px' }">
+              <t-option v-for="(item, index) in remote_app_options" :value="item.value" :label="item.label" :key="index">
+                {{ item.label }}
+              </t-option>
+            </t-select>
+          </t-form-item>
+          <t-form-item label="后端域名" name="remote_host">
+            <t-input :style="{ width: '480px' }" v-model="formEditData.remote_host" placeholder="请输入后端域名"></t-input>
+          </t-form-item>
+          <t-form-item label="后端端口" name="remote_port">
+            <t-input-number :style="{ width: '150px' }" v-model="formEditData.remote_port" placeholder="请输入网站的端口一般是80/443"></t-input-number>
+          </t-form-item>
+
+          <t-form-item label="备注" name="mark">
+            <t-textarea :style="{ width: '480px' }" v-model="textareaValue" placeholder="请输入内容" name="description">
+            </t-textarea>
+          </t-form-item>
+          <t-form-item style="float: right">
+            <t-button variant="outline" @click="onClickCloseEditBtn">取消</t-button>
+            <t-button theme="primary" type="submit">确定</t-button>
+          </t-form-item>
+        </t-form>
+      </div>
+    </t-dialog>
+
     <t-dialog
-      header="确认删除当前所选合同？"
+      header="确认删除当前所选网站?"
       :body="confirmBody"
       :visible.sync="confirmVisible"
       @confirm="onConfirmDelete"
@@ -120,12 +182,15 @@ import {attacklogList} from '@/apis/waflog/attacklog';
 import { CONTRACT_STATUS, CONTRACT_STATUS_OPTIONS, CONTRACT_TYPES, CONTRACT_PAYMENT_TYPES } from '@/constants';
 
 const INITIAL_DATA = {
-  name: '',
-  status: '',
-  description: '',
-  type: '',
-  mark: '',
-  amount: 0,
+  host: 'baidu.com',
+  port: 80,
+  remote_host: 'baidu2.com',
+  remote_port: 80,
+  ssl:0,
+  remote_system:"宝塔",
+  remote_app:"API业务系统",
+  guard_status: '',
+  remarks: '',
 };
 export default Vue.extend({
   name: 'ListBase',
@@ -136,15 +201,22 @@ export default Vue.extend({
   data() {
     return {
       addFormVisible:false,
+      editFormVisible:false,
       formData: { ...INITIAL_DATA },
+      formEditData: { ...INITIAL_DATA },
       rules: {
-        name: [{ required: true, message: '请输入网站名称', type: 'error' }],
+        host: [{ required: true, message: '请输入网站名称', type: 'error' }],
       },
       textareaValue: '',
-      options: [
-        { label: '网关', value: '1' },
-        { label: '人工智能', value: '2' },
-        { label: 'CVM', value: '3' },
+      remote_system_options: [
+        { label: '宝塔', value: '1' },
+        { label: '小皮面板(phpstudy)', value: '2' },
+        { label: 'PHPnow', value: '3' },
+      ],
+      remote_app_options: [
+        { label: '纯网站', value: '1' },
+        { label: 'API业务系统', value: '2' },
+        { label: '业务加管理', value: '3' },
       ],
       CONTRACT_STATUS,
       CONTRACT_STATUS_OPTIONS,
@@ -152,8 +224,9 @@ export default Vue.extend({
       CONTRACT_PAYMENT_TYPES,
       prefix,
       dataLoading: false,
-      data: [],
-      selectedRowKeys: [1, 2],
+      data: [], //列表数据信息
+      detail_data:[],//加载详情信息用于编辑
+      selectedRowKeys: [],
       value: 'first',
       columns: [
         { colKey: 'row-select', type: 'multiple', width: 64, fixed: 'left' },
@@ -199,7 +272,7 @@ export default Vue.extend({
           title: '操作',
         },
       ],
-      rowKey: 'CODE',
+      rowKey: 'code',
       tableLayout: 'auto',
       verticalAlign: 'top',
       hover: true,
@@ -218,8 +291,8 @@ export default Vue.extend({
   computed: {
     confirmBody() {
       if (this.deleteIdx > -1) {
-        const { name } = this.data?.[this.deleteIdx];
-        return `删除后，${name}的所有合同信息将被清空，且无法恢复`;
+        const { host } = this.data?.[this.deleteIdx];
+        return `删除后，${host}的所有网站信息和规则将被清空，且无法恢复`;
       }
       return '';
     },
@@ -285,51 +358,133 @@ export default Vue.extend({
       console.log(e)
       const { code } = e.row
       console.log(code)
-      /* this.$router.push(
-      {name:'WafAttackLogDetail',params: {
-          req_uuid: req_uuid,
-        },
-      }, */
       this.$router.push(
-      {
-        path:'/waf-host/wafhostdetail',
-        query: {
-          code: code,
+        {
+          path:'/waf-host/wafhostdetail',
+          query: {
+            code: code,
+          },
         },
-      },
-    );
+      );
+    },
+    handleClickEdit(e) {
+      console.log(e)
+      const { code } = e.row
+      console.log(code)
+      this.editFormVisible = true
+      this.getDetail(code)
     },
     handleAddHost() {
       //添加host
       this.addFormVisible = true
     },
     onSubmit({ result, firstError }): void {
+       let that = this
       if (!firstError) {
-        this.$message.success('提交成功');
-        this.addFormVisible = false;
+
+        let postdata = {...that.formData}
+        postdata['ssl'] = Number(postdata['ssl'])
+        this.$request
+          .post('/wafhost/host/add', {
+            ...postdata
+          })
+          .then((res) => {
+            let resdata = res.data
+            console.log(resdata)
+            if (resdata.code === 200) {
+              that.$message.success(resdata.msg);
+              that.addFormVisible = false;
+              that.pagination.current = 1
+              that.getList("")
+            }else{
+               that.$message.warning(resdata.msg);
+            }
+          })
+          .catch((e: Error) => {
+            console.log(e);
+          })
+          .finally(() => {
+          });
       } else {
         console.log('Errors: ', result);
-        this.$message.warning(firstError);
+        that.$message.warning(firstError);
+      }
+    },
+    onSubmitEdit({ result, firstError }): void {
+       let that = this
+      if (!firstError) {
+
+        let postdata = {...that.formEditData}
+        postdata['ssl'] = Number(postdata['ssl'])
+        this.$request
+          .post('/wafhost/host/edit', {
+            ...postdata
+          })
+          .then((res) => {
+            let resdata = res.data
+            console.log(resdata)
+            if (resdata.code === 200) {
+              that.$message.success(resdata.msg);
+              that.editFormVisible = false;
+              that.pagination.current = 1
+              that.getList("")
+            }else{
+               that.$message.warning(resdata.msg);
+            }
+          })
+          .catch((e: Error) => {
+            console.log(e);
+          })
+          .finally(() => {
+          });
+      } else {
+        console.log('Errors: ', result);
+        that.$message.warning(firstError);
       }
     },
     onClickCloseBtn(): void {
       this.formVisible = false;
       this.formData = {};
     },
-    handleClickDelete(row: { rowIndex: any }) {
+    onClickCloseEditBtn(): void {
+      this.editFormVisible = false;
+      this.formEditData = {};
+    },
+    handleClickDelete(row) {
+      console.log(row)
       this.deleteIdx = row.rowIndex;
       this.confirmVisible = true;
     },
     onConfirmDelete() {
-      // 真实业务请发起请求
-      this.data.splice(this.deleteIdx, 1);
-      this.pagination.total = this.data.length;
-      const selectedIdx = this.selectedRowKeys.indexOf(this.deleteIdx);
-      if (selectedIdx > -1) {
-        this.selectedRowKeys.splice(selectedIdx, 1);
-      }
       this.confirmVisible = false;
-      this.$message.success('删除成功');
+      console.log('delete',this.data)
+      console.log('delete',this.data[this.deleteIdx])
+      let {code} =  this.data[this.deleteIdx]
+      let that = this
+      this.$request
+        .get('/wafhost/host/del', {
+          params: {
+            CODE: code,
+          }
+        })
+        .then((res) => {
+          let resdata = res.data
+          console.log(resdata)
+          if (resdata.code === 200) {
+
+            that.pagination.current = 1
+            that.getList("")
+            that.$message.success(resdata.msg);
+          }else{
+            that.$message.warning(resdata.msg);
+          }
+        })
+        .catch((e: Error) => {
+          console.log(e);
+        })
+        .finally(() => {});
+
+
       this.resetIdx();
     },
     onCancel() {
@@ -337,6 +492,27 @@ export default Vue.extend({
     },
     resetIdx() {
       this.deleteIdx = -1;
+    },
+    getDetail(id) {
+      let that = this
+      this.$request
+        .get('/wafhost/host/detail', {
+          params: {
+            CODE: id,
+          }
+        })
+        .then((res) => {
+          let resdata = res.data
+          console.log(resdata)
+          if (resdata.code === 200) {
+            that.detail_data = resdata.data;
+            that.formEditData =  {...that.detail_data}
+          }
+        })
+        .catch((e: Error) => {
+          console.log(e);
+        })
+        .finally(() => {});
     },
   },
 });

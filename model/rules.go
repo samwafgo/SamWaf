@@ -4,6 +4,7 @@ type Rules struct {
 	Id              int    `gorm:"primary_key" json:" - "` //
 	Tenant_id       string `json:"tenant_id"`              //
 	Code            string `json:"code"`                   //
+	Rule_Code       string `json:"rule_code"`              //规则的唯一码
 	Rulename        string `json:"rulename"`               //规则名称
 	Rulecontent     string `json:"rulecontent"`            //规则内容
 	RulecontentJSON string `json:"rulecontent_json"`       //规则JSON内容

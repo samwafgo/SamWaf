@@ -1,4 +1,4 @@
-package rule
+package model
 
 import (
 	"encoding/json"

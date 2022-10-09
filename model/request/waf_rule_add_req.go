@@ -1,5 +1,5 @@
 package request
 
 type WafRuleAddReq struct {
-	ruleJson string
+	RuleJson string
 }

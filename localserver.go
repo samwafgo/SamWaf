@@ -5,7 +5,7 @@ import (
 	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/model/common/response"
-	"SamWaf/model/waflog/request"
+	"SamWaf/model/request"
 	"errors"
 	"github.com/gin-gonic/gin"
 	uuid "github.com/satori/go.uuid"
@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -37,6 +38,7 @@ func Cors() gin.HandlerFunc {
 	}
 }
 func StartLocalServer() {
+
 	r := gin.Default()
 	r.Use(Cors()) //解决跨域
 
@@ -289,6 +291,225 @@ func StartLocalServer() {
 		}
 
 	})
+
+	var waf_rule_detail_req request.WafRuleDetailReq
+	r.GET("/samwaf/wafhost/rule/detail", func(c *gin.Context) {
+		err := c.ShouldBind(&waf_rule_detail_req)
+		if err == nil {
+
+			var rules model.Rules
+			global.GWAF_LOCAL_DB.Debug().Where("RULE_CODE=?", waf_rule_detail_req.CODE).Find(&rules)
+
+			c.JSON(http.StatusOK, response.Response{
+				Code: 200,
+				Data: rules,
+				Msg:  "获取成功",
+			})
+		}
+
+	})
+	var waf_rule_search_req request.WafRuleSearchReq
+	r.GET("/samwaf/wafhost/rule/list", func(c *gin.Context) {
+		err := c.ShouldBind(&waf_rule_search_req)
+		if err == nil {
+
+			var total int64 = 0
+			var rules []model.Rules
+			global.GWAF_LOCAL_DB.Debug().Limit(waf_rule_search_req.PageSize).Offset(waf_rule_search_req.PageSize * (waf_rule_search_req.PageIndex - 1)).Find(&rules)
+			global.GWAF_LOCAL_DB.Debug().Model(&model.Rules{}).Count(&total)
+
+			c.JSON(http.StatusOK, response.Response{
+				Code: 200,
+				Data: response.PageResult{
+					List:      rules,
+					Total:     total,
+					PageIndex: waf_attack.PageIndex,
+					PageSize:  waf_attack.PageSize,
+				},
+				Msg: "获取成功",
+			})
+		}
+
+	})
+
+	var waf_rule_add_req request.WafRuleAddReq
+	r.POST("/samwaf/wafhost/rule/add", func(c *gin.Context) {
+		err := c.ShouldBind(&waf_rule_add_req)
+		if err == nil {
+
+			var rule_tool = model.RuleTool{}
+			rule_info, err := rule_tool.LoadRule(waf_rule_add_req.RuleJson)
+			if err != nil {
+				c.JSON(http.StatusOK, response.Response{
+					Code: -1,
+					Msg:  "解析错误",
+				})
+				return
+			}
+
+			var rulename = rule_info.RuleBase.RuleName //中文名
+			if (!errors.Is(global.GWAF_LOCAL_DB.First(&model.Rules{}, "rulename = ? and code = ?", rulename, rule_info.RuleBase.RuleDomainCode).Error, gorm.ErrRecordNotFound)) {
+				c.JSON(http.StatusOK, response.Response{
+					Code: 404,
+					Msg:  "当前规则名称已存在", //可以后续考虑再次加入已存在的返回，前台进行编辑
+				})
+				return
+			}
+			var rule_code = uuid.NewV4().String()
+			rule_info.RuleBase.RuleName = strings.Replace(rule_code, "-", "", -1)
+			var waf_rule = &model.Rules{
+				Tenant_id:       global.GWAF_TENANT_ID,
+				Code:            rule_info.RuleBase.RuleDomainCode, //网站CODE
+				RuleCode:        rule_code,
+				Rulename:        rulename,
+				Rulecontent:     rule_tool.GenRuleInfo(rule_info),
+				RulecontentJSON: waf_rule_add_req.RuleJson, //TODO 后续考虑是否应该再从结构转一次
+				Ruleversionname: "初版",
+				Ruleversion:     0,
+				User_code:       global.GWAF_USER_CODE,
+				IsPublicRule:    0,
+				RuleStatus:      "1",
+			}
+			//waf_host_add_req.USER_CODE =
+			global.GWAF_LOCAL_DB.Debug().Create(waf_rule)
+
+			c.JSON(http.StatusOK, response.Response{
+				Code: 200,
+				Data: "",
+				Msg:  "添加成功",
+			})
+		} else {
+			log.Println("添加解析失败")
+			c.JSON(http.StatusOK, response.Response{
+				Code: -1,
+				Data: err.Error(),
+				Msg:  "添加失败",
+			})
+			return
+		}
+
+	})
+
+	var waf_rule_edit_req request.WafRuleEditReq
+	r.POST("/samwaf/wafhost/rule/edit", func(c *gin.Context) {
+		err := c.ShouldBind(&waf_rule_edit_req)
+		if err == nil {
+
+			var rule_tool = model.RuleTool{}
+			rule_info, err := rule_tool.LoadRule(waf_rule_edit_req.RuleJson)
+			if err != nil {
+				c.JSON(http.StatusOK, response.Response{
+					Code: -1,
+					Msg:  "解析错误",
+				})
+				return
+			}
+			var rulename = rule_info.RuleBase.RuleName //中文名
+			if waf_rule_edit_req.CODE != rule_info.RuleBase.RuleDomainCode {
+				c.JSON(http.StatusOK, response.Response{
+					Code: -1,
+					Msg:  "网站识别码不匹配",
+				})
+				return
+			}
+			var rule model.Rules
+			global.GWAF_LOCAL_DB.Debug().Where("rulename = ? and code= ?",
+				rulename, rule_info.RuleBase.RuleDomainCode).Find(&rule)
+
+			if rule.Id != 0 && rule.RuleCode != waf_rule_edit_req.CODE {
+				c.JSON(http.StatusOK, response.Response{
+					Code: 404,
+					Msg:  "当前规则名称已经存在", //可以后续考虑再次加入已存在的返回，前台进行编辑
+				})
+				return
+			}
+
+			global.GWAF_LOCAL_DB.Debug().Where("rule_code=?", waf_rule_edit_req.CODE).Find(rule)
+
+			rule_info.RuleBase.RuleName = strings.Replace(rule.RuleCode, "-", "", -1)
+
+			ruleMap := map[string]interface{}{
+				"Code":            rule_info.RuleBase.RuleDomainCode, //TODO 注意字典名称
+				"Rulename":        rulename,
+				"Rulecontent":     rule_tool.GenRuleInfo(rule_info),
+				"RulecontentJSON": waf_rule_edit_req.RuleJson, //TODO 后续考虑是否应该再从结构转一次
+				"Ruleversionname": "初版",
+				"Ruleversion":     rule.Ruleversion + 1,
+				"User_code":       global.GWAF_USER_CODE,
+				"IsPublicRule":    0,
+				"RuleStatus":      "1",
+				//"UPDATE_TIME": time.Now(),
+			}
+			err = global.GWAF_LOCAL_DB.Debug().Model(model.Rules{}).Where("rule_code=?", waf_rule_edit_req.CODE).Updates(ruleMap).Error
+			if err != nil {
+				c.JSON(http.StatusOK, response.Response{
+					Code: 200,
+					Data: err.Error(),
+					Msg:  "编辑失败",
+				})
+			} else {
+				c.JSON(http.StatusOK, response.Response{
+					Code: 200,
+					Data: "",
+					Msg:  "编辑成功",
+				})
+			}
+
+		} else {
+			log.Println("添加解析失败")
+			c.JSON(http.StatusOK, response.Response{
+				Code: -1,
+				Data: err.Error(),
+				Msg:  "编辑失败",
+			})
+			return
+		}
+
+	})
+
+	var waf_rule_del_req request.WafRuleDelReq
+	r.GET("/samwaf/wafhost/rule/del", func(c *gin.Context) {
+		err := c.ShouldBind(&waf_rule_del_req)
+		if err == nil {
+
+			var rule model.Rules
+			err = global.GWAF_LOCAL_DB.Where("rule_code = ?", waf_rule_del_req.CODE).First(&rule).Error
+			if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
+				c.JSON(http.StatusOK, response.Response{
+					Code: -1,
+					Data: err.Error(),
+					Msg:  "请检测参数",
+				})
+				return
+			}
+			if err != nil {
+				c.JSON(http.StatusOK, response.Response{
+					Code: -1,
+					Data: err.Error(),
+					Msg:  "发生错误",
+				})
+				return
+			}
+			err = global.GWAF_LOCAL_DB.Where("rule_code = ?", waf_rule_del_req.CODE).Delete(model.Rules{}).Error
+
+			if err != nil {
+				c.JSON(http.StatusOK, response.Response{
+					Code: -1,
+					Data: err.Error(),
+					Msg:  "删除失败",
+				})
+				return
+			}
+
+			c.JSON(http.StatusOK, response.Response{
+				Code: 200,
+				Data: "",
+				Msg:  "删除成功",
+			})
+		}
+
+	})
+
 	r.Run(":" + strconv.Itoa(global.GWAF_LOCAL_SERVER_PORT)) // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")
 	log.Println("本地 port:%d", global.GWAF_LOCAL_SERVER_PORT)
 }

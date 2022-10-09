@@ -1,4 +1,4 @@
-package waflog
+package model
 
 type WafAttackLog struct {
 }

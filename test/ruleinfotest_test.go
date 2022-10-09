@@ -1,7 +1,7 @@
 package test
 
 import (
-	"SamWaf/model/rule"
+	"SamWaf/model"
 	"fmt"
 	"testing"
 )
@@ -11,7 +11,7 @@ func TestJsonTest(t *testing.T) {
 	//str := "{\n    \"rule_base\": {\n        \"salience\": 10,\n        \"rule_name\": \"试试\",\n        \"rule_domain_code\": \"CODDD\"\n    },\n    \"rule_condition_detail\": {\n        \"relation_detail\": [\n            {\n                \"fact_name\": \"MF\",\n                \"attr\": \"StringAttribute\",\n                \"attr_type\": \"string\",\n                \"attr_judge\": \"==\",\n                \"attr_val\": \"值\"\n            },\n            {\n                \"fact_name\": \"MF\",\n                \"attr\": \"IntAttribute\",\n                \"attr_type\": \"int\",\n                \"attr_judge\": \"==\",\n                \"attr_val\": \"0\"\n            }\n        ],\n        \"relation_symbol\": \"&&\"\n    },\n    \"rule_do_assignment\": [\n        {\n            \"fact_name\": \"MF\",\n            \"attr\": \"StringAttribute\",\n            \"attr_type\": \"string\",\n            \"attr_val\": \"值\"\n        },\n        {\n            \"fact_name\": \"MF\",\n            \"attr\": \"IntAttribute\",\n            \"attr_type\": \"int\",\n            \"attr_val\": \"0\"\n        }\n    ],\n    \"rule_do_method\": [\n        {\n            \"fact_name\": \"MF\",\n            \"method_name\": \"DoSomeThing\",\n            \"parms\": [\n                {\n                    \"attr_type\": \"string\",\n                    \"attr_val\": \"值\"\n                },\n                {\n                    \"attr_type\": \"string\",\n                    \"attr_val\": \"值\"\n                }\n            ]\n        }\n    ]\n}"
 	str := "{\n    \"rule_base\": {\n        \"salience\": 10,\n        \"rule_name\": \"试试\",\n        \"rule_domain_code\": \"CODDD\"\n    },\n    \"rule_condition_detail\": {\n        \"relation_detail\": [\n            {\n                \"fact_name\": \"MF\",\n                \"attr\": \"StringAttribute\",\n                \"attr_type\": \"string\",\n                \"attr_judge\": \"==\",\n                \"attr_val\": \"值\"\n            },\n            {\n                \"fact_name\": \"MF\",\n                \"attr\": \"IntAttribute\",\n                \"attr_type\": \"int\",\n                \"attr_judge\": \"==\",\n                \"attr_val\": \"0\"\n            }\n        ],\n        \"relation_symbol\": \"&&\"\n    },\n    \"rule_do_assignment\": [\n         \n    ],\n    \"rule_do_method\": [\n         \n    ]\n}"
 
-	var ruleTool rule.RuleTool
+	var ruleTool model.RuleTool
 	ruleInfo, err := ruleTool.LoadRule(str)
 
 	if err != nil {

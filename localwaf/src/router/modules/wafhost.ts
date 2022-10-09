@@ -23,6 +23,30 @@ export default [
         ,
 
       },
+      {
+        path: 'wafrule',
+        name: 'WafRule',
+        component: () => import('@/pages/waf-host/rule/index.vue'),
+        meta: { title: '防御规则' },
+      },
+      {
+        path: 'wafruledetail',
+        name: 'WafruleDetail',
+        component: () => import('@/pages/waf-host/rule/detail/index.vue'),
+        meta: { title: '防御规则详情' ,hidden: true,keepAlive:false},
+      },
+      {
+        path: 'wafruleadd',
+        name: 'WafruleAdd',
+        component: () => import('@/pages/waf-host/rule/add/index.vue'),
+        meta: { title: '防御规则添加' ,keepAlive:false},
+      },
+      {
+        path: 'wafruleedit',
+        name: 'WafruleEdit',
+        component: () => import('@/pages/waf-host/rule/edit/index.vue'),
+        meta: { title: '防御规则编辑' ,hidden: true,keepAlive:false},
+      },
     ],
   },
 ];

@@ -1,71 +1,59 @@
-<template> 
+<template>
   <div class="detail-base">
-    <t-card title="防御情况" class="container-base-margin-top">
-      <t-steps class="detail-base-info-steps" layout="horizontal" theme="dot" :current="2">
-        <t-step-item title="访问" :content="detail_data.create_time" />
-        <t-step-item title="检测" :content="detail_data.create_time" />
-        <t-step-item title="防御状态" :content="detail_data.action" />
-      </t-steps>
-    </t-card>
-    <t-card title="本次请求详情">
+    <t-card title="网站详情">
       <div class="info-block">
+
         <div class="info-item">
-          <h1> 请求标识</h1>
-          <span>
-            {{ detail_data.req_uuid }}
-          </span>
-        </div>
-        <div class="info-item">
-          <h1> 请求时间</h1>
+          <h1> 创建时间</h1>
           <span>
             {{ detail_data.create_time }}
           </span>
         </div>
         <div class="info-item">
-          <h1> 请求域名</h1>
+          <h1> 网站</h1>
           <span>
             {{ detail_data.host }}
           </span>
         </div>
         <div class="info-item">
-          <h1> 请求路径</h1>
+          <h1> 网站端口</h1>
           <span>
-            {{ detail_data.url }}
+            {{ detail_data.port }}
           </span>
         </div>
         <div class="info-item">
-          <h1> 请求方法</h1>
+          <h1> 加密证书</h1>
           <span>
-            {{ detail_data.method }}
+            {{ detail_data.ssl }}
           </span>
         </div>
         <div class="info-item">
-          <h1> 请求内容大小</h1>
+          <h1> 后端系统类型</h1>
           <span>
-            {{ detail_data.content_length }}
+            {{ detail_data.remote_system }}
           </span>
         </div>
         <div class="info-item">
-          <h1> 访问者IP</h1>
+          <h1> 后端系统应用类型</h1>
           <span>
-            {{ detail_data.src_ip }}
+            {{ detail_data.remote_app }}
           </span>
         </div>
         <div class="info-item">
-          <h1> 访问者端口</h1>
+          <h1> 后端域名</h1>
           <span>
-            {{ detail_data.src_port }}
+            {{ detail_data.remote_host }}
           </span>
         </div>
         <div class="info-item">
-          <h1> 请求地区</h1>
+          <h1> 后端端口</h1>
           <span>
-            {{ detail_data.country }}
+            {{ detail_data.remote_port }}
           </span>
         </div>
       </div>
     </t-card>
-    <t-card title="访问其他记录" class="container-base-margin-top">
+    <t-card title="最近配置记录" class="container-base-margin-top">
 
       <t-list :split="true">
         <t-list-item>
@@ -84,7 +72,7 @@
     </t-card>
 
 
-  </div> 
+  </div>
 </template>
 <script lang="ts">
   import {
@@ -127,8 +115,8 @@
       console.log('----updated----')
     },
     watch: {
-      '$route.query.req_uuid'(newVal, oldVal) {
-        console.log('route.query.req_uuid changed', newVal, oldVal)
+      '$route.query.code'(newVal, oldVal) {
+        console.log('route.query.code changed', newVal, oldVal)
         this.getDetail(newVal)
       },
     },
@@ -136,9 +124,9 @@
       getDetail(id) {
         let that = this
         this.$request
-          .get('/waflog/attack/detail', {
+          .get('/wafhost/host/detail', {
             params: {
-              REQ_UUID: id,
+              CODE: id,
             }
           })
           .then((res) => {

@@ -96,7 +96,7 @@ func CheckIP(ip string) bool {
 	}
 }
 func (h *baseHandle) Error() string {
-	fs := "HTTP: %d, Code: %d, Message: %s"
+	fs := "HTTP: %d, HostCode: %d, Message: %s"
 	return fmt.Sprintf(fs)
 }
 func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -151,7 +151,7 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		waflogbean := innerbean.WAFLog{
 			CREATE_TIME: time.Now().Format("2006-01-02 15:04:05"),
-			RULE:        hostTarget[host].RuleData.Rulename,
+			RULE:        hostTarget[host].RuleData.RuleName,
 			REQ_UUID:    uuid.NewV4().String(),
 		}
 		esHelper.BatchInsertWAF("web_log", waflogbean)
@@ -186,7 +186,7 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		/*waflogbean := innerbean.WAFLog{
 			CREATE_TIME: time.Now().Format("2006-01-02 15:04:05"),
-			RULE:        hostTarget[host].RuleData.Rulename,
+			RULE:        hostTarget[host].RuleData.RuleName,
 			ACTION:      "FORBIDDEN",
 			REQ_UUID:    uuid.NewV4().String(),
 			USER_CODE:   user_code,

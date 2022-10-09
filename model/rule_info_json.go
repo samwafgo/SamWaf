@@ -127,7 +127,7 @@ func (receiver *RuleTool) GenRuleInfo(rule RuleInfo) string {
 	}
 
 	var rule_tpl = `
-rule ${rule_name} "${rule_remark}" salience ${rule_salience} {
+rule R${rule_name} "${rule_remark}" salience ${rule_salience} {
     when 
         ${rule_condition}
     then

@@ -31,7 +31,7 @@ func (rulehelper *RuleHelper) LoadRule(ruleconfig model.Rules) {
 			Retract("CheckRegionNotChina");
 	}
 	`*/
-	byteArr := pkg.NewBytesResource([]byte(ruleconfig.Rulecontent))
+	byteArr := pkg.NewBytesResource([]byte(ruleconfig.RuleContent))
 	err := ruleBuilder.BuildRuleFromResource("Region", "0.0.1", byteArr)
 	if err != nil {
 		log.Fatal(err)

@@ -3,7 +3,7 @@
     <t-card class="list-card-container">
       <t-row justify="space-between">
         <div class="left-operation-container">
-          <t-button @click="handleAddHost"> 新建规则 </t-button>
+          <t-button @click="handleAddRule"> 新建规则 </t-button>
           <t-button variant="base" theme="default" :disabled="!selectedRowKeys.length"> 导出日志 </t-button>
           <p v-if="!!selectedRowKeys.length" class="selected-count">已选{{ selectedRowKeys.length }}项</p>
         </div>
@@ -62,124 +62,10 @@
       </div>
     </t-card>
 
-    <!-- 新建网站防御弹窗 -->
-    <t-dialog header="新建网站防御" :visible.sync="addFormVisible" :width="680" :footer="false">
-      <div slot="body">
-        <!-- 表单内容 -->
-        <t-form :data="formData" ref="form" :rules="rules" @submit="onSubmit" :labelWidth="100">
-          <t-form-item label="网站" name="host">
-            <t-input :style="{ width: '480px' }" v-model="formData.host" placeholder="请输入网站的网址"></t-input>
-          </t-form-item>
-          <t-form-item label="端口" name="port">
-            <t-input-number :style="{ width: '150px' }" v-model="formData.port" placeholder="请输入网站的端口一般是80/443"></t-input-number>
-          </t-form-item>
-          <t-form-item label="加密证书" name="ssl">
-            <t-radio-group v-model="formData.ssl">
-              <t-radio value="0">非加密</t-radio>
-              <t-radio value="1">加密证书（需上传证书）</t-radio>
-            </t-radio-group>
-          </t-form-item>
-          <t-form-item label="证书串" name="certfile" v-if="formData.ssl=='1'">
-            <t-textarea :style="{ width: '480px' }" v-model="formData.certfile" placeholder="请输入内容" name="certfile">
-            </t-textarea>
-          </t-form-item>
-          <t-form-item label="密钥串" name="keyfile" v-if="formData.ssl=='1'">
-            <t-textarea :style="{ width: '480px' }" v-model="formData.keyfile" placeholder="请输入内容" name="keyfile">
-            </t-textarea>
-          </t-form-item>
-          <t-form-item label="后端系统类型" name="remote_system">
-            <t-select v-model="formData.remote_system" clearable :style="{ width: '480px' }">
-              <t-option v-for="(item, index) in remote_system_options" :value="item.value" :label="item.label" :key="index">
-                {{ item.label }}
-              </t-option>
-            </t-select>
-          </t-form-item>
-          <t-form-item label="后端应用类型" name="remote_app">
-            <t-select v-model="formData.remote_app" clearable :style="{ width: '480px' }">
-              <t-option v-for="(item, index) in remote_app_options" :value="item.value" :label="item.label" :key="index">
-                {{ item.label }}
-              </t-option>
-            </t-select>
-          </t-form-item>
-          <t-form-item label="后端域名" name="remote_host">
-            <t-input :style="{ width: '480px' }" v-model="formData.remote_host" placeholder="请输入后端域名"></t-input>
-          </t-form-item>
-          <t-form-item label="后端端口" name="remote_port">
-            <t-input-number :style="{ width: '150px' }" v-model="formData.remote_port" placeholder="请输入网站的端口一般是80/443"></t-input-number>
-          </t-form-item>
 
-          <t-form-item label="备注" name="remarks">
-            <t-textarea :style="{ width: '480px' }" v-model="textareaValue" placeholder="请输入内容" name="remarks">
-            </t-textarea>
-          </t-form-item>
-          <t-form-item style="float: right">
-            <t-button variant="outline" @click="onClickCloseBtn">取消</t-button>
-            <t-button theme="primary" type="submit">确定</t-button>
-          </t-form-item>
-        </t-form>
-      </div>
-    </t-dialog>
-
-    <!-- 编辑网站防御弹窗 -->
-    <t-dialog header="编辑网站防御" :visible.sync="editFormVisible" :width="680" :footer="false">
-      <div slot="body">
-        <!-- 表单内容 -->
-        <t-form :data="formEditData" ref="form" :rules="rules" @submit="onSubmitEdit" :labelWidth="100">
-          <t-form-item label="网站" name="host">
-            <t-input :style="{ width: '480px' }" v-model="formEditData.host" placeholder="请输入网站的网址"></t-input>
-          </t-form-item>
-          <t-form-item label="端口" name="port">
-            <t-input-number :style="{ width: '150px' }" v-model="formEditData.port" placeholder="请输入网站的端口一般是80/443"></t-input-number>
-          </t-form-item>
-          <t-form-item label="加密证书" name="ssl">
-            <t-radio-group v-model="formEditData.ssl">
-              <t-radio value="0">非加密</t-radio>
-              <t-radio value="1">加密证书（需填写证书）</t-radio>
-            </t-radio-group>
-          </t-form-item>
-          <t-form-item label="证书串" name="certfile" v-if="formEditData.ssl=='1'">
-            <t-textarea :style="{ width: '480px' }" v-model="formEditData.certfile" placeholder="请输入内容" name="certfile">
-            </t-textarea>
-          </t-form-item>
-          <t-form-item label="密钥串" name="keyfile" v-if="formEditData.ssl=='1'">
-            <t-textarea :style="{ width: '480px' }" v-model="formEditData.keyfile" placeholder="请输入内容" name="keyfile">
-            </t-textarea>
-          </t-form-item>
-          <t-form-item label="后端系统类型" name="remote_system">
-            <t-select v-model="formEditData.remote_system" clearable :style="{ width: '480px' }">
-              <t-option v-for="(item, index) in remote_system_options" :value="item.value" :label="item.label" :key="index">
-                {{ item.label }}
-              </t-option>
-            </t-select>
-          </t-form-item>
-          <t-form-item label="后端应用类型" name="remote_app">
-            <t-select v-model="formEditData.remote_app" clearable :style="{ width: '480px' }">
-              <t-option v-for="(item, index) in remote_app_options" :value="item.value" :label="item.label" :key="index">
-                {{ item.label }}
-              </t-option>
-            </t-select>
-          </t-form-item>
-          <t-form-item label="后端域名" name="remote_host">
-            <t-input :style="{ width: '480px' }" v-model="formEditData.remote_host" placeholder="请输入后端域名"></t-input>
-          </t-form-item>
-          <t-form-item label="后端端口" name="remote_port">
-            <t-input-number :style="{ width: '150px' }" v-model="formEditData.remote_port" placeholder="请输入网站的端口一般是80/443"></t-input-number>
-          </t-form-item>
-
-          <t-form-item label="备注" name="remarks">
-            <t-textarea :style="{ width: '480px' }" v-model="textareaValue" placeholder="请输入内容" name="remarks">
-            </t-textarea>
-          </t-form-item>
-          <t-form-item style="float: right">
-            <t-button variant="outline" @click="onClickCloseEditBtn">取消</t-button>
-            <t-button theme="primary" type="submit">确定</t-button>
-          </t-form-item>
-        </t-form>
-      </div>
-    </t-dialog>
 
     <t-dialog
-      header="确认删除当前所选网站?"
+      header="确认删除当前所选规则吗?"
       :body="confirmBody"
       :visible.sync="confirmVisible"
       @confirm="onConfirmDelete"
@@ -247,39 +133,14 @@ export default Vue.extend({
       columns: [
         { colKey: 'row-select', type: 'multiple', width: 64, fixed: 'left' },
         {
-          title: '网站',
+          title: '规则名',
           align: 'left',
           width: 250,
           ellipsis: true,
-          colKey: 'host',
+          colKey: 'rule_name',
           fixed: 'left',
         },
-        {
-          title: '网站端口',
-          width: 200,
-          ellipsis: true,
-          colKey: 'port',
-        },
-        { title: '防护状态', colKey: 'status', width: 200, cell: { col: 'status' } },
-        {
-          title: '加密证书',
-          width: 200,
-          ellipsis: true,
-          colKey: 'ssl',
-        },
-        {
-          title: '备注',
-          width: 200,
-          ellipsis: true,
-          colKey: 'remarks',
-        },
-        {
-          title: '添加时间',
-          width: 200,
-          ellipsis: true,
-          colKey: 'create_time',
-        },
-
+        { title: '规则状态', colKey: 'rule_status', width: 200, cell: { col: 'status' } },
         {
           align: 'left',
           fixed: 'right',
@@ -324,7 +185,7 @@ export default Vue.extend({
     getList(keyword){
       let that = this
       this.$request
-        .get('/wafhost/host/list', {
+        .get('/wafhost/rule/list', {
           params: {
              pageSize: that.pagination.pageSize,
              pageIndex: that.pagination.current,
@@ -334,9 +195,6 @@ export default Vue.extend({
           let resdata = res.data
           console.log(resdata)
           if (resdata.code === 200) {
-
-            //const { list = [] } = resdata.data.list;
-
             this.data = resdata.data.list;
             this.pagination = {
               ...this.pagination,
@@ -390,9 +248,12 @@ export default Vue.extend({
       this.editFormVisible = true
       this.getDetail(code)
     },
-    handleAddHost() {
-      //添加host
-      this.addFormVisible = true
+    handleAddRule() {
+      this.$router.push(
+              {
+                path:'/waf-host/WafruleAdd' 
+              },
+       );
     },
     onSubmit({ result, firstError }): void {
        let that = this

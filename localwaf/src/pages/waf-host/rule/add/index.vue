@@ -1,6 +1,6 @@
 <template>
   <div class="detail-base">
-    <t-form :data="formData">
+    <t-form :data="formData"  @submit="onSubmit"> <!--:rules="rules"-->
       <!--基本信息 开始-->
       <t-card title="基本信息">
         <t-form-item label="规则名称" name="rule_name">
@@ -216,6 +216,9 @@
       return {
         prefix,
         detail_data: {},
+        rules: {
+          rule_name: [{ required: true, message: '请输入规则名称', type: 'error' }],
+        },
         fact_option: [{
           label: '默认',
           value: 'MF'
@@ -317,6 +320,40 @@
             console.log(e);
           })
           .finally(() => {});
+      },
+      onSubmit({ result, firstError }): void {
+         let that = this
+        if (!firstError) {
+
+          let postdata = {...that.formData}
+          this.$request
+            .post('/wafhost/rule/add', {
+              RuleJson: JSON.stringify(postdata)
+            })
+            .then((res) => {
+              let resdata = res.data
+              console.log(resdata)
+              if (resdata.code === 200) {
+                that.$message.success(resdata.msg);
+                this.$router.push(
+                  {
+                    path:'/waf-host/wafrule',
+                  },
+                );
+
+              }else{
+                 that.$message.warning(resdata.msg);
+              }
+            })
+            .catch((e: Error) => {
+              console.log(e);
+            })
+            .finally(() => {
+            });
+        } else {
+          console.log('Errors: ', result);
+          that.$message.warning(firstError);
+        }
       },
     },
   };

@@ -45,7 +45,7 @@ func StartLocalServer() {
 	r.GET("/samwaf/resetWAF", func(c *gin.Context) {
 		/*defer func() {
 			c.JSON(http.StatusOK, response.Response{
-				Code: -1,
+				HostCode: -1,
 				Data: "",
 				Msg:  "重启指令失败",
 			})
@@ -348,7 +348,7 @@ func StartLocalServer() {
 			}
 
 			var rulename = rule_info.RuleBase.RuleName //中文名
-			if (!errors.Is(global.GWAF_LOCAL_DB.First(&model.Rules{}, "rulename = ? and code = ?", rulename, rule_info.RuleBase.RuleDomainCode).Error, gorm.ErrRecordNotFound)) {
+			if (!errors.Is(global.GWAF_LOCAL_DB.First(&model.Rules{}, "rule_name = ? and rule_code = ?", rulename, rule_info.RuleBase.RuleDomainCode).Error, gorm.ErrRecordNotFound)) {
 				c.JSON(http.StatusOK, response.Response{
 					Code: 404,
 					Msg:  "当前规则名称已存在", //可以后续考虑再次加入已存在的返回，前台进行编辑
@@ -358,15 +358,15 @@ func StartLocalServer() {
 			var rule_code = uuid.NewV4().String()
 			rule_info.RuleBase.RuleName = strings.Replace(rule_code, "-", "", -1)
 			var waf_rule = &model.Rules{
-				Tenant_id:       global.GWAF_TENANT_ID,
-				Code:            rule_info.RuleBase.RuleDomainCode, //网站CODE
+				TenantId:        global.GWAF_TENANT_ID,
+				HostCode:        rule_info.RuleBase.RuleDomainCode, //网站CODE
 				RuleCode:        rule_code,
-				Rulename:        rulename,
-				Rulecontent:     rule_tool.GenRuleInfo(rule_info),
-				RulecontentJSON: waf_rule_add_req.RuleJson, //TODO 后续考虑是否应该再从结构转一次
-				Ruleversionname: "初版",
-				Ruleversion:     0,
-				User_code:       global.GWAF_USER_CODE,
+				RuleName:        rulename,
+				RuleContent:     rule_tool.GenRuleInfo(rule_info),
+				RuleContentJSON: waf_rule_add_req.RuleJson, //TODO 后续考虑是否应该再从结构转一次
+				RuleVersionName: "初版",
+				RuleVersion:     0,
+				UserCode:        global.GWAF_USER_CODE,
 				IsPublicRule:    0,
 				RuleStatus:      "1",
 			}
@@ -429,12 +429,12 @@ func StartLocalServer() {
 			rule_info.RuleBase.RuleName = strings.Replace(rule.RuleCode, "-", "", -1)
 
 			ruleMap := map[string]interface{}{
-				"Code":            rule_info.RuleBase.RuleDomainCode, //TODO 注意字典名称
-				"Rulename":        rulename,
-				"Rulecontent":     rule_tool.GenRuleInfo(rule_info),
-				"RulecontentJSON": waf_rule_edit_req.RuleJson, //TODO 后续考虑是否应该再从结构转一次
-				"Ruleversionname": "初版",
-				"Ruleversion":     rule.Ruleversion + 1,
+				"HostCode":        rule_info.RuleBase.RuleDomainCode, //TODO 注意字典名称
+				"RuleName":        rulename,
+				"RuleContent":     rule_tool.GenRuleInfo(rule_info),
+				"RuleContentJSON": waf_rule_edit_req.RuleJson, //TODO 后续考虑是否应该再从结构转一次
+				"RuleVersionName": "初版",
+				"RuleVersion":     rule.RuleVersion + 1,
 				"User_code":       global.GWAF_USER_CODE,
 				"IsPublicRule":    0,
 				"RuleStatus":      "1",

@@ -44,8 +44,8 @@ func main() {
 					continue
 				}
 				var ruleconfig model.Rules
-				global.GWAF_LOCAL_DB.Debug().Where("code = ? and user_code=? ", code, global.GWAF_USER_CODE).Find(&ruleconfig)
-				if ruleconfig.Ruleversion > hostTarget[host].RuleData.Ruleversion {
+				global.GWAF_LOCAL_DB.Debug().Where("host_code = ? and user_code=? ", code, global.GWAF_USER_CODE).Find(&ruleconfig)
+				if ruleconfig.RuleVersion > hostTarget[host].RuleData.RuleVersion {
 					//说明该code有更新
 					hostRuleChan <- ruleconfig
 
@@ -59,8 +59,8 @@ func main() {
 	for {
 		select {
 		case remoteConfig := <-hostRuleChan:
-			hostTarget[hostCode[remoteConfig.Code]].RuleData = remoteConfig
-			hostTarget[hostCode[remoteConfig.Code]].Rule.LoadRule(remoteConfig)
+			hostTarget[hostCode[remoteConfig.HostCode]].RuleData = remoteConfig
+			hostTarget[hostCode[remoteConfig.HostCode]].Rule.LoadRule(remoteConfig)
 			log.Println(remoteConfig)
 			break
 

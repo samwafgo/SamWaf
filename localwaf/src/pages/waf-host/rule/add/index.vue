@@ -2,7 +2,7 @@
   <div class="detail-base">
     <t-form :data="formData">
       <!--基本信息 开始-->
-      <t-card title="基本信息"> 
+      <t-card title="基本信息">
         <t-form-item label="规则名称" name="rule_name">
           <t-input placeholder="请输入内容" v-model="formData.rule_base.rule_name" />
         </t-form-item>
@@ -266,6 +266,7 @@
     },
     mounted() {
       console.log('----mounted----')
+      console.log(RULE)
 
       //console.log(this.$route.params.req_uuid);
       //this.getDetail(this.$route.params.req_uuid);

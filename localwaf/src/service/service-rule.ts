@@ -1,20 +1,22 @@
 export const RULE = {
   rule_base: {
-    salience: 10, //重要性
-    rule_name: "试试", //规则名称
-    rule_domain_code: "CODDD", //规则作用域名CODE
+    salience: 10,
+    rule_name: "试试",
+    rule_domain_code: "CODDD",
   },
   rule_condition_detail: {
     relation_detail: [{
       fact_name: "MF",
       attr: "StringAttribute",
       attr_type: "string",
+      attr_judge: "==",
       attr_val: "值"
     },
     {
       fact_name: "MF",
       attr: "IntAttribute",
       attr_type: "int",
+      attr_judge: "==",
       attr_val: "0"
     },
     ],
@@ -32,7 +34,7 @@ export const RULE = {
     attr_type: "int",
     attr_val: "0"
   },
-  ], 
+  ],
   rule_do_method: [{
     fact_name: "MF",
     method_name: "DoSomeThing",

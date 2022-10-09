@@ -5,11 +5,6 @@ type ISafeInfo interface {
 type SafeInfo struct {
 	ExecResult int
 }
-type RuleInfo struct {
-	MyName     string
-	Age        int
-	ExecResult int
-}
 type CCInfo struct {
 	SafeInfo
 }

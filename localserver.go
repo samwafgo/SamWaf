@@ -315,7 +315,7 @@ func StartLocalServer() {
 
 			var total int64 = 0
 			var rules []model.Rules
-			global.GWAF_LOCAL_DB.Debug().Limit(waf_rule_search_req.PageSize).Offset(waf_rule_search_req.PageSize * (waf_rule_search_req.PageIndex - 1)).Find(&rules)
+			global.GWAF_LOCAL_DB.Debug().Where("user_code=? and rule_status= 1", global.GWAF_USER_CODE).Limit(waf_rule_search_req.PageSize).Offset(waf_rule_search_req.PageSize * (waf_rule_search_req.PageIndex - 1)).Find(&rules)
 			global.GWAF_LOCAL_DB.Debug().Model(&model.Rules{}).Count(&total)
 
 			c.JSON(http.StatusOK, response.Response{
@@ -404,17 +404,11 @@ func StartLocalServer() {
 				})
 				return
 			}
-			var rulename = rule_info.RuleBase.RuleName //中文名
-			if waf_rule_edit_req.CODE != rule_info.RuleBase.RuleDomainCode {
-				c.JSON(http.StatusOK, response.Response{
-					Code: -1,
-					Msg:  "网站识别码不匹配",
-				})
-				return
-			}
+			var rule_name = rule_info.RuleBase.RuleName //中文名
+
 			var rule model.Rules
-			global.GWAF_LOCAL_DB.Debug().Where("rulename = ? and code= ?",
-				rulename, rule_info.RuleBase.RuleDomainCode).Find(&rule)
+			global.GWAF_LOCAL_DB.Debug().Where("rule_name = ? and host_code= ?",
+				rule_name, rule_info.RuleBase.RuleDomainCode).Find(&rule)
 
 			if rule.Id != 0 && rule.RuleCode != waf_rule_edit_req.CODE {
 				c.JSON(http.StatusOK, response.Response{
@@ -424,13 +418,13 @@ func StartLocalServer() {
 				return
 			}
 
-			global.GWAF_LOCAL_DB.Debug().Where("rule_code=?", waf_rule_edit_req.CODE).Find(rule)
+			global.GWAF_LOCAL_DB.Debug().Where("rule_code=?", waf_rule_edit_req.CODE).Find(&rule)
 
 			rule_info.RuleBase.RuleName = strings.Replace(rule.RuleCode, "-", "", -1)
 
 			ruleMap := map[string]interface{}{
 				"HostCode":        rule_info.RuleBase.RuleDomainCode, //TODO 注意字典名称
-				"RuleName":        rulename,
+				"RuleName":        rule_name,
 				"RuleContent":     rule_tool.GenRuleInfo(rule_info),
 				"RuleContentJSON": waf_rule_edit_req.RuleJson, //TODO 后续考虑是否应该再从结构转一次
 				"RuleVersionName": "初版",
@@ -490,7 +484,11 @@ func StartLocalServer() {
 				})
 				return
 			}
-			err = global.GWAF_LOCAL_DB.Where("rule_code = ?", waf_rule_del_req.CODE).Delete(model.Rules{}).Error
+			rule_map := map[string]interface{}{
+				"RuleStatus":  "999",
+				"RuleVersion": 999999,
+			}
+			err = global.GWAF_LOCAL_DB.Model(model.Rules{}).Where("rule_code = ?", waf_rule_del_req.CODE).Updates(rule_map).Error
 
 			if err != nil {
 				c.JSON(http.StatusOK, response.Response{

@@ -53,8 +53,7 @@
             </p>
           </template>
 
-          <template #op="slotProps">
-            <a class="t-button-link" @click="handleClickDetail(slotProps)">详情</a>
+          <template #op="slotProps"> 
             <a class="t-button-link" @click="handleClickEdit(slotProps)">编辑</a>
             <a class="t-button-link" @click="handleClickDelete(slotProps)">删除</a>
           </template>
@@ -149,7 +148,7 @@ export default Vue.extend({
           title: '操作',
         },
       ],
-      rowKey: 'code',
+      rowKey: 'rule_code',
       tableLayout: 'auto',
       verticalAlign: 'top',
       hover: true,
@@ -228,30 +227,28 @@ export default Vue.extend({
     rehandleChange(changeParams, triggerAndData) {
       console.log('统一Change', changeParams, triggerAndData);
     },
-    handleClickDetail(e) {
-      console.log(e)
-      const { code } = e.row
-      console.log(code)
-      this.$router.push(
-        {
-          path:'/waf-host/wafhostdetail',
-          query: {
-            code: code,
-          },
-        },
-      );
-    },
+    
     handleClickEdit(e) {
       console.log(e)
-      const { code } = e.row
-      console.log(code)
-      this.editFormVisible = true
-      this.getDetail(code)
+      const { rule_code } = e.row
+      console.log(rule_code)
+      this.$router.push(
+              {
+                path:'/waf-host/wafruleedit',
+                query: {
+                  type: "edit",
+                  code: rule_code
+                },
+              },
+       );
     },
     handleAddRule() {
       this.$router.push(
               {
-                path:'/waf-host/WafruleAdd' 
+                path:'/waf-host/wafruleedit',
+                query: {
+                  type: "add",
+                },
               },
        );
     },

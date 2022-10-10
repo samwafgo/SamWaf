@@ -19,5 +19,8 @@ func InitDb() {
 		db.AutoMigrate(&innerbean.WebLog{})
 		db.AutoMigrate(&model.Hosts{})
 		db.AutoMigrate(&model.Rules{})
+		//重启需要删除无效规则
+		db.Where("user_code = ? and rule_status = 999", global.GWAF_USER_CODE).Delete(model.Rules{})
+
 	}
 }

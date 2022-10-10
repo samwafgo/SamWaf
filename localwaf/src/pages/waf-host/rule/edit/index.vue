@@ -1,75 +1,203 @@
 <template>
   <div class="detail-base">
-    <t-card title="网站详情">
-      <div class="info-block">
+    <t-form :data="formData"  @submit="onSubmit"> <!--:rules="rules"-->
+      <!--基本信息 开始-->
+      <t-card title="基本信息">
+        <t-form-item label="规则名称" name="rule_name">
+          <t-input placeholder="请输入内容" v-model="formData.rule_base.rule_name" />
+        </t-form-item>
+        <t-form-item label="防护网站" name="rule_domain_code">
+          <t-input placeholder="请输入内容" v-model="formData.rule_base.rule_domain_code" />
+        </t-form-item>
+        <t-form-item label="防护级别" name="salience">
+          <t-input placeholder="请输入内容" v-model="formData.rule_base.salience" />
+        </t-form-item>
+      </t-card>
+      <!--基本信息 结束-->
 
-        <div class="info-item">
-          <h1> 创建时间</h1>
-          <span>
-            {{ detail_data.create_time }}
-          </span>
-        </div>
-        <div class="info-item">
-          <h1> 网站</h1>
-          <span>
-            {{ detail_data.host }}
-          </span>
-        </div>
-        <div class="info-item">
-          <h1> 网站端口</h1>
-          <span>
-            {{ detail_data.port }}
-          </span>
-        </div>
-        <div class="info-item">
-          <h1> 加密证书</h1>
-          <span>
-            {{ detail_data.ssl }}
-          </span>
-        </div>
-        <div class="info-item">
-          <h1> 后端系统类型</h1>
-          <span>
-            {{ detail_data.remote_system }}
-          </span>
-        </div>
-        <div class="info-item">
-          <h1> 后端系统应用类型</h1>
-          <span>
-            {{ detail_data.remote_app }}
-          </span>
-        </div>
-        <div class="info-item">
-          <h1> 后端域名</h1>
-          <span>
-            {{ detail_data.remote_host }}
-          </span>
-        </div>
-        <div class="info-item">
-          <h1> 后端端口</h1>
-          <span>
-            {{ detail_data.remote_port }}
-          </span>
-        </div>
-      </div>
-    </t-card>
-    <t-card title="最近配置记录" class="container-base-margin-top">
+      <!--规则编排 开始-->
+      <t-card title="规则编排">
+        <t-form-item label="关系" name="relation_symbol">
+          <t-select clearable :style="{ width: '480px' }"
+            v-model="formData.rule_condition_detail.relation_symbol">
+            <t-option v-for="(item, index) in relation_symbol_option" :value="item.value" :label="item.label"
+              :key="index">
+              {{ item.label }}
+            </t-option>
+          </t-select>
+        </t-form-item>
+        <t-card title="条件" v-for="condition_item in formData.rule_condition_detail.relation_detail">
+          <t-row :gutter="{ xs: 8, sm: 16, md: 24, lg: 32, xl: 32, xxl: 40 }">
+            <t-col :span="4">
+              <div>
+                <t-form-item label="内置实体名称">
+                  <t-select clearable :style="{ width: '480px' }" v-model="condition_item.fact_name">
+                    <t-option v-for="(item, index) in fact_option" :value="item.value" :label="item.label" :key="index">
+                      {{ item.label }}
+                    </t-option>
+                  </t-select>
+                </t-form-item>
+              </div>
+            </t-col>
+            <t-col :span="4">
+              <div>
+                <t-form-item label="作用域" name="attr">
+                  <t-select clearable :style="{ width: '480px' }" v-model="condition_item.attr">
+                    <t-option v-for="(item, index) in attr_option" :value="item.value" :label="item.label" :key="index">
+                      {{ item.label }}
+                    </t-option>
+                  </t-select>
+                </t-form-item>
+              </div>
+            </t-col>
+            <t-col :span="4">
+              <div>
+                <t-form-item label="值类型" name="attr_type">
+                  <t-select clearable :style="{ width: '480px' }" v-model="condition_item.attr_type">
+                    <t-option v-for="(item, index) in attr_type_option" :value="item.value" :label="item.label"
+                      :key="index">
+                      {{ item.label }}
+                    </t-option>
+                  </t-select>
+                </t-form-item>
+              </div>
+            </t-col>
+          </t-row>
+          <t-form-item label="值" name="att_val">
+            <t-input placeholder="请输入内容" v-model="condition_item.attr_val" />
+          </t-form-item>
+        </t-card>
+      </t-card>
+      <!--规则编排 结束-->
 
-      <t-list :split="true">
-        <t-list-item>
-          <t-list-item-meta title="请求头" :description="detail_data.header"></t-list-item-meta>
-        </t-list-item>
-        <t-list-item>
-          <t-list-item-meta title="请求用户浏览器" :description="detail_data.user_agent"></t-list-item-meta>
-        </t-list-item>
-        <t-list-item>
-          <t-list-item-meta title="请求cookies" :description="detail_data.cookies"></t-list-item-meta>
-        </t-list-item>
-        <t-list-item>
-          <t-list-item-meta title="请求BODY" :description="detail_data.body"></t-list-item-meta>
-        </t-list-item>
-      </t-list>
-    </t-card>
+      <!--符合则执行部分 开始-->
+      <t-card title="符合则执行如下">
+
+        <!--赋值总区块 开始-->
+        <t-card title="赋值">
+
+          <t-card title="赋值明细" v-for="do_assignment_item in formData.rule_do_assignment">
+            <t-row :gutter="{ xs: 8, sm: 16, md: 24, lg: 32, xl: 32, xxl: 40 }">
+              <t-col :span="4">
+                <div>
+                  <t-form-item label="内置实体名称">
+                    <t-select clearable :style="{ width: '480px' }" v-model="do_assignment_item.fact_name">
+                      <t-option v-for="(item, index) in fact_option" :value="item.value" :label="item.label"
+                        :key="index">
+                        {{ item.label }}
+                      </t-option>
+                    </t-select>
+                  </t-form-item>
+                </div>
+              </t-col>
+              <t-col :span="4">
+                <div>
+                  <t-form-item label="作用域" name="attr">
+                    <t-select clearable :style="{ width: '480px' }" v-model="do_assignment_item.attr">
+                      <t-option v-for="(item, index) in attr_option" :value="item.value" :label="item.label"
+                        :key="index">
+                        {{ item.label }}
+                      </t-option>
+                    </t-select>
+                  </t-form-item>
+                </div>
+              </t-col>
+              <t-col :span="4">
+                <div>
+                  <t-form-item label="值类型" name="attr_type">
+                    <t-select clearable :style="{ width: '480px' }" v-model="do_assignment_item.attr_type">
+                      <t-option v-for="(item, index) in attr_type_option" :value="item.value" :label="item.label"
+                        :key="index">
+                        {{ item.label }}
+                      </t-option>
+                    </t-select>
+                  </t-form-item>
+                </div>
+              </t-col>
+            </t-row>
+            <t-form-item label="值" name="att_val">
+              <t-input placeholder="请输入内容" v-model="do_assignment_item.attr_val" />
+            </t-form-item>
+          </t-card>
+
+        </t-card>
+        <!--赋值总区块 结束-->
+
+        <!--方法执行总区块 开始-->
+        <t-card title="方法执行">
+          <!--方法执行明细 开始-->
+          <t-card title="方法明细" v-for="do_method_item in formData.rule_do_method">
+            <t-row :gutter="{ xs: 8, sm: 16, md: 24, lg: 32, xl: 32, xxl: 40 }">
+              <t-col :span="6">
+                <div>
+                  <t-form-item label="内置实体名称">
+                    <t-select clearable :style="{ width: '480px' }" v-model="do_method_item.fact_name">
+                      <t-option v-for="(item, index) in fact_option" :value="item.value" :label="item.label"
+                        :key="index">
+                        {{ item.label }}
+                      </t-option>
+                    </t-select>
+                  </t-form-item>
+                </div>
+              </t-col>
+              <t-col :span="6">
+                <div>
+                  <t-form-item label="内置方法名称">
+                    <t-select clearable :style="{ width: '480px' }" v-model="do_method_item.method_name">
+                      <t-option v-for="(item, index) in method_option" :value="item.value" :label="item.label"
+                        :key="index">
+                        {{ item.label }}
+                      </t-option>
+                    </t-select>
+                  </t-form-item>
+                </div>
+              </t-col>
+            </t-row>
+            <!--传参列表明细 开始-->
+            <t-card title="传参">
+              <t-row :gutter="{ xs: 8, sm: 16, md: 24, lg: 32, xl: 32, xxl: 40 }"
+                v-for="do_method_parms_item in do_method_item.parms">
+                <t-col :span="6">
+                  <div>
+                    <t-form-item label="值类型" name="attr_type">
+                      <t-select clearable :style="{ width: '480px' }" v-model="do_method_parms_item.attr_type">
+                        <t-option v-for="(item, index) in attr_type_option" :value="item.value" :label="item.label"
+                          :key="index">
+                          {{ item.label }}
+                        </t-option>
+                      </t-select>
+                    </t-form-item>
+
+                  </div>
+                </t-col>
+                <t-col :span="6">
+                  <div>
+                    <t-form-item label="值" name="att_val">
+                      <t-input placeholder="请输入内容" v-model="do_method_parms_item.attr_val" />
+                    </t-form-item>
+                  </div>
+                </t-col>
+              </t-row>
+            </t-card>
+            <!--传参列表明细 结束-->
+          </t-card>
+          <!--方法执行明细 结束-->
+        </t-card>
+        <!--方法执行总区块 结束-->
+      </t-card>
+      <!--符合则执行部分 结束-->
+
+
+
+      <t-form-item style="margin-left: 100px">
+        <t-space size="10px">
+          <!-- type = submit，表单中的提交按钮，原生行为 -->
+          <t-button theme="primary" type="submit">提交</t-button>
+          <!-- type = reset，表单中的重置按钮，原生行为 -->
+          <t-button theme="default" variant="base" type="reset">重置</t-button>
+        </t-space>
+      </t-form-item>
+    </t-form>
 
 
   </div>
@@ -78,15 +206,64 @@
   import {
     prefix
   } from '@/config/global';
-  import model from '@/service/service-detail-base';
+  import {
+    RULE
+  } from '@/service/service-rule';
 
   export default {
-    name: 'WafAttackLogDetail',
+    name: 'WafRuleEdit',
     data() {
       return {
+        op_type :"add",
+        op_rule_no :"",//规则识别号
         prefix,
-        baseInfoData: model.getBaseInfoData(),
-        detail_data: {}
+        detail_data: {},
+        rules: {
+          rule_name: [{ required: true, message: '请输入规则名称', type: 'error' }],
+        },
+        fact_option: [{
+          label: '默认',
+          value: 'MF'
+        }, ],
+        method_option: [{
+          label: '做动作',
+          value: 'DoSomeThing'
+        }, ],
+        attr_option: [{
+            label: '网址',
+            value: 'URL'
+          },
+          {
+            label: '请求端口',
+            value: 'PORT'
+          },
+          {
+            label: '访客IP',
+            value: 'SRC_IP'
+          },
+        ],
+        attr_type_option: [{
+            label: '文本',
+            value: 'string'
+          },
+          {
+            label: '数字',
+            value: 'int'
+          },
+        ],
+        relation_symbol_option: [{
+            label: '并且',
+            value: '&&'
+          },
+          {
+            label: '或者',
+            value: 'or'
+          },
+        ],
+        formData: {
+          ...RULE
+        },
+
       };
     },
     beforeRouteUpdate(to, from) {
@@ -94,10 +271,18 @@
     },
     mounted() {
       console.log('----mounted----')
+      console.log(RULE)
 
       //console.log(this.$route.params.req_uuid);
-      //this.getDetail(this.$route.params.req_uuid);
-      this.getDetail(this.$route.query.req_uuid);
+      if(this.$route.query.code != undefined){
+
+        this.op_rule_no = this.$route.query.code
+        this.getDetail(this.op_rule_no);
+      }
+      if(this.$route.query.type != undefined){
+
+        this.op_type = this.$route.query.type
+      }
     },
     beforeCreate() {
       console.log('----beforeCreate----')
@@ -115,8 +300,14 @@
       console.log('----updated----')
     },
     watch: {
+      '$route.query.type'(newVal, oldVal) {
+        console.log('route.query.type changed', newVal, oldVal)
+        //this.getDetail(newVal)
+        this.op_type = newVal
+      },
       '$route.query.code'(newVal, oldVal) {
         console.log('route.query.code changed', newVal, oldVal)
+        this.op_rule_no = newVal
         this.getDetail(newVal)
       },
     },
@@ -124,7 +315,7 @@
       getDetail(id) {
         let that = this
         this.$request
-          .get('/wafhost/host/detail', {
+          .get('/wafhost/rule/detail', {
             params: {
               CODE: id,
             }
@@ -134,16 +325,58 @@
             console.log(resdata)
             if (resdata.code === 200) {
 
-              //const { list = [] } = resdata.data.list;
+              //const { list = [] } = resdata.data;
 
-              that.detail_data = resdata.data;
-
+              that.formData = JSON.parse(resdata.data.rule_content_json);
+              console.log('返回的', that.formData )
             }
           })
           .catch((e: Error) => {
             console.log(e);
           })
           .finally(() => {});
+      },
+      onSubmit({ result, firstError }): void {
+         let that = this
+        if (!firstError) {
+          let postdata = {}
+          let url = ''
+          if(that.op_type == "add"){
+             url = '/wafhost/rule/add'
+             postdata = {RuleJson : JSON.stringify(that.formData)}
+          }else{
+             url = '/wafhost/rule/edit'
+             postdata = {Code:that.op_rule_no,RuleJson : JSON.stringify(that.formData)}
+          }
+
+          this.$request
+            .post(url, {
+              ...postdata
+            })
+            .then((res) => {
+              let resdata = res.data
+              console.log(resdata)
+              if (resdata.code === 200) {
+                that.$message.success(resdata.msg);
+                this.$router.push(
+                  {
+                    path:'/waf-host/wafrule',
+                  },
+                );
+
+              }else{
+                 that.$message.warning(resdata.msg);
+              }
+            })
+            .catch((e: Error) => {
+              console.log(e);
+            })
+            .finally(() => {
+            });
+        } else {
+          console.log('Errors: ', result);
+          that.$message.warning(firstError);
+        }
       },
     },
   };

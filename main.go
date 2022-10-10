@@ -44,7 +44,7 @@ func main() {
 					continue
 				}
 				var ruleconfig model.Rules
-				global.GWAF_LOCAL_DB.Debug().Where("host_code = ? and user_code=? ", code, global.GWAF_USER_CODE).Find(&ruleconfig)
+				global.GWAF_LOCAL_DB.Debug().Where("host_code = ? and user_code=? and rule_status= 1 ", code, global.GWAF_USER_CODE).Find(&ruleconfig)
 				if ruleconfig.RuleVersion > hostTarget[host].RuleData.RuleVersion {
 					//说明该code有更新
 					hostRuleChan <- ruleconfig
@@ -59,6 +59,7 @@ func main() {
 	for {
 		select {
 		case remoteConfig := <-hostRuleChan:
+			//TODO 需要把删除的那部分数据从数据口里面去掉
 			hostTarget[hostCode[remoteConfig.HostCode]].RuleData = remoteConfig
 			hostTarget[hostCode[remoteConfig.HostCode]].Rule.LoadRule(remoteConfig)
 			log.Println(remoteConfig)

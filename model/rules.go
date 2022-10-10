@@ -12,5 +12,5 @@ type Rules struct {
 	RuleVersion     int    `json:"rule_version"`           //规则版本号
 	UserCode        string `json:"user_code"`              //用户编码
 	IsPublicRule    int    `json:"is_public_rule"`         //是否为公共规则
-	RuleStatus      string `json:"rule_status"`            //规则是否开启 1，开启 0，关闭不生效
+	RuleStatus      int    `json:"rule_status"`            //规则是否开启 1，开启 0，关闭不生效 999 删除
 }

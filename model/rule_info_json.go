@@ -70,7 +70,7 @@ func (receiver *RuleTool) GenRuleToFront(rule RuleInfo) {
 
 }*/
 //生成实际可使用的规则字符串
-func (receiver *RuleTool) GenRuleInfo(rule RuleInfo) string {
+func (receiver *RuleTool) GenRuleInfo(rule RuleInfo, remark string) string {
 
 	var conditionTpl = ""
 	for _, condition := range rule.RuleConditionDetail.RelationDetail {
@@ -120,7 +120,7 @@ func (receiver *RuleTool) GenRuleInfo(rule RuleInfo) string {
 	}
 	var dev = map[string]string{
 		"rule_name":      rule.RuleBase.RuleName,
-		"rule_remark":    "RuleRemark",
+		"rule_remark":    remark,
 		"rule_salience":  strconv.Itoa(rule.RuleBase.Salience),
 		"rule_condition": conditionTpl,
 		"rule_action":    do_assignmentTpl + do_methodTpl,

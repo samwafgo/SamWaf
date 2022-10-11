@@ -5,6 +5,7 @@ import (
 	"SamWaf/model"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -43,13 +44,21 @@ func main() {
 					log.Println("引擎已关闭，放弃提取规则")
 					continue
 				}
-				var ruleconfig model.Rules
-				global.GWAF_LOCAL_DB.Debug().Where("host_code = ? and user_code=? and rule_status= 1 ", code, global.GWAF_USER_CODE).Find(&ruleconfig)
-				if ruleconfig.RuleVersion > hostTarget[host].RuleData.RuleVersion {
-					//说明该code有更新
-					hostRuleChan <- ruleconfig
+				var vcnt int
+				global.GWAF_LOCAL_DB.Debug().Model(&model.Rules{}).Where("host_code = ? and user_code=? ",
+					code, global.GWAF_USER_CODE).Select("sum(rule_version) as vcnt").Row().Scan(&vcnt)
+				log.Println("主机host" + code + " 版本" + strconv.Itoa(vcnt))
+				var ruleconfig []model.Rules
+				if vcnt > 0 {
+					global.GWAF_LOCAL_DB.Debug().Where("host_code = ? and user_code=?  ", code, global.GWAF_USER_CODE).Find(&ruleconfig)
+					if vcnt > hostTarget[host].RuleVersionSum {
+						hostTarget[host].RuleVersionSum = vcnt
+						//说明该code有更新
+						hostRuleChan <- ruleconfig
 
+					}
 				}
+
 			}
 			time.Sleep(10 * time.Second) // 10s重新读取一次
 
@@ -60,8 +69,8 @@ func main() {
 		select {
 		case remoteConfig := <-hostRuleChan:
 			//TODO 需要把删除的那部分数据从数据口里面去掉
-			hostTarget[hostCode[remoteConfig.HostCode]].RuleData = remoteConfig
-			hostTarget[hostCode[remoteConfig.HostCode]].Rule.LoadRule(remoteConfig)
+			hostTarget[hostCode[remoteConfig[0].HostCode]].RuleData = remoteConfig
+			hostTarget[hostCode[remoteConfig[0].HostCode]].Rule.LoadRules(remoteConfig)
 			log.Println(remoteConfig)
 			break
 

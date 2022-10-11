@@ -362,13 +362,13 @@ func StartLocalServer() {
 				HostCode:        rule_info.RuleBase.RuleDomainCode, //网站CODE
 				RuleCode:        rule_code,
 				RuleName:        rulename,
-				RuleContent:     rule_tool.GenRuleInfo(rule_info),
+				RuleContent:     rule_tool.GenRuleInfo(rule_info, rulename),
 				RuleContentJSON: waf_rule_add_req.RuleJson, //TODO 后续考虑是否应该再从结构转一次
 				RuleVersionName: "初版",
-				RuleVersion:     0,
+				RuleVersion:     1,
 				UserCode:        global.GWAF_USER_CODE,
 				IsPublicRule:    0,
-				RuleStatus:      "1",
+				RuleStatus:      1,
 			}
 			//waf_host_add_req.USER_CODE =
 			global.GWAF_LOCAL_DB.Debug().Create(waf_rule)
@@ -425,7 +425,7 @@ func StartLocalServer() {
 			ruleMap := map[string]interface{}{
 				"HostCode":        rule_info.RuleBase.RuleDomainCode, //TODO 注意字典名称
 				"RuleName":        rule_name,
-				"RuleContent":     rule_tool.GenRuleInfo(rule_info),
+				"RuleContent":     rule_tool.GenRuleInfo(rule_info, rule_name),
 				"RuleContentJSON": waf_rule_edit_req.RuleJson, //TODO 后续考虑是否应该再从结构转一次
 				"RuleVersionName": "初版",
 				"RuleVersion":     rule.RuleVersion + 1,

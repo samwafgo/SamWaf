@@ -26,10 +26,11 @@ import (
 
 // 主机安全配置
 type HostSafe struct {
-	RevProxy   *httputil.ReverseProxy
-	Rule       utils.RuleHelper
-	TargetHost string
-	RuleData   model.Rules
+	RevProxy       *httputil.ReverseProxy
+	Rule           utils.RuleHelper
+	TargetHost     string
+	RuleData       []model.Rules
+	RuleVersionSum int //规则版本的汇总 通过这个来进行版本动态加载
 }
 
 var (
@@ -46,9 +47,9 @@ var (
 	esHelper utils.EsHelper
 
 	phttphandler        *baseHandle
-	hostRuleChan            = make(chan model.Rules, 10) //规则链
-	engineChan              = make(chan int, 10)         //引擎链
-	engineCurrentStatus int = 0                          // 当前waf引擎状态
+	hostRuleChan            = make(chan []model.Rules, 10) //规则链
+	engineChan              = make(chan int, 10)           //引擎链
+	engineCurrentStatus int = 0                            // 当前waf引擎状态
 )
 
 type baseHandle struct{}
@@ -108,7 +109,7 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 	// 获取请求报文的内容长度
-	len := r.ContentLength
+	contentLength := r.ContentLength
 
 	//server_online[8081].Svr.Close()
 	var bodyByte []byte
@@ -134,7 +135,7 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		SRC_IP:         ip_and_port[0],
 		SRC_PORT:       ip_and_port[1],
 		CREATE_TIME:    time.Now().Format("2006-01-02 15:04:05"),
-		CONTENT_LENGTH: len,
+		CONTENT_LENGTH: contentLength,
 		COOKIES:        string(cookies),
 		BODY:           string(bodyByte),
 		REQ_UUID:       uuid.NewV4().String(),
@@ -146,20 +147,27 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		SRC_INFO:   weblogbean,
 		ExecResult: 0,
 	}
-	hostTarget[host].Rule.Exec("fact", rule)
-	if rule.ExecResult == 1 {
+	rule_matchs, err := hostTarget[host].Rule.Match("fact", rule)
+	if err == nil {
+		if len(rule_matchs) > 0 {
 
-		waflogbean := innerbean.WAFLog{
-			CREATE_TIME: time.Now().Format("2006-01-02 15:04:05"),
-			RULE:        hostTarget[host].RuleData.RuleName,
-			REQ_UUID:    uuid.NewV4().String(),
+			rulestr := ""
+			for _, v := range rule_matchs {
+				rulestr = rulestr + v.RuleDescription + ","
+			}
+			waflogbean := innerbean.WAFLog{
+				CREATE_TIME: time.Now().Format("2006-01-02 15:04:05"),
+				RULE:        rulestr,
+				REQ_UUID:    uuid.NewV4().String(),
+			}
+			esHelper.BatchInsertWAF("web_log", waflogbean)
+			log.Println("no china")
+			w.Header().Set("WAF", "SAMWAF DROP")
+			w.Write([]byte(" no china " + host))
+			return
 		}
-		esHelper.BatchInsertWAF("web_log", waflogbean)
-		log.Println("no china")
-		w.Header().Set("WAF", "SAMWAF DROP")
-		w.Write([]byte(" no china " + host))
-		return
 	}
+
 	// 取出代理ip
 
 	// 直接从缓存取出
@@ -273,15 +281,22 @@ func Start_WAF() {
 		ruleHelper := utils.RuleHelper{}
 
 		//查询规则
-		var ruleconfig model.Rules
-		global.GWAF_LOCAL_DB.Debug().Where("code = ? and user_code=? ", hosts[i].Code, global.GWAF_USER_CODE).Find(&ruleconfig)
-		ruleHelper.LoadRule(ruleconfig)
+		var vcnt int
+		global.GWAF_LOCAL_DB.Debug().Model(&model.Rules{}).Where("host_code = ? and user_code=? ",
+			hosts[i].Code, global.GWAF_USER_CODE).Select("sum(rule_version) as vcnt").Row().Scan(&vcnt)
+		log.Println("主机host" + hosts[i].Code + " 版本" + strconv.Itoa(vcnt))
+		var ruleconfigs []model.Rules
+		if vcnt > 0 {
+			global.GWAF_LOCAL_DB.Debug().Where("code = ? and user_code=? ", hosts[i].Code, global.GWAF_USER_CODE).Find(&ruleconfigs)
+			ruleHelper.LoadRules(ruleconfigs)
+		}
 
 		hostsafe := &HostSafe{
-			RevProxy:   nil,
-			Rule:       ruleHelper,
-			TargetHost: hosts[i].Remote_host + ":" + strconv.Itoa(hosts[i].Remote_port),
-			RuleData:   ruleconfig,
+			RevProxy:       nil,
+			Rule:           ruleHelper,
+			TargetHost:     hosts[i].Remote_host + ":" + strconv.Itoa(hosts[i].Remote_port),
+			RuleData:       ruleconfigs,
+			RuleVersionSum: vcnt,
 		}
 		//赋值到白名单里面
 		hostTarget[hosts[i].Host+":"+strconv.Itoa(hosts[i].Port)] = hostsafe

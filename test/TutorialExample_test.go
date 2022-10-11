@@ -22,6 +22,7 @@ type MyFact struct {
 }
 
 func (mf *MyFact) GetWhatToSay(sentence string) string {
+	log.Println("Let say " + sentence)
 	return fmt.Sprintf("Let say \"%s\"", sentence)
 }
 

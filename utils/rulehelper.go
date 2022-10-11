@@ -41,6 +41,36 @@ func (rulehelper *RuleHelper) LoadRule(ruleconfig model.Rules) {
 
 	rulehelper.engine = engine.NewGruleEngine()
 }
+
+func (rulehelper *RuleHelper) LoadRules(ruleconfig []model.Rules) string {
+
+	knowledgeLibrary := ast.NewKnowledgeLibrary()
+	ruleBuilder := builder.NewRuleBuilder(knowledgeLibrary)
+
+	/*drls = `
+	rule CheckRegionNotChina "CheckRegionNotChina" salience 10 {
+	    when
+	        fact.SRC_INFO.CONTENT_LENGTH == 0 && fact.SRC_INFO.HOST == "mybaidu1.com:8081"
+	    then
+	        fact.ExecResult = 1;
+			Retract("CheckRegionNotChina");
+	}
+	`*/
+	rulestr := ""
+	for _, v := range ruleconfig {
+		rulestr = rulestr + v.RuleContent + " \n"
+	}
+	byteArr := pkg.NewBytesResource([]byte(rulestr))
+	err := ruleBuilder.BuildRuleFromResource("Region", "0.0.1", byteArr)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	rulehelper.knowledgeBase = knowledgeLibrary.NewKnowledgeBaseInstance("Region", "0.0.1")
+
+	rulehelper.engine = engine.NewGruleEngine()
+	return rulestr
+}
 func (rulehelper *RuleHelper) Exec(key string, ruleinfo *innerbean.WAF_REQUEST_FULL) error {
 
 	//rulehelper.dataCtx = ast.NewDataContext()
@@ -53,4 +83,11 @@ func (rulehelper *RuleHelper) Exec(key string, ruleinfo *innerbean.WAF_REQUEST_F
 		log.Fatal(err)
 	}
 	return err
+}
+
+func (rulehelper *RuleHelper) Match(key string, ruleinfo *innerbean.WAF_REQUEST_FULL) ([]*ast.RuleEntry, error) {
+
+	dataCtx := ast.NewDataContext()
+	dataCtx.Add(key, ruleinfo)
+	return rulehelper.engine.FetchMatchingRules(dataCtx, rulehelper.knowledgeBase)
 }

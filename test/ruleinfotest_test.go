@@ -19,5 +19,5 @@ func TestJsonTest(t *testing.T) {
 	}
 	fmt.Printf("反序列化后 RuleName=%v RuleDomainCode=%v \n", ruleInfo.RuleBase.RuleName, ruleInfo.RuleBase.RuleDomainCode)
 
-	fmt.Println(ruleTool.GenRuleInfo(ruleInfo))
+	fmt.Println(ruleTool.GenRuleInfo(ruleInfo, "规则触发了"))
 }

@@ -27,7 +27,7 @@ import (
 // 主机安全配置
 type HostSafe struct {
 	RevProxy       *httputil.ReverseProxy
-	Rule           utils.RuleHelper
+	Rule           *utils.RuleHelper
 	TargetHost     string
 	RuleData       []model.Rules
 	RuleVersionSum int //规则版本的汇总 通过这个来进行版本动态加载
@@ -140,14 +140,15 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		BODY:           string(bodyByte),
 		REQ_UUID:       uuid.NewV4().String(),
 		USER_CODE:      global.GWAF_USER_CODE,
+		RULE:           "",
 	}
-	global.GWAF_LOCAL_DB.Create(weblogbean)
+
 	//esHelper.BatchInsert("full_log", weblogbean)
-	rule := &innerbean.WAF_REQUEST_FULL{
+	/*rule := &innerbean.WAF_REQUEST_FULL{
 		SRC_INFO:   weblogbean,
 		ExecResult: 0,
-	}
-	rule_matchs, err := hostTarget[host].Rule.Match("fact", rule)
+	}*/
+	rule_matchs, err := hostTarget[host].Rule.Match("MF", &weblogbean)
 	if err == nil {
 		if len(rule_matchs) > 0 {
 
@@ -155,17 +156,16 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			for _, v := range rule_matchs {
 				rulestr = rulestr + v.RuleDescription + ","
 			}
-			waflogbean := innerbean.WAFLog{
-				CREATE_TIME: time.Now().Format("2006-01-02 15:04:05"),
-				RULE:        rulestr,
-				REQ_UUID:    uuid.NewV4().String(),
-			}
-			esHelper.BatchInsertWAF("web_log", waflogbean)
+			weblogbean.RULE = rulestr
+			global.GWAF_LOCAL_DB.Create(weblogbean)
+
 			log.Println("no china")
 			w.Header().Set("WAF", "SAMWAF DROP")
 			w.Write([]byte(" no china " + host))
 			return
 		}
+	} else {
+		fmt.Println("规则 ", err)
 	}
 
 	// 取出代理ip
@@ -278,7 +278,7 @@ func Start_WAF() {
 		}
 
 		//加载主机对于的规则
-		ruleHelper := utils.RuleHelper{}
+		ruleHelper := &utils.RuleHelper{}
 
 		//查询规则
 		var vcnt int
@@ -287,7 +287,7 @@ func Start_WAF() {
 		log.Println("主机host" + hosts[i].Code + " 版本" + strconv.Itoa(vcnt))
 		var ruleconfigs []model.Rules
 		if vcnt > 0 {
-			global.GWAF_LOCAL_DB.Debug().Where("code = ? and user_code=? ", hosts[i].Code, global.GWAF_USER_CODE).Find(&ruleconfigs)
+			global.GWAF_LOCAL_DB.Debug().Where("host_code = ? and user_code=? ", hosts[i].Code, global.GWAF_USER_CODE).Find(&ruleconfigs)
 			ruleHelper.LoadRules(ruleconfigs)
 		}
 

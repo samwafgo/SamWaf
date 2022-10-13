@@ -1,6 +1,7 @@
 package test
 
 import (
+	"SamWaf/innerbean"
 	"github.com/hyperjumptech/grule-rule-engine/ast"
 	"github.com/hyperjumptech/grule-rule-engine/builder"
 	"github.com/hyperjumptech/grule-rule-engine/engine"
@@ -8,16 +9,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"log"
 	"testing"
-	"time"
 )
 
 func TestGrule(t *testing.T) {
-	myFact := &MyFact{
-		IntAttribute:     123,
-		StringAttribute:  "Some string value",
-		BooleanAttribute: true,
-		FloatAttribute:   1.234,
-		TimeAttribute:    time.Now(),
+	myFact := &innerbean.WebLog{
+		SRC_IP: "127.0.0.1",
 	}
 	dataCtx := ast.NewDataContext()
 	err := dataCtx.Add("MF", myFact)
@@ -28,18 +24,14 @@ func TestGrule(t *testing.T) {
 	ruleBuilder := builder.NewRuleBuilder(knowledgeLibrary)
 
 	drls := `
-rule CheckValues1 "Check the default values1牛啊" salience 10 {
+
+rule R77a9d95d14624d4baaa9ef7af3061404 "试试344" salience 10 {
     when 
-        MF.IntAttribute == 1231 && MF.StringAttribute == "Some string value"
+        MF.SRC_IP == "127.0.0.1"
     then
-        MF.WhatToSay = MF.GetWhatToSay("你好"); 
-}
-rule CheckValues2 "Check the default values2绝壁" salience 10 {
-    when 
-        MF.IntAttribute > 120
-    then
-        MF.WhatToSay = MF.GetWhatToSay("你好1"); 
-}
+        
+		Retract("R77a9d95d14624d4baaa9ef7af3061404");
+} 
 `
 
 	byteArr := pkg.NewBytesResource([]byte(drls))
@@ -55,7 +47,6 @@ rule CheckValues2 "Check the default values2绝壁" salience 10 {
 		if err != nil {
 			log.Fatal(err)
 		} else {
-			log.Println(myFact.WhatToSay)
 			log.Println(len(matchrules))
 			for _, v := range matchrules {
 				log.Println(v.RuleName)
@@ -74,24 +65,13 @@ rule CheckValues2 "Check the default values2绝壁" salience 10 {
 	knowledgeLibrary = ast.NewKnowledgeLibrary()
 	ruleBuilder = builder.NewRuleBuilder(knowledgeLibrary)
 	drls = `
-rule CheckValues1 "Check the default values1" salience 10 {
+rule R77a9d95d14624d4baaa9ef7af3061404 "试试344" salience 10 {
     when 
-        MF.IntAttribute == 1231 && MF.StringAttribute == "Some string value"
+        MF.SRC_IP == "127.0.0.1"
     then
-        MF.WhatToSay = MF.GetWhatToSay("你好"); 
-}
-rule CheckValues2 "Check the default values2" salience 10 {
-    when 
-        MF.IntAttribute > 120
-    then
-        MF.WhatToSay = MF.GetWhatToSay("你好1"); 
-}
-rule CheckValues3 "nihao" salience 10 {
-    when 
-        MF.IntAttribute > 0
-    then
-        MF.WhatToSay = MF.GetWhatToSay("你好1"); 
-}
+        
+		Retract("R77a9d95d14624d4baaa9ef7af3061404");
+} 
 `
 
 	byteArr = pkg.NewBytesResource([]byte(drls))
@@ -107,7 +87,6 @@ rule CheckValues3 "nihao" salience 10 {
 		if err != nil {
 			log.Fatal(err)
 		} else {
-			log.Println(myFact.WhatToSay)
 			log.Println(len(matchrules))
 			for _, v := range matchrules {
 				log.Println(v.RuleName)

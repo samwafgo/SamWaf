@@ -12,41 +12,33 @@ import (
 
 // 规则帮助类
 type RuleHelper struct {
-	engine        *engine.GruleEngine
-	knowledgeBase *ast.KnowledgeBase
-	dataCtx       ast.IDataContext
+	engine           *engine.GruleEngine
+	knowledgeBase    *ast.KnowledgeBase
+	knowledgeLibrary *ast.KnowledgeLibrary
+	ruleBuilder      *builder.RuleBuilder
 }
 
 func (rulehelper *RuleHelper) LoadRule(ruleconfig model.Rules) {
 
-	knowledgeLibrary := ast.NewKnowledgeLibrary()
-	ruleBuilder := builder.NewRuleBuilder(knowledgeLibrary)
-
-	/*drls = `
-	rule CheckRegionNotChina "CheckRegionNotChina" salience 10 {
-	    when
-	        fact.SRC_INFO.CONTENT_LENGTH == 0 && fact.SRC_INFO.HOST == "mybaidu1.com:8081"
-	    then
-	        fact.ExecResult = 1;
-			Retract("CheckRegionNotChina");
-	}
-	`*/
+	rulehelper.knowledgeLibrary = ast.NewKnowledgeLibrary()
+	rulehelper.ruleBuilder = builder.NewRuleBuilder(rulehelper.knowledgeLibrary)
 	byteArr := pkg.NewBytesResource([]byte(ruleconfig.RuleContent))
-	err := ruleBuilder.BuildRuleFromResource("Region", "0.0.1", byteArr)
+	err := rulehelper.ruleBuilder.BuildRuleFromResource("Region", "0.0.1", byteArr)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	rulehelper.knowledgeBase = knowledgeLibrary.NewKnowledgeBaseInstance("Region", "0.0.1")
+	rulehelper.knowledgeBase = rulehelper.knowledgeLibrary.NewKnowledgeBaseInstance("Region", "0.0.1")
 
 	rulehelper.engine = engine.NewGruleEngine()
 }
 
 func (rulehelper *RuleHelper) LoadRules(ruleconfig []model.Rules) string {
 
-	knowledgeLibrary := ast.NewKnowledgeLibrary()
-	ruleBuilder := builder.NewRuleBuilder(knowledgeLibrary)
+	rulehelper.knowledgeLibrary = ast.NewKnowledgeLibrary()
+	rulehelper.ruleBuilder = builder.NewRuleBuilder(rulehelper.knowledgeLibrary)
 
+	//rulehelper.dataCtx = ast.NewDataContext()
 	/*drls = `
 	rule CheckRegionNotChina "CheckRegionNotChina" salience 10 {
 	    when
@@ -61,12 +53,12 @@ func (rulehelper *RuleHelper) LoadRules(ruleconfig []model.Rules) string {
 		rulestr = rulestr + v.RuleContent + " \n"
 	}
 	byteArr := pkg.NewBytesResource([]byte(rulestr))
-	err := ruleBuilder.BuildRuleFromResource("Region", "0.0.1", byteArr)
+	err := rulehelper.ruleBuilder.BuildRuleFromResource("Region", "0.0.1", byteArr)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	rulehelper.knowledgeBase = knowledgeLibrary.NewKnowledgeBaseInstance("Region", "0.0.1")
+	rulehelper.knowledgeBase = rulehelper.knowledgeLibrary.NewKnowledgeBaseInstance("Region", "0.0.1")
 
 	rulehelper.engine = engine.NewGruleEngine()
 	return rulestr
@@ -85,8 +77,14 @@ func (rulehelper *RuleHelper) Exec(key string, ruleinfo *innerbean.WAF_REQUEST_F
 	return err
 }
 
-func (rulehelper *RuleHelper) Match(key string, ruleinfo *innerbean.WAF_REQUEST_FULL) ([]*ast.RuleEntry, error) {
+func (rulehelper *RuleHelper) Match(key string, ruleinfo *innerbean.WebLog) ([]*ast.RuleEntry, error) {
 
+	defer func() {
+		e := recover()
+		if e != nil { // 捕获该协程的panic 111111
+			log.Println("Match error ", e)
+		}
+	}()
 	dataCtx := ast.NewDataContext()
 	dataCtx.Add(key, ruleinfo)
 	return rulehelper.engine.FetchMatchingRules(dataCtx, rulehelper.knowledgeBase)

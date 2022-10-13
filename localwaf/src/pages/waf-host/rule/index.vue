@@ -7,7 +7,7 @@
           <t-button variant="base" theme="default" :disabled="!selectedRowKeys.length"> 导出日志 </t-button>
           <p v-if="!!selectedRowKeys.length" class="selected-count">已选{{ selectedRowKeys.length }}项</p>
         </div>
-        <t-input v-model="searchValue" class="search-input" placeholder="请输入你需要搜索的攻击日志" clearable>
+        <t-input v-model="searchValue" class="search-input" placeholder="请输入你需要搜索的规则" clearable>
           <template #suffix-icon>
             <search-icon size="20px" />
           </template>
@@ -53,7 +53,7 @@
             </p>
           </template>
 
-          <template #op="slotProps"> 
+          <template #op="slotProps">
             <a class="t-button-link" @click="handleClickEdit(slotProps)">编辑</a>
             <a class="t-button-link" @click="handleClickDelete(slotProps)">删除</a>
           </template>
@@ -139,6 +139,7 @@ export default Vue.extend({
           colKey: 'rule_name',
           fixed: 'left',
         },
+        { title: '规则版本', colKey: 'rule_version', width: 200, cell: { col: 'version' } },
         { title: '规则状态', colKey: 'rule_status', width: 200, cell: { col: 'status' } },
         {
           align: 'left',
@@ -227,7 +228,7 @@ export default Vue.extend({
     rehandleChange(changeParams, triggerAndData) {
       console.log('统一Change', changeParams, triggerAndData);
     },
-    
+
     handleClickEdit(e) {
       console.log(e)
       const { rule_code } = e.row

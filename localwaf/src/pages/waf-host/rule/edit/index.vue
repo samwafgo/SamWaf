@@ -17,16 +17,23 @@
 
       <!--规则编排 开始-->
       <t-card title="规则编排">
-        <t-form-item label="关系" name="relation_symbol">
+        <t-button theme="primary" @click="ruleDynAdd('cond')">
+              新建
+        </t-button>
+        <t-form-item label="关系" name="relation_symbol" v-if="formData.rule_condition.relation_detail.length>1">
           <t-select clearable :style="{ width: '480px' }"
-            v-model="formData.rule_condition_detail.relation_symbol">
+            v-model="formData.rule_condition.relation_symbol">
             <t-option v-for="(item, index) in relation_symbol_option" :value="item.value" :label="item.label"
               :key="index">
               {{ item.label }}
             </t-option>
           </t-select>
         </t-form-item>
-        <t-card title="条件" v-for="condition_item in formData.rule_condition_detail.relation_detail">
+        <t-card title="条件"  v-for="(condition_item,condition_index) in formData.rule_condition.relation_detail">
+
+          <t-button theme="primary" @click="ruleDynDel('cond',condition_index)">
+                删除
+          </t-button>
           <t-row :gutter="{ xs: 8, sm: 16, md: 24, lg: 32, xl: 32, xxl: 40 }">
             <t-col :span="4">
               <div>
@@ -75,8 +82,13 @@
 
         <!--赋值总区块 开始-->
         <t-card title="赋值">
-
-          <t-card title="赋值明细" v-for="do_assignment_item in formData.rule_do_assignment">
+        <t-button theme="primary" @click="ruleDynAdd('assignment')">
+              新建
+        </t-button>
+          <t-card title="赋值明细" v-for="(do_assignment_item,assignment_index) in formData.rule_do_assignment">
+            <t-button theme="primary"  @click="ruleDynDel('assignment',assignment_index)">
+                  删除
+            </t-button>
             <t-row :gutter="{ xs: 8, sm: 16, md: 24, lg: 32, xl: 32, xxl: 40 }">
               <t-col :span="4">
                 <div>
@@ -125,8 +137,14 @@
 
         <!--方法执行总区块 开始-->
         <t-card title="方法执行">
+          <t-button theme="primary" @click="ruleDynAdd('method')">
+                新建
+          </t-button>
           <!--方法执行明细 开始-->
-          <t-card title="方法明细" v-for="do_method_item in formData.rule_do_method">
+          <t-card title="方法明细" v-for="(do_method_item,method_index) in formData.rule_do_method">
+            <t-button theme="primary"  @click="ruleDynDel('method',method_index)">
+                  删除
+            </t-button>
             <t-row :gutter="{ xs: 8, sm: 16, md: 24, lg: 32, xl: 32, xxl: 40 }">
               <t-col :span="6">
                 <div>
@@ -155,9 +173,12 @@
             </t-row>
             <!--传参列表明细 开始-->
             <t-card title="传参">
+              <t-button theme="primary" @click="ruleDynAdd('parms',method_index)">
+                    新建
+              </t-button>
               <t-row :gutter="{ xs: 8, sm: 16, md: 24, lg: 32, xl: 32, xxl: 40 }"
-                v-for="do_method_parms_item in do_method_item.parms">
-                <t-col :span="6">
+                v-for="(do_method_parms_item,parms_index) in do_method_item.parms">
+                <t-col :span="4">
                   <div>
                     <t-form-item label="值类型" name="attr_type">
                       <t-select clearable :style="{ width: '480px' }" v-model="do_method_parms_item.attr_type">
@@ -170,11 +191,18 @@
 
                   </div>
                 </t-col>
-                <t-col :span="6">
+                <t-col :span="4">
                   <div>
                     <t-form-item label="值" name="att_val">
                       <t-input placeholder="请输入内容" v-model="do_method_parms_item.attr_val" />
                     </t-form-item>
+                  </div>
+                </t-col>
+                <t-col :span="4">
+                  <div>
+                    <t-button theme="primary"  @click="ruleDynDel('parms',parms_index,method_index)">
+                                    删除
+                    </t-button>
                   </div>
                 </t-col>
               </t-row>
@@ -207,9 +235,9 @@
     prefix
   } from '@/config/global';
   import {
-    RULE
+    RULE,RULE_RELATION_DETAIL,RULE_DO_ASSIGNMENT,RULE_DO_METHOD,RULE_DO_METHOD_PARM
   } from '@/service/service-rule';
-
+  import { copyObj } from '@/utils/usuallytool';
   export default {
     name: 'WafRuleEdit',
     data() {
@@ -230,9 +258,13 @@
           value: 'DoSomeThing'
         }, ],
         attr_option: [{
-            label: '网址',
-            value: 'URL'
+            label: '主机',
+            value: 'HOST'
           },
+          {
+              label: '网址',
+              value: 'URL'
+            },
           {
             label: '请求端口',
             value: 'PORT'
@@ -378,6 +410,49 @@
           that.$message.warning(firstError);
         }
       },
+      ruleDynAdd(add_type,parent_index){
+          console.log(add_type)
+          console.log(this.formData)
+          switch (add_type){
+            case "cond":
+              this.formData.rule_condition.relation_detail.push(copyObj(RULE_RELATION_DETAIL))
+              break;
+            case "assignment":
+                this.formData.rule_do_assignment.push(copyObj(RULE_DO_ASSIGNMENT))
+                break;
+            case "method":
+                this.formData.rule_do_method.push(copyObj(RULE_DO_METHOD))
+                break;
+            case "parms":
+            console.log(RULE_DO_METHOD_PARM)
+                this.formData.rule_do_method[parent_index].parms.push(copyObj(RULE_DO_METHOD_PARM))
+                break;
+            default:
+              break;
+          }
+      },
+      ruleDynDel(del_type,index,parent_index){
+          console.log(del_type)
+          console.log(index)
+          console.log(this.formData)
+          switch (del_type){
+            case "cond":
+              this.formData.rule_condition.relation_detail.splice(index,1)
+              break;
+            case "assignment":
+                this.formData.rule_do_assignment.splice(index,1)
+                break;
+            case "method":
+                this.formData.rule_do_method.splice(index,1)
+                break;
+            case "parms":
+               this.formData.rule_do_method[parent_index].parms.splice(index,1)
+                break;
+            default:
+              break;
+          }
+      },
+
     },
   };
 </script>

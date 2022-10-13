@@ -18,10 +18,10 @@ func IfCompare(condition bool, trueVal, falseVal interface{}) interface{} {
 }
 
 type RuleInfo struct {
-	RuleBase            RuleBase            `json:"rule_base"`
-	RuleConditionDetail RuleConditionDetail `json:"rule_condition_detail"`
-	RuleDoAssignment    []RuleDoAssignment  `json:"rule_do_assignment"`
-	RuleDoMethod        []RuleDoMethod      `json:"rule_do_method"`
+	RuleBase         RuleBase           `json:"rule_base"`
+	RuleCondition    RuleCondition      `json:"rule_condition"`
+	RuleDoAssignment []RuleDoAssignment `json:"rule_do_assignment"`
+	RuleDoMethod     []RuleDoMethod     `json:"rule_do_method"`
 }
 type RuleBase struct {
 	Salience       int    `json:"salience"`
@@ -35,7 +35,7 @@ type RelationDetail struct {
 	AttrJudge string `json:"attr_judge"`
 	AttrVal   string `json:"attr_val"`
 }
-type RuleConditionDetail struct {
+type RuleCondition struct {
 	RelationDetail []RelationDetail `json:"relation_detail"`
 	RelationSymbol string           `json:"relation_symbol"`
 }
@@ -73,10 +73,10 @@ func (receiver *RuleTool) GenRuleToFront(rule RuleInfo) {
 func (receiver *RuleTool) GenRuleInfo(rule RuleInfo, remark string) string {
 
 	var conditionTpl = ""
-	for _, condition := range rule.RuleConditionDetail.RelationDetail {
+	for _, condition := range rule.RuleCondition.RelationDetail {
 		if conditionTpl != "" {
 			conditionTpl = conditionTpl + fmt.Sprintf(" %s %s.%s %s %s",
-				rule.RuleConditionDetail.RelationSymbol, condition.FactName, condition.Attr, condition.AttrJudge,
+				rule.RuleCondition.RelationSymbol, condition.FactName, condition.Attr, condition.AttrJudge,
 				IfCompare(condition.AttrType == "string", "\""+condition.AttrVal+"\"", condition.AttrVal))
 		} else {
 			conditionTpl = conditionTpl + fmt.Sprintf("%s.%s %s %s",
@@ -132,7 +132,7 @@ rule R${rule_name} "${rule_remark}" salience ${rule_salience} {
         ${rule_condition}
     then
         ${rule_action}
-		Retract("${rule_name}");
+		Retract("R${rule_name}");
 } `
 	s := os.Expand(rule_tpl, func(k string) string { return dev[k] })
 	return s

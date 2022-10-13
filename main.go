@@ -52,10 +52,13 @@ func main() {
 				if vcnt > 0 {
 					global.GWAF_LOCAL_DB.Debug().Where("host_code = ? and user_code=?  ", code, global.GWAF_USER_CODE).Find(&ruleconfig)
 					if vcnt > hostTarget[host].RuleVersionSum {
+						log.Println("主机host" + code + " 有最新规则")
 						hostTarget[host].RuleVersionSum = vcnt
 						//说明该code有更新
 						hostRuleChan <- ruleconfig
 
+					} else {
+						log.Println("主机host" + code + " 有最新规则")
 					}
 				}
 

@@ -30,12 +30,9 @@
           :headerAffixedTop="true"
           :headerAffixProps="{ offsetTop: offsetTop, container: getContainer }"
         >
-          <template #status="{ row }">
-            <t-tag v-if="row.status === CONTRACT_STATUS.FAIL" theme="danger" variant="light">审核失败</t-tag>
-            <t-tag v-if="row.status === CONTRACT_STATUS.AUDIT_PENDING" theme="warning" variant="light">待审核</t-tag>
-            <t-tag v-if="row.status === CONTRACT_STATUS.EXEC_PENDING" theme="warning" variant="light">待履行</t-tag>
-            <t-tag v-if="row.status === CONTRACT_STATUS.EXECUTING" theme="success" variant="light">履行中</t-tag>
-            <t-tag v-if="row.status === CONTRACT_STATUS.FINISH" theme="success" variant="light">已完成</t-tag>
+          <template #rule_status="{ row }">
+            <t-tag v-if="row.rule_status === RULE_STATUS.STOPPING" theme="danger" variant="light">未生效</t-tag>
+            <t-tag v-if="row.rule_status === RULE_STATUS.RUNNING" theme="success" variant="light">生效</t-tag>
           </template>
           <template #contractType="{ row }">
             <p v-if="row.contractType === CONTRACT_TYPES.MAIN">审核失败</p>
@@ -80,7 +77,7 @@ import Trend from '@/components/trend/index.vue';
 import { prefix } from '@/config/global';
 import {attacklogList} from '@/apis/waflog/attacklog';
 
-import { CONTRACT_STATUS, CONTRACT_STATUS_OPTIONS, CONTRACT_TYPES, CONTRACT_PAYMENT_TYPES } from '@/constants';
+import { RULE_STATUS,CONTRACT_STATUS, CONTRACT_STATUS_OPTIONS, CONTRACT_TYPES, CONTRACT_PAYMENT_TYPES } from '@/constants';
 
 const INITIAL_DATA = {
   host: 'baidu.com',
@@ -119,6 +116,7 @@ export default Vue.extend({
         { label: 'API业务系统', value: '2' },
         { label: '业务加管理', value: '3' },
       ],
+      RULE_STATUS,
       CONTRACT_STATUS,
       CONTRACT_STATUS_OPTIONS,
       CONTRACT_TYPES,
@@ -140,7 +138,7 @@ export default Vue.extend({
           fixed: 'left',
         },
         { title: '规则版本', colKey: 'rule_version', width: 200, cell: { col: 'version' } },
-        { title: '规则状态', colKey: 'rule_status', width: 200, cell: { col: 'status' } },
+        { title: '规则状态', colKey: 'rule_status', width: 200, cell: { col: 'rule_status' } },
         {
           align: 'left',
           fixed: 'right',

@@ -2,6 +2,11 @@ interface IOption {
   value: number | string;
   label: string;
 }
+// 规则状态枚举
+export const RULE_STATUS = {
+  STOPPING: 0,
+  RUNNING: 1,
+};
 // 合同状态枚举
 export const CONTRACT_STATUS = {
   FAIL: 0,

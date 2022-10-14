@@ -107,6 +107,14 @@ export default Vue.extend({
           fixed: 'left',
         },
         {
+          title: '触发规则',
+          align: 'left',
+          width: 250,
+          ellipsis: true,
+          colKey: 'rule',
+          fixed: 'left',
+        },
+        {
           title: '攻击url',
           width: 200,
           ellipsis: true,

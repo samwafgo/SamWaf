@@ -7,6 +7,16 @@ export const RULE_STATUS = {
   STOPPING: 0,
   RUNNING: 1,
 };
+// 防护状态枚举
+export const GUARD_STATUS = {
+  UN_GUARDDING: 0,
+  GUARDDING: 1,
+};
+// SSL证书状态枚举
+export const SSL_STATUS = {
+  NOT_SSL: 0,
+  SSL: 1,
+};
 // 合同状态枚举
 export const CONTRACT_STATUS = {
   FAIL: 0,

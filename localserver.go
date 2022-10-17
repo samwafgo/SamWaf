@@ -292,6 +292,43 @@ func StartLocalServer() {
 
 	})
 
+	var waf_host_guard_status_req request.WafHostGuardStatusReq
+	r.GET("/samwaf/wafhost/host/guardstatus", func(c *gin.Context) {
+		err := c.ShouldBind(&waf_host_guard_status_req)
+		if err == nil {
+
+			hostMap := map[string]interface{}{
+				"GUARD_STATUS": waf_host_guard_status_req.GUARD_STATUS,
+				"UPDATE_TIME":  time.Now(),
+			}
+
+			err = global.GWAF_LOCAL_DB.Debug().Model(model.Hosts{}).Where("CODE=?", waf_host_guard_status_req.CODE).Updates(hostMap).Error
+			if err != nil {
+				c.JSON(http.StatusOK, response.Response{
+					Code: 200,
+					Data: err.Error(),
+					Msg:  "状态失败",
+				})
+			} else {
+				c.JSON(http.StatusOK, response.Response{
+					Code: 200,
+					Data: "",
+					Msg:  "状态成功",
+				})
+			}
+
+		} else {
+			log.Println("状态解析失败")
+			c.JSON(http.StatusOK, response.Response{
+				Code: -1,
+				Data: err.Error(),
+				Msg:  "状态失败",
+			})
+			return
+		}
+
+	})
+
 	var waf_rule_detail_req request.WafRuleDetailReq
 	r.GET("/samwaf/wafhost/rule/detail", func(c *gin.Context) {
 		err := c.ShouldBind(&waf_rule_detail_req)

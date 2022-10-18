@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type RuleTool struct {
@@ -74,13 +75,28 @@ func (receiver *RuleTool) GenRuleInfo(rule RuleInfo, remark string) string {
 
 	var conditionTpl = ""
 	for _, condition := range rule.RuleCondition.RelationDetail {
+
 		if conditionTpl != "" {
-			conditionTpl = conditionTpl + fmt.Sprintf(" %s %s.%s %s %s",
-				rule.RuleCondition.RelationSymbol, condition.FactName, condition.Attr, condition.AttrJudge,
-				IfCompare(condition.AttrType == "string", "\""+condition.AttrVal+"\"", condition.AttrVal))
+			if strings.HasPrefix(condition.AttrJudge, "system.") {
+				conditionTpl = conditionTpl + fmt.Sprintf(" %s %s.%s.%s(%s)",
+					rule.RuleCondition.RelationSymbol, condition.FactName, condition.Attr, strings.Replace(condition.AttrJudge, "system.", "", 1),
+					IfCompare(condition.AttrType == "string", "\""+condition.AttrVal+"\"", condition.AttrVal))
+			} else {
+				conditionTpl = conditionTpl + fmt.Sprintf(" %s %s.%s %s %s",
+					rule.RuleCondition.RelationSymbol, condition.FactName, condition.Attr, condition.AttrJudge,
+					IfCompare(condition.AttrType == "string", "\""+condition.AttrVal+"\"", condition.AttrVal))
+			}
 		} else {
-			conditionTpl = conditionTpl + fmt.Sprintf("%s.%s %s %s",
-				condition.FactName, condition.Attr, condition.AttrJudge, IfCompare(condition.AttrType == "string", "\""+condition.AttrVal+"\"", condition.AttrVal))
+			if strings.HasPrefix(condition.AttrJudge, "system.") {
+				conditionTpl = conditionTpl + fmt.Sprintf("%s.%s.%s(%s)",
+					condition.FactName, condition.Attr, strings.Replace(condition.AttrJudge, "system.", "", 1),
+					IfCompare(condition.AttrType == "string", "\""+condition.AttrVal+"\"", condition.AttrVal))
+			} else {
+				conditionTpl = conditionTpl + fmt.Sprintf("%s.%s %s %s",
+					condition.FactName, condition.Attr, condition.AttrJudge,
+					IfCompare(condition.AttrType == "string", "\""+condition.AttrVal+"\"", condition.AttrVal))
+			}
+
 		}
 	}
 	var doAssignmentTpl = ""

@@ -70,9 +70,41 @@
               </div>
             </t-col>
           </t-row>
-          <t-form-item label="值" name="att_val">
-            <t-input placeholder="请输入内容" v-model="condition_item.attr_val" />
-          </t-form-item>
+
+          <t-row :gutter="{ xs: 8, sm: 16, md: 24, lg: 32, xl: 32, xxl: 40 }">
+            <t-col :span="4">
+              <div>
+               <!-- <t-form-item label="值类型" name="attr_type">
+                  <t-select clearable :style="{ width: '480px' }" v-model="condition_item.attr_type">
+                    <t-option v-for="(item, index) in attr_type_option" :value="item.value" :label="item.label"
+                      :key="index">
+                      {{ item.label }}
+                    </t-option>
+                  </t-select>
+                </t-form-item> -->
+              </div>
+            </t-col>
+            <t-col :span="4">
+              <div>
+               <t-form-item label="判断" name="attr_judge">
+                 <t-select clearable :style="{ width: '480px' }" v-model="condition_item.attr_judge">
+                   <t-option v-for="(item, index) in attr_judge_option" :value="item.value" :label="item.label"
+                     :key="index">
+                     {{ item.label }}
+                   </t-option>
+                 </t-select>
+               </t-form-item>
+              </div>
+            </t-col>
+            <t-col :span="4">
+              <div>
+                <t-form-item label="值" name="att_val">
+                  <t-input placeholder="请输入内容" v-model="condition_item.attr_val" />
+                </t-form-item>
+              </div>
+            </t-col>
+          </t-row>
+
         </t-card>
       </t-card>
       <!--规则编排 结束-->
@@ -283,6 +315,39 @@
             value: 'int'
           },
         ],
+        attr_judge_option: [{
+            label: '判断是否等于',
+            value: '=='
+          },
+          {
+            label: '判断是否大于',
+            value: '>'
+          },
+          {
+            label: '判断是否小于',
+            value: '<'
+          },
+          {
+            label: '判断是否大于等于',
+            value: '>='
+          },
+          {
+            label: '判断是否小于等于',
+            value: '<='
+          },
+          {
+            label: '判断包含',
+            value: 'system.Contains'
+          },
+          {
+            label: '判断开头',
+            value: 'system.HasPrefix'
+          },
+          {
+            label: '判断结尾',
+            value: 'system.HasSuffix'
+          },
+        ],
         relation_symbol_option: [{
             label: '并且',
             value: '&&'
@@ -412,6 +477,7 @@
       },
       ruleDynAdd(add_type,parent_index){
           console.log(add_type)
+          console.log(parent_index)
           console.log(this.formData)
           switch (add_type){
             case "cond":
@@ -421,10 +487,12 @@
                 this.formData.rule_do_assignment.push(copyObj(RULE_DO_ASSIGNMENT))
                 break;
             case "method":
+                console.log(RULE_DO_METHOD)
                 this.formData.rule_do_method.push(copyObj(RULE_DO_METHOD))
                 break;
             case "parms":
-            console.log(RULE_DO_METHOD_PARM)
+                console.log(RULE_DO_METHOD_PARM)
+                console.log(this.formData.rule_do_method[parent_index])
                 this.formData.rule_do_method[parent_index].parms.push(copyObj(RULE_DO_METHOD_PARM))
                 break;
             default:

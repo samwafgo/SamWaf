@@ -52,7 +52,7 @@ export const RULE = {
 };
 
 export const RULE_RELATION_DETAIL = {
-  fact_name: "默认",
+  fact_name: "MF",
   attr: "HOST",
   attr_type: "",
   attr_judge: "==",
@@ -71,7 +71,8 @@ export const RULE_DO_ASSIGNMENT = {
 export const RULE_DO_METHOD = {
   fact_name: "",
   method_name: "",
-  parms: [],
+  parms: [ 
+  ],
 };
 
 export const RULE_DO_METHOD_PARM = {

@@ -35,6 +35,12 @@ func (rulehelper *RuleHelper) LoadRule(ruleconfig model.Rules) {
 
 func (rulehelper *RuleHelper) LoadRules(ruleconfig []model.Rules) string {
 
+	defer func() {
+		e := recover()
+		if e != nil { // 捕获该协程的panic 111111
+			log.Println("LoadRules error ", e)
+		}
+	}()
 	rulehelper.knowledgeLibrary = ast.NewKnowledgeLibrary()
 	rulehelper.ruleBuilder = builder.NewRuleBuilder(rulehelper.knowledgeLibrary)
 
@@ -55,7 +61,7 @@ func (rulehelper *RuleHelper) LoadRules(ruleconfig []model.Rules) string {
 	byteArr := pkg.NewBytesResource([]byte(rulestr))
 	err := rulehelper.ruleBuilder.BuildRuleFromResource("Region", "0.0.1", byteArr)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 
 	rulehelper.knowledgeBase = rulehelper.knowledgeLibrary.NewKnowledgeBaseInstance("Region", "0.0.1")

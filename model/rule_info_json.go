@@ -35,6 +35,7 @@ type RelationDetail struct {
 	AttrType  string `json:"attr_type"`
 	AttrJudge string `json:"attr_judge"`
 	AttrVal   string `json:"attr_val"`
+	AttrVal2  string `json:"attr_val2"` //TODO 暂时这么是为了给函数返回值进行判断的
 }
 type RuleCondition struct {
 	RelationDetail []RelationDetail `json:"relation_detail"`
@@ -78,9 +79,9 @@ func (receiver *RuleTool) GenRuleInfo(rule RuleInfo, remark string) string {
 
 		if conditionTpl != "" {
 			if strings.HasPrefix(condition.AttrJudge, "system.") {
-				conditionTpl = conditionTpl + fmt.Sprintf(" %s %s.%s.%s(%s)",
+				conditionTpl = conditionTpl + fmt.Sprintf(" %s %s.%s.%s(%s) == %s",
 					rule.RuleCondition.RelationSymbol, condition.FactName, condition.Attr, strings.Replace(condition.AttrJudge, "system.", "", 1),
-					IfCompare(condition.AttrType == "string", "\""+condition.AttrVal+"\"", condition.AttrVal))
+					IfCompare(condition.AttrType == "string", "\""+condition.AttrVal+"\"", condition.AttrVal), condition.AttrVal2)
 			} else {
 				conditionTpl = conditionTpl + fmt.Sprintf(" %s %s.%s %s %s",
 					rule.RuleCondition.RelationSymbol, condition.FactName, condition.Attr, condition.AttrJudge,
@@ -88,9 +89,9 @@ func (receiver *RuleTool) GenRuleInfo(rule RuleInfo, remark string) string {
 			}
 		} else {
 			if strings.HasPrefix(condition.AttrJudge, "system.") {
-				conditionTpl = conditionTpl + fmt.Sprintf("%s.%s.%s(%s)",
+				conditionTpl = conditionTpl + fmt.Sprintf("%s.%s.%s(%s) == %s",
 					condition.FactName, condition.Attr, strings.Replace(condition.AttrJudge, "system.", "", 1),
-					IfCompare(condition.AttrType == "string", "\""+condition.AttrVal+"\"", condition.AttrVal))
+					IfCompare(condition.AttrType == "string", "\""+condition.AttrVal+"\"", condition.AttrVal), condition.AttrVal2)
 			} else {
 				conditionTpl = conditionTpl + fmt.Sprintf("%s.%s %s %s",
 					condition.FactName, condition.Attr, condition.AttrJudge,

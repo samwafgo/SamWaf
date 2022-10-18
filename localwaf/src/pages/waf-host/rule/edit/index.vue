@@ -74,18 +74,6 @@
           <t-row :gutter="{ xs: 8, sm: 16, md: 24, lg: 32, xl: 32, xxl: 40 }">
             <t-col :span="4">
               <div>
-               <!-- <t-form-item label="值类型" name="attr_type">
-                  <t-select clearable :style="{ width: '480px' }" v-model="condition_item.attr_type">
-                    <t-option v-for="(item, index) in attr_type_option" :value="item.value" :label="item.label"
-                      :key="index">
-                      {{ item.label }}
-                    </t-option>
-                  </t-select>
-                </t-form-item> -->
-              </div>
-            </t-col>
-            <t-col :span="4">
-              <div>
                <t-form-item label="判断" name="attr_judge">
                  <t-select clearable :style="{ width: '480px' }" v-model="condition_item.attr_judge">
                    <t-option v-for="(item, index) in attr_judge_option" :value="item.value" :label="item.label"
@@ -100,6 +88,13 @@
               <div>
                 <t-form-item label="值" name="att_val">
                   <t-input placeholder="请输入内容" v-model="condition_item.attr_val" />
+                </t-form-item>
+              </div>
+            </t-col>
+            <t-col :span="4">
+              <div>
+                <t-form-item label="函数判断结果" name="att_val2">
+                  <t-input placeholder="请输入函数返回值" v-model="condition_item.attr_val2" />
                 </t-form-item>
               </div>
             </t-col>
@@ -336,15 +331,15 @@
             value: '<='
           },
           {
-            label: '判断包含',
+            label: '判断包含(函数)',
             value: 'system.Contains'
           },
           {
-            label: '判断开头',
+            label: '判断开头(函数)',
             value: 'system.HasPrefix'
           },
           {
-            label: '判断结尾',
+            label: '判断结尾(函数)',
             value: 'system.HasSuffix'
           },
         ],

@@ -56,7 +56,8 @@ export const RULE_RELATION_DETAIL = {
   attr: "HOST",
   attr_type: "",
   attr_judge: "==",
-  attr_val: ""
+  attr_val: "",
+  attr_val2: "True"
 };
 
 
@@ -71,7 +72,7 @@ export const RULE_DO_ASSIGNMENT = {
 export const RULE_DO_METHOD = {
   fact_name: "",
   method_name: "",
-  parms: [ 
+  parms: [
   ],
 };
 

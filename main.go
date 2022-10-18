@@ -86,6 +86,11 @@ func main() {
 
 			}
 			break
+		case host := <-hostChan:
+
+			hostTarget[host.Host+":"+strconv.Itoa(host.Port)].Host.GUARD_STATUS = host.GUARD_STATUS
+			log.Println(host)
+			break
 		}
 
 	}

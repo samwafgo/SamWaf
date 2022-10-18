@@ -31,24 +31,26 @@ type HostSafe struct {
 	TargetHost     string
 	RuleData       []model.Rules
 	RuleVersionSum int //规则版本的汇总 通过这个来进行版本动态加载
+	Host           model.Hosts
 }
 
 var (
 	//主机情况
 	hostTarget = map[string]*HostSafe{}
 	//主机和code的关系
-	hostCode      = map[string]string{}
-	ipcBuff       = []byte{} //ip数据
-	server_online = map[int]innerbean.ServerRunTime{}
+	hostCode     = map[string]string{}
+	ipcBuff      = []byte{} //ip数据
+	serverOnline = map[int]innerbean.ServerRunTime{}
 
 	//所有证书情况 对应端口 可能多个端口都是https 443，或者其他非标准端口也要实现https证书
-	all_certificate = map[int]map[string]*tls.Certificate{}
-	//all_certificate = map[int] map[string] string{}
+	allCertificate = map[int]map[string]*tls.Certificate{}
+	//allCertificate = map[int] map[string] string{}
 	esHelper utils.EsHelper
 
 	phttphandler        *baseHandle
 	hostRuleChan            = make(chan []model.Rules, 10) //规则链
 	engineChan              = make(chan int, 10)           //引擎链
+	hostChan                = make(chan model.Hosts, 10)   //主机链
 	engineCurrentStatus int = 0                            // 当前waf引擎状态
 )
 
@@ -123,7 +125,7 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	cookies, _ := json.Marshal(r.Cookies())
 	header, _ := json.Marshal(r.Header)
 	// 取出客户IP
-	ip_and_port := strings.Split(r.RemoteAddr, ":")
+	ipAndPort := strings.Split(r.RemoteAddr, ":")
 	weblogbean := innerbean.WebLog{
 		HOST:           host,
 		URL:            r.RequestURI,
@@ -131,9 +133,9 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		USER_AGENT:     r.UserAgent(),
 		METHOD:         r.Method,
 		HEADER:         string(header),
-		COUNTRY:        GetCountry(ip_and_port[0]),
-		SRC_IP:         ip_and_port[0],
-		SRC_PORT:       ip_and_port[1],
+		COUNTRY:        GetCountry(ipAndPort[0]),
+		SRC_IP:         ipAndPort[0],
+		SRC_PORT:       ipAndPort[1],
 		CREATE_TIME:    time.Now().Format("2006-01-02 15:04:05"),
 		CONTENT_LENGTH: contentLength,
 		COOKIES:        string(cookies),
@@ -148,31 +150,32 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		SRC_INFO:   weblogbean,
 		ExecResult: 0,
 	}*/
-	rule_matchs, err := hostTarget[host].Rule.Match("MF", &weblogbean)
-	if err == nil {
-		if len(rule_matchs) > 0 {
+	if hostTarget[host].Host.GUARD_STATUS == 1 {
+		ruleMatchs, err := hostTarget[host].Rule.Match("MF", &weblogbean)
+		if err == nil {
+			if len(ruleMatchs) > 0 {
 
-			rulestr := ""
-			for _, v := range rule_matchs {
-				rulestr = rulestr + v.RuleDescription + ","
+				rulestr := ""
+				for _, v := range ruleMatchs {
+					rulestr = rulestr + v.RuleDescription + ","
+				}
+				weblogbean.RULE = rulestr
+				global.GWAF_LOCAL_DB.Create(weblogbean)
+
+				log.Println("no china")
+				w.Header().Set("WAF", "SAMWAF DROP")
+				/*expiration := time.Now()
+				expiration = expiration.AddDate(1, 0, 0)
+				cookie := http.Cookie{Name: "IDENFY", Value: weblogbean.REQ_UUID, Expires: expiration}
+				http.SetCookie(w, &cookie)*/
+				w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
+
+				return
 			}
-			weblogbean.RULE = rulestr
-			global.GWAF_LOCAL_DB.Create(weblogbean)
-
-			log.Println("no china")
-			w.Header().Set("WAF", "SAMWAF DROP")
-			/*expiration := time.Now()
-			expiration = expiration.AddDate(1, 0, 0)
-			cookie := http.Cookie{Name: "IDENFY", Value: weblogbean.REQ_UUID, Expires: expiration}
-			http.SetCookie(w, &cookie)*/
-			w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
-
-			return
+		} else {
+			fmt.Println("规则 ", err)
 		}
-	} else {
-		fmt.Println("规则 ", err)
 	}
-
 	// 取出代理ip
 
 	// 直接从缓存取出
@@ -266,16 +269,16 @@ func Start_WAF() {
 			}
 			log.Println(cert)
 			//all_certificate[hosts[i].Port][hosts[i].Host] = &cert
-			mm, ok := all_certificate[hosts[i].Port] //[hosts[i].Host]
+			mm, ok := allCertificate[hosts[i].Port] //[hosts[i].Host]
 			if !ok {
 				mm = make(map[string]*tls.Certificate)
-				all_certificate[hosts[i].Port] = mm
+				allCertificate[hosts[i].Port] = mm
 			}
-			all_certificate[hosts[i].Port][hosts[i].Host] = &cert
+			allCertificate[hosts[i].Port][hosts[i].Host] = &cert
 		}
-		_, ok := server_online[hosts[i].Port]
+		_, ok := serverOnline[hosts[i].Port]
 		if ok == false {
-			server_online[hosts[i].Port] = innerbean.ServerRunTime{
+			serverOnline[hosts[i].Port] = innerbean.ServerRunTime{
 				ServerType: utils.GetServerByHosts(hosts[i]),
 				Port:       hosts[i].Port,
 				Status:     0,
@@ -302,6 +305,7 @@ func Start_WAF() {
 			TargetHost:     hosts[i].Remote_host + ":" + strconv.Itoa(hosts[i].Remote_port),
 			RuleData:       ruleconfigs,
 			RuleVersionSum: vcnt,
+			Host:           hosts[i],
 		}
 		//赋值到白名单里面
 		hostTarget[hosts[i].Host+":"+strconv.Itoa(hosts[i].Port)] = hostsafe
@@ -309,7 +313,7 @@ func Start_WAF() {
 		hostCode[hosts[i].Code] = hosts[i].Host + ":" + strconv.Itoa(hosts[i].Port)
 
 	}
-	for _, v := range server_online {
+	for _, v := range serverOnline {
 		go func(innruntime innerbean.ServerRunTime) {
 
 			if (innruntime.ServerType) == "https" {
@@ -321,11 +325,11 @@ func Start_WAF() {
 						NameToCertificate: make(map[string]*tls.Certificate, 0),
 					},
 				}
-				serclone := server_online[innruntime.Port]
+				serclone := serverOnline[innruntime.Port]
 				serclone.Svr = svr
-				server_online[innruntime.Port] = serclone
+				serverOnline[innruntime.Port] = serclone
 
-				svr.TLSConfig.NameToCertificate = all_certificate[innruntime.Port]
+				svr.TLSConfig.NameToCertificate = allCertificate[innruntime.Port]
 				svr.TLSConfig.GetCertificate = func(clientInfo *tls.ClientHelloInfo) (*tls.Certificate, error) {
 					if x509Cert, ok := svr.TLSConfig.NameToCertificate[clientInfo.ServerName]; ok {
 						return x509Cert, nil
@@ -352,9 +356,9 @@ func Start_WAF() {
 					Addr:    ":" + strconv.Itoa(innruntime.Port),
 					Handler: phttphandler,
 				}
-				serclone := server_online[innruntime.Port]
+				serclone := serverOnline[innruntime.Port]
 				serclone.Svr = svr
-				server_online[innruntime.Port] = serclone
+				serverOnline[innruntime.Port] = serclone
 
 				log.Println("启动HTTP 服务器" + strconv.Itoa(innruntime.Port))
 				err = svr.ListenAndServe()
@@ -381,7 +385,7 @@ func CLoseWAF() {
 		}
 	}()
 	engineCurrentStatus = 0
-	for _, v := range server_online {
+	for _, v := range serverOnline {
 		if v.Svr != nil {
 			v.Svr.Close()
 		}
@@ -391,7 +395,7 @@ func CLoseWAF() {
 
 	hostTarget = map[string]*HostSafe{}
 	hostCode = map[string]string{}
-	server_online = map[int]innerbean.ServerRunTime{}
-	all_certificate = map[int]map[string]*tls.Certificate{}
+	serverOnline = map[int]innerbean.ServerRunTime{}
+	allCertificate = map[int]map[string]*tls.Certificate{}
 
 }

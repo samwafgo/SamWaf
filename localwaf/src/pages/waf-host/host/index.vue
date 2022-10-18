@@ -21,12 +21,12 @@
           :headerAffixedTop="true" :headerAffixProps="{ offsetTop: offsetTop, container: getContainer }">
           <template #guard_status="{ row }">
 
-            <t-popconfirm theme="default" :visible="guardVisible" @visible-change="onVisibleChange">
+            <t-popconfirm theme="default" :visible="row.guard_status_visiable" @visible-change="onVisibleChange">
               <template slot="content">
                 <p class="title">防护规则</p>
                 <p class="describe">带描述的气泡确认框在主要说明之外增加了操作相关的详细描述</p>
               </template>
-              <t-switch size="large" v-model="row.guard_status ==1" :label="['已防护', '未防护']" @change="changeGuardStatus($event,row)">
+              <t-switch size="large" v-model="row.guard_status ===1" :label="['已防护', '未防护']" @change="changeGuardStatus($event,row)">
               </t-switch>
             </t-popconfirm>
             <!--       <t-tag v-if="row.guard_status === GUARD_STATUS.UN_GUARDDING" theme="warning" variant="light">未防护</t-tag>
@@ -396,6 +396,11 @@
               //const { list = [] } = resdata.data.list;
 
               this.data = resdata.data.list;
+              this.data_attach = []
+              for (var i = 0; i < this.data.length; i++) {
+                this.data[i].guard_status_visiable = false //可扩充
+              }
+              console.log('getList',this.data)
               this.pagination = {
                 ...this.pagination,
                 total: resdata.data.total,
@@ -612,14 +617,18 @@
          return value['code'] == code
         })
         console.log("rowIndex",rowIndex)
-        this.guardVisible = true
+        this.data[rowIndex].guard_status_visiable = !this.data [rowIndex].guard_status_visiable
         this.guardStatusIdx = rowIndex
         console.log(e)
       },
       onVisibleChange(val, context = {}) {
         let that = this
         console.log("this.guardStatusIdx",this.guardStatusIdx)
-        console.log(this.data,this.data)
+        if(this.guardStatusIdx==-1){
+          return
+        }
+
+        console.log("this.data",this.data[that.guardStatusIdx])
         let {
           code,guard_status
         } = this.data[this.guardStatusIdx]
@@ -643,8 +652,8 @@
               if (resdata.code === 200) {
                 that.getList("")
                 that.$message.close(msg);
-                that.$message.success(resdata.msg);
-                that.guardVisible = false;
+                that.$message.success(resdata.msg)
+                that.data[that.guardStatusIdx].guard_status_visiable = false
                 that.guardStatusIdx = -1;
               } else {
                 that.$message.warning(resdata.msg);
@@ -656,8 +665,11 @@
             })
             .finally(() => {});
         } else if(context && context.trigger === 'cancel'){
-          this.guardVisible = false;
-          this.guardStatusIdx = -1;
+          //TODO 不知此处为何点击无效
+          console.log("this.data",that.data)
+          console.log("that.data[that.guardStatusIdx]",that.data[that.guardStatusIdx])
+          that.data[that.guardStatusIdx].guard_status_visiable = false
+          that.guardStatusIdx = -1;
         }
       },
     },

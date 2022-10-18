@@ -83,38 +83,38 @@ func (receiver *RuleTool) GenRuleInfo(rule RuleInfo, remark string) string {
 				condition.FactName, condition.Attr, condition.AttrJudge, IfCompare(condition.AttrType == "string", "\""+condition.AttrVal+"\"", condition.AttrVal))
 		}
 	}
-	var do_assignmentTpl = ""
-	for _, do_assignment := range rule.RuleDoAssignment {
-		do_assignmentTpl = do_assignmentTpl +
+	var doAssignmentTpl = ""
+	for _, doAssignment := range rule.RuleDoAssignment {
+		doAssignmentTpl = doAssignmentTpl +
 			fmt.Sprintf("%s.%s = %s;\n",
-				do_assignment.FactName, do_assignment.Attr,
-				IfCompare(do_assignment.AttrType == "string", "\""+do_assignment.AttrVal+"\"", do_assignment.AttrVal))
+				doAssignment.FactName, doAssignment.Attr,
+				IfCompare(doAssignment.AttrType == "string", "\""+doAssignment.AttrVal+"\"", doAssignment.AttrVal))
 
 	}
-	var do_methodTpl = ""
-	for _, do_method := range rule.RuleDoMethod {
-		do_methodTpl = do_methodTpl +
+	var doMethodTpl = ""
+	for _, doMethod := range rule.RuleDoMethod {
+		doMethodTpl = doMethodTpl +
 			fmt.Sprintf("%s.%s ",
-				do_method.FactName, do_method.MethodName)
-		var parm_str = ""
-		for _, do_method_parms := range do_method.Parms {
-			if parm_str != "" {
-				parm_str = parm_str +
+				doMethod.FactName, doMethod.MethodName)
+		var parmStr = ""
+		for _, doMethodParms := range doMethod.Parms {
+			if parmStr != "" {
+				parmStr = parmStr +
 					fmt.Sprintf(",%s",
-						IfCompare(do_method_parms.AttrType == "string",
-							"\""+do_method_parms.AttrVal+"\"", do_method_parms.AttrVal))
+						IfCompare(doMethodParms.AttrType == "string",
+							"\""+doMethodParms.AttrVal+"\"", doMethodParms.AttrVal))
 			} else {
 
-				parm_str = parm_str +
+				parmStr = parmStr +
 					fmt.Sprintf("%s",
-						IfCompare(do_method_parms.AttrType == "string",
-							"\""+do_method_parms.AttrVal+"\"", do_method_parms.AttrVal))
+						IfCompare(doMethodParms.AttrType == "string",
+							"\""+doMethodParms.AttrVal+"\"", doMethodParms.AttrVal))
 			}
 		}
-		if parm_str != "" {
-			do_methodTpl = do_methodTpl + "(" + parm_str + ")" + ";\n"
+		if parmStr != "" {
+			doMethodTpl = doMethodTpl + "(" + parmStr + ")" + ";\n"
 		} else {
-			do_methodTpl = do_methodTpl + "()" + ";\n"
+			doMethodTpl = doMethodTpl + "()" + ";\n"
 		}
 
 	}
@@ -123,10 +123,10 @@ func (receiver *RuleTool) GenRuleInfo(rule RuleInfo, remark string) string {
 		"rule_remark":    remark,
 		"rule_salience":  strconv.Itoa(rule.RuleBase.Salience),
 		"rule_condition": conditionTpl,
-		"rule_action":    do_assignmentTpl + do_methodTpl,
+		"rule_action":    doAssignmentTpl + doMethodTpl,
 	}
 
-	var rule_tpl = `
+	var ruleTpl = `
 rule R${rule_name} "${rule_remark}" salience ${rule_salience} {
     when 
         ${rule_condition}
@@ -134,6 +134,6 @@ rule R${rule_name} "${rule_remark}" salience ${rule_salience} {
         ${rule_action}
 		Retract("R${rule_name}");
 } `
-	s := os.Expand(rule_tpl, func(k string) string { return dev[k] })
+	s := os.Expand(ruleTpl, func(k string) string { return dev[k] })
 	return s
 }

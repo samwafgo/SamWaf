@@ -310,6 +310,10 @@ func StartLocalServer() {
 					Msg:  "状态失败",
 				})
 			} else {
+				var webHost model.Hosts
+				err = global.GWAF_LOCAL_DB.Where("CODE = ?", waf_host_guard_status_req.CODE).First(&webHost).Error
+				//发送状态改变通知
+				hostChan <- webHost
 				c.JSON(http.StatusOK, response.Response{
 					Code: 200,
 					Data: "",

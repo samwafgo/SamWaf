@@ -26,7 +26,7 @@
                 <p class="title">防护规则</p>
                 <p class="describe">带描述的气泡确认框在主要说明之外增加了操作相关的详细描述</p>
               </template>
-              <t-switch size="large" v-model="row.guard_status" :label="['已防护', '未防护']" @change="changeGuardStatus($event,row)">
+              <t-switch size="large" v-model="row.guard_status ==1" :label="['已防护', '未防护']" @change="changeGuardStatus($event,row)">
               </t-switch>
             </t-popconfirm>
             <!--       <t-tag v-if="row.guard_status === GUARD_STATUS.UN_GUARDDING" theme="warning" variant="light">未防护</t-tag>
@@ -606,16 +606,22 @@
       changeGuardStatus(e,row) {
 
         console.log(e,row)
+        let {code } = row
+        let rowIndex = this.data.findIndex(function(value,index,arr){
+          console.log("findIndex",value,index,arr)
+         return value['code'] == code
+        })
+        console.log("rowIndex",rowIndex)
         this.guardVisible = true
-        this.guardStatusIdx = row.rowIndex
+        this.guardStatusIdx = rowIndex
         console.log(e)
       },
       onVisibleChange(val, context = {}) {
         let that = this
-
         console.log("this.guardStatusIdx",this.guardStatusIdx)
+        console.log(this.data,this.data)
         let {
-          code
+          code,guard_status
         } = this.data[this.guardStatusIdx]
         console.log(context, context.trigger)
         // trigger 表示触发来源，可以根据触发来源自由控制 visible
@@ -628,7 +634,7 @@
             .get('/wafhost/host/guardstatus', {
               params: {
                 CODE: code,
-                GUARD_STATUS: 1,
+                GUARD_STATUS: guard_status==1?0:1,
               }
             })
             .then((res) => {

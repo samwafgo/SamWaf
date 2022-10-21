@@ -1,5 +1,6 @@
 <template>
   <div class="detail-base">
+
     <t-form :data="formData"  @submit="onSubmit"> <!--:rules="rules"-->
       <!--基本信息 开始-->
       <t-card title="基本信息">
@@ -12,10 +13,21 @@
         <t-form-item label="防护级别" name="salience">
           <t-input placeholder="请输入内容" v-model="formData.rule_base.salience" />
         </t-form-item>
+        <t-form-item label="防护编排方式" name="is_manual_rule">
+            <t-select  :style="{ width: '480px' }"
+              v-model="formData.is_manual_rule">
+              <t-option v-for="(item, index) in rule_manual_option" :value="item.value" :label="item.label"
+                :key="index">
+                {{ item.label }}
+              </t-option>
+            </t-select>
+        </t-form-item>
       </t-card>
       <!--基本信息 结束-->
 
-      <!--规则编排 开始-->
+       <!--手工编排-->
+      <div v-if="formData.is_manual_rule=='0'">
+        <!--规则编排 开始-->
       <t-card title="规则编排">
         <t-button theme="primary" @click="ruleDynAdd('cond')">
               新建
@@ -242,6 +254,19 @@
       </t-card>
       <!--符合则执行部分 结束-->
 
+    </div>
+    <!--界面编排 结束-->
+
+    <!--手工编排-->
+    <div v-if="formData.is_manual_rule=='1'">
+    <t-card title="规则编排">
+      <writeRule>
+
+      	@edtinput="edtinput"
+
+      ></writeRule>
+    </t-card>
+    </div>
 
 
       <t-form-item style="margin-left: 100px">
@@ -253,7 +278,7 @@
         </t-space>
       </t-form-item>
     </t-form>
-
+ <t-button theme="default" variant="base" @click="getinfoClick">测试获取数据</t-button>
 
   </div>
 </template>
@@ -265,14 +290,27 @@
     RULE,RULE_RELATION_DETAIL,RULE_DO_ASSIGNMENT,RULE_DO_METHOD,RULE_DO_METHOD_PARM
   } from '@/service/service-rule';
   import { copyObj } from '@/utils/usuallytool';
+  import writeRule from "@/components/write-rule/index.vue";
+
+
   export default {
     name: 'WafRuleEdit',
+    components: {
+      writeRule
+    },
     data() {
       return {
         op_type :"add",
         op_rule_no :"",//规则识别号
         prefix,
         detail_data: {},
+        rule_manual_option: [{
+          label: '界面编排',
+          value: '0'
+        }, {
+          label: '手工代码编排',
+          value: '1'
+        }, ],
         rules: {
           rule_name: [{ required: true, message: '请输入规则名称', type: 'error' }],
         },
@@ -362,9 +400,13 @@
       console.log('beforeRouteUpdate')
     },
     mounted() {
+      let that = this
       console.log('----mounted----')
       console.log(RULE)
-
+      this.$bus.$on('codeedit', (e) => {
+         console.log('消息总线 来自子组件e', e)
+         this.formData.rule_content = e
+      })
       //console.log(this.$route.params.req_uuid);
       if(this.$route.query.code != undefined){
 
@@ -404,6 +446,7 @@
       },
     },
     methods: {
+
       getDetail(id) {
         let that = this
         this.$request
@@ -515,7 +558,14 @@
               break;
           }
       },
+      edtinput(e){
+        console.log('来子组件',e)
+      },
+      getinfoClick(e){
+          console.log(e)
 
+          console.log(this.$refs.changeSql)
+      },
     },
   };
 </script>

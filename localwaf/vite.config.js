@@ -2,6 +2,7 @@ import { loadEnv } from 'vite';
 import { viteMockServe } from 'vite-plugin-mock';
 import { createVuePlugin } from 'vite-plugin-vue2';
 import { createSvgPlugin } from 'vite-plugin-vue2-svg';
+import requireTransform from 'vite-plugin-require-transform';
 
 import path from 'path';
 
@@ -36,6 +37,11 @@ export default ({ mode }) => {
         localEnabled: true,
       }),
       createSvgPlugin(),
+      requireTransform(
+        {
+        fileRegex: /.js$|.vue$/
+        }
+      ),
     ],
 
     build: {

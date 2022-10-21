@@ -396,19 +396,27 @@ func StartLocalServer() {
 				})
 				return
 			}
+
 			var rule_code = uuid.NewV4().String()
 			rule_info.RuleBase.RuleName = strings.Replace(rule_code, "-", "", -1)
+
+			var ruleContent = rule_tool.GenRuleInfo(rule_info, rulename)
+			if waf_rule_add_req.IsManualRule == 1 {
+				ruleContent = rule_info.RuleContent
+			}
+
 			var waf_rule = &model.Rules{
 				TenantId:        global.GWAF_TENANT_ID,
 				HostCode:        rule_info.RuleBase.RuleDomainCode, //网站CODE
 				RuleCode:        rule_code,
 				RuleName:        rulename,
-				RuleContent:     rule_tool.GenRuleInfo(rule_info, rulename),
+				RuleContent:     ruleContent,
 				RuleContentJSON: waf_rule_add_req.RuleJson, //TODO 后续考虑是否应该再从结构转一次
 				RuleVersionName: "初版",
 				RuleVersion:     1,
 				UserCode:        global.GWAF_USER_CODE,
 				IsPublicRule:    0,
+				IsManualRule:    waf_rule_add_req.IsManualRule,
 				RuleStatus:      1,
 			}
 			//waf_host_add_req.USER_CODE =
@@ -436,8 +444,8 @@ func StartLocalServer() {
 		err := c.ShouldBind(&waf_rule_edit_req)
 		if err == nil {
 
-			var rule_tool = model.RuleTool{}
-			rule_info, err := rule_tool.LoadRule(waf_rule_edit_req.RuleJson)
+			var ruleTool = model.RuleTool{}
+			ruleInfo, err := ruleTool.LoadRule(waf_rule_edit_req.RuleJson)
 			if err != nil {
 				c.JSON(http.StatusOK, response.Response{
 					Code: -1,
@@ -445,11 +453,11 @@ func StartLocalServer() {
 				})
 				return
 			}
-			var rule_name = rule_info.RuleBase.RuleName //中文名
+			var ruleName = ruleInfo.RuleBase.RuleName //中文名
 
 			var rule model.Rules
 			global.GWAF_LOCAL_DB.Debug().Where("rule_name = ? and host_code= ?",
-				rule_name, rule_info.RuleBase.RuleDomainCode).Find(&rule)
+				ruleName, ruleInfo.RuleBase.RuleDomainCode).Find(&rule)
 
 			if rule.Id != 0 && rule.RuleCode != waf_rule_edit_req.CODE {
 				c.JSON(http.StatusOK, response.Response{
@@ -461,17 +469,21 @@ func StartLocalServer() {
 
 			global.GWAF_LOCAL_DB.Debug().Where("rule_code=?", waf_rule_edit_req.CODE).Find(&rule)
 
-			rule_info.RuleBase.RuleName = strings.Replace(rule.RuleCode, "-", "", -1)
-
+			ruleInfo.RuleBase.RuleName = strings.Replace(rule.RuleCode, "-", "", -1)
+			var ruleContent = ruleTool.GenRuleInfo(ruleInfo, ruleName)
+			if waf_rule_edit_req.IsManualRule == 1 {
+				ruleContent = ruleInfo.RuleContent
+			}
 			ruleMap := map[string]interface{}{
-				"HostCode":        rule_info.RuleBase.RuleDomainCode, //TODO 注意字典名称
-				"RuleName":        rule_name,
-				"RuleContent":     rule_tool.GenRuleInfo(rule_info, rule_name),
+				"HostCode":        ruleInfo.RuleBase.RuleDomainCode, //TODO 注意字典名称
+				"RuleName":        ruleName,
+				"RuleContent":     ruleContent,
 				"RuleContentJSON": waf_rule_edit_req.RuleJson, //TODO 后续考虑是否应该再从结构转一次
 				"RuleVersionName": "初版",
 				"RuleVersion":     rule.RuleVersion + 1,
 				"User_code":       global.GWAF_USER_CODE,
 				"IsPublicRule":    0,
+				"IsManualRule":    waf_rule_edit_req.IsManualRule,
 				"RuleStatus":      "1",
 				//"UPDATE_TIME": time.Now(),
 			}

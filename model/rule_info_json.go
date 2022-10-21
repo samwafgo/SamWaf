@@ -19,6 +19,8 @@ func IfCompare(condition bool, trueVal, falseVal interface{}) interface{} {
 }
 
 type RuleInfo struct {
+	IsManualRule     int                `json:"is_manual_rule"`
+	RuleContent      string             `json:"rule_content"` //规则内容
 	RuleBase         RuleBase           `json:"rule_base"`
 	RuleCondition    RuleCondition      `json:"rule_condition"`
 	RuleDoAssignment []RuleDoAssignment `json:"rule_do_assignment"`

@@ -1,4 +1,6 @@
 export const RULE = {
+  is_manual_rule:"1",
+  rule_content:"zxcv",
   rule_base: {
     salience: 10,
     rule_name: "试试",
@@ -7,14 +9,14 @@ export const RULE = {
   rule_condition: {
     relation_detail: [{
       fact_name: "MF",
-      attr: "主机",
+      attr: "HOST",
       attr_type: "string",
       attr_judge: "==",
       attr_val: "值"
     },
     {
       fact_name: "MF",
-      attr: "端口",
+      attr: "URL",
       attr_type: "int",
       attr_judge: "==",
       attr_val: "0"
@@ -24,13 +26,13 @@ export const RULE = {
   },
   rule_do_assignment: [{
     fact_name: "MF",
-    attr: "主机",
+    attr: "HOST",
     attr_type: "string",
     attr_val: "值"
   },
   {
     fact_name: "MF",
-    attr: "源端口",
+    attr: "PORT",
     attr_type: "int",
     attr_val: "0"
   },

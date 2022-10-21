@@ -8,6 +8,7 @@ import App from './App.vue';
 import router from './router';
 import zhConfig from 'tdesign-vue/es/locale/zh_CN';
 // import enConfig from 'tdesign-vue/es/locale/en_US'; // 英文多语言配置
+import bus from './bus/bus'
 
 import 'tdesign-vue/es/style/index.css';
 import '@/style/index.less';
@@ -18,6 +19,7 @@ import store from './store';
 Vue.use(VueRouter);
 Vue.use(TDesign);
 Vue.use(VueClipboard);
+Vue.prototype.$bus = bus
 
 Vue.component('t-page-header');
 
@@ -41,7 +43,7 @@ new Vue({
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   render: (h) => (
     <div>
-      {/* 可以通过config-provider提供全局（多语言、全局属性）配置，如 
+      {/* 可以通过config-provider提供全局（多语言、全局属性）配置，如
       <t-config-provider globalConfig={enConfig}> */}
       <t-config-provider globalConfig={zhConfig}>
         <App />

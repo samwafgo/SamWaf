@@ -261,7 +261,7 @@
     <div v-if="formData.is_manual_rule=='1'">
     <t-card title="规则编排">
       <writeRule>
-
+        valuecontent="formData.rule_content"
       	@edtinput="edtinput"
 
       ></writeRule>
@@ -278,7 +278,6 @@
         </t-space>
       </t-form-item>
     </t-form>
- <t-button theme="default" variant="base" @click="getinfoClick">测试获取数据</t-button>
 
   </div>
 </template>
@@ -463,6 +462,8 @@
               //const { list = [] } = resdata.data;
 
               that.formData = JSON.parse(resdata.data.rule_content_json);
+
+              that.$bus.$emit("showcodeedit",resdata.data.rule_content)
               console.log('返回的', that.formData )
             }
           })
@@ -478,10 +479,19 @@
           let url = ''
           if(that.op_type == "add"){
              url = '/wafhost/rule/add'
-             postdata = {RuleJson : JSON.stringify(that.formData)}
+             postdata = {
+                          RuleJson : JSON.stringify(that.formData),
+                          is_manual_rule:parseInt( that.formData.is_manual_rule),
+                          rule_content:that.formData.rule_content,
+                        }
           }else{
              url = '/wafhost/rule/edit'
-             postdata = {Code:that.op_rule_no,RuleJson : JSON.stringify(that.formData)}
+             postdata = {
+               Code:that.op_rule_no,
+               RuleJson : JSON.stringify(that.formData),
+               is_manual_rule:parseInt( that.formData.is_manual_rule),
+               rule_content:that.formData.rule_content,
+             }
           }
 
           this.$request

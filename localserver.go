@@ -6,6 +6,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
+	"SamWaf/utils"
 	"errors"
 	"github.com/gin-gonic/gin"
 	uuid "github.com/satori/go.uuid"
@@ -42,6 +43,7 @@ func StartLocalServer() {
 	r := gin.Default()
 	r.Use(Cors()) //解决跨域
 
+	ruleHelper := &utils.RuleHelper{}
 	r.GET("/samwaf/resetWAF", func(c *gin.Context) {
 		/*defer func() {
 			c.JSON(http.StatusOK, response.Response{
@@ -403,6 +405,16 @@ func StartLocalServer() {
 			var ruleContent = rule_tool.GenRuleInfo(rule_info, rulename)
 			if waf_rule_add_req.IsManualRule == 1 {
 				ruleContent = rule_info.RuleContent
+				//检查规则是否合法
+				err = ruleHelper.CheckRuleAvailable(ruleContent)
+				if err != nil {
+					c.JSON(http.StatusOK, response.Response{
+						Code: -1,
+						Data: err.Error(),
+						Msg:  "规则校验失败",
+					})
+					return
+				}
 			}
 
 			var waf_rule = &model.Rules{
@@ -473,6 +485,16 @@ func StartLocalServer() {
 			var ruleContent = ruleTool.GenRuleInfo(ruleInfo, ruleName)
 			if waf_rule_edit_req.IsManualRule == 1 {
 				ruleContent = ruleInfo.RuleContent
+				//检查规则是否合法
+				err = ruleHelper.CheckRuleAvailable(ruleContent)
+				if err != nil {
+					c.JSON(http.StatusOK, response.Response{
+						Code: -1,
+						Data: err.Error(),
+						Msg:  "规则校验失败",
+					})
+					return
+				}
 			}
 			ruleMap := map[string]interface{}{
 				"HostCode":        ruleInfo.RuleBase.RuleDomainCode, //TODO 注意字典名称

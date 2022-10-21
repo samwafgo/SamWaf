@@ -1,7 +1,6 @@
 <template>
   <div class="in-coder-panel">
     <textarea ref="mycode" v-model="code" class="text_cls" ></textarea>
-    <input type="button"  @click="send_msg_to_parent" value="测试向父组件传参"/>
   </div>
 </template>
 
@@ -31,8 +30,9 @@ export default {
   },
   watch: {
     valuecontent(newVal) {
+      console.log('valuecontent',newVal)
     	//父组件传过来的值，这个需求需要传入点击的数据库表名，默认展示“SELECT * FROM student”
-       this.editor.setValue('SELECT * FROM '+newVal)
+       this.editor.setValue(newVal)
     },
   },
   data() {
@@ -43,12 +43,19 @@ export default {
    	}
   },
   mounted() {
+    
     // 初始化
     this._initialize()
+    let that = this
+    that.$bus.$on('showcodeedit', (e) => {
+       console.log('消息总线 来自父组件e', e)
+       that.code = e
+       that.editor.setValue(that.code)
+    })
   },
   methods: {
     send_msg_to_parent () {
-      
+
 
        console.log(this.$parent)
        //this.$parent.edtinput("asdfadf")
@@ -92,7 +99,7 @@ export default {
           //this.$emit('update:valuecontent', this.code)
          /* setTimeout(() => {
 
-          }, 0) */ that.$emit('edtinput', this.code)
+          }, 0) */
           console.log(that.$parent)
           that.$bus.$emit("codeedit",this.code)
         }

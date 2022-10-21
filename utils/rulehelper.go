@@ -95,3 +95,33 @@ func (rulehelper *RuleHelper) Match(key string, ruleinfo *innerbean.WebLog) ([]*
 	dataCtx.Add(key, ruleinfo)
 	return rulehelper.engine.FetchMatchingRules(dataCtx, rulehelper.knowledgeBase)
 }
+func (rulehelper *RuleHelper) CheckRuleAvailable(ruleText string) error {
+	myFact := &innerbean.WebLog{
+		SRC_IP: "127.0.0.1",
+	}
+	dataCtx := ast.NewDataContext()
+	err := dataCtx.Add("MF", myFact)
+	if err != nil {
+		return err
+	}
+	knowledgeLibrary := ast.NewKnowledgeLibrary()
+	ruleBuilder := builder.NewRuleBuilder(knowledgeLibrary)
+
+	byteArr := pkg.NewBytesResource([]byte(ruleText))
+	err = ruleBuilder.BuildRuleFromResource("CheckRule", "0.0.1", byteArr)
+	if err != nil {
+		return err
+	}
+
+	knowledgeBase := knowledgeLibrary.NewKnowledgeBaseInstance("CheckRule", "0.0.1")
+
+	myEngine := engine.NewGruleEngine()
+	processType := "match"
+	if processType == "match" {
+		_, err := myEngine.FetchMatchingRules(dataCtx, knowledgeBase)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}

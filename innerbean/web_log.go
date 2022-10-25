@@ -10,6 +10,8 @@ type WebLog struct {
 	SRC_IP         string `json:"src_ip"`
 	SRC_PORT       string `json:"src_port"`
 	COUNTRY        string `json:"country"`
+	PROVINCE       string `json:"province"`
+	CITY           string `json:"city"`
 	CREATE_TIME    string `json:"create_time"`
 	CONTENT_LENGTH int64  `json:"content_length"`
 	COOKIES        string `json:"cookies"`

@@ -134,6 +134,23 @@ export default Vue.extend({
           colKey: 'src_ip',
         },
         {
+          title: '攻击源国家',
+          width: 200,
+          ellipsis: true,
+          colKey: 'country',
+        },
+        {
+          title: '攻击源省',
+          width: 200,
+          ellipsis: true,
+          colKey: 'province',
+        },{
+          title: '攻击源市',
+          width: 200,
+          ellipsis: true,
+          colKey: 'city',
+        },
+        {
           title: '攻击请求类型',
           width: 200,
           ellipsis: true,

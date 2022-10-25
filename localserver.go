@@ -6,6 +6,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
+	response2 "SamWaf/model/response"
 	"SamWaf/utils"
 	"SamWaf/utils/zlog"
 	"errors"
@@ -73,6 +74,29 @@ func StartLocalServer() {
 			Code: 200,
 			Data: "",
 			Msg:  "已发起重启指令",
+		})
+	})
+	r.GET("/samwaf/wafstat", func(c *gin.Context) {
+
+		c.JSON(http.StatusOK, response.Response{
+			Code: 200,
+			Data: response2.WafStat{
+				AttackCountOfToday:          0,
+				VisitCountOfToday:           0,
+				AttackCountOfYesterday:      0,
+				VisitCountOfYesterday:       0,
+				AttackCountOfLastWeekToday:  0,
+				VisitCountOfLastWeekToday:   0,
+				NormalIpCountOfToday:        0,
+				IllegalIpCountOfToday:       0,
+				NormalCountryCountOfToday:   0,
+				IllegalCountryCountOfToday:  0,
+				NormalProvinceCountOfToday:  0,
+				IllegalProvinceCountOfToday: 0,
+				NormalCityCountOfToday:      0,
+				IllegalCityCountOfToday:     0,
+			},
+			Msg: "统计信息",
 		})
 	})
 	var waf_attack request.WafAttackLogSearch

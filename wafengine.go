@@ -61,7 +61,7 @@ var (
 
 type baseHandle struct{}
 
-func GetCountry(ip string) string {
+func GetCountry(ip string) []string {
 	// 2、用全局的 cBuff 创建完全基于内存的查询对象。
 	searcher, err := xdb.NewWithBuffer(ipcBuff)
 	if err != nil {
@@ -78,13 +78,13 @@ func GetCountry(ip string) string {
 	region, err := searcher.SearchByStr(ip)
 	if err != nil {
 		fmt.Printf("failed to SearchIP(%s): %s\n", ip, err)
-		return "无"
+		return []string{"无", "无"}
 	}
 
 	fmt.Printf("{region: %s, took: %s}\n", region, time.Since(tStart))
 	regions := strings.Split(region, "|")
-	println(regions[0])
-	return regions[0]
+	println(regions)
+	return regions
 	/*if regions[0] == "中国" {
 		return true
 	} else if regions[0] == "0" {
@@ -95,16 +95,6 @@ func GetCountry(ip string) string {
 }
 func customResult(w http.ResponseWriter, r *http.Request, webLog innerbean.WebLog) {
 
-}
-func CheckIP(ip string) bool {
-	country := GetCountry(ip)
-	if country == "中国" {
-		return true
-	} else if country == "0" {
-		return true
-	} else {
-		return false
-	}
 }
 func (h *baseHandle) Error() string {
 	fs := "HTTP: %d, HostCode: %d, Message: %s"
@@ -134,6 +124,7 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	header, _ := json.Marshal(r.Header)
 	// 取出客户IP
 	ipAndPort := strings.Split(r.RemoteAddr, ":")
+	region := GetCountry("8.8.8.8") //region:=GetCountry(ipAndPort[0])
 	weblogbean := innerbean.WebLog{
 		HOST:           host,
 		URL:            r.RequestURI,
@@ -141,7 +132,9 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		USER_AGENT:     r.UserAgent(),
 		METHOD:         r.Method,
 		HEADER:         string(header),
-		COUNTRY:        GetCountry(ipAndPort[0]),
+		COUNTRY:        region[0],
+		PROVINCE:       region[2],
+		CITY:           region[3],
 		SRC_IP:         ipAndPort[0],
 		SRC_PORT:       ipAndPort[1],
 		CREATE_TIME:    time.Now().Format("2006-01-02 15:04:05"),

@@ -4,6 +4,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model"
+	"SamWaf/plugin"
 	"SamWaf/utils"
 	"SamWaf/utils/zlog"
 	"bytes"
@@ -50,10 +51,12 @@ var (
 	esHelper utils.EsHelper
 
 	phttphandler        *baseHandle
-	hostRuleChan            = make(chan []model.Rules, 10) //规则链
-	engineChan              = make(chan int, 10)           //引擎链
-	hostChan                = make(chan model.Hosts, 10)   //主机链
-	engineCurrentStatus int = 0                            // 当前waf引擎状态
+	hostRuleChan                         = make(chan []model.Rules, 10) //规则链
+	engineChan                           = make(chan int, 10)           //引擎链
+	hostChan                             = make(chan model.Hosts, 10)   //主机链
+	engineCurrentStatus int              = 0                            // 当前waf引擎状态
+	pluginIpCounter     plugin.IpCounter                                //ip计数器
+
 )
 
 type baseHandle struct{}
@@ -89,6 +92,9 @@ func GetCountry(ip string) string {
 	} else {
 		return false
 	}*/
+}
+func customResult(w http.ResponseWriter, r *http.Request, webLog innerbean.WebLog) {
+
 }
 func CheckIP(ip string) bool {
 	country := GetCountry(ip)
@@ -146,6 +152,22 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		USER_CODE:      global.GWAF_USER_CODE,
 		RULE:           "",
 	}
+	//ip计数器  TODO 应该是控制每分钟的访问次数，并且进行配置
+	ipc := pluginIpCounter.Value(weblogbean.SRC_IP)
+	if ipc != nil {
+		if ipc.IpLockTime == 0 {
+			pluginIpCounter.Lock(weblogbean.SRC_IP)
+		}
+		if time.Now().Unix()-ipc.IpLockTime > 60 { //超过60s释放
+			pluginIpCounter.UnLock(weblogbean.SRC_IP)
+		}
+		if ipc.IpCnt > 1000 {
+			w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止超量了</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
+
+			return
+		}
+	}
+	pluginIpCounter.Inc(weblogbean.SRC_IP)
 
 	//esHelper.BatchInsert("full_log", weblogbean)
 	/*rule := &innerbean.WAF_REQUEST_FULL{
@@ -248,6 +270,9 @@ func Start_WAF() {
 	var hosts []model.Hosts
 
 	global.GWAF_LOCAL_DB.Where("user_code = ?", global.GWAF_USER_CODE).Find(&hosts)
+
+	//初始化插件-ip计数器
+	pluginIpCounter.InitCounter()
 
 	//初始化步骤[加载ip数据库]
 	var dbPath = "data/ip2region.xdb"

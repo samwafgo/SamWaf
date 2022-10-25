@@ -5,23 +5,24 @@ import (
 	"SamWaf/model"
 	"SamWaf/utils/zlog"
 	"go.uber.org/zap"
+	"log"
 	"net/http"
+	"runtime"
 	"strconv"
 	"time"
 )
 
 func main() {
 	zlog.Info("初始化系统")
-	/*runtime.GOMAXPROCS(1) // 限制 CPU 使用数，避免过载
+	runtime.GOMAXPROCS(1)              // 限制 CPU 使用数，避免过载
 	runtime.SetMutexProfileFraction(1) // 开启对锁调用的跟踪
-	runtime.SetBlockProfileRate(1) // 开启对阻塞操作的跟踪
+	runtime.SetBlockProfileRate(1)     // 开启对阻塞操作的跟踪
 	go func() {
 
-		err2:=http.ListenAndServe("0.0.0.0:16060", nil)
+		err2 := http.ListenAndServe("0.0.0.0:16060", nil)
 		time.Sleep(10000)
 		log.Fatal(err2)
 	}()
-	*/
 
 	//初始化本地数据库
 	InitDb()

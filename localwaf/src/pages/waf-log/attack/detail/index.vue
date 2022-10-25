@@ -60,7 +60,7 @@
         <div class="info-item">
           <h1> 请求地区</h1>
           <span>
-            {{ detail_data.country }}
+            {{ detail_data.country }} {{ detail_data.province }} {{ detail_data.city }}
           </span>
         </div>
       </div>

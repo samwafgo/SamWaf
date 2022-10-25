@@ -9,6 +9,7 @@ import router from './router';
 import zhConfig from 'tdesign-vue/es/locale/zh_CN';
 // import enConfig from 'tdesign-vue/es/locale/en_US'; // 英文多语言配置
 import bus from './bus/bus'
+import BaiduMap from 'vue-baidu-map'
 
 import 'tdesign-vue/es/style/index.css';
 import '@/style/index.less';
@@ -20,7 +21,10 @@ Vue.use(VueRouter);
 Vue.use(TDesign);
 Vue.use(VueClipboard);
 Vue.prototype.$bus = bus
-
+Vue.use(BaiduMap, {
+  /* Visit http://lbsyun.baidu.com/apiconsole/key for details about app key. */
+  ak: 'caXOspzWPw6SBPgPXtlgGng0QZXy444B'
+})
 Vue.component('t-page-header');
 
 Vue.prototype.$request = axiosInstance;

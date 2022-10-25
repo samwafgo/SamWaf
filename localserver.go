@@ -13,9 +13,14 @@ import (
 	"gorm.io/gorm"
 	"log"
 	"net/http"
+	"path"
 	"strconv"
 	"strings"
 	"time"
+)
+
+var (
+	vueAssetsRoutePath = "C:\\huawei\\goproject\\SamWaf\\localwaf\\dist" // 前端编译出来的 dist 所在路径
 )
 
 func Cors() gin.HandlerFunc {
@@ -42,6 +47,15 @@ func StartLocalServer() {
 
 	r := gin.Default()
 	r.Use(Cors()) //解决跨域
+
+	// 前端资源 url
+
+	r.StaticFile("/", path.Join(vueAssetsRoutePath, "index.html"))             // 指定资源文件 url.  127.0.0.1/ 这种
+	r.StaticFile("/favicon.ico", path.Join(vueAssetsRoutePath, "favicon.ico")) // 127.0.0.1/favicon.ico
+	r.StaticFile("/_app.config.js", path.Join(vueAssetsRoutePath, "_app.config.js"))
+
+	r.StaticFS("/assets", http.Dir(path.Join(vueAssetsRoutePath, "assets")))     // 以 assets 为前缀的 url
+	r.StaticFS("/resource", http.Dir(path.Join(vueAssetsRoutePath, "resource"))) // 比如 127.0.0.1/resource/aa.js
 
 	ruleHelper := &utils.RuleHelper{}
 	r.GET("/samwaf/resetWAF", func(c *gin.Context) {

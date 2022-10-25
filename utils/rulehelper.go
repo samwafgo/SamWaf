@@ -3,11 +3,11 @@ package utils
 import (
 	"SamWaf/innerbean"
 	"SamWaf/model"
+	"SamWaf/utils/zlog"
 	"github.com/hyperjumptech/grule-rule-engine/ast"
 	"github.com/hyperjumptech/grule-rule-engine/builder"
 	"github.com/hyperjumptech/grule-rule-engine/engine"
 	"github.com/hyperjumptech/grule-rule-engine/pkg"
-	"log"
 )
 
 // 规则帮助类
@@ -25,7 +25,7 @@ func (rulehelper *RuleHelper) LoadRule(ruleconfig model.Rules) {
 	byteArr := pkg.NewBytesResource([]byte(ruleconfig.RuleContent))
 	err := rulehelper.ruleBuilder.BuildRuleFromResource("Region", "0.0.1", byteArr)
 	if err != nil {
-		log.Fatal(err)
+		zlog.Error("LoadRule", err)
 	}
 
 	rulehelper.knowledgeBase = rulehelper.knowledgeLibrary.NewKnowledgeBaseInstance("Region", "0.0.1")
@@ -38,7 +38,7 @@ func (rulehelper *RuleHelper) LoadRules(ruleconfig []model.Rules) string {
 	defer func() {
 		e := recover()
 		if e != nil { // 捕获该协程的panic 111111
-			log.Println("LoadRules error ", e)
+			zlog.Error("LoadRules error ", e)
 		}
 	}()
 	rulehelper.knowledgeLibrary = ast.NewKnowledgeLibrary()
@@ -61,7 +61,7 @@ func (rulehelper *RuleHelper) LoadRules(ruleconfig []model.Rules) string {
 	byteArr := pkg.NewBytesResource([]byte(rulestr))
 	err := rulehelper.ruleBuilder.BuildRuleFromResource("Region", "0.0.1", byteArr)
 	if err != nil {
-		log.Println(err)
+		zlog.Error("LoadRules", err)
 	}
 
 	rulehelper.knowledgeBase = rulehelper.knowledgeLibrary.NewKnowledgeBaseInstance("Region", "0.0.1")
@@ -78,7 +78,7 @@ func (rulehelper *RuleHelper) Exec(key string, ruleinfo *innerbean.WAF_REQUEST_F
 	err := rulehelper.engine.Execute(dataCtx, rulehelper.knowledgeBase)
 	//err:= rulehelper.engine.Execute(rulehelper.dataCtx, rulehelper.knowledgeBase)
 	if err != nil {
-		log.Fatal(err)
+		zlog.Error("Exec", err)
 	}
 	return err
 }
@@ -88,7 +88,7 @@ func (rulehelper *RuleHelper) Match(key string, ruleinfo *innerbean.WebLog) ([]*
 	defer func() {
 		e := recover()
 		if e != nil { // 捕获该协程的panic 111111
-			log.Println("Match error ", e)
+			zlog.Warn("Match", e)
 		}
 	}()
 	dataCtx := ast.NewDataContext()

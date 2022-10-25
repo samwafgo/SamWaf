@@ -7,6 +7,7 @@ import (
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	"SamWaf/utils"
+	"SamWaf/utils/zlog"
 	"errors"
 	"github.com/gin-gonic/gin"
 	uuid "github.com/satori/go.uuid"
@@ -194,7 +195,7 @@ func StartLocalServer() {
 				Msg:  "添加成功",
 			})
 		} else {
-			log.Println("添加解析失败")
+			zlog.Debug("添加解析失败")
 			c.JSON(http.StatusOK, response.Response{
 				Code: -1,
 				Data: err.Error(),
@@ -297,7 +298,7 @@ func StartLocalServer() {
 			}
 
 		} else {
-			log.Println("添加解析失败")
+			zlog.Debug("添加解析失败")
 			c.JSON(http.StatusOK, response.Response{
 				Code: -1,
 				Data: err.Error(),
@@ -338,7 +339,7 @@ func StartLocalServer() {
 			}
 
 		} else {
-			log.Println("状态解析失败")
+			zlog.Debug("状态解析失败")
 			c.JSON(http.StatusOK, response.Response{
 				Code: -1,
 				Data: err.Error(),

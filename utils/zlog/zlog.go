@@ -46,28 +46,41 @@ func getFileLogWriter() (writeSyncer zapcore.WriteSyncer) {
 	return zapcore.AddSync(lumberJackLogger)
 }
 
-func Info(message string, fields ...zap.Field) {
+func InfoCall(message string, fields ...zap.Field) {
 	callerFields := getCallerInfoForLog()
 	fields = append(fields, callerFields...)
 	logger.Info(message, fields...)
 }
 
-func Debug(message string, fields ...zap.Field) {
+func Info(message string, inter ...interface{}) {
+	logger.Info(message, zap.Any("info", inter))
+}
+
+func DebugCall(message string, fields ...zap.Field) {
 	callerFields := getCallerInfoForLog()
 	fields = append(fields, callerFields...)
 	logger.Debug(message, fields...)
 }
+func Debug(message string, inter ...interface{}) {
+	logger.Debug(message, zap.Any("debug", inter))
+}
 
-func Error(message string, fields ...zap.Field) {
+func ErrorCall(message string, fields ...zap.Field) {
 	callerFields := getCallerInfoForLog()
 	fields = append(fields, callerFields...)
 	logger.Error(message, fields...)
 }
+func Error(message string, inter ...interface{}) {
+	logger.Error(message, zap.Any("err", inter))
+}
 
-func Warn(message string, fields ...zap.Field) {
+func WarnCall(message string, fields ...zap.Field) {
 	callerFields := getCallerInfoForLog()
 	fields = append(fields, callerFields...)
 	logger.Warn(message, fields...)
+}
+func Warn(message string, inter ...interface{}) {
+	logger.Warn(message, zap.Any("warn", inter))
 }
 
 func getCallerInfoForLog() (callerFields []zap.Field) {

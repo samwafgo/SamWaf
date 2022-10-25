@@ -5,6 +5,7 @@ import (
 	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/utils"
+	"SamWaf/utils/zlog"
 	"bytes"
 	"crypto/tls"
 	"encoding/json"
@@ -13,6 +14,7 @@ import (
 	"github.com/lionsoul2014/ip2region/binding/golang/xdb"
 	"github.com/satori/go.uuid"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 	"io"
 	"log"
 	"net/http"
@@ -162,7 +164,7 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				weblogbean.RULE = rulestr
 				global.GWAF_LOCAL_DB.Create(weblogbean)
 
-				log.Println("no china")
+				zlog.Debug("no china")
 				w.Header().Set("WAF", "SAMWAF DROP")
 				/*expiration := time.Now()
 				expiration = expiration.AddDate(1, 0, 0)
@@ -188,7 +190,7 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if target, ok := hostTarget[host]; ok {
 		remoteUrl, err := url.Parse(target.TargetHost)
 		if err != nil {
-			log.Println("target parse fail:", err)
+			zlog.Debug("target parse fail:", zap.Any("", err))
 			return
 		}
 
@@ -213,7 +215,7 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 func errorHandler() func(http.ResponseWriter, *http.Request, error) {
 	return func(w http.ResponseWriter, req *http.Request, err error) {
-		fmt.Printf("Got error  response: %v \n", err)
+		zlog.Debug("Got error  response:", zap.Any("err", err))
 		return
 	}
 }
@@ -232,9 +234,9 @@ func Start_WAF() {
 	engineCurrentStatus = 1
 	if err := config.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			fmt.Println("找不到配置文件..")
+			zlog.Error("找不到配置文件..")
 		} else {
-			fmt.Println("配置文件出错..")
+			zlog.Error("配置文件出错..")
 		}
 	}
 
@@ -263,11 +265,10 @@ func Start_WAF() {
 		if hosts[i].Ssl == 1 {
 			cert, err := tls.X509KeyPair([]byte(hosts[i].Certfile), []byte(hosts[i].Keyfile))
 			if err != nil {
-				log.Fatal("Cannot find %s cert & key file. Error is: %s\n", hosts[i].Host, err)
+				zlog.Warn("Cannot find %s cert & key file. Error is: %s\n", hosts[i].Host, err)
 				continue
 
 			}
-			log.Println(cert)
 			//all_certificate[hosts[i].Port][hosts[i].Host] = &cert
 			mm, ok := allCertificate[hosts[i].Port] //[hosts[i].Host]
 			if !ok {
@@ -292,7 +293,7 @@ func Start_WAF() {
 		var vcnt int
 		global.GWAF_LOCAL_DB.Debug().Model(&model.Rules{}).Where("host_code = ? and user_code=? ",
 			hosts[i].Code, global.GWAF_USER_CODE).Select("sum(rule_version) as vcnt").Row().Scan(&vcnt)
-		log.Println("主机host" + hosts[i].Code + " 版本" + strconv.Itoa(vcnt))
+		zlog.Debug("主机host" + hosts[i].Code + " 版本" + strconv.Itoa(vcnt))
 		var ruleconfigs []model.Rules
 		if vcnt > 0 {
 			global.GWAF_LOCAL_DB.Debug().Where("host_code = ? and user_code=? ", hosts[i].Code, global.GWAF_USER_CODE).Find(&ruleconfigs)
@@ -336,20 +337,20 @@ func Start_WAF() {
 					}
 					return nil, errors.New("config error")
 				}
-				log.Println("启动HTTPS 服务器" + strconv.Itoa(innruntime.Port))
+				zlog.Info("启动HTTPS 服务器" + strconv.Itoa(innruntime.Port))
 				err = svr.ListenAndServeTLS("", "")
 				if err == http.ErrServerClosed {
-					log.Printf("[HTTPServer] https server has been close, cause:[%v]", err)
+					zlog.Info("[HTTPServer] https server has been close, cause:[%v]", err)
 				} else {
-					log.Fatalf("[HTTPServer] https server start fail, cause:[%v]", err)
+					zlog.Error("[HTTPServer] https server start fail, cause:[%v]", err)
 				}
-				println("server final")
+				zlog.Info("server https shutdown")
 
 			} else {
 				defer func() {
 					e := recover()
 					if e != nil { // 捕获该协程的panic 111111
-						fmt.Println("recover ", e)
+						zlog.Warn("recover ", e)
 					}
 				}()
 				svr := &http.Server{
@@ -360,15 +361,14 @@ func Start_WAF() {
 				serclone.Svr = svr
 				serverOnline[innruntime.Port] = serclone
 
-				log.Println("启动HTTP 服务器" + strconv.Itoa(innruntime.Port))
+				zlog.Info("启动HTTP 服务器" + strconv.Itoa(innruntime.Port))
 				err = svr.ListenAndServe()
 				if err == http.ErrServerClosed {
-					log.Printf("[HTTPServer] http server has been close, cause:[%v]", err)
+					zlog.Warn("[HTTPServer] http server has been close, cause:[%v]", err)
 				} else {
-					log.Fatalf("[HTTPServer] http server start fail, cause:[%v]", err)
+					zlog.Error("[HTTPServer] http server start fail, cause:[%v]", err)
 				}
-				println("server final")
-
+				zlog.Info("server  http shutdown")
 			}
 
 		}(v)

@@ -4,7 +4,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/utils/zlog"
-	"log"
+	"go.uber.org/zap"
 	"net/http"
 	"strconv"
 	"time"
@@ -42,24 +42,24 @@ func main() {
 		for {
 			for code, host := range hostCode {
 				if engineCurrentStatus == 0 {
-					log.Println("引擎已关闭，放弃提取规则")
+					zlog.Info("引擎已关闭，放弃提取规则")
 					continue
 				}
 				var vcnt int
 				global.GWAF_LOCAL_DB.Debug().Model(&model.Rules{}).Where("host_code = ? and user_code=? ",
 					code, global.GWAF_USER_CODE).Select("sum(rule_version) as vcnt").Row().Scan(&vcnt)
-				log.Println("主机host" + code + " 版本" + strconv.Itoa(vcnt))
+				zlog.Debug("主机host" + code + " 版本" + strconv.Itoa(vcnt))
 				var ruleconfig []model.Rules
 				if vcnt > 0 {
 					global.GWAF_LOCAL_DB.Debug().Where("host_code = ? and user_code=?  ", code, global.GWAF_USER_CODE).Find(&ruleconfig)
 					if vcnt > hostTarget[host].RuleVersionSum {
-						log.Println("主机host" + code + " 有最新规则")
+						zlog.Debug("主机host" + code + " 有最新规则")
 						hostTarget[host].RuleVersionSum = vcnt
 						//说明该code有更新
 						hostRuleChan <- ruleconfig
 
 					} else {
-						log.Println("主机host" + code + " 有最新规则")
+						zlog.Debug("主机host" + code + " 有最新规则")
 					}
 				}
 
@@ -75,14 +75,14 @@ func main() {
 			//TODO 需要把删除的那部分数据从数据口里面去掉
 			hostTarget[hostCode[remoteConfig[0].HostCode]].RuleData = remoteConfig
 			hostTarget[hostCode[remoteConfig[0].HostCode]].Rule.LoadRules(remoteConfig)
-			log.Println(remoteConfig)
+			zlog.Debug("远程配置", zap.Any("remoteconfig", remoteConfig))
 			break
 
 		case engineStatus := <-engineChan:
 			if engineStatus == 1 {
-				log.Println("准备关闭WAF引擎")
+				zlog.Info("准备关闭WAF引擎")
 				CLoseWAF()
-				log.Println("准备启动WAF引擎")
+				zlog.Info("准备启动WAF引擎")
 				Start_WAF()
 
 			}
@@ -90,7 +90,7 @@ func main() {
 		case host := <-hostChan:
 
 			hostTarget[host.Host+":"+strconv.Itoa(host.Port)].Host.GUARD_STATUS = host.GUARD_STATUS
-			log.Println(host)
+			zlog.Debug("规则", zap.Any("主机", host))
 			break
 		}
 

@@ -151,11 +151,15 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		REQ_UUID:       uuid.NewV4().String(),
 		USER_CODE:      global.GWAF_USER_CODE,
 		RULE:           "",
+		ACTION:         "通过",
 	}
 	//ip计数器
 
 	limiter := pluginIpRateLimiter.GetLimiter(weblogbean.SRC_IP)
 	if !limiter.Allow() {
+		weblogbean.RULE = "触发IP频次访问限制"
+		weblogbean.ACTION = "阻止"
+		global.GWAF_LOCAL_DB.Create(weblogbean)
 		w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止超量了</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
 		zlog.Info("已经被限制访问了")
 		return
@@ -176,6 +180,7 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					rulestr = rulestr + v.RuleDescription + ","
 				}
 				weblogbean.RULE = rulestr
+				weblogbean.ACTION = "阻止"
 				global.GWAF_LOCAL_DB.Create(weblogbean)
 
 				w.Header().Set("WAF", "SAMWAF DROP")
@@ -195,6 +200,8 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// 直接从缓存取出
 	if hostTarget[host].RevProxy != nil {
+		weblogbean.ACTION = "放行"
+		global.GWAF_LOCAL_DB.Create(weblogbean)
 		hostTarget[host].RevProxy.ServeHTTP(w, r)
 		return
 	}
@@ -213,6 +220,8 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		hostTarget[host].RevProxy = proxy // 放入缓存
 		proxy.ServeHTTP(w, r)
+		weblogbean.ACTION = "放行"
+		global.GWAF_LOCAL_DB.Create(weblogbean)
 		return
 	} else {
 		/*waflogbean := innerbean.WAFLog{
@@ -224,6 +233,8 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}*/
 		//esHelper.BatchInsertWAF("web_log", waflogbean)
 		w.Write([]byte("403: Host forbidden " + host))
+		weblogbean.ACTION = "禁止"
+		global.GWAF_LOCAL_DB.Create(weblogbean)
 	}
 }
 func errorHandler() func(http.ResponseWriter, *http.Request, error) {

@@ -107,6 +107,12 @@ export default Vue.extend({
           fixed: 'left',
         },
         {
+          title: '放行结果',
+          width: 200,
+          ellipsis: true,
+          colKey: 'action',
+        },
+        {
           title: '触发规则',
           align: 'left',
           width: 250,

@@ -9,20 +9,17 @@ import (
 	response2 "SamWaf/model/response"
 	"SamWaf/utils"
 	"SamWaf/utils/zlog"
+	"SamWaf/vue"
 	"errors"
+	assetfs "github.com/elazarl/go-bindata-assetfs"
 	"github.com/gin-gonic/gin"
 	uuid "github.com/satori/go.uuid"
 	"gorm.io/gorm"
 	"log"
 	"net/http"
-	"path"
 	"strconv"
 	"strings"
 	"time"
-)
-
-var (
-	vueAssetsRoutePath = "C:\\huawei\\goproject\\SamWaf\\localwaf\\dist" // 前端编译出来的 dist 所在路径
 )
 
 func Cors() gin.HandlerFunc {
@@ -48,17 +45,10 @@ func Cors() gin.HandlerFunc {
 func StartLocalServer() {
 
 	r := gin.Default()
+	gin.SetMode(gin.ReleaseMode)
 	r.Use(Cors()) //解决跨域
 
-	// 前端资源 url
-
-	r.StaticFile("/", path.Join(vueAssetsRoutePath, "index.html"))             // 指定资源文件 url.  127.0.0.1/ 这种
-	r.StaticFile("/favicon.ico", path.Join(vueAssetsRoutePath, "favicon.ico")) // 127.0.0.1/favicon.ico
-	r.StaticFile("/_app.config.js", path.Join(vueAssetsRoutePath, "_app.config.js"))
-
-	r.StaticFS("/assets", http.Dir(path.Join(vueAssetsRoutePath, "assets")))     // 以 assets 为前缀的 url
-	r.StaticFS("/resource", http.Dir(path.Join(vueAssetsRoutePath, "resource"))) // 比如 127.0.0.1/resource/aa.js
-
+	index(r)
 	ruleHelper := &utils.RuleHelper{}
 	r.GET("/samwaf/resetWAF", func(c *gin.Context) {
 		/*defer func() {
@@ -624,4 +614,53 @@ func StartLocalServer() {
 
 	r.Run(":" + strconv.Itoa(global.GWAF_LOCAL_SERVER_PORT)) // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")
 	log.Println("本地 port:%d", global.GWAF_LOCAL_SERVER_PORT)
+}
+
+// vue静态路由
+func index(r *gin.Engine) *gin.Engine {
+	//静态文件路径
+	const staticPath = `vue/dist/`
+	var (
+		js = assetfs.AssetFS{
+			Asset:     vue.Asset,
+			AssetDir:  vue.AssetDir,
+			AssetInfo: nil,
+			Prefix:    staticPath + "assets",
+			Fallback:  "index.html",
+		}
+		fs = assetfs.AssetFS{
+			Asset:     vue.Asset,
+			AssetDir:  vue.AssetDir,
+			AssetInfo: nil,
+			Prefix:    staticPath,
+			Fallback:  "index.html",
+		}
+	)
+	// 加载静态文件
+	r.StaticFS("/assets", &js)
+	r.StaticFS("/favicon.ico", &fs)
+	r.GET("/", func(c *gin.Context) {
+		//设置响应状态
+		c.Writer.WriteHeader(http.StatusOK)
+		//载入首页
+		indexHTML, _ := vue.Asset(staticPath + "index.html")
+		c.Writer.Write(indexHTML)
+		//响应HTML类型
+		c.Writer.Header().Add("Accept", "text/html")
+		//显示刷新
+		c.Writer.Flush()
+	})
+	// 关键点【解决页面刷新404的问题】
+	r.NoRoute(func(c *gin.Context) {
+		//设置响应状态
+		c.Writer.WriteHeader(http.StatusOK)
+		//载入首页
+		indexHTML, _ := vue.Asset(staticPath + "index.html")
+		c.Writer.Write(indexHTML)
+		//响应HTML类型
+		c.Writer.Header().Add("Accept", "text/html")
+		//显示刷新
+		c.Writer.Flush()
+	})
+	return r
 }

@@ -43,9 +43,8 @@ func Cors() gin.HandlerFunc {
 	}
 }
 func StartLocalServer() {
-
-	r := gin.Default()
 	gin.SetMode(gin.ReleaseMode)
+	r := gin.Default()
 	r.Use(Cors()) //解决跨域
 
 	index(r)

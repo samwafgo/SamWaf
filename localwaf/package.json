@@ -28,6 +28,7 @@
     "tvision-color": "~1.4.0",
     "typescript": "^4.2.4",
     "vue": "~2.6.14",
+    "vue-baidu-map": "^0.21.22",
     "vue-clipboard2": "^0.3.1",
     "vue-codemirror": "^4.0.6",
     "vue-router": "^3.5.1",

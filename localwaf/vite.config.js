@@ -39,7 +39,7 @@ export default ({ mode }) => {
       createSvgPlugin(),
       requireTransform(
         {
-        fileRegex: /.js$|.vue$/
+        fileRegex: /.vue$/
         }
       ),
     ],
@@ -55,7 +55,7 @@ export default ({ mode }) => {
         '/api': {
           // 用于开发环境下的转发请求
           // 更多请参考：https://vitejs.dev/config/#server-proxy
-          target: 'https://service-exndqyuk-1257786608.gz.apigw.tencentcs.com',
+          target: 'https://127.0.0.1',
           changeOrigin: true,
         },
       },

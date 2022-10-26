@@ -124,7 +124,7 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	header, _ := json.Marshal(r.Header)
 	// 取出客户IP
 	ipAndPort := strings.Split(r.RemoteAddr, ":")
-	region := GetCountry("8.8.8.8") //region:=GetCountry(ipAndPort[0])
+	region := GetCountry(ipAndPort[0])
 	weblogbean := innerbean.WebLog{
 		HOST:           host,
 		URL:            r.RequestURI,

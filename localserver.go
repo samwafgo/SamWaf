@@ -95,7 +95,7 @@ func StartLocalServer() {
 
 			var total int64 = 0
 			var weblogs []innerbean.WebLog
-			global.GWAF_LOCAL_DB.Debug().Limit(waf_attack.PageSize).Offset(waf_attack.PageSize * (waf_attack.PageIndex - 1)).Find(&weblogs)
+			global.GWAF_LOCAL_DB.Debug().Limit(waf_attack.PageSize).Offset(waf_attack.PageSize * (waf_attack.PageIndex - 1)).Order("create_time desc").Find(&weblogs)
 			global.GWAF_LOCAL_DB.Debug().Model(&innerbean.WebLog{}).Count(&total)
 
 			c.JSON(http.StatusOK, response.Response{

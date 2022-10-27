@@ -43,11 +43,15 @@ func Cors() gin.HandlerFunc {
 	}
 }
 func StartLocalServer() {
-	gin.SetMode(gin.ReleaseMode)
+	if global.GWAF_RELEASE {
+		gin.SetMode(gin.ReleaseMode)
+	}
 	r := gin.Default()
 	r.Use(Cors()) //解决跨域
 
-	index(r)
+	if global.GWAF_RELEASE {
+		index(r)
+	}
 	ruleHelper := &utils.RuleHelper{}
 	r.GET("/samwaf/resetWAF", func(c *gin.Context) {
 		/*defer func() {

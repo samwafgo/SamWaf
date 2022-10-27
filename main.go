@@ -4,6 +4,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/utils/zlog"
+	"github.com/go-co-op/gocron"
 	"go.uber.org/zap"
 	"net/http"
 	"strconv"
@@ -12,6 +13,9 @@ import (
 
 func main() {
 	zlog.Info("初始化系统")
+	if !global.GWAF_RELEASE {
+		zlog.Info("调试版本")
+	}
 	/*runtime.GOMAXPROCS(1)              // 限制 CPU 使用数，避免过载
 	runtime.SetMutexProfileFraction(1) // 开启对锁调用的跟踪
 	runtime.SetBlockProfileRate(1)     // 开启对阻塞操作的跟踪
@@ -68,6 +72,17 @@ func main() {
 		}
 
 	}()
+
+	//定时器
+	timezone, _ := time.LoadLocation("Asia/Shanghai")
+	s := gocron.NewScheduler(timezone)
+
+	// 每秒执行一次
+	s.Every(10).Seconds().Do(func() {
+		zlog.Debug("i am alive")
+	})
+	s.StartAsync()
+
 	for {
 		select {
 		case remoteConfig := <-hostRuleChan:

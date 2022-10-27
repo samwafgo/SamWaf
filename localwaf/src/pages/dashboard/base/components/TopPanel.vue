@@ -47,7 +47,7 @@
     </t-col>
   </t-row>
 </template>
-<script>
+<script lang="ts">
 import { LineChart, BarChart } from 'echarts/charts';
 import * as echarts from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -58,7 +58,7 @@ import Trend from '@/components/trend/index.vue';
 
 import { constructInitDashboardDataset } from '../index';
 import { changeChartsTheme } from '@/utils/color';
-import { PANE_LIST } from '@/service/service-base';
+//import { PANE_LIST } from '@/service/service-base';
 
 echarts.use([LineChart, BarChart, CanvasRenderer]);
 
@@ -73,7 +73,7 @@ export default {
   data() {
     return {
       resizeTime: 1,
-      panelList: PANE_LIST,
+      panelList: [],
     };
   },
   computed: {
@@ -90,6 +90,10 @@ export default {
       this.renderCharts();
     },
   },
+  created() {
+
+    this.getWafStat()
+  },
   mounted() {
     this.$nextTick(() => {
       this.updateContainer();
@@ -100,6 +104,50 @@ export default {
   },
 
   methods: {
+    getWafStat() {
+      let that = this
+      this.$request
+        .get('/wafstat', {
+        })
+        .then((res) => {
+          let resdata = res.data
+          console.log(resdata)
+          if (resdata.code === 200) {
+
+            //const { list = [] } = resdata.data.list;
+
+            that.wafstat_data = resdata.data;
+            that.panelList.push({
+              title: '今日攻击数',
+              number: that.wafstat_data.AttackCountOfToday,
+              upTrend: '20.5%',
+              leftType: 'echarts-line',
+            })
+            that.panelList.push({
+              title: '今天总访问量',
+              number: that.wafstat_data.VisitCountOfToday,
+              upTrend: '20.5%',
+              leftType: 'echarts-line',
+            })
+            that.panelList.push({
+              title: '今天异常IP（个）',
+              number: that.wafstat_data.IllegalIpCountOfToday,
+              upTrend: '20.5%',
+              leftType: 'echarts-line',
+            })
+            that.panelList.push({
+              title: '今天正常IP（个）',
+              number: that.wafstat_data.NormalIpCountOfToday,
+              upTrend: '20.5%',
+              leftType: 'echarts-line',
+            })
+          }
+        })
+        .catch((e: Error) => {
+          console.log(e);
+        })
+        .finally(() => {});
+    },
     updateContainer() {
       if (document.documentElement.clientWidth >= 1400 && document.documentElement.clientWidth < 1920) {
         this.resizeTime = (document.documentElement.clientWidth / 2080).toFixed(2);

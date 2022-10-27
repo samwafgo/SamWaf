@@ -17,7 +17,6 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"io"
-	"log"
 	"net/http"
 	"net/http/httputil"
 	_ "net/http/pprof"
@@ -81,9 +80,9 @@ func GetCountry(ip string) []string {
 		return []string{"无", "无"}
 	}
 
-	fmt.Printf("{region: %s, took: %s}\n", region, time.Since(tStart))
+	zlog.Debug("{region: %s, took: %s}\n", region, time.Since(tStart))
 	regions := strings.Split(region, "|")
-	println(regions)
+
 	return regions
 	/*if regions[0] == "中国" {
 		return true
@@ -154,7 +153,7 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		weblogbean.ACTION = "阻止"
 		global.GWAF_LOCAL_DB.Create(weblogbean)
 		w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止超量了</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
-		zlog.Info("已经被限制访问了")
+		zlog.Debug("已经被限制访问了")
 		return
 	}
 
@@ -186,7 +185,7 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		} else {
-			fmt.Println("规则 ", err)
+			zlog.Debug("规则 ", err)
 		}
 	}
 	// 取出代理ip
@@ -260,7 +259,7 @@ func Start_WAF() {
 	global.GWAF_USER_CODE = config.GetString("user_code") // 读取配置
 	global.GWAF_TENANT_ID = global.GWAF_USER_CODE
 	global.GWAF_LOCAL_SERVER_PORT = config.GetInt("local_port") //读取本地端口
-	fmt.Println(" load ini: ", global.GWAF_USER_CODE)
+	zlog.Debug(" load ini: ", global.GWAF_USER_CODE)
 
 	var hosts []model.Hosts
 
@@ -274,7 +273,8 @@ func Start_WAF() {
 	// 1、从 dbPath 加载整个 xdb 到内存
 	cBuff, err := xdb.LoadContentFromFile(dbPath)
 	if err != nil {
-		fmt.Printf("failed to load content from `%s`: %s\n", dbPath, err)
+		zlog.Info("加载ip库错误")
+		zlog.Debug("failed to load content from `%s`: %s\n", dbPath, err)
 		return
 	}
 	ipcBuff = cBuff
@@ -401,7 +401,7 @@ func CLoseWAF() {
 	defer func() {
 		e := recover()
 		if e != nil { // 捕获该协程的panic 111111
-			log.Println("关闭 recover ", e)
+			zlog.Debug("关闭 recover ", e)
 		}
 	}()
 	engineCurrentStatus = 0

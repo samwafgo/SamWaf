@@ -124,6 +124,7 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 取出客户IP
 	ipAndPort := strings.Split(r.RemoteAddr, ":")
 	region := GetCountry(ipAndPort[0])
+	currentDay, _ := strconv.Atoi(time.Now().Format("20060102"))
 	weblogbean := innerbean.WebLog{
 		HOST:           host,
 		URL:            r.RequestURI,
@@ -142,8 +143,11 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		BODY:           string(bodyByte),
 		REQ_UUID:       uuid.NewV4().String(),
 		USER_CODE:      global.GWAF_USER_CODE,
+		HOST_CODE:      hostTarget[host].Host.Code,
+		TenantId:       global.GWAF_TENANT_ID,
 		RULE:           "",
 		ACTION:         "通过",
+		Day:            currentDay,
 	}
 	//ip计数器
 

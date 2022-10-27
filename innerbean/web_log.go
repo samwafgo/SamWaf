@@ -18,7 +18,9 @@ type WebLog struct {
 	BODY           string `json:"body"`
 	REQ_UUID       string `json:"req_uuid"`
 	USER_CODE      string `json:"user_code"`
-	HOST_CODE      string `json:"host_code"` //关联查询
+	TenantId       string `json:"tenant_id"` //租户ID（主要键）
+	HOST_CODE      string `json:"host_code"` //主机ID （主要键）
+	Day            int    `json:"day"`       //日 （主要键）
 	ACTION         string `json:"action"`
 	RULE           string `json:"rule"`
 }

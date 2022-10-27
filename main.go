@@ -16,6 +16,7 @@ func main() {
 	if !global.GWAF_RELEASE {
 		zlog.Info("调试版本")
 	}
+	global.GWAF_LAST_UPDATE_TIME = time.Now()
 	/*runtime.GOMAXPROCS(1)              // 限制 CPU 使用数，避免过载
 	runtime.SetMutexProfileFraction(1) // 开启对锁调用的跟踪
 	runtime.SetBlockProfileRate(1)     // 开启对阻塞操作的跟踪
@@ -77,9 +78,10 @@ func main() {
 	timezone, _ := time.LoadLocation("Asia/Shanghai")
 	s := gocron.NewScheduler(timezone)
 
-	// 每秒执行一次
+	// 每秒执行一次 TODO 改数据成分钟统计
 	s.Every(10).Seconds().Do(func() {
 		zlog.Debug("i am alive")
+		go TaskCounter()
 	})
 	s.StartAsync()
 

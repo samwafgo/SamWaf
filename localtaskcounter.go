@@ -30,17 +30,10 @@ func TaskCounter() {
 	*/
 	for _, value := range result {
 		var statDay model.StatsDay
-		err := global.GWAF_LOCAL_DB.Debug().Where("tenant_id=? and user_code=? and host_code=? and type=? and day=?",
-			value.TenantId, value.UserCode, value.HostCode, value.ACTION, value.Day).Find(&statDay).Error
-		if err != nil { // && errors.Is(err, gorm.ErrRecordNotFound)
-			statDayMap := map[string]interface{}{
-				"Count":            value.Count + statDay.Count,
-				"last_update_time": time.Now(),
-			}
+		global.GWAF_LOCAL_DB.Debug().Where("tenant_id=? and user_code=? and host_code=? and type=? and day=?",
+			value.TenantId, value.UserCode, value.HostCode, value.ACTION, value.Day).Find(&statDay)
 
-			global.GWAF_LOCAL_DB.Debug().Model(model.StatsDay{}).Where("tenant_id=? and user_code=? and host_code=? and type=? and day=?",
-				value.TenantId, value.UserCode, value.HostCode, value.ACTION, value.Day).Updates(statDayMap)
-		} else {
+		if statDay.HostCode == "" {
 			statDay2 := &model.StatsDay{
 				UserCode:       value.UserCode,
 				TenantId:       value.TenantId,
@@ -53,6 +46,15 @@ func TaskCounter() {
 				LastUpdateTime: time.Now(),
 			}
 			global.GWAF_LOCAL_DB.Debug().Create(statDay2)
+		} else {
+			statDayMap := map[string]interface{}{
+				"Count":            value.Count + statDay.Count,
+				"last_update_time": time.Now(),
+			}
+
+			global.GWAF_LOCAL_DB.Debug().Model(model.StatsDay{}).Where("tenant_id=? and user_code=? and host_code=? and type=? and day=?",
+				value.TenantId, value.UserCode, value.HostCode, value.ACTION, value.Day).Updates(statDayMap)
+
 		}
 	}
 	global.GWAF_LAST_UPDATE_TIME = time.Now()

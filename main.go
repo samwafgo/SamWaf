@@ -4,6 +4,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/utils/zlog"
+	dlp "github.com/bytedance/godlp"
 	"github.com/go-co-op/gocron"
 	"go.uber.org/zap"
 	"net/http"
@@ -17,6 +18,7 @@ func main() {
 		zlog.Info("调试版本")
 	}
 	global.GWAF_LAST_UPDATE_TIME = time.Now()
+
 	/*runtime.GOMAXPROCS(1)              // 限制 CPU 使用数，避免过载
 	runtime.SetMutexProfileFraction(1) // 开启对锁调用的跟踪
 	runtime.SetBlockProfileRate(1)     // 开启对阻塞操作的跟踪
@@ -85,6 +87,9 @@ func main() {
 	})
 	s.StartAsync()
 
+	//脱敏处理初始化
+	global.GWAF_DLP, _ = dlp.NewEngine("my")
+	global.GWAF_DLP.ApplyConfigDefault()
 	for {
 		select {
 		case remoteConfig := <-hostRuleChan:

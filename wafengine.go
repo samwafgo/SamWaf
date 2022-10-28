@@ -7,7 +7,10 @@ import (
 	"SamWaf/plugin"
 	"SamWaf/utils"
 	"SamWaf/utils/zlog"
+	"bufio"
 	"bytes"
+	"compress/flate"
+	"compress/gzip"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
@@ -16,7 +19,13 @@ import (
 	"github.com/satori/go.uuid"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
+	"golang.org/x/net/html/charset"
+	"golang.org/x/text/encoding"
+	"golang.org/x/text/encoding/unicode"
+	"golang.org/x/text/transform"
 	"io"
+	"io/ioutil"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	_ "net/http/pprof"
@@ -243,8 +252,92 @@ func errorHandler() func(http.ResponseWriter, *http.Request, error) {
 func modifyResponse() func(*http.Response) error {
 	return func(resp *http.Response) error {
 		resp.Header.Set("WAF", "SamWAF")
+		zlog.Debug("%s %s", resp.Request.Host, resp.Request.RequestURI)
+		if resp.StatusCode != 200 {
+			//获取内容
+			oldPayload, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				return err
+			}
+			// body 追加内容
+			newPayload := []byte("" + string(oldPayload))
+			resp.Body = ioutil.NopCloser(bytes.NewBuffer(newPayload))
+
+			// head 修改追加内容
+			resp.ContentLength = int64(len(newPayload))
+			resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(newPayload)), 10))
+		} else {
+			//特定网站和请求url需要特定处理
+			if resp.Request.Host == "mybaidu1.com:8082" && resp.Request.RequestURI == "/admin.php/user/agent_user/edit/id/73.html" {
+
+				//编码转换，自动检测网页编码
+				convertCntReader, _ := switchContentEncoding(resp)
+				bodyReader := bufio.NewReader(convertCntReader)
+				charset := determinePageEncoding(bodyReader)
+
+				reader := transform.NewReader(bodyReader, charset.NewDecoder())
+				oldBytes, err := io.ReadAll(reader)
+				if err != nil {
+					zlog.Error("error", err)
+				}
+
+				// body 追加内容
+				//zlog.Debug(string(oldBytes))
+				//newPayload := []byte("" +  strings.Replace(string(oldBytes), "青岛", "**", -1))
+				newPayload := []byte("" + utils.DeSenText(string(oldBytes)))
+
+				finalBytes, _ := switchReplyContentEncoding(resp, newPayload) //utils.GZipEncode(newPayload)
+				//zlog.Debug("转换完",string(finalBytes))
+				resp.Body = io.NopCloser(bytes.NewBuffer(finalBytes))
+
+				// head 修改追加内容
+				resp.ContentLength = int64(len(newPayload))
+				resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalBytes)), 10))
+			}
+		}
+
 		return nil
 	}
+}
+
+// 返回是否需要进行压缩
+
+func switchReplyContentEncoding(res *http.Response, inputBytes []byte) (respBytes []byte, err error) {
+
+	switch res.Header.Get("Content-Encoding") {
+	case "gzip":
+		respBytes, err = utils.GZipEncode(inputBytes)
+	case "deflate":
+		respBytes, err = utils.DeflateEncode(inputBytes)
+	default:
+		respBytes = inputBytes
+	}
+	return
+}
+
+// 检测返回的body是否经过压缩，并返回解压的内容
+func switchContentEncoding(res *http.Response) (bodyReader io.Reader, err error) {
+	switch res.Header.Get("Content-Encoding") {
+	case "gzip":
+		bodyReader, err = gzip.NewReader(res.Body)
+	case "deflate":
+		bodyReader = flate.NewReader(res.Body)
+	default:
+		bodyReader = res.Body
+	}
+	return
+}
+
+// 检测html页面编码
+func determinePageEncoding(r *bufio.Reader) encoding.Encoding {
+	//使用peek读取十分关键，只是偷看一下，不会移动读取位置，否则其他地方就没法读取了
+	bytes, err := r.Peek(1024)
+	if err != nil {
+		log.Printf("Fetcher error: %v\n", err)
+		return unicode.UTF8
+	}
+	e, _, _ := charset.DetermineEncoding(bytes, "")
+	return e
 }
 func Start_WAF() {
 	config := viper.New()

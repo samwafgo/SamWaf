@@ -64,8 +64,6 @@ func main() {
 						//说明该code有更新
 						hostRuleChan <- ruleconfig
 
-					} else {
-						zlog.Debug("主机host" + code + " 有最新规则")
 					}
 				}
 
@@ -88,7 +86,7 @@ func main() {
 	s.StartAsync()
 
 	//脱敏处理初始化
-	global.GWAF_DLP, _ = dlp.NewEngine("my")
+	global.GWAF_DLP, _ = dlp.NewEngine("wafDlp")
 	global.GWAF_DLP.ApplyConfigDefault()
 	for {
 		select {
@@ -96,7 +94,7 @@ func main() {
 			//TODO 需要把删除的那部分数据从数据口里面去掉
 			hostTarget[hostCode[remoteConfig[0].HostCode]].RuleData = remoteConfig
 			hostTarget[hostCode[remoteConfig[0].HostCode]].Rule.LoadRules(remoteConfig)
-			zlog.Debug("远程配置", zap.Any("remoteconfig", remoteConfig))
+			zlog.Debug("远程配置", zap.Any("remoteConfig", remoteConfig))
 			break
 
 		case engineStatus := <-engineChan:

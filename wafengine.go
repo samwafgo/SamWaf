@@ -279,6 +279,7 @@ func modifyResponse() func(*http.Response) error {
 				oldBytes, err := io.ReadAll(reader)
 				if err != nil {
 					zlog.Error("error", err)
+					return nil
 				}
 
 				// body 追加内容

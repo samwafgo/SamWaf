@@ -389,9 +389,9 @@
             }
           })
           .then((res) => {
-            let resdata = res.data
+            let resdata = res
             console.log(resdata)
-            if (resdata.code === 200) {
+            if (resdata.code === 0) {
 
               //const { list = [] } = resdata.data.list;
 
@@ -475,9 +475,9 @@
               ...postdata
             })
             .then((res) => {
-              let resdata = res.data
+              let resdata = res
               console.log(resdata)
-              if (resdata.code === 200) {
+              if (resdata.code === 0) {
                 that.$message.success(resdata.msg);
                 that.addFormVisible = false;
                 that.pagination.current = 1
@@ -511,9 +511,9 @@
               ...postdata
             })
             .then((res) => {
-              let resdata = res.data
+              let resdata = res
               console.log(resdata)
-              if (resdata.code === 200) {
+              if (resdata.code === 0) {
                 that.$message.success(resdata.msg);
                 that.editFormVisible = false;
                 that.pagination.current = 1
@@ -559,9 +559,9 @@
             }
           })
           .then((res) => {
-            let resdata = res.data
+            let resdata = res
             console.log(resdata)
-            if (resdata.code === 200) {
+            if (resdata.code === 0) {
 
               that.pagination.current = 1
               that.getList("")
@@ -593,9 +593,9 @@
             }
           })
           .then((res) => {
-            let resdata = res.data
+            let resdata = res
             console.log(resdata)
-            if (resdata.code === 200) {
+            if (resdata.code === 0) {
               that.detail_data = resdata.data;
               that.detail_data.ssl = that.detail_data.ssl.toString()
               that.formEditData = {
@@ -647,9 +647,9 @@
               }
             })
             .then((res) => {
-              let resdata = res.data
+              let resdata = res
               console.log(resdata)
-              if (resdata.code === 200) {
+              if (resdata.code === 0) {
                 that.getList("")
                 that.$message.close(msg);
                 that.$message.success(resdata.msg)

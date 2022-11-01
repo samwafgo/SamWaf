@@ -1,4 +1,4 @@
-<template> 
+<template>
   <div class="detail-base">
     <t-card title="防御情况" class="container-base-margin-top">
       <t-steps class="detail-base-info-steps" layout="horizontal" theme="dot" :current="2">
@@ -84,7 +84,7 @@
     </t-card>
 
 
-  </div> 
+  </div>
 </template>
 <script lang="ts">
   import {
@@ -142,9 +142,9 @@
             }
           })
           .then((res) => {
-            let resdata = res.data
+            let resdata = res
             console.log(resdata)
-            if (resdata.code === 200) {
+            if (resdata.code === 0) {
 
               //const { list = [] } = resdata.data.list;
 

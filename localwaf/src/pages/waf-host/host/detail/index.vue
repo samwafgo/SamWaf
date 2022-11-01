@@ -130,9 +130,9 @@
             }
           })
           .then((res) => {
-            let resdata = res.data
+            let resdata = res
             console.log(resdata)
-            if (resdata.code === 200) {
+            if (resdata.code === 0) {
 
               //const { list = [] } = resdata.data.list;
 

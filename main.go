@@ -106,7 +106,7 @@ func main() {
 
 			}
 			break
-		case host := <-hostChan:
+		case host := <-global.GWAF_CHAN_HOST:
 
 			hostTarget[host.Host+":"+strconv.Itoa(host.Port)].Host.GUARD_STATUS = host.GUARD_STATUS
 			zlog.Debug("规则", zap.Any("主机", host))

@@ -1,5 +1,6 @@
 <template>
-  <div class="detail-base">
+
+  <div class="detail-base"> 
     <t-card title="网站详情">
       <div class="info-block">
 

@@ -559,7 +559,7 @@
             }
           })
           .then((res) => {
-            let resdata = res
+            let resdata = res.data
             console.log(resdata)
             if (resdata.code === 0) {
 

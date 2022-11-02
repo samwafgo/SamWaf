@@ -92,7 +92,7 @@ func (w *WafRuleAPi) DelRuleApi(c *gin.Context) {
 		} else if err != nil {
 			response.FailWithMessage("发生错误", c)
 		} else {
-			response.FailWithMessage("删除成功", c)
+			response.OkWithMessage("删除成功", c)
 		}
 
 	} else {
@@ -129,7 +129,7 @@ func (w *WafRuleAPi) ModifyRuleApi(c *gin.Context) {
 		if err != nil {
 			response.FailWithMessage("编辑发生错误", c)
 		} else {
-			response.FailWithMessage("编辑成功", c)
+			response.OkWithMessage("编辑成功", c)
 		}
 
 	} else {

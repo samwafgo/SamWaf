@@ -31,7 +31,7 @@ instance.interceptors.response.use(
       if (data.code === CODE.REQUEST_SUCCESS) {
         return data;
       }
-      return response;
+      return data;
     }
   },
   (err) => {

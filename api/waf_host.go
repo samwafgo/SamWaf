@@ -17,17 +17,21 @@ func (w *WafHostAPi) AddApi(c *gin.Context) {
 	err := c.ShouldBind(&req)
 	if err == nil {
 		err = wafHostService.CheckIsExistApi(req)
-		if err != nil {
-			response.FailWithMessage("当前网站和端口已经存在", c)
-		}
-		err = wafHostService.AddApi(req)
-		if err == nil {
+		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
+			err = wafHostService.AddApi(req)
+			if err == nil {
 
-			response.OkWithMessage("添加成功", c)
+				response.OkWithMessage("添加成功", c)
+			} else {
+
+				response.FailWithMessage("添加失败", c)
+			}
+			return
 		} else {
-
-			response.FailWithMessage("添加失败", c)
+			response.FailWithMessage("当前网站和端口已经存在", c)
+			return
 		}
+
 	} else {
 		response.FailWithMessage("解析失败", c)
 	}
@@ -83,7 +87,7 @@ func (w *WafHostAPi) ModifyHostApi(c *gin.Context) {
 		if err != nil {
 			response.FailWithMessage("编辑发生错误", c)
 		} else {
-			response.FailWithMessage("编辑成功", c)
+			response.OkWithMessage("编辑成功", c)
 		}
 
 	} else {
@@ -101,7 +105,7 @@ func (w *WafHostAPi) ModifyGuardStatusApi(c *gin.Context) {
 			wafHost := wafHostService.GetDetailByCodeApi(req.CODE)
 			//发送状态改变通知
 			global.GWAF_CHAN_HOST <- wafHost
-			response.FailWithMessage("状态更新成功", c)
+			response.OkWithMessage("状态更新成功", c)
 		}
 
 	} else {

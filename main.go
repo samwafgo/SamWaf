@@ -97,7 +97,7 @@ func main() {
 			zlog.Debug("远程配置", zap.Any("remoteConfig", remoteConfig))
 			break
 
-		case engineStatus := <-engineChan:
+		case engineStatus := <-global.GWAF_CHAN_ENGINE:
 			if engineStatus == 1 {
 				zlog.Info("准备关闭WAF引擎")
 				CLoseWAF()

@@ -60,7 +60,7 @@ var (
 
 	phttphandler *baseHandle
 	hostRuleChan = make(chan []model.Rules, 10) //规则链
-	engineChan   = make(chan int, 10)           //引擎链
+	//engineChan   = make(chan int, 10)           //引擎链
 	//hostChan                                  = make(chan model.Hosts, 10)   //主机链
 	engineCurrentStatus int                   = 0 // 当前waf引擎状态
 	pluginIpRateLimiter *plugin.IPRateLimiter     //ip限流

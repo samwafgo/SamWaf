@@ -23,14 +23,14 @@ type CountResult struct {
 func TaskCounter() {
 
 	var result []CountResult
-	global.GWAF_LOCAL_DB.Debug().Raw("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host FROM \"web_logs\" where create_time>? GROUP BY host_code, user_code,action,tenant_id,day,host", global.GWAF_LAST_UPDATE_TIME.Format("2006-01-02 15:04:05")).Scan(&result)
+	global.GWAF_LOCAL_DB.Raw("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host FROM \"web_logs\" where create_time>? GROUP BY host_code, user_code,action,tenant_id,day,host", global.GWAF_LAST_UPDATE_TIME.Format("2006-01-02 15:04:05")).Scan(&result)
 	/****
 	1.如果不存在则创建
 	2.如果存在则累加这个周期的统计数
 	*/
 	for _, value := range result {
 		var statDay model.StatsDay
-		global.GWAF_LOCAL_DB.Debug().Where("tenant_id=? and user_code=? and host_code=? and type=? and day=?",
+		global.GWAF_LOCAL_DB.Where("tenant_id=? and user_code=? and host_code=? and type=? and day=?",
 			value.TenantId, value.UserCode, value.HostCode, value.ACTION, value.Day).Find(&statDay)
 
 		if statDay.HostCode == "" {

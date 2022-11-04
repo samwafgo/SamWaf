@@ -57,6 +57,9 @@
           </template>
         </t-table>
       </div>
+      <div>
+      <router-view></router-view>
+      </div>
     </t-card>
 
     <!-- 新建网站防御弹窗 -->
@@ -438,7 +441,7 @@
         const {
           code
         } = e.row
-        console.log(code)
+        console.log('hostlist',code)
         this.$router.push({
           path: '/waf-host/wafhostdetail',
           query: {

@@ -30,3 +30,10 @@ func (receiver *WafLogService) GetListApi(log request.WafAttackLogSearch) ([]inn
 	global.GWAF_LOCAL_DB.Debug().Model(&innerbean.WebLog{}).Count(&total)
 	return weblogs, total, nil
 }
+func (receiver *WafLogService) GetListByHostCodeApi(log request.WafAttackLogSearch) ([]innerbean.WebLog, int64, error) {
+	var total int64 = 0
+	var weblogs []innerbean.WebLog
+	global.GWAF_LOCAL_DB.Debug().Where("tenant_id = ? and user_code=?  and host_code = ? ", global.GWAF_TENANT_ID, global.GWAF_USER_CODE, log.HostCode).Limit(log.PageSize).Offset(log.PageSize * (log.PageIndex - 1)).Order("create_time desc").Find(&weblogs)
+	global.GWAF_LOCAL_DB.Debug().Where("tenant_id = ? and user_code=?  and host_code = ? ", global.GWAF_TENANT_ID, global.GWAF_USER_CODE, log.HostCode).Model(&innerbean.WebLog{}).Count(&total)
+	return weblogs, total, nil
+}

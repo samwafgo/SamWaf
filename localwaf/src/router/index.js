@@ -3,12 +3,10 @@ import VueRouter from 'vue-router';
 import baseRouters from './modules/base';
 import componentsRouters from './modules/components';
 import othersRouters from './modules/others';
-import waflogRouters from './modules/waflog';
-
-import wafHostRouters from './modules/wafhost';
+import wafRouters from './modules/waf';
 
 // 存放动态路由
-export const asyncRouterList = [...baseRouters,...wafHostRouters,...waflogRouters, ...componentsRouters, ...othersRouters];
+export const asyncRouterList = [...baseRouters,...wafRouters, ...componentsRouters, ...othersRouters];
 
 // 存放固定的路由
 const defaultRouterList = [

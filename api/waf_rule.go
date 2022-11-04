@@ -82,6 +82,22 @@ func (w *WafRuleAPi) GetListApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+func (w *WafRuleAPi) GetListByHostCodeApi(c *gin.Context) {
+	var req request.WafRuleSearchReq
+	err := c.ShouldBind(&req)
+	if err == nil {
+		wafRules, total, _ := wafRuleService.GetListByHostCodeApi(req)
+		response.OkWithDetailed(response.PageResult{
+			List:      wafRules,
+			Total:     total,
+			PageIndex: req.PageIndex,
+			PageSize:  req.PageSize,
+		}, "获取成功", c)
+	} else {
+		response.FailWithMessage("解析失败", c)
+	}
+}
 func (w *WafRuleAPi) DelRuleApi(c *gin.Context) {
 	var req request.WafRuleDelReq
 	err := c.ShouldBind(&req)

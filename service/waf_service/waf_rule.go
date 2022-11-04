@@ -82,6 +82,18 @@ func (receiver *WafRuleService) GetListApi(wafRuleSearchReq request.WafRuleSearc
 
 	return rules, total, nil
 }
+
+func (receiver *WafRuleService) GetListByHostCodeApi(wafRuleSearchReq request.WafRuleSearchReq) ([]model.Rules, int64, error) {
+	var total int64 = 0
+	var rules []model.Rules
+	global.GWAF_LOCAL_DB.Debug().Where("tenant_id = ? and user_code=? and host_code = ? and rule_status= 1",
+		global.GWAF_TENANT_ID, global.GWAF_USER_CODE, wafRuleSearchReq.HostCode).Limit(wafRuleSearchReq.PageSize).Offset(wafRuleSearchReq.PageSize * (wafRuleSearchReq.PageIndex - 1)).Find(&rules)
+	global.GWAF_LOCAL_DB.Debug().Where("tenant_id = ? and user_code=? and host_code = ? and rule_status= 1",
+		global.GWAF_TENANT_ID, global.GWAF_USER_CODE, wafRuleSearchReq.HostCode).Model(&model.Rules{}).Count(&total)
+
+	return rules, total, nil
+}
+
 func (receiver *WafRuleService) DelRuleApi(req request.WafRuleDelReq) error {
 	var rule model.Rules
 	err := global.GWAF_LOCAL_DB.Where("rule_code = ?", req.CODE).First(&rule).Error

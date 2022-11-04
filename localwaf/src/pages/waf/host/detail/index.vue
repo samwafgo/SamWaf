@@ -1,6 +1,6 @@
 <template>
 
-  <div class="detail-base"> 
+  <div class="detail-base">
     <t-card title="网站详情">
       <div class="info-block">
 
@@ -82,7 +82,7 @@
   import model from '@/service/service-detail-base';
 
   export default {
-    name: 'WafAttackLogDetail',
+    name: 'WafHostDetail',
     data() {
       return {
         prefix,
@@ -95,10 +95,7 @@
     },
     mounted() {
       console.log('----mounted----')
-
-      //console.log(this.$route.params.req_uuid);
-      //this.getDetail(this.$route.params.req_uuid);
-      this.getDetail(this.$route.query.req_uuid);
+      this.getDetail(this.$route.query.code);
     },
     beforeCreate() {
       console.log('----beforeCreate----')
@@ -134,9 +131,6 @@
             let resdata = res
             console.log(resdata)
             if (resdata.code === 0) {
-
-              //const { list = [] } = resdata.data.list;
-
               that.detail_data = resdata.data;
 
             }

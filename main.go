@@ -52,12 +52,12 @@ func main() {
 					continue
 				}
 				var vcnt int
-				global.GWAF_LOCAL_DB.Model(&model.Rules{}).Where("host_code = ? and user_code=? ",
-					code, global.GWAF_USER_CODE).Select("sum(rule_version) as vcnt").Row().Scan(&vcnt)
+				global.GWAF_LOCAL_DB.Model(&model.Rules{}).Where("host_code = ?",
+					code).Select("sum(rule_version) as vcnt").Row().Scan(&vcnt)
 				//zlog.Debug("主机host" + code + " 版本" + strconv.Itoa(vcnt))
 				var ruleconfig []model.Rules
 				if vcnt > 0 {
-					global.GWAF_LOCAL_DB.Debug().Where("host_code = ? and user_code=?  ", code, global.GWAF_USER_CODE).Find(&ruleconfig)
+					global.GWAF_LOCAL_DB.Debug().Where("host_code = ? ", code).Find(&ruleconfig)
 					if vcnt > hostTarget[host].RuleVersionSum {
 						zlog.Debug("主机host" + code + " 有最新规则")
 						hostTarget[host].RuleVersionSum = vcnt

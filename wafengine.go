@@ -361,7 +361,7 @@ func Start_WAF() {
 
 	var hosts []model.Hosts
 
-	global.GWAF_LOCAL_DB.Where("user_code = ?", global.GWAF_USER_CODE).Find(&hosts)
+	global.GWAF_LOCAL_DB.Where("tenant_id = ? and user_code=? ", global.GWAF_TENANT_ID, global.GWAF_USER_CODE).Where("user_code = ?", global.GWAF_USER_CODE).Find(&hosts)
 
 	//初始化插件-ip计数器
 	pluginIpRateLimiter = plugin.NewIPRateLimiter(1, 100)

@@ -77,7 +77,7 @@ func (receiver *WafRuleService) GetDetailByCodeApi(ruleCode string) model.Rules 
 func (receiver *WafRuleService) GetListApi(wafRuleSearchReq request.WafRuleSearchReq) ([]model.Rules, int64, error) {
 	var total int64 = 0
 	var rules []model.Rules
-	global.GWAF_LOCAL_DB.Debug().Where("user_code=? and rule_status= 1", global.GWAF_USER_CODE).Limit(wafRuleSearchReq.PageSize).Offset(wafRuleSearchReq.PageSize * (wafRuleSearchReq.PageIndex - 1)).Find(&rules)
+	global.GWAF_LOCAL_DB.Debug().Where("rule_status= 1").Limit(wafRuleSearchReq.PageSize).Offset(wafRuleSearchReq.PageSize * (wafRuleSearchReq.PageIndex - 1)).Find(&rules)
 	global.GWAF_LOCAL_DB.Debug().Model(&model.Rules{}).Count(&total)
 
 	return rules, total, nil
@@ -86,9 +86,9 @@ func (receiver *WafRuleService) GetListApi(wafRuleSearchReq request.WafRuleSearc
 func (receiver *WafRuleService) GetListByHostCodeApi(wafRuleSearchReq request.WafRuleSearchReq) ([]model.Rules, int64, error) {
 	var total int64 = 0
 	var rules []model.Rules
-	global.GWAF_LOCAL_DB.Debug().Where("tenant_id = ? and user_code=? and host_code = ? and rule_status= 1",
+	global.GWAF_LOCAL_DB.Debug().Where("host_code = ? and rule_status= 1",
 		global.GWAF_TENANT_ID, global.GWAF_USER_CODE, wafRuleSearchReq.HostCode).Limit(wafRuleSearchReq.PageSize).Offset(wafRuleSearchReq.PageSize * (wafRuleSearchReq.PageIndex - 1)).Find(&rules)
-	global.GWAF_LOCAL_DB.Debug().Where("tenant_id = ? and user_code=? and host_code = ? and rule_status= 1",
+	global.GWAF_LOCAL_DB.Debug().Where("host_code = ? and rule_status= 1",
 		global.GWAF_TENANT_ID, global.GWAF_USER_CODE, wafRuleSearchReq.HostCode).Model(&model.Rules{}).Count(&total)
 
 	return rules, total, nil

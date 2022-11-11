@@ -30,8 +30,8 @@ func TaskCounter() {
 	*/
 	for _, value := range result {
 		var statDay model.StatsDay
-		global.GWAF_LOCAL_DB.Where("tenant_id=? and user_code=? and host_code=? and type=? and day=?",
-			value.TenantId, value.UserCode, value.HostCode, value.ACTION, value.Day).Find(&statDay)
+		global.GWAF_LOCAL_DB.Where("host_code=? and type=? and day=?",
+			value.HostCode, value.ACTION, value.Day).Find(&statDay)
 
 		if statDay.HostCode == "" {
 			statDay2 := &model.StatsDay{
@@ -52,7 +52,7 @@ func TaskCounter() {
 				"last_update_time": time.Now(),
 			}
 
-			global.GWAF_LOCAL_DB.Debug().Model(model.StatsDay{}).Where("tenant_id=? and user_code=? and host_code=? and type=? and day=?",
+			global.GWAF_LOCAL_DB.Debug().Model(model.StatsDay{}).Where("host_code=? and type=? and day=?",
 				value.TenantId, value.UserCode, value.HostCode, value.ACTION, value.Day).Updates(statDayMap)
 
 		}

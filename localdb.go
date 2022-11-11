@@ -39,6 +39,7 @@ func InitDb() {
 	}
 }
 func before_query(db *gorm.DB) {
+	db.Debug()
 	db.Where("tenant_id = ? and user_code=? ", global.GWAF_TENANT_ID, global.GWAF_USER_CODE)
 	zlog.Info("before_query")
 }

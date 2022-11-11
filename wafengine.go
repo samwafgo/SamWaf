@@ -408,6 +408,7 @@ func Start_WAF() {
 		ruleHelper := &utils.RuleHelper{}
 
 		//查询规则
+		//TODO 未加租户ID
 		var vcnt int
 		global.GWAF_LOCAL_DB.Debug().Model(&model.Rules{}).Where("host_code = ? and user_code=? ",
 			hosts[i].Code, global.GWAF_USER_CODE).Select("sum(rule_version) as vcnt").Row().Scan(&vcnt)

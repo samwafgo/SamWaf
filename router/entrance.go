@@ -6,6 +6,7 @@ type ApiGroup struct {
 	RuleRouter
 	EngineRouter
 	StatRouter
+	WhiteIpRouter
 }
 
 var ApiGroupApp = new(ApiGroup)

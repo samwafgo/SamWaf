@@ -56,6 +56,19 @@ export default [
         component: () => import('@/pages/waf/rule/edit/index.vue'),
         meta: { title: '防御规则编辑', keepAlive: false, hidden: true },
       },
+      {
+        path: 'wafipwhitelist',
+        name: 'WafIpWhiteList',
+        component: () => import('@/pages/waf/ipwhite/index.vue'),
+        meta: { title: 'IP白名单' },
+
+      },
+      {
+        path: 'wafipwhitedetail',
+        name: 'WafIpWhiteDetail',
+        component: () => import('@/pages/waf/ipwhite/detail/index.vue'),
+        meta: { title: 'IP白名单详情', hidden: true},
+      },
     ],
   },
 ];

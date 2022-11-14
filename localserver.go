@@ -18,6 +18,7 @@ func InitRouter(r *gin.Engine) {
 	router.ApiGroupApp.InitRuleRouter(RouterGroup)
 	router.ApiGroupApp.InitEngineRouter(RouterGroup)
 	router.ApiGroupApp.InitStatRouter(RouterGroup)
+	router.ApiGroupApp.InitWhiteIpRouter(RouterGroup)
 
 }
 func Cors() gin.HandlerFunc {

@@ -9,13 +9,15 @@ type APIGroup struct {
 	WafRuleAPi
 	WafEngineApi
 	WafWhiteIpApi
+	WafWhiteUrlApi
 }
 
 var APIGroupAPP = new(APIGroup)
 var (
-	wafHostService    = waf_service.WafHostServiceApp
-	wafLogService     = waf_service.WafLogServiceApp
-	wafStatService    = waf_service.WafStatServiceApp
-	wafRuleService    = waf_service.WafRuleServiceApp
-	wafIpWhiteService = waf_service.WafWhiteIpServiceApp
+	wafHostService     = waf_service.WafHostServiceApp
+	wafLogService      = waf_service.WafLogServiceApp
+	wafStatService     = waf_service.WafStatServiceApp
+	wafRuleService     = waf_service.WafRuleServiceApp
+	wafIpWhiteService  = waf_service.WafWhiteIpServiceApp
+	wafUrlWhiteService = waf_service.WafWhiteUrlServiceApp
 )

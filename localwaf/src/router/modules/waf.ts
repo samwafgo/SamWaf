@@ -69,6 +69,19 @@ export default [
         component: () => import('@/pages/waf/ipwhite/detail/index.vue'),
         meta: { title: 'IP白名单详情', hidden: true},
       },
+      {
+        path: 'wafurlwhitelist',
+        name: 'WafUrlWhiteList',
+        component: () => import('@/pages/waf/urlwhite/index.vue'),
+        meta: { title: 'Url白名单' },
+
+      },
+      {
+        path: 'wafurlwhitedetail',
+        name: 'WafUrlWhiteDetail',
+        component: () => import('@/pages/waf/urlwhite/detail/index.vue'),
+        meta: { title: 'Url白名单详情', hidden: true},
+      },
     ],
   },
 ];

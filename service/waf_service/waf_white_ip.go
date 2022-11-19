@@ -58,7 +58,7 @@ func (receiver *WafWhiteIpService) GetListApi(req request.WafWhiteIpSearchReq) (
 	var ipWhites []model.IPWhiteList
 	var total int64 = 0
 	global.GWAF_LOCAL_DB.Debug().Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&ipWhites)
-	global.GWAF_LOCAL_DB.Debug().Model(&model.Hosts{}).Count(&total)
+	global.GWAF_LOCAL_DB.Debug().Model(&model.IPWhiteList{}).Count(&total)
 	return ipWhites, total, nil
 }
 func (receiver *WafWhiteIpService) DelApi(req request.WafWhiteIpDelReq) error {

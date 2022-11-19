@@ -8,6 +8,7 @@ type ApiGroup struct {
 	StatRouter
 	WhiteIpRouter
 	WhiteUrlRouter
+	LdpUrlRouter
 }
 
 var ApiGroupApp = new(ApiGroup)

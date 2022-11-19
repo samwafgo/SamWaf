@@ -81,6 +81,18 @@ export default [
         name: 'WafUrlWhiteDetail',
         component: () => import('@/pages/waf/urlwhite/detail/index.vue'),
         meta: { title: 'Url白名单详情', hidden: true},
+      },{
+        path: 'wafldpurllist',
+        name: 'WafLdpUrlList',
+        component: () => import('@/pages/waf/ldpurl/index.vue'),
+        meta: { title: '隐私保护Url' },
+
+      },
+      {
+        path: 'wafldpurldetail',
+        name: 'WafldpUrlDetail',
+        component: () => import('@/pages/waf/ldpurl/detail/index.vue'),
+        meta: { title: '隐私保护Url详情', hidden: true},
       },
     ],
   },

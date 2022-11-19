@@ -10,6 +10,7 @@ type APIGroup struct {
 	WafEngineApi
 	WafWhiteIpApi
 	WafWhiteUrlApi
+	WafLdpUrlApi
 }
 
 var APIGroupAPP = new(APIGroup)
@@ -20,4 +21,5 @@ var (
 	wafRuleService     = waf_service.WafRuleServiceApp
 	wafIpWhiteService  = waf_service.WafWhiteIpServiceApp
 	wafUrlWhiteService = waf_service.WafWhiteUrlServiceApp
+	wafLdpUrlService   = waf_service.WafLdpUrlServiceApp
 )

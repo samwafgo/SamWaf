@@ -302,6 +302,11 @@
       handleAddIpWhite() {
         //添加白名单IP
         this.addFormVisible = true
+        this.formData = {
+          host_code: '',
+          ip: '',
+          remarks: '',
+        };
       },
       onSubmit({
         result,

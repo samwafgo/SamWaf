@@ -43,7 +43,7 @@
             <t-input :style="{ width: '480px' }" v-model="formData.host_code" placeholder="请输入网站的网址"></t-input>
           </t-form-item>
           <t-form-item label="Url" name="url">
-            <t-input :style="{ width: '480px' }" v-model="formData.ip" placeholder="请输入白名单Url"></t-input>
+            <t-input :style="{ width: '480px' }" v-model="formData.url" placeholder="请输入白名单Url"></t-input>
           </t-form-item>
           <t-form-item label="备注" name="remarks">
             <t-textarea :style="{ width: '480px' }" v-model="formData.remarks" placeholder="请输入内容" name="remarks">
@@ -66,7 +66,7 @@
             <t-input :style="{ width: '480px' }" v-model="formEditData.host_code" placeholder="请输入网站的网址"></t-input>
           </t-form-item>
          <t-form-item label="Url" name="url">
-           <t-input :style="{ width: '480px' }" v-model="formEditData.ip" placeholder="请输入白名单Url"></t-input>
+           <t-input :style="{ width: '480px' }" v-model="formEditData.url" placeholder="请输入白名单Url"></t-input>
          </t-form-item>
           <t-form-item label="备注" name="remarks">
             <t-textarea :style="{ width: '480px' }" v-model="formEditData.remarks" placeholder="请输入内容" name="remarks">
@@ -167,7 +167,7 @@
             title: 'Url',
             width: 200,
             ellipsis: true,
-            colKey: 'Url',
+            colKey: 'url',
           },
           {
             title: '备注',
@@ -211,9 +211,9 @@
       confirmBody() {
         if (this.deleteIdx > -1) {
           const {
-            host
+            url
           } = this.data?. [this.deleteIdx];
-          return `删除后，${host}的Url将被删除，且无法恢复`;
+          return `删除后，${url}的Url将被删除，且无法恢复`;
         }
         return '';
       },
@@ -302,6 +302,11 @@
       handleAddUrlWhite() {
         //添加白名单Url
         this.addFormVisible = true
+        this.formData =  {
+          host_code: '',
+          url: '',
+          remarks: '',
+        };
       },
       onSubmit({
         result,

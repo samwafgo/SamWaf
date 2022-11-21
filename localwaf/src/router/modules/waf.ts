@@ -93,6 +93,18 @@ export default [
         name: 'WafldpUrlDetail',
         component: () => import('@/pages/waf/ldpurl/detail/index.vue'),
         meta: { title: '隐私保护Url详情', hidden: true},
+      },{
+        path: 'wafanticclist',
+        name: 'WafAntiCCList',
+        component: () => import('@/pages/waf/anticc/index.vue'),
+        meta: { title: 'CC防护设置' },
+
+      },
+      {
+        path: 'wafanticcdetail',
+        name: 'WafAntiCCDetail',
+        component: () => import('@/pages/waf/anticc/detail/index.vue'),
+        meta: { title: 'CC防护详情', hidden: true},
       },
     ],
   },

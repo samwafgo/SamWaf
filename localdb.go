@@ -31,6 +31,9 @@ func InitDb() {
 		db.AutoMigrate(&model.IPWhiteList{})
 		db.AutoMigrate(&model.URLWhiteList{})
 
+		//抵抗CC
+		db.AutoMigrate(&model.AntiCC{})
+
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 
 		//重启需要删除无效规则

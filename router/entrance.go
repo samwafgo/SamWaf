@@ -9,6 +9,7 @@ type ApiGroup struct {
 	WhiteIpRouter
 	WhiteUrlRouter
 	LdpUrlRouter
+	AntiCCRouter
 }
 
 var ApiGroupApp = new(ApiGroup)

@@ -25,7 +25,6 @@ import (
 	"golang.org/x/text/transform"
 	"golang.org/x/time/rate"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -165,24 +164,23 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if hostTarget[host].Host.GUARD_STATUS == 1 {
 		var jumpGuardFlag = false
 		//ip白名单策略（待优化性能）
-		for i := 0; i < len(hostTarget[host].IPWhiteLists); i++ {
-			if hostTarget[host].IPWhiteLists[i].Ip == weblogbean.SRC_IP {
-				jumpGuardFlag = true
-				break
-			}
+		if hostTarget[host].IPWhiteLists != nil {
+
 		}
+
 		if jumpGuardFlag == false {
 			//cc 防护
-			limiter := hostTarget[host].pluginIpRateLimiter.GetLimiter(weblogbean.SRC_IP)
-			if !limiter.Allow() {
-				weblogbean.RULE = "触发IP频次访问限制"
-				weblogbean.ACTION = "阻止"
-				global.GWAF_LOCAL_DB.Create(weblogbean)
-				w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止超量了</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
-				zlog.Debug("已经被限制访问了")
-				return
+			if hostTarget[host].pluginIpRateLimiter != nil {
+				limiter := hostTarget[host].pluginIpRateLimiter.GetLimiter(weblogbean.SRC_IP)
+				if !limiter.Allow() {
+					weblogbean.RULE = "触发IP频次访问限制"
+					weblogbean.ACTION = "阻止"
+					global.GWAF_LOCAL_DB.Create(weblogbean)
+					w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止超量了</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
+					zlog.Debug("触发IP频次访问限制 已经被限制访问了")
+					return
+				}
 			}
-
 			ruleMatchs, err := hostTarget[host].Rule.Match("MF", &weblogbean)
 			if err == nil {
 				if len(ruleMatchs) > 0 {
@@ -200,7 +198,7 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					expiration = expiration.AddDate(1, 0, 0)
 					cookie := http.Cookie{Name: "IDENFY", Value: weblogbean.REQ_UUID, Expires: expiration}
 					http.SetCookie(w, &cookie)*/
-					w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
+					w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止触发规则</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
 
 					return
 				}

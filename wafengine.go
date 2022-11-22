@@ -44,7 +44,6 @@ type HostSafe struct {
 	RuleData            []model.Rules
 	RuleVersionSum      int //规则版本的汇总 通过这个来进行版本动态加载
 	Host                model.Hosts
-	AntiCCData          []model.AntiCC        //ip限流数据
 	pluginIpRateLimiter *plugin.IPRateLimiter //ip限流
 }
 
@@ -160,24 +159,20 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ACTION:         "通过",
 		Day:            currentDay,
 	}
-	//ip计数器
 
-	limiter := hostTarget[host].pluginIpRateLimiter.GetLimiter(weblogbean.SRC_IP)
-	if !limiter.Allow() {
-		weblogbean.RULE = "触发IP频次访问限制"
-		weblogbean.ACTION = "阻止"
-		global.GWAF_LOCAL_DB.Create(weblogbean)
-		w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止超量了</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
-		zlog.Debug("已经被限制访问了")
-		return
-	}
-
-	//esHelper.BatchInsert("full_log", weblogbean)
-	/*rule := &innerbean.WAF_REQUEST_FULL{
-		SRC_INFO:   weblogbean,
-		ExecResult: 0,
-	}*/
 	if hostTarget[host].Host.GUARD_STATUS == 1 {
+
+		//cc 防护
+		limiter := hostTarget[host].pluginIpRateLimiter.GetLimiter(weblogbean.SRC_IP)
+		if !limiter.Allow() {
+			weblogbean.RULE = "触发IP频次访问限制"
+			weblogbean.ACTION = "阻止"
+			global.GWAF_LOCAL_DB.Create(weblogbean)
+			w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止超量了</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
+			zlog.Debug("已经被限制访问了")
+			return
+		}
+
 		ruleMatchs, err := hostTarget[host].Rule.Match("MF", &weblogbean)
 		if err == nil {
 			if len(ruleMatchs) > 0 {
@@ -221,24 +216,20 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		proxy := httputil.NewSingleHostReverseProxy(remoteUrl)
-		proxy.ModifyResponse = modifyResponse()
-		proxy.ErrorHandler = errorHandler()
-
-		hostTarget[host].RevProxy = proxy // 放入缓存
-		proxy.ServeHTTP(w, r)
+		// 直接从缓存取出
+		if hostTarget[host].RevProxy != nil {
+			hostTarget[host].RevProxy.ServeHTTP(w, r)
+		} else {
+			proxy := httputil.NewSingleHostReverseProxy(remoteUrl)
+			proxy.ModifyResponse = modifyResponse()
+			proxy.ErrorHandler = errorHandler()
+			hostTarget[host].RevProxy = proxy // 放入缓存
+			proxy.ServeHTTP(w, r)
+		}
 		weblogbean.ACTION = "放行"
 		global.GWAF_LOCAL_DB.Create(weblogbean)
 		return
 	} else {
-		/*waflogbean := innerbean.WAFLog{
-			CREATE_TIME: time.Now().Format("2006-01-02 15:04:05"),
-			RULE:        hostTarget[host].RuleData.RuleName,
-			ACTION:      "FORBIDDEN",
-			REQ_UUID:    uuid.NewV4().String(),
-			USER_CODE:   user_code,
-		}*/
-		//esHelper.BatchInsertWAF("web_log", waflogbean)
 		w.Write([]byte("403: Host forbidden " + host))
 		weblogbean.ACTION = "禁止"
 		global.GWAF_LOCAL_DB.Create(weblogbean)

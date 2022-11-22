@@ -45,6 +45,8 @@ type HostSafe struct {
 	RuleVersionSum      int //规则版本的汇总 通过这个来进行版本动态加载
 	Host                model.Hosts
 	pluginIpRateLimiter *plugin.IPRateLimiter //ip限流
+	IPWhiteLists        []model.IPWhiteList   //ip 白名单
+	LdpUrlLists         []model.LDPUrl        //url 隐私保护
 }
 
 var (
@@ -161,54 +163,54 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if hostTarget[host].Host.GUARD_STATUS == 1 {
-
-		//cc 防护
-		limiter := hostTarget[host].pluginIpRateLimiter.GetLimiter(weblogbean.SRC_IP)
-		if !limiter.Allow() {
-			weblogbean.RULE = "触发IP频次访问限制"
-			weblogbean.ACTION = "阻止"
-			global.GWAF_LOCAL_DB.Create(weblogbean)
-			w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止超量了</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
-			zlog.Debug("已经被限制访问了")
-			return
+		var jumpGuardFlag = false
+		//ip白名单策略（待优化性能）
+		for i := 0; i < len(hostTarget[host].IPWhiteLists); i++ {
+			if hostTarget[host].IPWhiteLists[i].Ip == weblogbean.SRC_IP {
+				jumpGuardFlag = true
+				break
+			}
 		}
-
-		ruleMatchs, err := hostTarget[host].Rule.Match("MF", &weblogbean)
-		if err == nil {
-			if len(ruleMatchs) > 0 {
-
-				rulestr := ""
-				for _, v := range ruleMatchs {
-					rulestr = rulestr + v.RuleDescription + ","
-				}
-				weblogbean.RULE = rulestr
+		if jumpGuardFlag == false {
+			//cc 防护
+			limiter := hostTarget[host].pluginIpRateLimiter.GetLimiter(weblogbean.SRC_IP)
+			if !limiter.Allow() {
+				weblogbean.RULE = "触发IP频次访问限制"
 				weblogbean.ACTION = "阻止"
 				global.GWAF_LOCAL_DB.Create(weblogbean)
-
-				w.Header().Set("WAF", "SAMWAF DROP")
-				/*expiration := time.Now()
-				expiration = expiration.AddDate(1, 0, 0)
-				cookie := http.Cookie{Name: "IDENFY", Value: weblogbean.REQ_UUID, Expires: expiration}
-				http.SetCookie(w, &cookie)*/
-				w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
-
+				w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止超量了</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
+				zlog.Debug("已经被限制访问了")
 				return
 			}
-		} else {
-			zlog.Debug("规则 ", err)
+
+			ruleMatchs, err := hostTarget[host].Rule.Match("MF", &weblogbean)
+			if err == nil {
+				if len(ruleMatchs) > 0 {
+
+					rulestr := ""
+					for _, v := range ruleMatchs {
+						rulestr = rulestr + v.RuleDescription + ","
+					}
+					weblogbean.RULE = rulestr
+					weblogbean.ACTION = "阻止"
+					global.GWAF_LOCAL_DB.Create(weblogbean)
+
+					w.Header().Set("WAF", "SAMWAF DROP")
+					/*expiration := time.Now()
+					expiration = expiration.AddDate(1, 0, 0)
+					cookie := http.Cookie{Name: "IDENFY", Value: weblogbean.REQ_UUID, Expires: expiration}
+					http.SetCookie(w, &cookie)*/
+					w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
+
+					return
+				}
+			} else {
+				zlog.Debug("规则 ", err)
+			}
 		}
-	}
-	// 取出代理ip
 
-	// 直接从缓存取出
-	if hostTarget[host].RevProxy != nil {
-		weblogbean.ACTION = "放行"
-		global.GWAF_LOCAL_DB.Create(weblogbean)
-		hostTarget[host].RevProxy.ServeHTTP(w, r)
-		return
 	}
-
-	// 检查域名白名单
+	// 检查域名是否已经注册
 	if target, ok := hostTarget[host]; ok {
 		remoteUrl, err := url.Parse(target.TargetHost)
 		if err != nil {
@@ -246,50 +248,40 @@ func modifyResponse() func(*http.Response) error {
 	return func(resp *http.Response) error {
 		resp.Header.Set("WAF", "SamWAF")
 		zlog.Debug("%s %s", resp.Request.Host, resp.Request.RequestURI)
-		if resp.StatusCode != 200 {
-			//获取内容
-			oldPayload, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				return err
+		ldpFlag := false
+		//隐私保护（待优化性能）
+		for i := 0; i < len(hostTarget[resp.Request.Host].LdpUrlLists); i++ {
+			if hostTarget[resp.Request.Host].LdpUrlLists[i].Url == resp.Request.RequestURI {
+				ldpFlag = true
+				break
 			}
+		}
+		if ldpFlag == true {
+			//编码转换，自动检测网页编码
+			convertCntReader, _ := switchContentEncoding(resp)
+			bodyReader := bufio.NewReader(convertCntReader)
+			charset := determinePageEncoding(bodyReader)
+
+			reader := transform.NewReader(bodyReader, charset.NewDecoder())
+			oldBytes, err := io.ReadAll(reader)
+			if err != nil {
+				zlog.Error("error", err)
+				return nil
+			}
+
 			// body 追加内容
-			newPayload := []byte("" + string(oldPayload))
-			resp.Body = ioutil.NopCloser(bytes.NewBuffer(newPayload))
+			//zlog.Debug(string(oldBytes))
+			//newPayload := []byte("" +  strings.Replace(string(oldBytes), "青岛", "**", -1))
+			newPayload := []byte("" + utils.DeSenText(string(oldBytes)))
+
+			finalBytes, _ := switchReplyContentEncoding(resp, newPayload) //utils.GZipEncode(newPayload)
+			//zlog.Debug("转换完",string(finalBytes))
+			resp.Body = io.NopCloser(bytes.NewBuffer(finalBytes))
 
 			// head 修改追加内容
 			resp.ContentLength = int64(len(newPayload))
-			resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(newPayload)), 10))
-		} else {
-			//特定网站和请求url需要特定处理
-			if resp.Request.Host == "mybaidu1.com:8082" && resp.Request.RequestURI == "/admin.php/user/agent_user/edit/id/73.html" {
-
-				//编码转换，自动检测网页编码
-				convertCntReader, _ := switchContentEncoding(resp)
-				bodyReader := bufio.NewReader(convertCntReader)
-				charset := determinePageEncoding(bodyReader)
-
-				reader := transform.NewReader(bodyReader, charset.NewDecoder())
-				oldBytes, err := io.ReadAll(reader)
-				if err != nil {
-					zlog.Error("error", err)
-					return nil
-				}
-
-				// body 追加内容
-				//zlog.Debug(string(oldBytes))
-				//newPayload := []byte("" +  strings.Replace(string(oldBytes), "青岛", "**", -1))
-				newPayload := []byte("" + utils.DeSenText(string(oldBytes)))
-
-				finalBytes, _ := switchReplyContentEncoding(resp, newPayload) //utils.GZipEncode(newPayload)
-				//zlog.Debug("转换完",string(finalBytes))
-				resp.Body = io.NopCloser(bytes.NewBuffer(finalBytes))
-
-				// head 修改追加内容
-				resp.ContentLength = int64(len(newPayload))
-				resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalBytes)), 10))
-			}
+			resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalBytes)), 10))
 		}
-
 		return nil
 	}
 }
@@ -419,6 +411,15 @@ func Start_WAF() {
 			pluginIpRateLimiter = plugin.NewIPRateLimiter(rate.Limit(anticcBean.Rate), anticcBean.Limit)
 		}
 
+		//查询ip白名单
+		var ipwhitelist []model.IPWhiteList
+		global.GWAF_LOCAL_DB.Where("host_code=? ", hosts[i].Code).Find(&ipwhitelist)
+
+		//查询url隐私保护
+		var ldpurls []model.LDPUrl
+		global.GWAF_LOCAL_DB.Where("host_code=? ", hosts[i].Code).Find(&ldpurls)
+
+		//初始化主机host
 		hostsafe := &HostSafe{
 			RevProxy:            nil,
 			Rule:                ruleHelper,
@@ -427,6 +428,8 @@ func Start_WAF() {
 			RuleVersionSum:      vcnt,
 			Host:                hosts[i],
 			pluginIpRateLimiter: pluginIpRateLimiter,
+			IPWhiteLists:        ipwhitelist,
+			LdpUrlLists:         ldpurls,
 		}
 		//赋值到白名单里面
 		hostTarget[hosts[i].Host+":"+strconv.Itoa(hosts[i].Port)] = hostsafe

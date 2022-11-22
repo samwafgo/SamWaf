@@ -46,10 +46,10 @@
             <t-input :style="{ width: '480px' }" v-model="formData.url" placeholder="请输入CC防护url（可不填）"></t-input>
           </t-form-item>
           <t-form-item label="速率" name="rate">
-            <t-input :style="{ width: '480px' }" v-model="formData.rate" placeholder="请输入速率"></t-input>
+            <t-input-number :style="{ width: '480px' }" v-model="formData.rate" placeholder="请输入速率"></t-input-number>
           </t-form-item>
           <t-form-item label="限制次数" name="limit">
-            <t-input :style="{ width: '480px' }" v-model="formData.limit" placeholder="请输入限制"></t-input>
+            <t-input-number :style="{ width: '480px' }" v-model="formData.limit" placeholder="请输入限制"></t-input-number>
           </t-form-item>
           <t-form-item label="备注" name="remarks">
             <t-textarea :style="{ width: '480px' }" v-model="formData.remarks" placeholder="请输入内容" name="remarks">
@@ -72,10 +72,10 @@
             <t-input :style="{ width: '480px' }" v-model="formEditData.host_code" placeholder="请输入网站的网址"></t-input>
           </t-form-item>
           <t-form-item label="速率" name="rate">
-            <t-input :style="{ width: '480px' }" v-model="formEditData.rate" placeholder="请输入速率"></t-input>
+            <t-input-number :style="{ width: '480px' }" v-model="formEditData.rate" placeholder="请输入速率"></t-input-number>
           </t-form-item>
           <t-form-item label="限制次数" name="limit">
-            <t-input :style="{ width: '480px' }" v-model="formEditData.limit" placeholder="请输入限制"></t-input>
+            <t-input-number :style="{ width: '480px' }" v-model="formEditData.limit" placeholder="请输入限制"></t-input-number>
           </t-form-item>
          <t-form-item label="Url" name="url">
            <t-input :style="{ width: '480px' }" v-model="formEditData.url" placeholder="请输入CC防护"></t-input>

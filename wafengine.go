@@ -23,6 +23,7 @@ import (
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/unicode"
 	"golang.org/x/text/transform"
+	"golang.org/x/time/rate"
 	"io"
 	"io/ioutil"
 	"log"
@@ -37,12 +38,14 @@ import (
 
 // 主机安全配置
 type HostSafe struct {
-	RevProxy       *httputil.ReverseProxy
-	Rule           *utils.RuleHelper
-	TargetHost     string
-	RuleData       []model.Rules
-	RuleVersionSum int //规则版本的汇总 通过这个来进行版本动态加载
-	Host           model.Hosts
+	RevProxy            *httputil.ReverseProxy
+	Rule                *utils.RuleHelper
+	TargetHost          string
+	RuleData            []model.Rules
+	RuleVersionSum      int //规则版本的汇总 通过这个来进行版本动态加载
+	Host                model.Hosts
+	AntiCCData          []model.AntiCC        //ip限流数据
+	pluginIpRateLimiter *plugin.IPRateLimiter //ip限流
 }
 
 var (
@@ -62,8 +65,7 @@ var (
 	hostRuleChan = make(chan []model.Rules, 10) //规则链
 	//engineChan   = make(chan int, 10)           //引擎链
 	//hostChan                                  = make(chan model.Hosts, 10)   //主机链
-	engineCurrentStatus int                   = 0 // 当前waf引擎状态
-	pluginIpRateLimiter *plugin.IPRateLimiter     //ip限流
+	engineCurrentStatus int = 0 // 当前waf引擎状态
 
 )
 
@@ -160,7 +162,7 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	//ip计数器
 
-	limiter := pluginIpRateLimiter.GetLimiter(weblogbean.SRC_IP)
+	limiter := hostTarget[host].pluginIpRateLimiter.GetLimiter(weblogbean.SRC_IP)
 	if !limiter.Allow() {
 		weblogbean.RULE = "触发IP频次访问限制"
 		weblogbean.ACTION = "阻止"
@@ -363,9 +365,6 @@ func Start_WAF() {
 
 	global.GWAF_LOCAL_DB.Where("tenant_id = ? and user_code=? ", global.GWAF_TENANT_ID, global.GWAF_USER_CODE).Where("user_code = ?", global.GWAF_USER_CODE).Find(&hosts)
 
-	//初始化插件-ip计数器
-	pluginIpRateLimiter = plugin.NewIPRateLimiter(1, 100)
-
 	//初始化步骤[加载ip数据库]
 	var dbPath = "data/ip2region.xdb"
 	// 1、从 dbPath 加载整个 xdb 到内存
@@ -418,14 +417,25 @@ func Start_WAF() {
 			global.GWAF_LOCAL_DB.Debug().Where("host_code = ? and user_code=? ", hosts[i].Code, global.GWAF_USER_CODE).Find(&ruleconfigs)
 			ruleHelper.LoadRules(ruleconfigs)
 		}
+		//查询ip限流(应该针对一个网址只有一个)
+		var anticcBean model.AntiCC
+
+		global.GWAF_LOCAL_DB.Where("host_code=? ", hosts[i].Code).Limit(1).Find(&anticcBean)
+
+		//初始化插件-ip计数器
+		var pluginIpRateLimiter *plugin.IPRateLimiter
+		if anticcBean.Id != "" {
+			pluginIpRateLimiter = plugin.NewIPRateLimiter(rate.Limit(anticcBean.Rate), anticcBean.Limit)
+		}
 
 		hostsafe := &HostSafe{
-			RevProxy:       nil,
-			Rule:           ruleHelper,
-			TargetHost:     hosts[i].Remote_host + ":" + strconv.Itoa(hosts[i].Remote_port),
-			RuleData:       ruleconfigs,
-			RuleVersionSum: vcnt,
-			Host:           hosts[i],
+			RevProxy:            nil,
+			Rule:                ruleHelper,
+			TargetHost:          hosts[i].Remote_host + ":" + strconv.Itoa(hosts[i].Remote_port),
+			RuleData:            ruleconfigs,
+			RuleVersionSum:      vcnt,
+			Host:                hosts[i],
+			pluginIpRateLimiter: pluginIpRateLimiter,
 		}
 		//赋值到白名单里面
 		hostTarget[hosts[i].Host+":"+strconv.Itoa(hosts[i].Port)] = hostsafe

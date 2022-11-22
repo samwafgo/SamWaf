@@ -249,7 +249,11 @@ func modifyResponse() func(*http.Response) error {
 		ldpFlag := false
 		//隐私保护（待优化性能）
 		for i := 0; i < len(hostTarget[resp.Request.Host].LdpUrlLists); i++ {
-			if hostTarget[resp.Request.Host].LdpUrlLists[i].Url == resp.Request.RequestURI {
+			if (hostTarget[resp.Request.Host].LdpUrlLists[i].CompareType == "等于" && hostTarget[resp.Request.Host].LdpUrlLists[i].Url == resp.Request.RequestURI) ||
+				(hostTarget[resp.Request.Host].LdpUrlLists[i].CompareType == "前缀匹配" && strings.HasPrefix(resp.Request.RequestURI, hostTarget[resp.Request.Host].LdpUrlLists[i].Url)) ||
+				(hostTarget[resp.Request.Host].LdpUrlLists[i].CompareType == "后缀匹配" && strings.HasSuffix(resp.Request.RequestURI, hostTarget[resp.Request.Host].LdpUrlLists[i].Url)) ||
+				(hostTarget[resp.Request.Host].LdpUrlLists[i].CompareType == "包含匹配" && strings.Contains(resp.Request.RequestURI, hostTarget[resp.Request.Host].LdpUrlLists[i].Url)) {
+
 				ldpFlag = true
 				break
 			}

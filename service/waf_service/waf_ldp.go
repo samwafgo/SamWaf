@@ -19,6 +19,7 @@ func (receiver *WafLdpUrlService) AddApi(req request.WafLdpUrlAddReq) error {
 		TenantId:       global.GWAF_TENANT_ID,
 		Id:             uuid.NewV4().String(),
 		HostCode:       req.HostCode,
+		CompareType:    req.CompareType,
 		Url:            req.Url,
 		Remarks:        req.Remarks,
 		CreateTime:     time.Now(),
@@ -43,6 +44,7 @@ func (receiver *WafLdpUrlService) ModifyApi(req request.WafLdpUrlEditReq) error 
 		"Host_Code":        req.HostCode,
 		"Url":              req.Url,
 		"Remarks":          req.Remarks,
+		"Compare_Type":     req.CompareType,
 		"last_update_time": time.Now(),
 	}
 	err := global.GWAF_LOCAL_DB.Debug().Model(model.LDPUrl{}).Where("id = ?", req.Id).Updates(ipWhiteMap).Error

@@ -122,8 +122,8 @@
   const INITIAL_DATA = {
     host_code: '',
     url: '',
-    rate: '1',
-    limit: '300',
+    rate: 1,
+    limit: 30,
     remarks: '',
   };
   export default Vue.extend({
@@ -328,7 +328,7 @@
           url: '',
           remarks: '',
           rate:1,
-          limit:300
+          limit:30
         };
       },
       onSubmit({

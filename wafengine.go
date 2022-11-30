@@ -165,7 +165,12 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var jumpGuardFlag = false
 		//ip白名单策略（待优化性能）
 		if hostTarget[host].IPWhiteLists != nil {
-
+			for i := 0; i < len(hostTarget[host].IPWhiteLists); i++ {
+				if hostTarget[host].IPWhiteLists[i].Ip == weblogbean.SRC_IP {
+					jumpGuardFlag = true
+					break
+				}
+			}
 		}
 
 		if jumpGuardFlag == false {

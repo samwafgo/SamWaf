@@ -1,10 +1,12 @@
 package api
 
 import (
+	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
+	"SamWaf/model/spec"
 	"errors"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -74,7 +76,7 @@ func (w *WafBlockUrlApi) DelBlockUrlApi(c *gin.Context) {
 			response.FailWithMessage("发生错误", c)
 		} else {
 			w.NotifyWaf(bean.HostCode)
-			response.FailWithMessage("删除成功", c)
+			response.OkWithMessage("删除成功", c)
 		}
 
 	} else {
@@ -106,5 +108,10 @@ func (w *WafBlockUrlApi) ModifyBlockUrlApi(c *gin.Context) {
 func (w *WafBlockUrlApi) NotifyWaf(host_code string) {
 	var urlWhites []model.URLBlockList
 	global.GWAF_LOCAL_DB.Debug().Where("host_code = ? ", host_code).Find(&urlWhites)
-	global.GWAF_CHAN_UrlBlock <- urlWhites
+	var chanInfo = spec.ChanCommonHost{
+		HostCode: host_code,
+		Type:     enums.ChanTypeBlockURL,
+		Content:  urlWhites,
+	}
+	global.GWAF_CHAN_MSG <- chanInfo
 }

@@ -1,10 +1,12 @@
 package api
 
 import (
+	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
+	"SamWaf/model/spec"
 	"errors"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -106,8 +108,11 @@ func (w *WafAntiCCApi) ModifyAntiCCApi(c *gin.Context) {
 func (w *WafAntiCCApi) NotifyWaf(host_code string) {
 	var antiCC model.AntiCC
 	global.GWAF_LOCAL_DB.Debug().Where("host_code = ? ", host_code).Limit(1).Find(&antiCC)
-	if antiCC.Id != "" {
-		global.GWAF_CHAN_ANTICC <- antiCC
+	var chanInfo = spec.ChanCommonHost{
+		HostCode: host_code,
+		Type:     enums.ChanTypeAnticc,
+		Content:  antiCC,
 	}
+	global.GWAF_CHAN_MSG <- chanInfo
 
 }

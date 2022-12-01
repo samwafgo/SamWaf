@@ -1,10 +1,12 @@
 package api
 
 import (
+	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
+	"SamWaf/model/spec"
 	"SamWaf/utils"
 	"errors"
 	"github.com/gin-gonic/gin"
@@ -164,5 +166,10 @@ func (w *WafRuleAPi) ModifyRuleApi(c *gin.Context) {
 func (w *WafRuleAPi) NotifyWaf(host_code string) {
 	var ruleconfig []model.Rules
 	global.GWAF_LOCAL_DB.Debug().Where("host_code = ? ", host_code).Find(&ruleconfig)
-	global.GWAF_CHAN_RULE <- ruleconfig
+	var chanInfo = spec.ChanCommonHost{
+		HostCode: host_code,
+		Type:     enums.ChanTypeRule,
+		Content:  ruleconfig,
+	}
+	global.GWAF_CHAN_MSG <- chanInfo
 }

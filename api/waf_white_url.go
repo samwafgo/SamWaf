@@ -1,10 +1,12 @@
 package api
 
 import (
+	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
+	"SamWaf/model/spec"
 	"errors"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -74,7 +76,7 @@ func (w *WafWhiteUrlApi) DelWhiteUrlApi(c *gin.Context) {
 			response.FailWithMessage("发生错误", c)
 		} else {
 			w.NotifyWaf(bean.HostCode)
-			response.FailWithMessage("删除成功", c)
+			response.OkWithMessage("删除成功", c)
 		}
 
 	} else {
@@ -106,5 +108,10 @@ func (w *WafWhiteUrlApi) ModifyWhiteUrlApi(c *gin.Context) {
 func (w *WafWhiteUrlApi) NotifyWaf(host_code string) {
 	var urlWhites []model.URLWhiteList
 	global.GWAF_LOCAL_DB.Debug().Where("host_code = ? ", host_code).Find(&urlWhites)
-	global.GWAF_CHAN_UrlWhite <- urlWhites
+	var chanInfo = spec.ChanCommonHost{
+		HostCode: host_code,
+		Type:     enums.ChanTypeWhiteURL,
+		Content:  urlWhites,
+	}
+	global.GWAF_CHAN_MSG <- chanInfo
 }

@@ -431,9 +431,8 @@
               id: id,
             }
           })
-          .then((res) => {
-            let resdata = res.data
-            console.log(resdata)
+          .then((res) => { 
+            let resdata = res 
             if (resdata.code === 0) {
 
               that.pagination.current = 1

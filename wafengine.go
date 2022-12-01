@@ -186,8 +186,8 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if hostTarget[host].IPBlockLists != nil {
 			for i := 0; i < len(hostTarget[host].IPBlockLists); i++ {
 				if hostTarget[host].IPBlockLists[i].Ip == weblogbean.SRC_IP {
-					jumpGuardFlag = true
-					break
+					EchoErrorInfo(w, r, weblogbean, "IP黑名单", "您的访问被阻止了IP限制")
+					return
 				}
 			}
 		}
@@ -195,8 +195,8 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if hostTarget[host].UrlBlockLists != nil {
 			for i := 0; i < len(hostTarget[host].UrlBlockLists); i++ {
 				if hostTarget[host].UrlBlockLists[i].Url == weblogbean.URL {
-					jumpGuardFlag = true
-					break
+					EchoErrorInfo(w, r, weblogbean, "URL黑名单", "您的访问被阻止了URL限制")
+					return
 				}
 			}
 		}
@@ -209,8 +209,9 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					weblogbean.RULE = "触发IP频次访问限制"
 					weblogbean.ACTION = "阻止"
 					global.GWAF_LOCAL_DB.Create(weblogbean)
-					w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止超量了</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
-					zlog.Debug("触发IP频次访问限制 已经被限制访问了")
+					//w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止超量了</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
+					//zlog.Debug("触发IP频次访问限制 已经被限制访问了")
+					EchoErrorInfo(w, r, weblogbean, "触发IP频次访问限制", "您的访问被阻止超量了")
 					return
 				}
 			}
@@ -231,8 +232,8 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					expiration = expiration.AddDate(1, 0, 0)
 					cookie := http.Cookie{Name: "IDENFY", Value: weblogbean.REQ_UUID, Expires: expiration}
 					http.SetCookie(w, &cookie)*/
-					w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止触发规则</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
-
+					//w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止触发规则</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
+					EchoErrorInfo(w, r, weblogbean, rulestr, "您的访问被阻止触发规则")
 					return
 				}
 			} else {
@@ -267,6 +268,13 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		weblogbean.ACTION = "禁止"
 		global.GWAF_LOCAL_DB.Create(weblogbean)
 	}
+}
+func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean innerbean.WebLog, ruleName string, blockInfo string) {
+	weblogbean.RULE = ruleName
+	weblogbean.ACTION = "阻止"
+	global.GWAF_LOCAL_DB.Create(weblogbean)
+	w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>" + blockInfo + "</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
+	zlog.Debug(ruleName)
 }
 func errorHandler() func(http.ResponseWriter, *http.Request, error) {
 	return func(w http.ResponseWriter, req *http.Request, err error) {

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"SamWaf/enums"
 	"SamWaf/global"
+	"SamWaf/model"
 	"SamWaf/plugin"
 	"SamWaf/utils/zlog"
 	dlp "github.com/bytedance/godlp"
@@ -61,36 +63,41 @@ func main() {
 	global.GWAF_DLP.ApplyConfigDefault()
 	for {
 		select {
-		case remoteConfig := <-global.GWAF_CHAN_RULE:
-			//TODO 需要把删除的那部分数据从数据口里面去掉
-			hostTarget[hostCode[remoteConfig[0].HostCode]].RuleData = remoteConfig
-			hostTarget[hostCode[remoteConfig[0].HostCode]].Rule.LoadRules(remoteConfig)
-			zlog.Debug("远程配置", zap.Any("remoteConfig", remoteConfig))
-			break
-		case remoteAntiCC := <-global.GWAF_CHAN_ANTICC:
-			hostTarget[hostCode[remoteAntiCC.HostCode]].pluginIpRateLimiter = plugin.NewIPRateLimiter(rate.Limit(remoteAntiCC.Rate), remoteAntiCC.Limit)
-			zlog.Debug("远程配置", zap.Any("remoteAntiCC", remoteAntiCC))
-			break
-		case remoteUrlWhite := <-global.GWAF_CHAN_UrlWhite:
-			hostTarget[hostCode[remoteUrlWhite[0].HostCode]].UrlWhiteLists = remoteUrlWhite
-			zlog.Debug("远程配置", zap.Any("UrlWhiteLists", remoteUrlWhite))
-			break
-		case remoteIpWhite := <-global.GWAF_CHAN_IpWhite:
-			hostTarget[hostCode[remoteIpWhite[0].HostCode]].IPWhiteLists = remoteIpWhite
-			zlog.Debug("远程配置", zap.Any("IPWhiteLists", remoteIpWhite))
-			break
-		case remoteLdpUrls := <-global.GWAF_CHAN_LdpUrl:
-			hostTarget[hostCode[remoteLdpUrls[0].HostCode]].LdpUrlLists = remoteLdpUrls
-			zlog.Debug("远程配置", zap.Any("LdpUrlLists", remoteLdpUrls))
-			break
-		case remoteUrlBlock := <-global.GWAF_CHAN_UrlBlock:
-			hostTarget[hostCode[remoteUrlBlock[0].HostCode]].UrlBlockLists = remoteUrlBlock
-			zlog.Debug("远程配置", zap.Any("UrlBlockLists", remoteUrlBlock))
-			break
-		case remoteIpBlock := <-global.GWAF_CHAN_IpBlock:
-			hostTarget[hostCode[remoteIpBlock[0].HostCode]].IPBlockLists = remoteIpBlock
-			zlog.Debug("远程配置", zap.Any("IPBlockLists", remoteIpBlock))
-			break
+		case msg := <-global.GWAF_CHAN_MSG:
+			switch msg.Type {
+			case enums.ChanTypeWhiteIP:
+				hostTarget[hostCode[msg.HostCode]].IPWhiteLists = msg.Content.([]model.IPWhiteList)
+				zlog.Debug("远程配置", zap.Any("IPWhiteLists", msg.Content.([]model.IPWhiteList)))
+				break
+			case enums.ChanTypeWhiteURL:
+				hostTarget[hostCode[msg.HostCode]].UrlWhiteLists = msg.Content.([]model.URLWhiteList)
+				zlog.Debug("远程配置", zap.Any("UrlWhiteLists", msg.Content.([]model.URLWhiteList)))
+				break
+			case enums.ChanTypeBlockIP:
+				hostTarget[hostCode[msg.HostCode]].IPBlockLists = msg.Content.([]model.IPBlockList)
+				zlog.Debug("远程配置", zap.Any("IPBlockLists", msg))
+				break
+			case enums.ChanTypeBlockURL:
+				hostTarget[hostCode[msg.HostCode]].UrlBlockLists = msg.Content.([]model.URLBlockList)
+				zlog.Debug("远程配置", zap.Any("UrlBlockLists", msg.Content.([]model.URLBlockList)))
+				break
+			case enums.ChanTypeLdp:
+				hostTarget[hostCode[msg.HostCode]].LdpUrlLists = msg.Content.([]model.LDPUrl)
+				zlog.Debug("远程配置", zap.Any("LdpUrlLists", msg.Content.([]model.LDPUrl)))
+				break
+			case enums.ChanTypeRule:
+				hostTarget[hostCode[msg.HostCode]].RuleData = msg.Content.([]model.Rules)
+				hostTarget[hostCode[msg.HostCode]].Rule.LoadRules(msg.Content.([]model.Rules))
+				zlog.Debug("远程配置", zap.Any("Rule", msg.Content.([]model.Rules)))
+				break
+			case enums.ChanTypeAnticc:
+				hostTarget[hostCode[msg.HostCode]].pluginIpRateLimiter = plugin.NewIPRateLimiter(rate.Limit(msg.Content.(model.AntiCC).Rate), msg.Content.(model.AntiCC).Limit)
+				zlog.Debug("远程配置", zap.Any("Anticc", msg.Content.(model.AntiCC)))
+				break
+
+			case enums.ChanTypeHost: //此处待定
+				break
+			} //end switch
 		case engineStatus := <-global.GWAF_CHAN_ENGINE:
 			if engineStatus == 1 {
 				zlog.Info("准备关闭WAF引擎")

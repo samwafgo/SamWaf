@@ -2,6 +2,7 @@ package global
 
 import (
 	"SamWaf/model"
+	"SamWaf/model/spec"
 	"github.com/bytedance/godlp/dlpheader"
 	"gorm.io/gorm"
 	"time"
@@ -27,8 +28,11 @@ var (
 	GWAF_CHAN_RULE     = make(chan []model.Rules, 10)        //规则链
 	GWAF_CHAN_ANTICC   = make(chan model.AntiCC, 10)         //抵御CC链
 	GWAF_CHAN_UrlWhite = make(chan []model.URLWhiteList, 10) //URL白名单链
-	GWAF_CHAN_IpWhite  = make(chan []model.IPWhiteList, 10)  //IP白名单链
+	GWAF_CHAN_IpWhite  = make(chan spec.ChanCommonHost, 10)  //IP白名单链
 	GWAF_CHAN_LdpUrl   = make(chan []model.LDPUrl, 10)       //URL隐私保护链
 	GWAF_CHAN_UrlBlock = make(chan []model.URLBlockList, 10) //URL阻止链
-	GWAF_CHAN_IpBlock  = make(chan []model.IPBlockList, 10)  //IP阻止链
+	GWAF_CHAN_IpBlock  = make(chan spec.ChanCommonHost, 10)  //IP阻止链
+
+	GWAF_CHAN_MSG = make(chan spec.ChanCommonHost, 10) //全局通讯工具
+
 )

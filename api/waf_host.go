@@ -125,3 +125,18 @@ func (w *WafHostAPi) ModifyGuardStatusApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+/*
+*
+通知到waf引擎实时生效(TODO 此处如果是删除 应该是解除所有相关的，如果是新增编辑等？)
+*/
+func (w *WafHostAPi) NotifyWaf(host_code string) {
+	/*var idpUrls []model.Hosts
+	global.GWAF_LOCAL_DB.Debug().Where("host_code = ? ", host_code).Find(&idpUrls)
+	var chanInfo = spec.ChanCommonHost{
+		HostCode: host_code,
+		Type:     enums.ChanTypeHost,
+		Content:  idpUrls,
+	}
+	global.GWAF_CHAN_MSG <- chanInfo*/
+}

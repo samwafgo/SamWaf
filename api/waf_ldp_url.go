@@ -1,10 +1,12 @@
 package api
 
 import (
+	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
+	"SamWaf/model/spec"
 	"errors"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -74,7 +76,7 @@ func (w *WafLdpUrlApi) DelLdpUrlApi(c *gin.Context) {
 			response.FailWithMessage("发生错误", c)
 		} else {
 			w.NotifyWaf(bean.HostCode)
-			response.FailWithMessage("删除成功", c)
+			response.OkWithMessage("删除成功", c)
 		}
 
 	} else {
@@ -106,5 +108,10 @@ func (w *WafLdpUrlApi) ModifyLdpUrlApi(c *gin.Context) {
 func (w *WafLdpUrlApi) NotifyWaf(host_code string) {
 	var idpUrls []model.LDPUrl
 	global.GWAF_LOCAL_DB.Debug().Where("host_code = ? ", host_code).Find(&idpUrls)
-	global.GWAF_CHAN_LdpUrl <- idpUrls
+	var chanInfo = spec.ChanCommonHost{
+		HostCode: host_code,
+		Type:     enums.ChanTypeLdp,
+		Content:  idpUrls,
+	}
+	global.GWAF_CHAN_MSG <- chanInfo
 }

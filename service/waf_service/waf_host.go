@@ -99,3 +99,9 @@ func (receiver *WafHostService) ModifyGuardStatusApi(req request.WafHostGuardSta
 	err := global.GWAF_LOCAL_DB.Debug().Model(model.Hosts{}).Where("CODE=?", req.CODE).Updates(hostMap).Error
 	return err
 }
+
+func (receiver *WafHostService) GetAllHostApi() []model.Hosts {
+	var webHosts []model.Hosts
+	global.GWAF_LOCAL_DB.Debug().Find(&webHosts)
+	return webHosts
+}

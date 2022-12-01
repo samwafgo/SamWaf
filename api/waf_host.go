@@ -4,6 +4,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
+	response2 "SamWaf/model/response"
 	"errors"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -60,6 +61,18 @@ func (w *WafHostAPi) GetListApi(c *gin.Context) {
 	} else {
 		response.FailWithMessage("解析失败", c)
 	}
+}
+func (w *WafHostAPi) GetAllListApi(c *gin.Context) {
+	wafHosts := wafHostService.GetAllHostApi()
+	allHostRep := make([]response2.AllHostRep, len(wafHosts)) // 创建数组
+	for i, _ := range wafHosts {
+
+		allHostRep[i] = response2.AllHostRep{
+			Host: wafHosts[i].Host,
+			Code: wafHosts[i].Code,
+		}
+	}
+	response.OkWithDetailed(allHostRep, "获取成功", c)
 }
 func (w *WafHostAPi) DelHostApi(c *gin.Context) {
 	var req request.WafHostDelReq

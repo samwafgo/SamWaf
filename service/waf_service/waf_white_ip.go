@@ -54,6 +54,11 @@ func (receiver *WafWhiteIpService) GetDetailApi(req request.WafWhiteIpDetailReq)
 	global.GWAF_LOCAL_DB.Debug().Where("id=?", req.Id).Find(&ipWhite)
 	return ipWhite
 }
+func (receiver *WafWhiteIpService) GetDetailByIdApi(id string) model.IPWhiteList {
+	var ipWhite model.IPWhiteList
+	global.GWAF_LOCAL_DB.Debug().Where("id=?", id).Find(&ipWhite)
+	return ipWhite
+}
 func (receiver *WafWhiteIpService) GetListApi(req request.WafWhiteIpSearchReq) ([]model.IPWhiteList, int64, error) {
 	var ipWhites []model.IPWhiteList
 	var total int64 = 0

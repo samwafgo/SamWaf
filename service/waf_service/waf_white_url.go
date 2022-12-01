@@ -54,6 +54,11 @@ func (receiver *WafWhiteUrlService) GetDetailApi(req request.WafWhiteUrlDetailRe
 	global.GWAF_LOCAL_DB.Debug().Where("id=?", req.Id).Find(&bean)
 	return bean
 }
+func (receiver *WafWhiteUrlService) GetDetailByIdApi(id string) model.URLWhiteList {
+	var bean model.URLWhiteList
+	global.GWAF_LOCAL_DB.Debug().Where("id=?", id).Find(&bean)
+	return bean
+}
 func (receiver *WafWhiteUrlService) GetListApi(req request.WafWhiteUrlSearchReq) ([]model.URLWhiteList, int64, error) {
 	var ipWhites []model.URLWhiteList
 	var total int64 = 0

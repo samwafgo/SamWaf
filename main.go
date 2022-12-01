@@ -2,11 +2,12 @@ package main
 
 import (
 	"SamWaf/global"
-	"SamWaf/model"
+	"SamWaf/plugin"
 	"SamWaf/utils/zlog"
 	dlp "github.com/bytedance/godlp"
 	"github.com/go-co-op/gocron"
 	"go.uber.org/zap"
+	"golang.org/x/time/rate"
 	"net/http"
 	"strconv"
 	"time"
@@ -42,37 +43,7 @@ func main() {
 		StartLocalServer()
 	}()
 
-	//定时取规则并更新
-	go func() {
-
-		for {
-			for code, host := range hostCode {
-				if engineCurrentStatus == 0 {
-					zlog.Info("引擎已关闭，放弃提取规则")
-					continue
-				}
-				var vcnt int
-				global.GWAF_LOCAL_DB.Model(&model.Rules{}).Where("host_code = ?",
-					code).Select("sum(rule_version) as vcnt").Row().Scan(&vcnt)
-				//zlog.Debug("主机host" + code + " 版本" + strconv.Itoa(vcnt))
-				var ruleconfig []model.Rules
-				if vcnt > 0 {
-					global.GWAF_LOCAL_DB.Debug().Where("host_code = ? ", code).Find(&ruleconfig)
-					if vcnt > hostTarget[host].RuleVersionSum {
-						zlog.Debug("主机host" + code + " 有最新规则")
-						hostTarget[host].RuleVersionSum = vcnt
-						//说明该code有更新
-						hostRuleChan <- ruleconfig
-
-					}
-				}
-
-			}
-			time.Sleep(10 * time.Second) // 10s重新读取一次
-
-		}
-
-	}()
+	//定时取规则并更新（考虑后期定时拉取公共规则 待定，可能会影响实际生产）
 
 	//定时器
 	timezone, _ := time.LoadLocation("Asia/Shanghai")
@@ -90,13 +61,28 @@ func main() {
 	global.GWAF_DLP.ApplyConfigDefault()
 	for {
 		select {
-		case remoteConfig := <-hostRuleChan:
+		case remoteConfig := <-global.GWAF_CHAN_RULE:
 			//TODO 需要把删除的那部分数据从数据口里面去掉
 			hostTarget[hostCode[remoteConfig[0].HostCode]].RuleData = remoteConfig
 			hostTarget[hostCode[remoteConfig[0].HostCode]].Rule.LoadRules(remoteConfig)
 			zlog.Debug("远程配置", zap.Any("remoteConfig", remoteConfig))
 			break
-
+		case remoteAntiCC := <-global.GWAF_CHAN_ANTICC:
+			hostTarget[hostCode[remoteAntiCC.HostCode]].pluginIpRateLimiter = plugin.NewIPRateLimiter(rate.Limit(remoteAntiCC.Rate), remoteAntiCC.Limit)
+			zlog.Debug("远程配置", zap.Any("remoteAntiCC", remoteAntiCC))
+			break
+		case remoteUrlWhite := <-global.GWAF_CHAN_UrlWhite:
+			hostTarget[hostCode[remoteUrlWhite[0].HostCode]].UrlWhiteLists = remoteUrlWhite
+			zlog.Debug("远程配置", zap.Any("UrlWhiteLists", remoteUrlWhite))
+			break
+		case remoteIpWhite := <-global.GWAF_CHAN_IpWhite:
+			hostTarget[hostCode[remoteIpWhite[0].HostCode]].IPWhiteLists = remoteIpWhite
+			zlog.Debug("远程配置", zap.Any("IPWhiteLists", remoteIpWhite))
+			break
+		case remoteLdpUrls := <-global.GWAF_CHAN_LdpUrl:
+			hostTarget[hostCode[remoteLdpUrls[0].HostCode]].LdpUrlLists = remoteLdpUrls
+			zlog.Debug("远程配置", zap.Any("LdpUrlLists", remoteLdpUrls))
+			break
 		case engineStatus := <-global.GWAF_CHAN_ENGINE:
 			if engineStatus == 1 {
 				zlog.Info("准备关闭WAF引擎")

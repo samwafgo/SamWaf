@@ -58,6 +58,11 @@ func (receiver *WafAntiCCService) GetDetailApi(req request.WafAntiCCDetailReq) m
 	global.GWAF_LOCAL_DB.Debug().Where("id=?", req.Id).Find(&bean)
 	return bean
 }
+func (receiver *WafAntiCCService) GetDetailByIdApi(id string) model.AntiCC {
+	var bean model.AntiCC
+	global.GWAF_LOCAL_DB.Debug().Where("id=?", id).Find(&bean)
+	return bean
+}
 func (receiver *WafAntiCCService) GetListApi(req request.WafAntiCCSearchReq) ([]model.AntiCC, int64, error) {
 	var ipWhites []model.AntiCC
 	var total int64 = 0

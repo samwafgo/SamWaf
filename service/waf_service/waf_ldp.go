@@ -56,6 +56,11 @@ func (receiver *WafLdpUrlService) GetDetailApi(req request.WafLdpUrlDetailReq) m
 	global.GWAF_LOCAL_DB.Debug().Where("id=?", req.Id).Find(&bean)
 	return bean
 }
+func (receiver *WafLdpUrlService) GetDetailByIdApi(id string) model.LDPUrl {
+	var bean model.LDPUrl
+	global.GWAF_LOCAL_DB.Debug().Where("id=?", id).Find(&bean)
+	return bean
+}
 func (receiver *WafLdpUrlService) GetListApi(req request.WafLdpUrlSearchReq) ([]model.LDPUrl, int64, error) {
 	var ipWhites []model.LDPUrl
 	var total int64 = 0

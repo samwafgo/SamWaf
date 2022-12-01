@@ -1,6 +1,7 @@
 package api
 
 import (
+	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
@@ -47,7 +48,7 @@ func (w *WafRuleAPi) AddApi(c *gin.Context) {
 
 		err = wafRuleService.AddApi(req, ruleCode, chsName, ruleInfo.RuleBase.RuleDomainCode, ruleContent)
 		if err == nil {
-
+			w.NotifyWaf(ruleInfo.RuleBase.RuleDomainCode)
 			response.OkWithMessage("添加成功", c)
 		} else {
 
@@ -102,12 +103,14 @@ func (w *WafRuleAPi) DelRuleApi(c *gin.Context) {
 	var req request.WafRuleDelReq
 	err := c.ShouldBind(&req)
 	if err == nil {
+		wafRule := wafRuleService.GetDetailByCodeApi(req.CODE)
 		err = wafRuleService.DelRuleApi(req)
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 			response.FailWithMessage("请检测参数", c)
 		} else if err != nil {
 			response.FailWithMessage("发生错误", c)
 		} else {
+			w.NotifyWaf(wafRule.HostCode)
 			response.OkWithMessage("删除成功", c)
 		}
 
@@ -145,10 +148,21 @@ func (w *WafRuleAPi) ModifyRuleApi(c *gin.Context) {
 		if err != nil {
 			response.FailWithMessage("编辑发生错误", c)
 		} else {
+			w.NotifyWaf(ruleInfo.RuleBase.RuleDomainCode)
 			response.OkWithMessage("编辑成功", c)
 		}
 
 	} else {
 		response.FailWithMessage("解析失败", c)
 	}
+}
+
+/*
+*
+通知到waf引擎实时生效
+*/
+func (w *WafRuleAPi) NotifyWaf(host_code string) {
+	var ruleconfig []model.Rules
+	global.GWAF_LOCAL_DB.Debug().Where("host_code = ? ", host_code).Find(&ruleconfig)
+	global.GWAF_CHAN_RULE <- ruleconfig
 }

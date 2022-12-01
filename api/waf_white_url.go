@@ -1,6 +1,8 @@
 package api
 
 import (
+	"SamWaf/global"
+	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	"errors"
@@ -19,7 +21,7 @@ func (w *WafWhiteUrlApi) AddApi(c *gin.Context) {
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 			err = wafUrlWhiteService.AddApi(req)
 			if err == nil {
-
+				w.NotifyWaf(req.HostCode)
 				response.OkWithMessage("添加成功", c)
 			} else {
 
@@ -64,12 +66,14 @@ func (w *WafWhiteUrlApi) DelWhiteUrlApi(c *gin.Context) {
 	var req request.WafWhiteUrlDelReq
 	err := c.ShouldBind(&req)
 	if err == nil {
+		bean := wafUrlWhiteService.GetDetailByIdApi(req.Id)
 		err = wafUrlWhiteService.DelApi(req)
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 			response.FailWithMessage("请检测参数", c)
 		} else if err != nil {
 			response.FailWithMessage("发生错误", c)
 		} else {
+			w.NotifyWaf(bean.HostCode)
 			response.FailWithMessage("删除成功", c)
 		}
 
@@ -86,10 +90,21 @@ func (w *WafWhiteUrlApi) ModifyWhiteUrlApi(c *gin.Context) {
 		if err != nil {
 			response.FailWithMessage("编辑发生错误", c)
 		} else {
+			w.NotifyWaf(req.HostCode)
 			response.OkWithMessage("编辑成功", c)
 		}
 
 	} else {
 		response.FailWithMessage("解析失败", c)
 	}
+}
+
+/*
+*
+通知到waf引擎实时生效
+*/
+func (w *WafWhiteUrlApi) NotifyWaf(host_code string) {
+	var urlWhites []model.URLWhiteList
+	global.GWAF_LOCAL_DB.Debug().Where("host_code = ? ", host_code).Find(&urlWhites)
+	global.GWAF_CHAN_UrlWhite <- urlWhites
 }

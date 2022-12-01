@@ -45,6 +45,7 @@ type HostSafe struct {
 	Host                model.Hosts
 	pluginIpRateLimiter *plugin.IPRateLimiter //ip限流
 	IPWhiteLists        []model.IPWhiteList   //ip 白名单
+	UrlWhiteLists       []model.URLWhiteList  //url 白名单
 	LdpUrlLists         []model.LDPUrl        //url 隐私保护
 }
 
@@ -61,10 +62,7 @@ var (
 	//allCertificate = map[int] map[string] string{}
 	esHelper utils.EsHelper
 
-	phttphandler *baseHandle
-	hostRuleChan = make(chan []model.Rules, 10) //规则链
-	//engineChan   = make(chan int, 10)           //引擎链
-	//hostChan                                  = make(chan model.Hosts, 10)   //主机链
+	phttphandler        *baseHandle
 	engineCurrentStatus int = 0 // 当前waf引擎状态
 
 )
@@ -167,6 +165,15 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if hostTarget[host].IPWhiteLists != nil {
 			for i := 0; i < len(hostTarget[host].IPWhiteLists); i++ {
 				if hostTarget[host].IPWhiteLists[i].Ip == weblogbean.SRC_IP {
+					jumpGuardFlag = true
+					break
+				}
+			}
+		}
+		//url白名单策略（待优化性能）
+		if hostTarget[host].UrlWhiteLists != nil {
+			for i := 0; i < len(hostTarget[host].UrlWhiteLists); i++ {
+				if hostTarget[host].UrlWhiteLists[i].Url == weblogbean.URL {
 					jumpGuardFlag = true
 					break
 				}
@@ -422,6 +429,10 @@ func Start_WAF() {
 		var ipwhitelist []model.IPWhiteList
 		global.GWAF_LOCAL_DB.Where("host_code=? ", hosts[i].Code).Find(&ipwhitelist)
 
+		//查询url白名单
+		var urlwhitelist []model.URLWhiteList
+		global.GWAF_LOCAL_DB.Where("host_code=? ", hosts[i].Code).Find(&urlwhitelist)
+
 		//查询url隐私保护
 		var ldpurls []model.LDPUrl
 		global.GWAF_LOCAL_DB.Where("host_code=? ", hosts[i].Code).Find(&ldpurls)
@@ -436,6 +447,7 @@ func Start_WAF() {
 			Host:                hosts[i],
 			pluginIpRateLimiter: pluginIpRateLimiter,
 			IPWhiteLists:        ipwhitelist,
+			UrlWhiteLists:       urlwhitelist,
 			LdpUrlLists:         ldpurls,
 		}
 		//赋值到白名单里面

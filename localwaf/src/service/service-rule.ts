@@ -4,7 +4,7 @@ export const RULE = {
   rule_base: {
     salience: 10,
     rule_name: "试试",
-    rule_domain_code: "CODDD",
+    rule_domain_code: "请选择网站",
   },
   rule_condition: {
     relation_detail: [{

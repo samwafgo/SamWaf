@@ -7,8 +7,13 @@
         <t-form-item label="规则名称" name="rule_name">
           <t-input placeholder="请输入内容" v-model="formData.rule_base.rule_name" />
         </t-form-item>
-        <t-form-item label="防护网站" name="rule_domain_code">
-          <t-input placeholder="请输入内容" v-model="formData.rule_base.rule_domain_code" />
+        <t-form-item label="防护网站" name="rule_domain_code"> 
+          <t-select v-model="formData.rule_base.rule_domain_code" clearable :style="{ width: '480px' }">
+              <t-option v-for="(item, index) in host_options" :value="item.value" :label="item.label"
+                :key="index">
+                {{ item.label }}
+              </t-option>
+            </t-select> 
         </t-form-item>
         <t-form-item label="防护级别" name="salience">
           <t-input placeholder="请输入内容" v-model="formData.rule_base.salience" />
@@ -290,7 +295,9 @@
   } from '@/service/service-rule';
   import { copyObj } from '@/utils/usuallytool';
   import writeRule from "@/components/write-rule/index.vue";
-
+  import {
+    allhost
+  } from '@/apis/host';
 
   export default {
     name: 'WafRuleEdit',
@@ -393,6 +400,8 @@
           ...RULE
         },
 
+        //主机列表
+        host_options:[]
       };
     },
     beforeRouteUpdate(to, from) {
@@ -400,6 +409,8 @@
     },
     mounted() {
       let that = this
+      
+      this.loadHostList()
       console.log('----mounted----')
       console.log(RULE)
       this.$bus.$on('codeedit', (e) => {
@@ -444,8 +455,20 @@
         this.getDetail(newVal)
       },
     },
-    methods: {
-
+    methods: { 
+      loadHostList(){
+        let that = this;
+        allhost().then((res) => {
+              let resdata = res
+              console.log(resdata)
+              if (resdata.code === 0) {
+                  that.host_options = resdata.data;
+              }
+            })
+            .catch((e: Error) => {
+              console.log(e);
+        })
+      },
       getDetail(id) {
         let that = this
         this.$request

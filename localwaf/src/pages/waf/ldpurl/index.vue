@@ -39,8 +39,13 @@
       <div slot="body">
         <!-- 表单内容 -->
         <t-form :data="formData" ref="form" :rules="rules" @submit="onSubmit" :labelWidth="100">
-          <t-form-item label="网站" name="host_code">
-            <t-input :style="{ width: '480px' }" v-model="formData.host_code" placeholder="请输入网站的网址"></t-input>
+          <t-form-item label="网站" name="host_code"> 
+            <t-select v-model="formData.host_code" clearable :style="{ width: '480px' }">
+              <t-option v-for="(item, index) in host_options" :value="item.value" :label="item.label"
+                :key="index">
+                {{ item.label }}
+              </t-option>
+            </t-select> 
           </t-form-item>
           <t-form-item label="匹配方式" name="compare_type">
             <t-select v-model="formData.compare_type" clearable :style="{ width: '480px' }">
@@ -71,7 +76,12 @@
         <!-- 表单内容 -->
         <t-form :data="formEditData" ref="form" :rules="rules" @submit="onSubmitEdit" :labelWidth="100">
           <t-form-item label="网站" name="host_code">
-            <t-input :style="{ width: '480px' }" v-model="formEditData.host_code" placeholder="请输入网站的网址"></t-input>
+            <t-select v-model="formEditData.host_code" clearable :style="{ width: '480px' }">
+              <t-option v-for="(item, index) in host_options" :value="item.value" :label="item.label"
+                :key="index">
+                {{ item.label }}
+              </t-option>
+            </t-select>  
           </t-form-item>
           <t-form-item label="匹配方式" name="compare_type">
             <t-select v-model="formEditData.compare_type" clearable :style="{ width: '480px' }">
@@ -111,8 +121,8 @@
     prefix
   } from '@/config/global';
   import {
-    attacklogList
-  } from '@/apis/waflog/attacklog';
+    allhost
+  } from '@/apis/host';
 
   import {
     SSL_STATUS,
@@ -246,6 +256,8 @@
         //索引区域
         deleteIdx: -1,
         guardStatusIdx :-1,
+        //主机列表
+        host_options:[]
       };
     },
     computed: {
@@ -263,10 +275,24 @@
       },
     },
     mounted() {
-      this.getList("")
+      this.getList("") 
+      this.loadHostList()
     },
 
     methods: {
+      loadHostList(){
+        let that = this;
+        allhost().then((res) => {
+              let resdata = res
+              console.log(resdata)
+              if (resdata.code === 0) {
+                  that.host_options = resdata.data;
+              }
+            })
+            .catch((e: Error) => {
+              console.log(e);
+        })
+      },
       getList(keyword) {
         let that = this
         this.$request

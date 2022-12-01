@@ -31,6 +31,10 @@ func InitDb() {
 		db.AutoMigrate(&model.IPWhiteList{})
 		db.AutoMigrate(&model.URLWhiteList{})
 
+		//限制处理
+		db.AutoMigrate(&model.IPBlockList{})
+		db.AutoMigrate(&model.URLBlockList{})
+
 		//抵抗CC
 		db.AutoMigrate(&model.AntiCC{})
 

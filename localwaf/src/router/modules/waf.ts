@@ -81,7 +81,37 @@ export default [
         name: 'WafUrlWhiteDetail',
         component: () => import('@/pages/waf/urlwhite/detail/index.vue'),
         meta: { title: 'Url白名单详情', hidden: true},
-      },{
+      },
+       
+      {
+        path: 'wafipBlocklist',
+        name: 'WafIpBlockList',
+        component: () => import('@/pages/waf/ipblock/index.vue'),
+        meta: { title: 'IP黑名单' },
+
+      },
+      {
+        path: 'wafipblockdetail',
+        name: 'WafIpBlockDetail',
+        component: () => import('@/pages/waf/ipblock/detail/index.vue'),
+        meta: { title: 'IP黑名单详情', hidden: true},
+      },
+      {
+        path: 'wafurlblocklist',
+        name: 'WafUrlBlockList',
+        component: () => import('@/pages/waf/urlblock/index.vue'),
+        meta: { title: '限制访问Url' },
+
+      },
+      {
+        path: 'wafurlblockdetail',
+        name: 'WafUrlBlockDetail',
+        component: () => import('@/pages/waf/urlblock/detail/index.vue'),
+        meta: { title: '限制访问Url详情', hidden: true},
+      },
+
+
+      {
         path: 'wafldpurllist',
         name: 'WafLdpUrlList',
         component: () => import('@/pages/waf/ldpurl/index.vue'),

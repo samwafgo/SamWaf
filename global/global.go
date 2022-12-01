@@ -29,4 +29,6 @@ var (
 	GWAF_CHAN_UrlWhite = make(chan []model.URLWhiteList, 10) //URL白名单链
 	GWAF_CHAN_IpWhite  = make(chan []model.IPWhiteList, 10)  //IP白名单链
 	GWAF_CHAN_LdpUrl   = make(chan []model.LDPUrl, 10)       //URL隐私保护链
+	GWAF_CHAN_UrlBlock = make(chan []model.URLBlockList, 10) //URL阻止链
+	GWAF_CHAN_IpBlock  = make(chan []model.IPBlockList, 10)  //IP阻止链
 )

@@ -83,6 +83,14 @@ func main() {
 			hostTarget[hostCode[remoteLdpUrls[0].HostCode]].LdpUrlLists = remoteLdpUrls
 			zlog.Debug("远程配置", zap.Any("LdpUrlLists", remoteLdpUrls))
 			break
+		case remoteUrlBlock := <-global.GWAF_CHAN_UrlBlock:
+			hostTarget[hostCode[remoteUrlBlock[0].HostCode]].UrlBlockLists = remoteUrlBlock
+			zlog.Debug("远程配置", zap.Any("UrlBlockLists", remoteUrlBlock))
+			break
+		case remoteIpBlock := <-global.GWAF_CHAN_IpBlock:
+			hostTarget[hostCode[remoteIpBlock[0].HostCode]].IPBlockLists = remoteIpBlock
+			zlog.Debug("远程配置", zap.Any("IPBlockLists", remoteIpBlock))
+			break
 		case engineStatus := <-global.GWAF_CHAN_ENGINE:
 			if engineStatus == 1 {
 				zlog.Info("准备关闭WAF引擎")

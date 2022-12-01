@@ -47,6 +47,9 @@ type HostSafe struct {
 	IPWhiteLists        []model.IPWhiteList   //ip 白名单
 	UrlWhiteLists       []model.URLWhiteList  //url 白名单
 	LdpUrlLists         []model.LDPUrl        //url 隐私保护
+
+	IPBlockLists  []model.IPBlockList  //ip 黑名单
+	UrlBlockLists []model.URLBlockList //url 黑名单
 }
 
 var (
@@ -174,6 +177,24 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if hostTarget[host].UrlWhiteLists != nil {
 			for i := 0; i < len(hostTarget[host].UrlWhiteLists); i++ {
 				if hostTarget[host].UrlWhiteLists[i].Url == weblogbean.URL {
+					jumpGuardFlag = true
+					break
+				}
+			}
+		}
+		//ip黑名单策略（待优化性能）
+		if hostTarget[host].IPBlockLists != nil {
+			for i := 0; i < len(hostTarget[host].IPBlockLists); i++ {
+				if hostTarget[host].IPBlockLists[i].Ip == weblogbean.SRC_IP {
+					jumpGuardFlag = true
+					break
+				}
+			}
+		}
+		//url黑名单策略（待优化性能）
+		if hostTarget[host].UrlBlockLists != nil {
+			for i := 0; i < len(hostTarget[host].UrlBlockLists); i++ {
+				if hostTarget[host].UrlBlockLists[i].Url == weblogbean.URL {
 					jumpGuardFlag = true
 					break
 				}
@@ -433,6 +454,14 @@ func Start_WAF() {
 		var urlwhitelist []model.URLWhiteList
 		global.GWAF_LOCAL_DB.Where("host_code=? ", hosts[i].Code).Find(&urlwhitelist)
 
+		//查询ip黑名单
+		var ipblocklist []model.IPBlockList
+		global.GWAF_LOCAL_DB.Where("host_code=? ", hosts[i].Code).Find(&ipblocklist)
+
+		//查询url白名单
+		var urlblocklist []model.URLBlockList
+		global.GWAF_LOCAL_DB.Where("host_code=? ", hosts[i].Code).Find(&urlblocklist)
+
 		//查询url隐私保护
 		var ldpurls []model.LDPUrl
 		global.GWAF_LOCAL_DB.Where("host_code=? ", hosts[i].Code).Find(&ldpurls)
@@ -449,6 +478,8 @@ func Start_WAF() {
 			IPWhiteLists:        ipwhitelist,
 			UrlWhiteLists:       urlwhitelist,
 			LdpUrlLists:         ldpurls,
+			IPBlockLists:        ipblocklist,
+			UrlBlockLists:       urlblocklist,
 		}
 		//赋值到白名单里面
 		hostTarget[hosts[i].Host+":"+strconv.Itoa(hosts[i].Port)] = hostsafe

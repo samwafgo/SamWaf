@@ -23,16 +23,9 @@ var (
 	GWAF_LAST_UPDATE_TIME  time.Time                   // 上次时间
 	GWAF_DLP               dlpheader.EngineAPI         // 脱敏引擎
 	/**链聚合**/
-	GWAF_CHAN_HOST     = make(chan model.Hosts, 10)          //主机链
-	GWAF_CHAN_ENGINE   = make(chan int, 10)                  //引擎链
-	GWAF_CHAN_RULE     = make(chan []model.Rules, 10)        //规则链
-	GWAF_CHAN_ANTICC   = make(chan model.AntiCC, 10)         //抵御CC链
-	GWAF_CHAN_UrlWhite = make(chan []model.URLWhiteList, 10) //URL白名单链
-	GWAF_CHAN_IpWhite  = make(chan spec.ChanCommonHost, 10)  //IP白名单链
-	GWAF_CHAN_LdpUrl   = make(chan []model.LDPUrl, 10)       //URL隐私保护链
-	GWAF_CHAN_UrlBlock = make(chan []model.URLBlockList, 10) //URL阻止链
-	GWAF_CHAN_IpBlock  = make(chan spec.ChanCommonHost, 10)  //IP阻止链
+	GWAF_CHAN_HOST   = make(chan model.Hosts, 10) //主机链
+	GWAF_CHAN_ENGINE = make(chan int, 10)         //引擎链
 
-	GWAF_CHAN_MSG = make(chan spec.ChanCommonHost, 10) //全局通讯工具
+	GWAF_CHAN_MSG = make(chan spec.ChanCommonHost, 10) //全局通讯包
 
 )

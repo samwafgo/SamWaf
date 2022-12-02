@@ -19,7 +19,7 @@ var (
 	GWAF_LOCAL_SERVER_PORT int                 = 26666 // 本地local端口
 	GWAF_USER_CODE         string                      // 当前识别号
 	GWAF_TENANT_ID         string                      // 当前租户ID
-	GWAF_RELEASE           bool                = false // 当前是否为发行版
+	GWAF_RELEASE           bool                = true  // 当前是否为发行版
 	GWAF_LAST_UPDATE_TIME  time.Time                   // 上次时间
 	GWAF_DLP               dlpheader.EngineAPI         // 脱敏引擎
 	/**链聚合**/

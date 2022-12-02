@@ -10,8 +10,11 @@ import (
 	"github.com/go-co-op/gocron"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
+	"log"
 	"net/http"
+	"os"
 	"strconv"
+	"syscall"
 	"time"
 )
 
@@ -21,7 +24,11 @@ func main() {
 		zlog.Info("调试版本")
 	}
 	global.GWAF_LAST_UPDATE_TIME = time.Now()
-
+	pwd, err := os.Getwd()
+	syscall.Setenv("ZONEINFO", pwd+"//data//zoneinfo")
+	if err != nil {
+		log.Fatal(err)
+	}
 	/*runtime.GOMAXPROCS(1)              // 限制 CPU 使用数，避免过载
 	runtime.SetMutexProfileFraction(1) // 开启对锁调用的跟踪
 	runtime.SetBlockProfileRate(1)     // 开启对阻塞操作的跟踪

@@ -71,7 +71,7 @@ import { changeChartsTheme } from '@/utils/color';
 import { LAST_7_DAYS } from '@/utils/date';
 import Trend from '@/components/trend/index.vue';
 
-import { PANE_LIST, SALE_TEND_LIST, BUY_TEND_LIST, SALE_COLUMNS, BUY_COLUMNS } from '@/service/service-base';
+import { PANE_LIST, SALE_TEND_LIST, BUY_TEND_LIST, Attack_IP_COLUMNS, BUY_COLUMNS } from '@/service/service-base';
 
 echarts.use([TooltipComponent, LegendComponent, GridComponent, BarChart, CanvasRenderer]);
 

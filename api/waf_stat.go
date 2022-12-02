@@ -25,3 +25,14 @@ func (w *WafStatApi) StatHomeSumDayRangeApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+func (w *WafStatApi) StatHomeSumDayTopIPRangeApi(c *gin.Context) {
+	var req request.WafStatsDayRangeReq
+	err := c.ShouldBind(&req)
+	if err == nil {
+		wafStat, _ := wafStatService.StatHomeSumDayTopIPRangeApi(req)
+		response.OkWithDetailed(wafStat, "获取成功", c)
+	} else {
+
+		response.FailWithMessage("解析失败", c)
+	}
+}

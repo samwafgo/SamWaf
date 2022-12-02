@@ -120,7 +120,7 @@ export const BUY_TEND_LIST: Array<TendItem> = [
   },
 ];
 
-export const SALE_COLUMNS: TdBaseTableProps['columns'] = [
+export const Attack_IP_COLUMNS: TdBaseTableProps['columns'] = [
   {
     align: 'center',
     colKey: 'index',
@@ -131,22 +131,23 @@ export const SALE_COLUMNS: TdBaseTableProps['columns'] = [
   {
     align: 'left',
     ellipsis: true,
-    colKey: 'productName',
-    title: '域名',
+    colKey: 'ip',
+    title: '异常IP',
     minWidth: 200,
   },
-  {
+  /* {
     align: 'center',
     colKey: 'growUp',
     width: 100,
     title: '较上周',
-  },
+  }, */
   {
     align: 'center',
     colKey: 'count',
-    title: '订单量',
+    title: '量',
     width: 100,
-  },
+  }
+  /* ,
   {
     align: 'center',
     colKey: 'date',
@@ -159,9 +160,51 @@ export const SALE_COLUMNS: TdBaseTableProps['columns'] = [
     title: '操作',
     width: 80,
     fixed: 'right',
-  },
+  }, */
 ];
 
+export const Normal_IP_COLUMNS: TdBaseTableProps['columns'] = [
+  {
+    align: 'center',
+    colKey: 'index',
+    title: '排名',
+    width: 80,
+    fixed: 'left',
+  },
+  {
+    align: 'left',
+    ellipsis: true,
+    colKey: 'ip',
+    title: '正常IP',
+    minWidth: 200,
+  },
+  /* {
+    align: 'center',
+    colKey: 'growUp',
+    width: 100,
+    title: '较上周',
+  }, */
+  {
+    align: 'center',
+    colKey: 'count',
+    title: '量',
+    width: 100,
+  }
+  /* ,
+  {
+    align: 'center',
+    colKey: 'date',
+    width: 140,
+    title: '合同签订日期',
+  },
+  {
+    align: 'center',
+    colKey: 'operation',
+    title: '操作',
+    width: 80,
+    fixed: 'right',
+  }, */
+];
 export const BUY_COLUMNS: TdBaseTableProps['columns'] = [
   {
     align: 'center',

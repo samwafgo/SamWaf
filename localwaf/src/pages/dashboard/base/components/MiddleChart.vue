@@ -1,7 +1,7 @@
 <template>
   <t-row :gutter="[16, 16]">
     <t-col :xs="12" :xl="9">
-      <t-card title="周期攻击情况" subtitle="(次)" class="dashboard-chart-card">
+      <t-card title="周期攻击与正常对比情况" subtitle="(次)" class="dashboard-chart-card">
         <template #actions>
           <div class="dashboard-chart-title-container">
             <t-date-range-picker
@@ -21,7 +21,7 @@
       </t-card>
     </t-col>
     <t-col :xs="12" :xl="3">
-      <t-card title="正常攻击占比" :subtitle="周期内" class="dashboard-chart-card">
+      <t-card title="正常攻击占比" subtitle="周期内" class="dashboard-chart-card">
         <div
           id="countContainer"
           ref="countContainer"
@@ -42,9 +42,9 @@ import { LAST_7_DAYS } from '@/utils/date';
 
 import { getPieChartDataSet, getLineChartDataSet } from '../index';
 import { changeChartsTheme } from '@/utils/color';
-  import {
-    wafstatsumdayrangeapi
-  } from '@/apis/stats';
+import {
+  wafstatsumdayrangeapi
+} from '@/apis/stats';
 echarts.use([TooltipComponent, LegendComponent, PieChart, GridComponent, LineChart, CanvasRenderer]);
 
 export default {
@@ -128,9 +128,9 @@ export default {
                 inchartarr:this.rangeAttackArray ,
                 outchartarr:this.rangeNormalArray, ...chartColors })
                 );
-                
+
               const option = getPieChartDataSet({attackCount:this.rangeSumAttackCount,normalCount:this.rangeSumNormalCount, chartColors});
-              this.countChart.setOption(option);  
+              this.countChart.setOption(option);
             }
 
 

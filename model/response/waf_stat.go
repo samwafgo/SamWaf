@@ -1,5 +1,7 @@
 package response
 
+import "SamWaf/model"
+
 type WafStat struct {
 	AttackCountOfToday          int64 //今日攻击数量
 	VisitCountOfToday           int64 //今天访问数量
@@ -19,4 +21,12 @@ type WafStat struct {
 type WafStatRange struct {
 	AttackCountOfRange map[int]int64 //区间攻击数量
 	NormalCountOfRange map[int]int64 //区间正常数量
+}
+type WafCityStats struct {
+	AttackCityOfRange map[string]int64 //区间攻击城市数量
+	NormalCityOfRange map[string]int64 //区间正常城市数量
+}
+type WafIPStats struct {
+	AttackIPOfRange []model.StatsIPCount //区间攻击IP数量
+	NormalIPOfRange []model.StatsIPCount //区间正常IP数量
 }

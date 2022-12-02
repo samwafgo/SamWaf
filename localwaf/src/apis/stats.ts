@@ -15,3 +15,11 @@ export function wafstatsumdayrangeapi(params) {
     params: params
   })
 }
+//查询周期区间的IP攻击和正常信息
+export function wafstatsumdaytopiprangeapi(params) {
+  return request({
+    url: 'wafstatsumdaytopiprange',
+    method: 'get',
+    params: params
+  })
+}

@@ -97,3 +97,17 @@ func (receiver *WafStatService) StatHomeSumDayRangeApi(req request.WafStatsDayRa
 		},
 		nil
 }
+func (receiver *WafStatService) StatHomeSumDayTopIPRangeApi(req request.WafStatsDayRangeReq) (response2.WafIPStats, error) {
+	var AttackCountOfRange []model.StatsIPCount
+	global.GWAF_LOCAL_DB.Debug().Model(&model.StatsIPDay{}).Where("day between ? and ? and type = ? ",
+		req.StartDay, req.EndDay, "阻止").Select("ip,sum(count) as count").Group("ip").Order("sum(count) desc").Scan(&AttackCountOfRange)
+	var NormalCountOfRange []model.StatsIPCount
+	global.GWAF_LOCAL_DB.Debug().Model(&model.StatsIPDay{}).Where("day between ? and ? and type = ? ",
+		req.StartDay, req.EndDay, "放行").Select("ip,sum(count) as count").Group("ip").Order("sum(count) desc").Scan(&NormalCountOfRange)
+
+	return response2.WafIPStats{
+			AttackIPOfRange: AttackCountOfRange,
+			NormalIPOfRange: NormalCountOfRange,
+		},
+		nil
+}

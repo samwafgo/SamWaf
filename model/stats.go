@@ -33,3 +33,30 @@ type StatsDay struct {
 	CreateTime     time.Time `json:"create_time"`      //创建时间
 	LastUpdateTime time.Time `json:"last_update_time"` //上次更新时间
 }
+
+/*
+*
+按天统计和不同类型统计IP
+*/
+type StatsIPDay struct {
+	Id             int       `gorm:"primary_key" json:" - "`
+	UserCode       string    `json:"user_code"`        //用户码（主要键）
+	TenantId       string    `json:"tenant_id"`        //租户ID（主要键）
+	HostCode       string    `json:"host_code"`        //网站唯一码（主要键）
+	Day            int       `json:"day"`              //年月日（主要键）
+	Host           string    `json:"host"`             //域名
+	IP             string    `json:"ip"`               //ip
+	Type           string    `json:"type"`             //类型 放行,阻止
+	Count          int       `json:"count"`            //数量
+	CreateTime     time.Time `json:"create_time"`      //创建时间
+	LastUpdateTime time.Time `json:"last_update_time"` //上次更新时间
+}
+
+/*
+*
+天数对应的数量
+*/
+type StatsDayCount struct {
+	Day   int   `json:"day"`   //年月日（主要键）
+	Count int64 `json:"count"` //数量
+}

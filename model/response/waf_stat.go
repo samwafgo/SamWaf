@@ -16,3 +16,7 @@ type WafStat struct {
 	NormalCityCountOfToday      int64 //今日正常城市数量
 	IllegalCityCountOfToday     int64 //今日非法城市数量
 }
+type WafStatRange struct {
+	AttackCountOfRange map[int]int64 //区间攻击数量
+	NormalCountOfRange map[int]int64 //区间正常数量
+}

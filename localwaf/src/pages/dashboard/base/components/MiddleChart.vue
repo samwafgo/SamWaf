@@ -1,7 +1,7 @@
 <template>
   <t-row :gutter="[16, 16]">
     <t-col :xs="12" :xl="9">
-      <t-card title="月度攻击情况" subtitle="(次)" class="dashboard-chart-card">
+      <t-card title="周期攻击情况" subtitle="(次)" class="dashboard-chart-card">
         <template #actions>
           <div class="dashboard-chart-title-container">
             <t-date-range-picker
@@ -21,7 +21,7 @@
       </t-card>
     </t-col>
     <t-col :xs="12" :xl="3">
-      <t-card title="销售渠道" :subtitle="currentMonth" class="dashboard-chart-card">
+      <t-card title="正常攻击占比" :subtitle="周期内" class="dashboard-chart-card">
         <div
           id="countContainer"
           ref="countContainer"
@@ -31,7 +31,7 @@
     </t-col>
   </t-row>
 </template>
-<script>
+<script lang="ts">
 import { TooltipComponent, LegendComponent, GridComponent } from 'echarts/components';
 import { PieChart, LineChart } from 'echarts/charts';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -42,7 +42,9 @@ import { LAST_7_DAYS } from '@/utils/date';
 
 import { getPieChartDataSet, getLineChartDataSet } from '../index';
 import { changeChartsTheme } from '@/utils/color';
-
+  import {
+    wafstatsumdayrangeapi
+  } from '@/apis/stats';
 echarts.use([TooltipComponent, LegendComponent, PieChart, GridComponent, LineChart, CanvasRenderer]);
 
 export default {
@@ -52,6 +54,14 @@ export default {
       LAST_7_DAYS,
       resizeTime: 1,
       currentMonth: this.getThisMonth(),
+      rangeStartDay:0,//开始时间
+      rangeEndDay:0,//结束时间
+      rangeDateTimeArray:[],//区间时间
+      rangeAttackArray :[],//攻击数据
+      rangeNormalArray :[],//正常数据
+      rangeSumAttackCount:0,//攻击数据汇总数量
+      rangeSumNormalCount:0,//正常数据汇总数量
+      isInitialed:false,//是否已经初始化
     };
   },
   computed: {
@@ -69,15 +79,67 @@ export default {
     },
   },
   mounted() {
+    this.rangeStartDay = LAST_7_DAYS[0].replace(/-/g,"")
+    this.rangeEndDay = LAST_7_DAYS[1].replace(/-/g,"")
+    this.loadSumDayRange()
     this.$nextTick(() => {
       this.updateContainer();
     });
 
     window.addEventListener('resize', this.updateContainer, false);
-    this.renderCharts();
+
+
   },
 
   methods: {
+    loadSumDayRange(){
+      wafstatsumdayrangeapi({'start_day':this.rangeStartDay,'end_day':this.rangeEndDay})
+          .then((res) => {
+            let resdata = res
+            console.log(resdata.data)
+            this.rangeDateTimeArray = []
+            this.rangeAttackArray = []
+            this.rangeSumAttackCount = 0
+            this.rangeSumNormalCount = 0
+            for (var key in resdata.data.AttackCountOfRange) {
+            　　var item = resdata.data.AttackCountOfRange[key];
+
+            　　console.log(item); //AA,BB,CC,DD
+                this.rangeAttackArray.push(item)
+                this.rangeDateTimeArray.push(key)
+                this.rangeSumAttackCount +=item
+            }
+
+            this.rangeNormalArray = []
+            for (var key in resdata.data.NormalCountOfRange) {
+            　　var item = resdata.data.NormalCountOfRange[key];
+
+            　　console.log(item); //AA,BB,CC,DD
+                this.rangeNormalArray.push(item)
+                this.rangeSumNormalCount +=item
+            }
+            if(this.isInitialed == false){
+                this.renderCharts();
+                this.isInitialed = true
+            }else{
+              const { chartColors } = this.$store.state.setting;
+              this.monitorChart.setOption(getLineChartDataSet({
+                dateTime: this.rangeDateTimeArray,
+                inchartarr:this.rangeAttackArray ,
+                outchartarr:this.rangeNormalArray, ...chartColors })
+                );
+                
+              const option = getPieChartDataSet({attackCount:this.rangeSumAttackCount,normalCount:this.rangeSumNormalCount, chartColors});
+              this.countChart.setOption(option);  
+            }
+
+
+            }
+            ).catch((e: Error) => {
+            console.log(e);
+          })
+          .finally(() => {})
+    },
     /** 获取当前选中时间的短时间表达法 */
     getThisMonth(checkedValues = '') {
       let date;
@@ -95,9 +157,12 @@ export default {
     /** 资金走趋选择 */
     onCurrencyChange(checkedValues) {
       const { chartColors } = this.$store.state.setting;
-
+      console.log('onCurrencyChange',checkedValues)
+      this.rangeStartDay = checkedValues[0].replace(/-/g,"")
+      this.rangeEndDay = checkedValues[1].replace(/-/g,"")
+      this.LAST_7_DAYS = checkedValues
       this.currentMonth = this.getThisMonth(checkedValues);
-      this.monitorChart.setOption(getLineChartDataSet({ dateTime: checkedValues, ...chartColors }));
+      this.loadSumDayRange()
     },
     updateContainer() {
       if (document.documentElement.clientWidth >= 1400 && document.documentElement.clientWidth < 1920) {
@@ -128,7 +193,8 @@ export default {
         this.monitorContainer = document.getElementById('monitorContainer');
       }
       this.monitorChart = echarts.init(this.monitorContainer);
-      this.monitorChart.setOption(getLineChartDataSet({ ...chartColors }));
+      this.monitorChart.setOption(getLineChartDataSet({ dateTime: this.rangeDateTimeArray,  inchartarr:this.rangeAttackArray ,
+      outchartarr:this.rangeNormalArray,...chartColors }));
 
       // 销售合同占比
       if (!this.countContainer) {
@@ -136,7 +202,7 @@ export default {
       }
       this.countChart = echarts.init(this.countContainer);
 
-      const option = getPieChartDataSet(chartColors);
+      const option = getPieChartDataSet({attackCount:this.rangeSumAttackCount,normalCount:this.rangeSumNormalCount, chartColors});
       this.countChart.setOption(option);
     },
   },

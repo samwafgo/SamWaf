@@ -206,9 +206,6 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if hostTarget[host].pluginIpRateLimiter != nil {
 				limiter := hostTarget[host].pluginIpRateLimiter.GetLimiter(weblogbean.SRC_IP)
 				if !limiter.Allow() {
-					weblogbean.RULE = "触发IP频次访问限制"
-					weblogbean.ACTION = "阻止"
-					global.GWAF_LOCAL_DB.Create(weblogbean)
 					//w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止超量了</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
 					//zlog.Debug("触发IP频次访问限制 已经被限制访问了")
 					EchoErrorInfo(w, r, weblogbean, "触发IP频次访问限制", "您的访问被阻止超量了")
@@ -223,10 +220,6 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					for _, v := range ruleMatchs {
 						rulestr = rulestr + v.RuleDescription + ","
 					}
-					weblogbean.RULE = rulestr
-					weblogbean.ACTION = "阻止"
-					global.GWAF_LOCAL_DB.Create(weblogbean)
-
 					w.Header().Set("WAF", "SAMWAF DROP")
 					/*expiration := time.Now()
 					expiration = expiration.AddDate(1, 0, 0)

@@ -185,14 +185,17 @@ export function constructInitDataset({
 
 export function getLineChartDataSet({
   dateTime = [],
+  inchartarr = [],
+  outchartarr = [],
   placeholderColor,
   borderColor,
-}: { dateTime?: Array<string> } & Record<string, string>) {
+}: { dateTime?: Array<string>,inchartarr?: Array<string>,outchartarr?: Array<string> } & Record<string, string>) {
+  console.log('getLineChartDataSet',inchartarr)
   const divideNum = 10;
   const timeArray = [];
   const inArray = [];
   const outArray = [];
-  for (let i = 0; i < divideNum; i++) {
+  /* for (let i = 0; i < divideNum; i++) {
     if (dateTime.length > 0) {
       const dateAbsTime: number = (new Date(dateTime[1]).getTime() - new Date(dateTime[0]).getTime()) / divideNum;
       const enhandTime: number = new Date(dateTime[0]).getTime() + dateAbsTime * i;
@@ -207,8 +210,11 @@ export function getLineChartDataSet({
 
     inArray.push(getRandomArray().toString());
     outArray.push(getRandomArray().toString());
-  }
+  } */
 
+  console.log('line ',dateTime)
+  console.log('line inArray',inchartarr)
+  console.log('line outArray',outchartarr)
   const dataSet = {
     color: getChartListColor(),
     tooltip: {
@@ -225,7 +231,7 @@ export function getLineChartDataSet({
       left: 'center',
       bottom: '0',
       orient: 'horizontal', // legend 横向布局。
-      data: ['本月', '上月'],
+      data: ['本周期攻击数', '本周期正常数'],
       textStyle: {
         fontSize: 12,
         color: placeholderColor,
@@ -233,7 +239,7 @@ export function getLineChartDataSet({
     },
     xAxis: {
       type: 'category',
-      data: timeArray,
+      data: dateTime,
       boundaryGap: false,
       axisLabel: {
         color: placeholderColor,
@@ -257,8 +263,8 @@ export function getLineChartDataSet({
     },
     series: [
       {
-        name: '本月',
-        data: outArray,
+        name: '本周期攻击数',
+        data: inchartarr,
         type: 'line',
         smooth: false,
         showSymbol: true,
@@ -277,8 +283,8 @@ export function getLineChartDataSet({
         },
       },
       {
-        name: '上月',
-        data: inArray,
+        name: '本周期正常数',
+        data: outchartarr,
         type: 'line',
         smooth: false,
         showSymbol: true,
@@ -609,10 +615,12 @@ export function getColumnChartDataSet(isMonth = false) {
 
 export function getPieChartDataSet({
   radius = 42,
+  attackCount =0,
+  normalCount = 0,
   textColor,
   placeholderColor,
   containerColor,
-}: { radius: number } & Record<string, string>) {
+}: { radius: number ,attackCount: number,normalCount: number} & Record<string, string>) {
   return {
     color: getChartListColor(),
     tooltip: {
@@ -691,10 +699,11 @@ export function getPieChartDataSet({
         },
         data: [
           {
-            value: 1048,
-            name: '线上',
+            value: attackCount,
+            name: '攻击数',
           },
-          { value: radius * 7, name: '门店' },
+          { value: normalCount,
+           name: '正常数' },
         ],
       },
     ],

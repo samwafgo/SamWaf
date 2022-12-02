@@ -132,7 +132,7 @@ export const SALE_COLUMNS: TdBaseTableProps['columns'] = [
     align: 'left',
     ellipsis: true,
     colKey: 'productName',
-    title: '客户名称',
+    title: '域名',
     minWidth: 200,
   },
   {

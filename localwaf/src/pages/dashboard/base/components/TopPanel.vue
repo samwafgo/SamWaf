@@ -32,7 +32,7 @@
         <template #footer>
           <div class="dashboard-item-bottom">
             <div class="dashboard-item-block">
-              自从上周以来
+              较昨天
               <trend
                 class="dashboard-item-trend"
                 :type="item.upTrend ? 'up' : 'down'"
@@ -59,7 +59,9 @@ import Trend from '@/components/trend/index.vue';
 import { constructInitDashboardDataset } from '../index';
 import { changeChartsTheme } from '@/utils/color';
 //import { PANE_LIST } from '@/service/service-base';
-
+  import {
+    wafstatsumdayapi
+  } from '@/apis/stats';
 echarts.use([LineChart, BarChart, CanvasRenderer]);
 
 export default {
@@ -106,9 +108,7 @@ export default {
   methods: {
     getWafStat() {
       let that = this
-      this.$request
-        .get('/wafstat', {
-        })
+      wafstatsumdayapi()
         .then((res) => {
           let resdata = res
           console.log(resdata)

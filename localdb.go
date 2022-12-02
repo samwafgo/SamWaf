@@ -23,6 +23,7 @@ func InitDb() {
 		//统计处理
 		db.AutoMigrate(&model.StatsTotal{})
 		db.AutoMigrate(&model.StatsDay{})
+		db.AutoMigrate(&model.StatsIPDay{})
 
 		//隐私处理
 		db.AutoMigrate(&model.LDPUrl{})

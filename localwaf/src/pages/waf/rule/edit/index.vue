@@ -7,13 +7,13 @@
         <t-form-item label="规则名称" name="rule_name">
           <t-input placeholder="请输入内容" v-model="formData.rule_base.rule_name" />
         </t-form-item>
-        <t-form-item label="防护网站" name="rule_domain_code"> 
+        <t-form-item label="防护网站" name="rule_domain_code">
           <t-select v-model="formData.rule_base.rule_domain_code" clearable :style="{ width: '480px' }">
               <t-option v-for="(item, index) in host_options" :value="item.value" :label="item.label"
                 :key="index">
                 {{ item.label }}
               </t-option>
-            </t-select> 
+            </t-select>
         </t-form-item>
         <t-form-item label="防护级别" name="salience">
           <t-input placeholder="请输入内容" v-model="formData.rule_base.salience" />
@@ -333,9 +333,29 @@
             value: 'HOST'
           },
           {
-              label: '网址',
-              value: 'URL'
-            },
+            label: '网址',
+            value: 'URL'
+          },
+          {
+            label: '网站来路(referrer)',
+            value: 'REFERER'
+          },
+          {
+            label: '用户代理(User-Agent)',
+            value: 'USER_AGENT'
+          },
+          {
+            label: '访问方法',
+            value: 'METHOD'
+          },
+          {
+            label: '访问COOKIES',
+            value: 'COOKIES'
+          },
+          {
+            label: '访问BODY',
+            value: 'BODY'
+          },
           {
             label: '请求端口',
             value: 'PORT'
@@ -343,6 +363,17 @@
           {
             label: '访客IP',
             value: 'SRC_IP'
+          },
+          {
+            label: '访客归属国家',
+            value: 'COUNTRY'
+          },
+          {
+            label: '访客归属省份',
+            value: 'PROVINCE'
+          },{
+            label: '访客归属城市',
+            value: 'CITY'
           },
         ],
         attr_type_option: [{
@@ -409,7 +440,7 @@
     },
     mounted() {
       let that = this
-      
+
       this.loadHostList()
       console.log('----mounted----')
       console.log(RULE)
@@ -455,7 +486,7 @@
         this.getDetail(newVal)
       },
     },
-    methods: { 
+    methods: {
       loadHostList(){
         let that = this;
         allhost().then((res) => {

@@ -3,7 +3,7 @@ export const RULE = {
   rule_content:"zxcv",
   rule_base: {
     salience: 10,
-    rule_name: "试试",
+    rule_name: "规则名称",
     rule_domain_code: "请选择网站",
   },
   rule_condition: {

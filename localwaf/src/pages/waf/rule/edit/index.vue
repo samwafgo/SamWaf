@@ -385,9 +385,14 @@
             value: 'int'
           },
         ],
-        attr_judge_option: [{
+        attr_judge_option: [
+          {
             label: '判断是否等于',
             value: '=='
+          },
+          {
+            label: '判断是否不等于',
+            value: '!='
           },
           {
             label: '判断是否大于',

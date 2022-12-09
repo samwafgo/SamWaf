@@ -1,21 +1,63 @@
 <template>
   <div>
+
     <t-card class="list-card-container">
       <t-row justify="space-between">
-        <div class="left-operation-container">
-          <t-button @click="handleSetupContract"> 新建防护 </t-button>
-          <t-button variant="base" theme="default" :disabled="!selectedRowKeys.length"> 导出日志 </t-button>
-          <p v-if="!!selectedRowKeys.length" class="selected-count">已选{{ selectedRowKeys.length }}项</p>
-        </div>
-        <t-input v-model="searchValue" class="search-input" placeholder="请输入你需要搜索的攻击日志" clearable>
-          <template #suffix-icon>
-            <search-icon size="20px" />
-          </template>
-        </t-input>
+        <t-form
+          ref="form"
+          :data="searchformData"
+          :label-width="80"
+          colon
+          :style="{ marginBottom: '8px' }"
+        >
+          <t-row>
+            <t-col :span="10">
+              <t-row :gutter="[16, 24]">
+                <t-col :flex="1">
+                  <t-form-item label="规则名称" name="rule">
+                    <t-input
+                      v-model="searchformData.rule"
+                      class="form-item-content"
+                      type="search"
+                      placeholder="请输入规则名称"
+                      :style="{ minWidth: '134px' }"
+                    />
+                  </t-form-item>
+                </t-col>
+                <t-col :flex="1">
+                  <t-form-item label="访问状态" name="action">
+                    <t-select
+                      v-model="searchformData.action"
+                      class="form-item-content`"
+                      :options="action_options"
+                      placeholder="请选择防御状态"
+                    />
+                  </t-form-item>
+                </t-col>
+                <t-col :flex="1">
+                  <t-form-item label="访问IP" name="src_ip">
+                    <t-input
+                      v-model="searchformData.src_ip"
+                      class="form-item-content"
+                      placeholder="请输入访问IP"
+                      :style="{ minWidth: '100px' }"
+                    />
+                  </t-form-item>
+                </t-col>
+              </t-row>
+            </t-col>
+
+            <t-col :span="2" class="operation-container">
+              <t-button theme="primary"  :style="{ marginLeft: '8px' }" @click="getList('all')"> 查询 </t-button>
+              <t-button type="reset" variant="base" theme="default"> 重置 </t-button>
+            </t-col>
+          </t-row>
+        </t-form>
       </t-row>
 
       <div class="table-container">
         <t-table
+        table-layout: auto
           :columns="columns"
           :data="data"
           :rowKey="rowKey"
@@ -30,28 +72,7 @@
           :headerAffixedTop="true"
           :headerAffixProps="{ offsetTop: offsetTop, container: getContainer }"
         >
-          <template #status="{ row }">
-            <t-tag v-if="row.status === CONTRACT_STATUS.FAIL" theme="danger" variant="light">审核失败</t-tag>
-            <t-tag v-if="row.status === CONTRACT_STATUS.AUDIT_PENDING" theme="warning" variant="light">待审核</t-tag>
-            <t-tag v-if="row.status === CONTRACT_STATUS.EXEC_PENDING" theme="warning" variant="light">待履行</t-tag>
-            <t-tag v-if="row.status === CONTRACT_STATUS.EXECUTING" theme="success" variant="light">履行中</t-tag>
-            <t-tag v-if="row.status === CONTRACT_STATUS.FINISH" theme="success" variant="light">已完成</t-tag>
-          </template>
-          <template #contractType="{ row }">
-            <p v-if="row.contractType === CONTRACT_TYPES.MAIN">审核失败</p>
-            <p v-if="row.contractType === CONTRACT_TYPES.SUB">待审核</p>
-            <p v-if="row.contractType === CONTRACT_TYPES.SUPPLEMENT">待履行</p>
-          </template>
-          <template #paymentType="{ row }">
-            <p v-if="row.paymentType === CONTRACT_PAYMENT_TYPES.PAYMENT" class="payment-col">
-              付款
-              <trend class="dashboard-item-trend" type="up" />
-            </p>
-            <p v-if="row.paymentType === CONTRACT_PAYMENT_TYPES.RECIPT" class="payment-col">
-              收款
-              <trend class="dashboard-item-trend" type="down" />
-            </p>
-          </template>
+
 
           <template #op="slotProps">
             <a class="t-button-link" @click="handleClickDetail(slotProps)">详情</a>
@@ -87,6 +108,19 @@ export default Vue.extend({
   },
   data() {
     return {
+      action_options: [{
+          label: '阻止',
+          value: '阻止'
+        },
+        {
+          label: '放行',
+          value: '放行'
+        },
+        {
+          label: '禁止',
+          value: '禁止'
+        },
+      ],
       CONTRACT_STATUS,
       CONTRACT_STATUS_OPTIONS,
       CONTRACT_TYPES,
@@ -97,70 +131,67 @@ export default Vue.extend({
       selectedRowKeys: [1, 2],
       value: 'first',
       columns: [
-        { colKey: 'row-select', type: 'multiple', width: 64, fixed: 'left' },
         {
-          title: '攻击域名',
+          title: '时间',
+          width: 200,
+          ellipsis: true,
+          colKey: 'create_time',
+        },
+        {
+          title: '域名',
           align: 'left',
           width: 250,
           ellipsis: true,
-          colKey: 'host',
-          fixed: 'left',
+          colKey: 'host', 
+        },
+
+        {
+          title: '访客IP',
+          width: 150,
+          ellipsis: true,
+          colKey: 'src_ip',
         },
         {
           title: '放行结果',
-          width: 200,
+          width: 120,
           ellipsis: true,
           colKey: 'action',
         },
         {
           title: '触发规则',
           align: 'left',
-          width: 250,
+          width: 150,
           ellipsis: true,
-          colKey: 'rule',
-          fixed: 'left',
+          colKey: 'rule', 
         },
         {
-          title: '攻击url',
+          title: '访问url',
           width: 200,
           ellipsis: true,
           colKey: 'url',
         },
-        { title: '攻击状态', colKey: 'status', width: 200, cell: { col: 'status' } },
         {
-          title: '攻击源IP',
-          width: 200,
-          ellipsis: true,
-          colKey: 'src_ip',
-        },
-        {
-          title: '攻击源国家',
-          width: 200,
+          title: '国家',
+          width: 150,
           ellipsis: true,
           colKey: 'country',
         },
         {
-          title: '攻击源省',
-          width: 200,
+          title: '省',
+          width: 150,
           ellipsis: true,
           colKey: 'province',
         },{
-          title: '攻击源市',
-          width: 200,
+          title: '市',
+          width: 150,
           ellipsis: true,
           colKey: 'city',
         },
         {
-          title: '攻击请求类型',
-          width: 200,
+          title: '请求类型',
+          width: 150,
           ellipsis: true,
           colKey: 'method',
-        },
-        {
-          title: '攻击时间',
-          width: 200,
-          ellipsis: true,
-          colKey: 'create_time',
         },
 
         {
@@ -185,6 +216,12 @@ export default Vue.extend({
       searchValue: '',
       confirmVisible: false,
       deleteIdx: -1,
+      //顶部搜索
+      searchformData:{
+          rule:"",
+          action:"",
+          src_ip:""
+      },
     };
   },
   computed: {
@@ -205,14 +242,19 @@ export default Vue.extend({
 
   methods: {
     getList(keyword){
+
       let that = this
+      if(keyword!=undefined && keyword=="all"){
+          that.pagination.current = 1
+      }
       this.$request
-        .get('/waflog/attack/list', {
-          params: {
+        .post('/waflog/attack/list', {
+
              pageSize: that.pagination.pageSize,
              pageIndex: that.pagination.current,
-          }
-        })
+             ...that.searchformData
+          },
+        )
         .then((res) => {
           let resdata = res
           console.log(resdata)

@@ -3,6 +3,7 @@ package waf_service
 import (
 	"SamWaf/global"
 	"SamWaf/innerbean"
+	request2 "SamWaf/model/common/request"
 	"SamWaf/model/request"
 )
 
@@ -26,8 +27,20 @@ func (receiver *WafLogService) GetDetailApi(wafAttackDetailReq request.WafAttack
 func (receiver *WafLogService) GetListApi(log request.WafAttackLogSearch) ([]innerbean.WebLog, int64, error) {
 	var total int64 = 0
 	var weblogs []innerbean.WebLog
-	global.GWAF_LOCAL_DB.Debug().Limit(log.PageSize).Offset(log.PageSize * (log.PageIndex - 1)).Order("create_time desc").Find(&weblogs)
-	global.GWAF_LOCAL_DB.Debug().Model(&innerbean.WebLog{}).Count(&total)
+
+	whereCondition := &request.WafAttackLogSearch{
+		HostCode: log.HostCode,
+		Rule:     log.Rule,
+		Action:   log.Action,
+		SrcIp:    log.SrcIp,
+		PageInfo: request2.PageInfo{
+			PageIndex: 0,
+			PageSize:  0,
+			Keyword:   "",
+		},
+	}
+	global.GWAF_LOCAL_DB.Debug().Limit(log.PageSize).Where(whereCondition).Offset(log.PageSize * (log.PageIndex - 1)).Order("create_time desc").Find(&weblogs)
+	global.GWAF_LOCAL_DB.Debug().Model(&innerbean.WebLog{}).Where(whereCondition).Count(&total)
 	return weblogs, total, nil
 }
 func (receiver *WafLogService) GetListByHostCodeApi(log request.WafAttackLogSearch) ([]innerbean.WebLog, int64, error) {

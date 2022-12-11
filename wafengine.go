@@ -113,130 +113,135 @@ func (h *baseHandle) Error() string {
 }
 func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	host := r.Host
+	if !strings.Contains(host, ":") {
+		host = host + ":80"
+	}
 	defer func() {
 		e := recover()
 		if e != nil { // 捕获该协程的panic 111111
 			fmt.Println("11recover ", e)
 		}
 	}()
-	// 获取请求报文的内容长度
-	contentLength := r.ContentLength
-
-	//server_online[8081].Svr.Close()
-	var bodyByte []byte
-
-	// 拷贝一份request的Body
-	if r.Body != nil {
-		bodyByte, _ = io.ReadAll(r.Body)
-		// 把刚刚读出来的再写进去，不然后面解析表单数据就解析不到了
-		r.Body = io.NopCloser(bytes.NewBuffer(bodyByte))
-	}
-	cookies, _ := json.Marshal(r.Cookies())
-	header, _ := json.Marshal(r.Header)
-	// 取出客户IP
-	ipAndPort := strings.Split(r.RemoteAddr, ":")
-	region := GetCountry(ipAndPort[0])
-	currentDay, _ := strconv.Atoi(time.Now().Format("20060102"))
-	weblogbean := innerbean.WebLog{
-		HOST:           host,
-		URL:            r.RequestURI,
-		REFERER:        r.Referer(),
-		USER_AGENT:     r.UserAgent(),
-		METHOD:         r.Method,
-		HEADER:         string(header),
-		COUNTRY:        region[0],
-		PROVINCE:       region[2],
-		CITY:           region[3],
-		SRC_IP:         ipAndPort[0],
-		SRC_PORT:       ipAndPort[1],
-		CREATE_TIME:    time.Now().Format("2006-01-02 15:04:05"),
-		CONTENT_LENGTH: contentLength,
-		COOKIES:        string(cookies),
-		BODY:           string(bodyByte),
-		REQ_UUID:       uuid.NewV4().String(),
-		USER_CODE:      global.GWAF_USER_CODE,
-		HOST_CODE:      hostTarget[host].Host.Code,
-		TenantId:       global.GWAF_TENANT_ID,
-		RULE:           "",
-		ACTION:         "通过",
-		Day:            currentDay,
-	}
-
-	if hostTarget[host].Host.GUARD_STATUS == 1 {
-		var jumpGuardFlag = false
-		//ip白名单策略（待优化性能）
-		if hostTarget[host].IPWhiteLists != nil {
-			for i := 0; i < len(hostTarget[host].IPWhiteLists); i++ {
-				if hostTarget[host].IPWhiteLists[i].Ip == weblogbean.SRC_IP {
-					jumpGuardFlag = true
-					break
-				}
-			}
-		}
-		//url白名单策略（待优化性能）
-		if hostTarget[host].UrlWhiteLists != nil {
-			for i := 0; i < len(hostTarget[host].UrlWhiteLists); i++ {
-				if hostTarget[host].UrlWhiteLists[i].Url == weblogbean.URL {
-					jumpGuardFlag = true
-					break
-				}
-			}
-		}
-		//ip黑名单策略（待优化性能）
-		if hostTarget[host].IPBlockLists != nil {
-			for i := 0; i < len(hostTarget[host].IPBlockLists); i++ {
-				if hostTarget[host].IPBlockLists[i].Ip == weblogbean.SRC_IP {
-					EchoErrorInfo(w, r, weblogbean, "IP黑名单", "您的访问被阻止了IP限制")
-					return
-				}
-			}
-		}
-		//url黑名单策略（待优化性能）
-		if hostTarget[host].UrlBlockLists != nil {
-			for i := 0; i < len(hostTarget[host].UrlBlockLists); i++ {
-				if hostTarget[host].UrlBlockLists[i].Url == weblogbean.URL {
-					EchoErrorInfo(w, r, weblogbean, "URL黑名单", "您的访问被阻止了URL限制")
-					return
-				}
-			}
-		}
-
-		if jumpGuardFlag == false {
-			//cc 防护
-			if hostTarget[host].pluginIpRateLimiter != nil {
-				limiter := hostTarget[host].pluginIpRateLimiter.GetLimiter(weblogbean.SRC_IP)
-				if !limiter.Allow() {
-					//w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止超量了</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
-					//zlog.Debug("触发IP频次访问限制 已经被限制访问了")
-					EchoErrorInfo(w, r, weblogbean, "触发IP频次访问限制", "您的访问被阻止超量了")
-					return
-				}
-			}
-			ruleMatchs, err := hostTarget[host].Rule.Match("MF", &weblogbean)
-			if err == nil {
-				if len(ruleMatchs) > 0 {
-
-					rulestr := ""
-					for _, v := range ruleMatchs {
-						rulestr = rulestr + v.RuleDescription + ","
-					}
-					w.Header().Set("WAF", "SAMWAF DROP")
-					/*expiration := time.Now()
-					expiration = expiration.AddDate(1, 0, 0)
-					cookie := http.Cookie{Name: "IDENFY", Value: weblogbean.REQ_UUID, Expires: expiration}
-					http.SetCookie(w, &cookie)*/
-					//w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止触发规则</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
-					EchoErrorInfo(w, r, weblogbean, rulestr, "您的访问被阻止触发规则")
-					return
-				}
-			} else {
-				zlog.Debug("规则 ", err)
-			}
-		}
-
-	}
 	// 检查域名是否已经注册
 	if target, ok := hostTarget[host]; ok {
+
+		// 获取请求报文的内容长度
+		contentLength := r.ContentLength
+
+		//server_online[8081].Svr.Close()
+		var bodyByte []byte
+
+		// 拷贝一份request的Body
+		if r.Body != nil {
+			bodyByte, _ = io.ReadAll(r.Body)
+			// 把刚刚读出来的再写进去，不然后面解析表单数据就解析不到了
+			r.Body = io.NopCloser(bytes.NewBuffer(bodyByte))
+		}
+		cookies, _ := json.Marshal(r.Cookies())
+		header, _ := json.Marshal(r.Header)
+		// 取出客户IP
+		ipAndPort := strings.Split(r.RemoteAddr, ":")
+		region := GetCountry(ipAndPort[0])
+		currentDay, _ := strconv.Atoi(time.Now().Format("20060102"))
+		weblogbean := innerbean.WebLog{
+			HOST:           host,
+			URL:            r.RequestURI,
+			REFERER:        r.Referer(),
+			USER_AGENT:     r.UserAgent(),
+			METHOD:         r.Method,
+			HEADER:         string(header),
+			COUNTRY:        region[0],
+			PROVINCE:       region[2],
+			CITY:           region[3],
+			SRC_IP:         ipAndPort[0],
+			SRC_PORT:       ipAndPort[1],
+			CREATE_TIME:    time.Now().Format("2006-01-02 15:04:05"),
+			CONTENT_LENGTH: contentLength,
+			COOKIES:        string(cookies),
+			BODY:           string(bodyByte),
+			REQ_UUID:       uuid.NewV4().String(),
+			USER_CODE:      global.GWAF_USER_CODE,
+			HOST_CODE:      hostTarget[host].Host.Code,
+			TenantId:       global.GWAF_TENANT_ID,
+			RULE:           "",
+			ACTION:         "通过",
+			Day:            currentDay,
+		}
+
+		if hostTarget[host].Host.GUARD_STATUS == 1 {
+			var jumpGuardFlag = false
+			//ip白名单策略（待优化性能）
+			if hostTarget[host].IPWhiteLists != nil {
+				for i := 0; i < len(hostTarget[host].IPWhiteLists); i++ {
+					if hostTarget[host].IPWhiteLists[i].Ip == weblogbean.SRC_IP {
+						jumpGuardFlag = true
+						break
+					}
+				}
+			}
+			//url白名单策略（待优化性能）
+			if hostTarget[host].UrlWhiteLists != nil {
+				for i := 0; i < len(hostTarget[host].UrlWhiteLists); i++ {
+					if hostTarget[host].UrlWhiteLists[i].Url == weblogbean.URL {
+						jumpGuardFlag = true
+						break
+					}
+				}
+			}
+			//ip黑名单策略（待优化性能）
+			if hostTarget[host].IPBlockLists != nil {
+				for i := 0; i < len(hostTarget[host].IPBlockLists); i++ {
+					if hostTarget[host].IPBlockLists[i].Ip == weblogbean.SRC_IP {
+						EchoErrorInfo(w, r, weblogbean, "IP黑名单", "您的访问被阻止了IP限制")
+						return
+					}
+				}
+			}
+			//url黑名单策略（待优化性能）
+			if hostTarget[host].UrlBlockLists != nil {
+				for i := 0; i < len(hostTarget[host].UrlBlockLists); i++ {
+					if hostTarget[host].UrlBlockLists[i].Url == weblogbean.URL {
+						EchoErrorInfo(w, r, weblogbean, "URL黑名单", "您的访问被阻止了URL限制")
+						return
+					}
+				}
+			}
+
+			if jumpGuardFlag == false {
+				//cc 防护
+				if hostTarget[host].pluginIpRateLimiter != nil {
+					limiter := hostTarget[host].pluginIpRateLimiter.GetLimiter(weblogbean.SRC_IP)
+					if !limiter.Allow() {
+						//w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止超量了</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
+						//zlog.Debug("触发IP频次访问限制 已经被限制访问了")
+						EchoErrorInfo(w, r, weblogbean, "触发IP频次访问限制", "您的访问被阻止超量了")
+						return
+					}
+				}
+				ruleMatchs, err := hostTarget[host].Rule.Match("MF", &weblogbean)
+				if err == nil {
+					if len(ruleMatchs) > 0 {
+
+						rulestr := ""
+						for _, v := range ruleMatchs {
+							rulestr = rulestr + v.RuleDescription + ","
+						}
+						w.Header().Set("WAF", "SAMWAF DROP")
+						/*expiration := time.Now()
+						expiration = expiration.AddDate(1, 0, 0)
+						cookie := http.Cookie{Name: "IDENFY", Value: weblogbean.REQ_UUID, Expires: expiration}
+						http.SetCookie(w, &cookie)*/
+						//w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止触发规则</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
+						EchoErrorInfo(w, r, weblogbean, rulestr, "您的访问被阻止触发规则")
+						return
+					}
+				} else {
+					zlog.Debug("规则 ", err)
+				}
+			}
+
+		}
+
 		remoteUrl, err := url.Parse(target.TargetHost)
 		if err != nil {
 			zlog.Debug("target parse fail:", zap.Any("", err))
@@ -258,6 +263,48 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	} else {
 		w.Write([]byte("403: Host forbidden " + host))
+		// 获取请求报文的内容长度
+		contentLength := r.ContentLength
+
+		//server_online[8081].Svr.Close()
+		var bodyByte []byte
+
+		// 拷贝一份request的Body
+		if r.Body != nil {
+			bodyByte, _ = io.ReadAll(r.Body)
+			// 把刚刚读出来的再写进去，不然后面解析表单数据就解析不到了
+			r.Body = io.NopCloser(bytes.NewBuffer(bodyByte))
+		}
+		cookies, _ := json.Marshal(r.Cookies())
+		header, _ := json.Marshal(r.Header)
+		// 取出客户IP
+		ipAndPort := strings.Split(r.RemoteAddr, ":")
+		region := GetCountry(ipAndPort[0])
+		currentDay, _ := strconv.Atoi(time.Now().Format("20060102"))
+		weblogbean := innerbean.WebLog{
+			HOST:           r.Host,
+			URL:            r.RequestURI,
+			REFERER:        r.Referer(),
+			USER_AGENT:     r.UserAgent(),
+			METHOD:         r.Method,
+			HEADER:         string(header),
+			COUNTRY:        region[0],
+			PROVINCE:       region[2],
+			CITY:           region[3],
+			SRC_IP:         ipAndPort[0],
+			SRC_PORT:       ipAndPort[1],
+			CREATE_TIME:    time.Now().Format("2006-01-02 15:04:05"),
+			CONTENT_LENGTH: contentLength,
+			COOKIES:        string(cookies),
+			BODY:           string(bodyByte),
+			REQ_UUID:       uuid.NewV4().String(),
+			USER_CODE:      global.GWAF_USER_CODE,
+			HOST_CODE:      "",
+			TenantId:       global.GWAF_TENANT_ID,
+			RULE:           "",
+			ACTION:         "通过",
+			Day:            currentDay,
+		}
 		weblogbean.ACTION = "禁止"
 		global.GWAF_LOCAL_DB.Create(weblogbean)
 	}
@@ -279,14 +326,18 @@ func errorHandler() func(http.ResponseWriter, *http.Request, error) {
 func modifyResponse() func(*http.Response) error {
 	return func(resp *http.Response) error {
 		resp.Header.Set("WAF", "SamWAF")
+		host := resp.Request.Host
+		if !strings.Contains(host, ":") {
+			host = host + ":80"
+		}
 		zlog.Debug("%s %s", resp.Request.Host, resp.Request.RequestURI)
 		ldpFlag := false
 		//隐私保护（待优化性能）
-		for i := 0; i < len(hostTarget[resp.Request.Host].LdpUrlLists); i++ {
-			if (hostTarget[resp.Request.Host].LdpUrlLists[i].CompareType == "等于" && hostTarget[resp.Request.Host].LdpUrlLists[i].Url == resp.Request.RequestURI) ||
-				(hostTarget[resp.Request.Host].LdpUrlLists[i].CompareType == "前缀匹配" && strings.HasPrefix(resp.Request.RequestURI, hostTarget[resp.Request.Host].LdpUrlLists[i].Url)) ||
-				(hostTarget[resp.Request.Host].LdpUrlLists[i].CompareType == "后缀匹配" && strings.HasSuffix(resp.Request.RequestURI, hostTarget[resp.Request.Host].LdpUrlLists[i].Url)) ||
-				(hostTarget[resp.Request.Host].LdpUrlLists[i].CompareType == "包含匹配" && strings.Contains(resp.Request.RequestURI, hostTarget[resp.Request.Host].LdpUrlLists[i].Url)) {
+		for i := 0; i < len(hostTarget[host].LdpUrlLists); i++ {
+			if (hostTarget[host].LdpUrlLists[i].CompareType == "等于" && hostTarget[host].LdpUrlLists[i].Url == resp.Request.RequestURI) ||
+				(hostTarget[host].LdpUrlLists[i].CompareType == "前缀匹配" && strings.HasPrefix(resp.Request.RequestURI, hostTarget[host].LdpUrlLists[i].Url)) ||
+				(hostTarget[host].LdpUrlLists[i].CompareType == "后缀匹配" && strings.HasSuffix(resp.Request.RequestURI, hostTarget[host].LdpUrlLists[i].Url)) ||
+				(hostTarget[host].LdpUrlLists[i].CompareType == "包含匹配" && strings.Contains(resp.Request.RequestURI, hostTarget[host].LdpUrlLists[i].Url)) {
 
 				ldpFlag = true
 				break

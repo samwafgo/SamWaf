@@ -7,6 +7,7 @@ import (
 	assetfs "github.com/elazarl/go-bindata-assetfs"
 	"github.com/gin-gonic/gin"
 	"log"
+	"net"
 	"net/http"
 	"strconv"
 )
@@ -58,7 +59,11 @@ func StartLocalServer() {
 	}
 	InitRouter(r)
 
-	r.Run(":" + strconv.Itoa(global.GWAF_LOCAL_SERVER_PORT)) // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")
+	l, err := net.Listen("tcp4", ":"+strconv.Itoa(global.GWAF_LOCAL_SERVER_PORT))
+	if err != nil {
+		log.Fatal(err)
+	}
+	r.RunListener(l)
 	log.Println("本地 port:%d", global.GWAF_LOCAL_SERVER_PORT)
 }
 

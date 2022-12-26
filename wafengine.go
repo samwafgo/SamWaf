@@ -3,6 +3,7 @@ package main
 import (
 	"SamWaf/global"
 	"SamWaf/innerbean"
+	"SamWaf/libinjection-go"
 	"SamWaf/model"
 	"SamWaf/plugin"
 	"SamWaf/utils"
@@ -170,6 +171,37 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		if hostTarget[host].Host.GUARD_STATUS == 1 {
 			var jumpGuardFlag = false
+
+			var sqlFlag = false
+			//检测sql注入
+			sqliResult, _ := libinjection.IsSQLi(weblogbean.URL)
+			if sqliResult {
+				sqlFlag = true
+			}
+			sqliResult, _ = libinjection.IsSQLi(weblogbean.BODY)
+			if sqliResult {
+				sqlFlag = true
+			}
+			if sqlFlag == true {
+				EchoErrorInfo(w, r, weblogbean, "SQL注入", "请正确访问")
+				return
+			}
+			//检测xss注入
+			var xssFlag = false
+			sqlixssResult := libinjection.IsXSS(weblogbean.URL)
+			if sqlixssResult == true {
+				xssFlag = true
+			}
+			sqlixssResult = libinjection.IsXSS(weblogbean.BODY)
+			if sqlixssResult == true {
+				xssFlag = true
+			}
+			if xssFlag == true {
+				EchoErrorInfo(w, r, weblogbean, "XSS跨站注入", "请正确访问")
+				return
+			}
+			//检测xss
+
 			//ip白名单策略（待优化性能）
 			if hostTarget[host].IPWhiteLists != nil {
 				for i := 0; i < len(hostTarget[host].IPWhiteLists); i++ {

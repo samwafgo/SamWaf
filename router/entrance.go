@@ -12,6 +12,8 @@ type ApiGroup struct {
 	AntiCCRouter
 	BlockIpRouter
 	BlockUrlRouter
+	AccountRouter
+	AccountLogRouter
 }
 
 var ApiGroupApp = new(ApiGroup)

@@ -39,6 +39,9 @@ func InitDb() {
 		//抵抗CC
 		db.AutoMigrate(&model.AntiCC{})
 
+		//waf自生账号
+		db.AutoMigrate(&model.Account{})
+		db.AutoMigrate(&model.AccountLog{})
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 
 		//重启需要删除无效规则

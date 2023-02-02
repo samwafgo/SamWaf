@@ -12,8 +12,9 @@ type Response struct {
 }
 
 const (
-	ERROR   = -1
-	SUCCESS = 0
+	ERROR    = -1
+	SUCCESS  = 0
+	AUTHFAIL = -999
 )
 
 func Result(code int, data interface{}, msg string, c *gin.Context) {
@@ -51,4 +52,7 @@ func FailWithMessage(message string, c *gin.Context) {
 
 func FailWithDetailed(data interface{}, message string, c *gin.Context) {
 	Result(ERROR, data, message, c)
+}
+func AuthFailWithMessage(message string, c *gin.Context) {
+	Result(AUTHFAIL, map[string]interface{}{}, message, c)
 }

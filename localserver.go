@@ -2,6 +2,7 @@ package main
 
 import (
 	"SamWaf/global"
+	"SamWaf/middleware"
 	"SamWaf/router"
 	"SamWaf/vue"
 	assetfs "github.com/elazarl/go-bindata-assetfs"
@@ -14,19 +15,23 @@ import (
 
 func InitRouter(r *gin.Engine) {
 	RouterGroup := r.Group("")
-	router.ApiGroupApp.InitHostRouter(RouterGroup)
-	router.ApiGroupApp.InitLogRouter(RouterGroup)
-	router.ApiGroupApp.InitRuleRouter(RouterGroup)
-	router.ApiGroupApp.InitEngineRouter(RouterGroup)
-	router.ApiGroupApp.InitStatRouter(RouterGroup)
-	router.ApiGroupApp.InitWhiteIpRouter(RouterGroup)
-	router.ApiGroupApp.InitWhiteUrlRouter(RouterGroup)
-	router.ApiGroupApp.InitLdpUrlRouter(RouterGroup)
-	router.ApiGroupApp.InitAntiCCRouter(RouterGroup)
-	router.ApiGroupApp.InitBlockIpRouter(RouterGroup)
-	router.ApiGroupApp.InitBlockUrlRouter(RouterGroup)
-	router.ApiGroupApp.InitAccountRouter(RouterGroup)
-	router.ApiGroupApp.InitAccountLogRouter(RouterGroup)
+	RouterGroup.Use(middleware.Auth())
+	{
+		router.ApiGroupApp.InitHostRouter(RouterGroup)
+		router.ApiGroupApp.InitLogRouter(RouterGroup)
+		router.ApiGroupApp.InitRuleRouter(RouterGroup)
+		router.ApiGroupApp.InitEngineRouter(RouterGroup)
+		router.ApiGroupApp.InitStatRouter(RouterGroup)
+		router.ApiGroupApp.InitWhiteIpRouter(RouterGroup)
+		router.ApiGroupApp.InitWhiteUrlRouter(RouterGroup)
+		router.ApiGroupApp.InitLdpUrlRouter(RouterGroup)
+		router.ApiGroupApp.InitAntiCCRouter(RouterGroup)
+		router.ApiGroupApp.InitBlockIpRouter(RouterGroup)
+		router.ApiGroupApp.InitBlockUrlRouter(RouterGroup)
+		router.ApiGroupApp.InitAccountRouter(RouterGroup)
+		router.ApiGroupApp.InitAccountLogRouter(RouterGroup)
+		router.ApiGroupApp.InitLoginRouter(RouterGroup)
+	}
 }
 func Cors() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -37,7 +42,7 @@ func Cors() gin.HandlerFunc {
 			// 将该域添加到allow-origin中
 			c.Header("Access-Control-Allow-Origin", origin) //
 			c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, UPDATE")
-			c.Header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization")
+			c.Header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization,X-Token")
 			c.Header("Access-Control-Expose-Headers", "Content-Length, Access-Control-Allow-Origin, Access-Control-Allow-Headers, Cache-Control, Content-Language, Content-Type")
 			//允许客户端传递校验信息比如 cookie
 			c.Header("Access-Control-Allow-Credentials", "true")

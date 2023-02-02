@@ -14,6 +14,7 @@ type ApiGroup struct {
 	BlockUrlRouter
 	AccountRouter
 	AccountLogRouter
+	LoginRouter
 }
 
 var ApiGroupApp = new(ApiGroup)

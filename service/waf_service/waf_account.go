@@ -54,6 +54,12 @@ func (receiver *WafAccountService) GetDetailApi(req request.WafAccountDetailReq)
 	global.GWAF_LOCAL_DB.Debug().Where("id=?", req.Id).Find(&bean)
 	return bean
 }
+func (receiver *WafAccountService) GetInfoByLoginApi(req request.WafLoginReq) model.Account {
+	var bean model.Account
+	global.GWAF_LOCAL_DB.Debug().Where("login_account=? and login_password=?", req.LoginAccount, req.LoginPassword).Find(&bean)
+	return bean
+}
+
 func (receiver *WafAccountService) GetDetailByIdApi(id string) model.Account {
 	var bean model.Account
 	global.GWAF_LOCAL_DB.Debug().Where("id=?", id).Find(&bean)

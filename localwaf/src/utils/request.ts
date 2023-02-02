@@ -9,6 +9,7 @@ const CODE = {
   LOGIN_TIMEOUT: 1000,
   REQUEST_SUCCESS: 0,
   REQUEST_FOBID: 1001,
+  AUTH_FAILURE :-999
 };
 
 const instance = axios.create({
@@ -22,14 +23,34 @@ const instance = axios.create({
 // axios的retry ts类型有问题
 instance.interceptors.retry = 3;
 
-instance.interceptors.request.use((config) => config);
 
+instance.interceptors.request.use(
+  (config:any) => {
+
+    let token:string =localStorage.getItem("access_token")? localStorage.getItem("access_token"):"" //此处换成自己获取回来的token，通常存在在cookie或者store里面
+    if (token) {
+      // 让每个请求携带token-- ['X-Token']为自定义key 请根据实际情况自行修改
+      config.headers['X-Token'] = token
+      //config.headers.Authorization =  + token
+     }
+    return config
+  },
+  error => {
+    // Do something with request error
+    console.log("出错啦", error) // for debug
+    Promise.reject(error)
+  }
+)
 instance.interceptors.response.use(
   (response) => {
     if (response.status === 200) {
       const { data } = response;
       if (data.code === CODE.REQUEST_SUCCESS) {
         return data;
+      }else if(data.code === CODE.AUTH_FAILURE){
+        //return Promise.reject("鉴权失败");
+        console.log("鉴权失败") 
+        return
       }
       return data;
     }

@@ -86,7 +86,7 @@
 import Vue from 'vue';
 import QrcodeVue from 'qrcode.vue';
 import { UserIcon, LockOnIcon, BrowseOffIcon, BrowseIcon, RefreshIcon } from 'tdesign-icons-vue';
-
+import { loginapi } from '@/apis/login';
 const INITIAL_DATA = {
   phone: '',
   account: 'admin',
@@ -130,12 +130,28 @@ export default Vue.extend({
       this.type = val;
       this.$refs.form.reset();
     },
-    async onSubmit({ validateResult }) {
+     onSubmit({ validateResult }) {
       if (validateResult === true) {
-        await this.$store.dispatch('user/login', this.formData);
+        loginapi({login_account:this.formData.account,login_password:this.formData.password})
+        .then((res)=>{
+            console.log(res)
+            if(res.code==0){
+                localStorage.setItem("access_token",res.data.access_token)
+                this.$store.dispatch('user/login', this.formData);
 
-        this.$message.success('登录成功');
-        this.$router.replace('/').catch(() => '');
+                this.$message.success('登录成功');
+                setTimeout(()=>{
+                   this.$router.replace('/').catch(() => '');
+                },1000)
+
+            }else{
+              this.$message.error(res.msg);
+            }
+
+        }).catch((err)=>{
+            console.log(err)
+        })
+
       }
     },
     handleCounter() {

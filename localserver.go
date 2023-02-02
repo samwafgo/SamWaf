@@ -25,7 +25,8 @@ func InitRouter(r *gin.Engine) {
 	router.ApiGroupApp.InitAntiCCRouter(RouterGroup)
 	router.ApiGroupApp.InitBlockIpRouter(RouterGroup)
 	router.ApiGroupApp.InitBlockUrlRouter(RouterGroup)
-
+	router.ApiGroupApp.InitAccountRouter(RouterGroup)
+	router.ApiGroupApp.InitAccountLogRouter(RouterGroup)
 }
 func Cors() gin.HandlerFunc {
 	return func(c *gin.Context) {

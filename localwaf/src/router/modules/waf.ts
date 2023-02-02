@@ -26,6 +26,29 @@ export default [
     ],
   },
   {
+     path: '/account',
+     name: 'account',
+     component: Layout,
+     redirect: '/account',
+     meta: { title: '账号', icon: ViewModuleIcon },
+     children: [
+       {
+         path: 'Account',
+         name: 'Account',
+         component: () => import('@/pages/waf/account/index.vue'),
+         meta: { title: '账号管理' },
+       },
+       {
+          path: 'AccountLog',
+          name: 'AccountLog',
+          component: () => import('@/pages/waf/accountlog/index.vue'),
+          meta: { title: '账号操作日志' },
+       },
+
+
+     ],
+   },
+  {
     path: '/waf-host',
     name: 'wafhost',
     component: Layout,
@@ -82,7 +105,7 @@ export default [
         component: () => import('@/pages/waf/urlwhite/detail/index.vue'),
         meta: { title: 'Url白名单详情', hidden: true},
       },
-       
+
       {
         path: 'wafipBlocklist',
         name: 'WafIpBlockList',

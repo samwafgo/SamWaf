@@ -2,7 +2,9 @@ package utils
 
 import (
 	"SamWaf/model"
+	"net"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -62,4 +64,15 @@ func Str2Time(formatTimeStr string) time.Time {
 func TimeToDayInt(t time.Time) int {
 	day, _ := strconv.Atoi(t.Format("20060102"))
 	return day
+}
+func GetPublicIP() string {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		return "localhost"
+		// log.Fatal(err)
+	}
+	defer conn.Close()
+	localAddr := conn.LocalAddr().String()
+	idx := strings.LastIndex(localAddr, ":")
+	return localAddr[0:idx]
 }

@@ -14,6 +14,8 @@ type APIGroup struct {
 	WafAntiCCApi
 	WafBlockIpApi
 	WafBlockUrlApi
+	WafAccountApi
+	WafAccountLogApi
 }
 
 var APIGroupAPP = new(APIGroup)
@@ -29,4 +31,7 @@ var (
 
 	wafIpBlockService  = waf_service.WafBlockIpServiceApp
 	wafUrlBlockService = waf_service.WafBlockUrlServiceApp
+
+	wafAccountService    = waf_service.WafAccountServiceApp
+	wafAccountLogService = waf_service.WafAccountLogServiceApp
 )

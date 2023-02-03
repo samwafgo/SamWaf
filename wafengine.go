@@ -36,6 +36,9 @@ import (
 	"time"
 )
 
+/*type wafEngine struct {
+
+}*/
 // 主机安全配置
 type HostSafe struct {
 	RevProxy            *httputil.ReverseProxy
@@ -211,9 +214,8 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				if hostTarget[host].pluginIpRateLimiter != nil {
 					limiter := hostTarget[host].pluginIpRateLimiter.GetLimiter(weblogbean.SRC_IP)
 					if !limiter.Allow() {
-						//w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止超量了</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
-						//zlog.Debug("触发IP频次访问限制 已经被限制访问了")
-						EchoErrorInfo(w, r, weblogbean, "触发IP频次访问限制", "您的访问被阻止超量了")
+						fmt.Println("超量了")
+						EchoErrorInfo(w, r, weblogbean, "触发IP频次访问限制1", "您的访问被阻止超量了1")
 						return
 					}
 				}
@@ -309,10 +311,14 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean innerbean.WebLog, ruleName string, blockInfo string) {
+	//通知信息
+	noticeStr := fmt.Sprintf("访问IP:%s 归属地区：%s  规则：%s 阻止信息：%s", weblogbean.SRC_IP, utils.GetCountry(weblogbean.SRC_IP), ruleName, blockInfo)
+	zlog.Info(noticeStr)
+	utils.NotifyHelperApp.SendInfo("命中保护规则", noticeStr, "无")
 	weblogbean.RULE = ruleName
 	weblogbean.ACTION = "阻止"
 	global.GWAF_LOCAL_DB.Create(weblogbean)
-	w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>" + blockInfo + "</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
+	w.Write([]byte("<html><head><title>您的访问被阻止1</title></head><body><center><h1>" + blockInfo + "</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
 	zlog.Debug(ruleName)
 }
 func errorHandler() func(http.ResponseWriter, *http.Request, error) {

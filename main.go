@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 	"syscall"
 	"time"
@@ -24,6 +25,11 @@ func main() {
 		zlog.Info("调试版本")
 	}
 	global.GWAF_LAST_UPDATE_TIME = time.Now()
+	if runtime.GOOS == "linux" {
+		println("linux")
+	} else if runtime.GOOS == "windows" {
+		println("windows")
+	}
 	pwd, err := os.Getwd()
 	syscall.Setenv("ZONEINFO", pwd+"//data//zoneinfo")
 	if err != nil {

@@ -1,8 +1,11 @@
 package utils
 
 import (
+	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/utils/zlog"
+	"fmt"
+	"github.com/lionsoul2014/ip2region/binding/golang/xdb"
 	"net"
 	"strconv"
 	"strings"
@@ -80,7 +83,7 @@ func GetPublicIP() string {
 
 func GetCountry(ip string) []string {
 	// 2、用全局的 cBuff 创建完全基于内存的查询对象。
-	searcher, err := xdb.NewWithBuffer(ipcBuff)
+	searcher, err := xdb.NewWithBuffer(global.GCACHE_IP_CBUFF)
 	if err != nil {
 		fmt.Printf("failed to create searcher with content: %s\n", err)
 
@@ -102,11 +105,4 @@ func GetCountry(ip string) []string {
 	regions := strings.Split(region, "|")
 
 	return regions
-	/*if regions[0] == "中国" {
-		return true
-	} else if regions[0] == "0" {
-		return true
-	} else {
-		return false
-	}*/
 }

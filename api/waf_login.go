@@ -29,7 +29,7 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 			tokenInfo := wafTokenInfoService.AddApi(bean.LoginAccount, accessToken, c.ClientIP())
 
 			//通知信息
-			noticeStr := fmt.Sprintf("登录IP:%s 归属地区：%s", c.ClientIP(), GetCountry)
+			noticeStr := fmt.Sprintf("登录IP:%s 归属地区：%s", c.ClientIP(), utils.GetCountry(c.ClientIP()))
 			utils.NotifyHelperApp.SendInfo("登录信息", noticeStr, "无")
 
 			response.OkWithDetailed(response2.LoginRep{

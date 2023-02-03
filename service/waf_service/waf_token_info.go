@@ -13,6 +13,7 @@ type WafTokenInfoService struct{}
 var WafTokenInfoServiceApp = new(WafTokenInfoService)
 
 func (receiver *WafTokenInfoService) AddApi(loginAccount string, AccessToken string, LoginIp string) *model.TokenInfo {
+
 	var bean = &model.TokenInfo{
 		Id:             uuid.NewV4().String(),
 		UserCode:       global.GWAF_USER_CODE,
@@ -51,7 +52,7 @@ func (receiver *WafTokenInfoService) ModifyApi(loginAccount string, AccessToken 
 */
 func (receiver *WafTokenInfoService) GetInfoByLoginAccount(loginAccount string) model.TokenInfo {
 	var bean model.TokenInfo
-	global.GWAF_LOCAL_DB.Debug().Where("login_account=? ", loginAccount).Find(&bean)
+	global.GWAF_LOCAL_DB.Debug().Where("login_account=? ", loginAccount).Limit(1).Find(&bean)
 	return bean
 }
 
@@ -76,5 +77,19 @@ func (receiver *WafTokenInfoService) DelApi(loginAccount string, AccessToken str
 		return err
 	}
 	err = global.GWAF_LOCAL_DB.Where("login_account = ? and access_token = ? ", loginAccount, AccessToken).Delete(model.TokenInfo{}).Error
+	return err
+}
+
+/*
+*
+通过账号删除所有关联状态
+*/
+func (receiver *WafTokenInfoService) DelApiByAccount(loginAccount string) error {
+	var bean model.TokenInfo
+	err := global.GWAF_LOCAL_DB.Where("login_account = ?", loginAccount).First(&bean).Error
+	if err != nil {
+		return err
+	}
+	err = global.GWAF_LOCAL_DB.Where("login_account = ?", loginAccount).Delete(model.TokenInfo{}).Error
 	return err
 }

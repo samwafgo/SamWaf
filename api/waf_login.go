@@ -17,6 +17,15 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 	var req request.WafLoginReq
 	err := c.ShouldBind(&req)
 	if err == nil {
+		accountCount, _ := wafAccountService.GetAccountCountApi()
+		if accountCount == 0 {
+			wafAccountService.AddApi(request.WafAccountAddReq{
+				LoginAccount:  "admin",
+				LoginPassword: "admin868",
+				Status:        0,
+				Remarks:       "密码生成",
+			})
+		}
 		bean := wafAccountService.GetInfoByLoginApi(req)
 		if bean.Id != "" {
 			//如果存在旧的状态删除

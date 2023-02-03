@@ -90,3 +90,10 @@ func (receiver *WafAccountService) DelApi(req request.WafAccountDelReq) error {
 	err = global.GWAF_LOCAL_DB.Where("id = ?", req.Id).Delete(model.Account{}).Error
 	return err
 }
+
+// 获取系统所有账号数量
+func (receiver *WafAccountService) GetAccountCountApi() (int64, error) {
+	var total int64 = 0
+	global.GWAF_LOCAL_DB.Debug().Model(&model.Account{}).Count(&total)
+	return total, nil
+}

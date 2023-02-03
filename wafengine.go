@@ -5,6 +5,7 @@ import (
 	"SamWaf/innerbean"
 	"SamWaf/libinjection-go"
 	"SamWaf/model"
+	"SamWaf/model/wafenginmodel"
 	"SamWaf/plugin"
 	"SamWaf/utils"
 	"SamWaf/utils/zlog"
@@ -36,53 +37,25 @@ import (
 	"time"
 )
 
-/*type wafEngine struct {
-
-}*/
-// 主机安全配置
-type HostSafe struct {
-	RevProxy            *httputil.ReverseProxy
-	Rule                *utils.RuleHelper
-	TargetHost          string
-	RuleData            []model.Rules
-	RuleVersionSum      int //规则版本的汇总 通过这个来进行版本动态加载
-	Host                model.Hosts
-	pluginIpRateLimiter *plugin.IPRateLimiter //ip限流
-	IPWhiteLists        []model.IPWhiteList   //ip 白名单
-	UrlWhiteLists       []model.URLWhiteList  //url 白名单
-	LdpUrlLists         []model.LDPUrl        //url 隐私保护
-
-	IPBlockLists  []model.IPBlockList  //ip 黑名单
-	UrlBlockLists []model.URLBlockList //url 黑名单
-}
-
-var (
+type WafEngine struct {
 	//主机情况
-	hostTarget = map[string]*HostSafe{}
+	hostTarget map[string]*wafenginmodel.HostSafe
 	//主机和code的关系
-	hostCode     = map[string]string{}
-	serverOnline = map[int]innerbean.ServerRunTime{}
+	hostCode     map[string]string
+	serverOnline map[int]innerbean.ServerRunTime
 
 	//所有证书情况 对应端口 可能多个端口都是https 443，或者其他非标准端口也要实现https证书
-	allCertificate = map[int]map[string]*tls.Certificate{}
-	//allCertificate = map[int] map[string] string{}
-	esHelper utils.EsHelper
+	allCertificate map[int]map[string]*tls.Certificate
+	esHelper       utils.EsHelper
 
-	phttphandler        *baseHandle
-	engineCurrentStatus int = 0 // 当前waf引擎状态
-
-)
-
-type baseHandle struct{}
-
-func customResult(w http.ResponseWriter, r *http.Request, webLog innerbean.WebLog) {
-
+	engineCurrentStatus int // 当前waf引擎状态
 }
-func (h *baseHandle) Error() string {
+
+func (waf *WafEngine) Error() string {
 	fs := "HTTP: %d, HostCode: %d, Message: %s"
 	return fmt.Sprintf(fs)
 }
-func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	host := r.Host
 	if !strings.Contains(host, ":") {
 		host = host + ":80"
@@ -94,7 +67,7 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 	// 检查域名是否已经注册
-	if target, ok := hostTarget[host]; ok {
+	if target, ok := waf.hostTarget[host]; ok {
 
 		// 获取请求报文的内容长度
 		contentLength := r.ContentLength
@@ -132,14 +105,14 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			BODY:           string(bodyByte),
 			REQ_UUID:       uuid.NewV4().String(),
 			USER_CODE:      global.GWAF_USER_CODE,
-			HOST_CODE:      hostTarget[host].Host.Code,
+			HOST_CODE:      waf.hostTarget[host].Host.Code,
 			TenantId:       global.GWAF_TENANT_ID,
 			RULE:           "",
 			ACTION:         "通过",
 			Day:            currentDay,
 		}
 
-		if hostTarget[host].Host.GUARD_STATUS == 1 {
+		if waf.hostTarget[host].Host.GUARD_STATUS == 1 {
 			var jumpGuardFlag = false
 
 			var sqlFlag = false
@@ -173,36 +146,36 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			//检测xss
 
 			//ip白名单策略（待优化性能）
-			if hostTarget[host].IPWhiteLists != nil {
-				for i := 0; i < len(hostTarget[host].IPWhiteLists); i++ {
-					if hostTarget[host].IPWhiteLists[i].Ip == weblogbean.SRC_IP {
+			if waf.hostTarget[host].IPWhiteLists != nil {
+				for i := 0; i < len(waf.hostTarget[host].IPWhiteLists); i++ {
+					if waf.hostTarget[host].IPWhiteLists[i].Ip == weblogbean.SRC_IP {
 						jumpGuardFlag = true
 						break
 					}
 				}
 			}
 			//url白名单策略（待优化性能）
-			if hostTarget[host].UrlWhiteLists != nil {
-				for i := 0; i < len(hostTarget[host].UrlWhiteLists); i++ {
-					if hostTarget[host].UrlWhiteLists[i].Url == weblogbean.URL {
+			if waf.hostTarget[host].UrlWhiteLists != nil {
+				for i := 0; i < len(waf.hostTarget[host].UrlWhiteLists); i++ {
+					if waf.hostTarget[host].UrlWhiteLists[i].Url == weblogbean.URL {
 						jumpGuardFlag = true
 						break
 					}
 				}
 			}
 			//ip黑名单策略（待优化性能）
-			if hostTarget[host].IPBlockLists != nil {
-				for i := 0; i < len(hostTarget[host].IPBlockLists); i++ {
-					if hostTarget[host].IPBlockLists[i].Ip == weblogbean.SRC_IP {
+			if waf.hostTarget[host].IPBlockLists != nil {
+				for i := 0; i < len(waf.hostTarget[host].IPBlockLists); i++ {
+					if waf.hostTarget[host].IPBlockLists[i].Ip == weblogbean.SRC_IP {
 						EchoErrorInfo(w, r, weblogbean, "IP黑名单", "您的访问被阻止了IP限制")
 						return
 					}
 				}
 			}
 			//url黑名单策略（待优化性能）
-			if hostTarget[host].UrlBlockLists != nil {
-				for i := 0; i < len(hostTarget[host].UrlBlockLists); i++ {
-					if hostTarget[host].UrlBlockLists[i].Url == weblogbean.URL {
+			if waf.hostTarget[host].UrlBlockLists != nil {
+				for i := 0; i < len(waf.hostTarget[host].UrlBlockLists); i++ {
+					if waf.hostTarget[host].UrlBlockLists[i].Url == weblogbean.URL {
 						EchoErrorInfo(w, r, weblogbean, "URL黑名单", "您的访问被阻止了URL限制")
 						return
 					}
@@ -211,15 +184,15 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			if jumpGuardFlag == false {
 				//cc 防护
-				if hostTarget[host].pluginIpRateLimiter != nil {
-					limiter := hostTarget[host].pluginIpRateLimiter.GetLimiter(weblogbean.SRC_IP)
+				if waf.hostTarget[host].PluginIpRateLimiter != nil {
+					limiter := waf.hostTarget[host].PluginIpRateLimiter.GetLimiter(weblogbean.SRC_IP)
 					if !limiter.Allow() {
 						fmt.Println("超量了")
 						EchoErrorInfo(w, r, weblogbean, "触发IP频次访问限制1", "您的访问被阻止超量了1")
 						return
 					}
 				}
-				ruleMatchs, err := hostTarget[host].Rule.Match("MF", &weblogbean)
+				ruleMatchs, err := waf.hostTarget[host].Rule.Match("MF", &weblogbean)
 				if err == nil {
 					if len(ruleMatchs) > 0 {
 
@@ -250,13 +223,13 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 直接从缓存取出
-		if hostTarget[host].RevProxy != nil {
-			hostTarget[host].RevProxy.ServeHTTP(w, r)
+		if waf.hostTarget[host].RevProxy != nil {
+			waf.hostTarget[host].RevProxy.ServeHTTP(w, r)
 		} else {
 			proxy := httputil.NewSingleHostReverseProxy(remoteUrl)
-			proxy.ModifyResponse = modifyResponse()
+			proxy.ModifyResponse = waf.modifyResponse()
 			proxy.ErrorHandler = errorHandler()
-			hostTarget[host].RevProxy = proxy // 放入缓存
+			waf.hostTarget[host].RevProxy = proxy // 放入缓存
 			proxy.ServeHTTP(w, r)
 		}
 		weblogbean.ACTION = "放行"
@@ -312,13 +285,13 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean innerbean.WebLog, ruleName string, blockInfo string) {
 	//通知信息
-	noticeStr := fmt.Sprintf("访问IP:%s 归属地区：%s  规则：%s 阻止信息：%s", weblogbean.SRC_IP, utils.GetCountry(weblogbean.SRC_IP), ruleName, blockInfo)
+	noticeStr := fmt.Sprintf("网站域名:%s 访问IP:%s 归属地区：%s  规则：%s 阻止信息：%s", weblogbean.HOST, weblogbean.SRC_IP, utils.GetCountry(weblogbean.SRC_IP), ruleName, blockInfo)
 	zlog.Info(noticeStr)
 	utils.NotifyHelperApp.SendInfo("命中保护规则", noticeStr, "无")
 	weblogbean.RULE = ruleName
 	weblogbean.ACTION = "阻止"
 	global.GWAF_LOCAL_DB.Create(weblogbean)
-	w.Write([]byte("<html><head><title>您的访问被阻止1</title></head><body><center><h1>" + blockInfo + "</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
+	w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>" + blockInfo + "</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
 	zlog.Debug(ruleName)
 }
 func errorHandler() func(http.ResponseWriter, *http.Request, error) {
@@ -328,7 +301,7 @@ func errorHandler() func(http.ResponseWriter, *http.Request, error) {
 	}
 }
 
-func modifyResponse() func(*http.Response) error {
+func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 	return func(resp *http.Response) error {
 		resp.Header.Set("WAF", "SamWAF")
 		host := resp.Request.Host
@@ -338,11 +311,11 @@ func modifyResponse() func(*http.Response) error {
 		zlog.Debug("%s %s", resp.Request.Host, resp.Request.RequestURI)
 		ldpFlag := false
 		//隐私保护（待优化性能）
-		for i := 0; i < len(hostTarget[host].LdpUrlLists); i++ {
-			if (hostTarget[host].LdpUrlLists[i].CompareType == "等于" && hostTarget[host].LdpUrlLists[i].Url == resp.Request.RequestURI) ||
-				(hostTarget[host].LdpUrlLists[i].CompareType == "前缀匹配" && strings.HasPrefix(resp.Request.RequestURI, hostTarget[host].LdpUrlLists[i].Url)) ||
-				(hostTarget[host].LdpUrlLists[i].CompareType == "后缀匹配" && strings.HasSuffix(resp.Request.RequestURI, hostTarget[host].LdpUrlLists[i].Url)) ||
-				(hostTarget[host].LdpUrlLists[i].CompareType == "包含匹配" && strings.Contains(resp.Request.RequestURI, hostTarget[host].LdpUrlLists[i].Url)) {
+		for i := 0; i < len(waf.hostTarget[host].LdpUrlLists); i++ {
+			if (waf.hostTarget[host].LdpUrlLists[i].CompareType == "等于" && waf.hostTarget[host].LdpUrlLists[i].Url == resp.Request.RequestURI) ||
+				(waf.hostTarget[host].LdpUrlLists[i].CompareType == "前缀匹配" && strings.HasPrefix(resp.Request.RequestURI, waf.hostTarget[host].LdpUrlLists[i].Url)) ||
+				(waf.hostTarget[host].LdpUrlLists[i].CompareType == "后缀匹配" && strings.HasSuffix(resp.Request.RequestURI, waf.hostTarget[host].LdpUrlLists[i].Url)) ||
+				(waf.hostTarget[host].LdpUrlLists[i].CompareType == "包含匹配" && strings.Contains(resp.Request.RequestURI, waf.hostTarget[host].LdpUrlLists[i].Url)) {
 
 				ldpFlag = true
 				break
@@ -417,12 +390,12 @@ func determinePageEncoding(r *bufio.Reader) encoding.Encoding {
 	e, _, _ := charset.DetermineEncoding(bytes, "")
 	return e
 }
-func Start_WAF() {
+func (waf *WafEngine) Start_WAF() {
 	config := viper.New()
 	config.AddConfigPath("./conf/") // 文件所在目录
 	config.SetConfigName("config")  // 文件名
 	config.SetConfigType("yml")     // 文件类型
-	engineCurrentStatus = 1
+	waf.engineCurrentStatus = 1
 	if err := config.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			zlog.Error("找不到配置文件..")
@@ -462,16 +435,16 @@ func Start_WAF() {
 
 			}
 			//all_certificate[hosts[i].Port][hosts[i].Host] = &cert
-			mm, ok := allCertificate[hosts[i].Port] //[hosts[i].Host]
+			mm, ok := waf.allCertificate[hosts[i].Port] //[hosts[i].Host]
 			if !ok {
 				mm = make(map[string]*tls.Certificate)
-				allCertificate[hosts[i].Port] = mm
+				waf.allCertificate[hosts[i].Port] = mm
 			}
-			allCertificate[hosts[i].Port][hosts[i].Host] = &cert
+			waf.allCertificate[hosts[i].Port][hosts[i].Host] = &cert
 		}
-		_, ok := serverOnline[hosts[i].Port]
+		_, ok := waf.serverOnline[hosts[i].Port]
 		if ok == false {
-			serverOnline[hosts[i].Port] = innerbean.ServerRunTime{
+			waf.serverOnline[hosts[i].Port] = innerbean.ServerRunTime{
 				ServerType: utils.GetServerByHosts(hosts[i]),
 				Port:       hosts[i].Port,
 				Status:     0,
@@ -524,14 +497,14 @@ func Start_WAF() {
 		global.GWAF_LOCAL_DB.Where("host_code=? ", hosts[i].Code).Find(&ldpurls)
 
 		//初始化主机host
-		hostsafe := &HostSafe{
+		hostsafe := &wafenginmodel.HostSafe{
 			RevProxy:            nil,
 			Rule:                ruleHelper,
 			TargetHost:          hosts[i].Remote_host + ":" + strconv.Itoa(hosts[i].Remote_port),
 			RuleData:            ruleconfigs,
 			RuleVersionSum:      vcnt,
 			Host:                hosts[i],
-			pluginIpRateLimiter: pluginIpRateLimiter,
+			PluginIpRateLimiter: pluginIpRateLimiter,
 			IPWhiteLists:        ipwhitelist,
 			UrlWhiteLists:       urlwhitelist,
 			LdpUrlLists:         ldpurls,
@@ -539,28 +512,28 @@ func Start_WAF() {
 			UrlBlockLists:       urlblocklist,
 		}
 		//赋值到白名单里面
-		hostTarget[hosts[i].Host+":"+strconv.Itoa(hosts[i].Port)] = hostsafe
+		waf.hostTarget[hosts[i].Host+":"+strconv.Itoa(hosts[i].Port)] = hostsafe
 		//赋值到对照表里面
-		hostCode[hosts[i].Code] = hosts[i].Host + ":" + strconv.Itoa(hosts[i].Port)
+		waf.hostCode[hosts[i].Code] = hosts[i].Host + ":" + strconv.Itoa(hosts[i].Port)
 
 	}
-	for _, v := range serverOnline {
+	for _, v := range waf.serverOnline {
 		go func(innruntime innerbean.ServerRunTime) {
 
 			if (innruntime.ServerType) == "https" {
 
 				svr := &http.Server{
 					Addr:    ":" + strconv.Itoa(innruntime.Port),
-					Handler: phttphandler,
+					Handler: waf,
 					TLSConfig: &tls.Config{
 						NameToCertificate: make(map[string]*tls.Certificate, 0),
 					},
 				}
-				serclone := serverOnline[innruntime.Port]
+				serclone := waf.serverOnline[innruntime.Port]
 				serclone.Svr = svr
-				serverOnline[innruntime.Port] = serclone
+				waf.serverOnline[innruntime.Port] = serclone
 
-				svr.TLSConfig.NameToCertificate = allCertificate[innruntime.Port]
+				svr.TLSConfig.NameToCertificate = waf.allCertificate[innruntime.Port]
 				svr.TLSConfig.GetCertificate = func(clientInfo *tls.ClientHelloInfo) (*tls.Certificate, error) {
 					if x509Cert, ok := svr.TLSConfig.NameToCertificate[clientInfo.ServerName]; ok {
 						return x509Cert, nil
@@ -585,11 +558,11 @@ func Start_WAF() {
 				}()
 				svr := &http.Server{
 					Addr:    ":" + strconv.Itoa(innruntime.Port),
-					Handler: phttphandler,
+					Handler: waf,
 				}
-				serclone := serverOnline[innruntime.Port]
+				serclone := waf.serverOnline[innruntime.Port]
 				serclone.Svr = svr
-				serverOnline[innruntime.Port] = serclone
+				waf.serverOnline[innruntime.Port] = serclone
 
 				zlog.Info("启动HTTP 服务器" + strconv.Itoa(innruntime.Port))
 				err = svr.ListenAndServe()
@@ -607,15 +580,15 @@ func Start_WAF() {
 }
 
 // 关闭waf
-func CLoseWAF() {
+func (waf *WafEngine) CLoseWAF() {
 	defer func() {
 		e := recover()
 		if e != nil { // 捕获该协程的panic 111111
 			zlog.Debug("关闭 recover ", e)
 		}
 	}()
-	engineCurrentStatus = 0
-	for _, v := range serverOnline {
+	waf.engineCurrentStatus = 0
+	for _, v := range waf.serverOnline {
 		if v.Svr != nil {
 			v.Svr.Close()
 		}
@@ -623,9 +596,9 @@ func CLoseWAF() {
 
 	//重置信息
 
-	hostTarget = map[string]*HostSafe{}
-	hostCode = map[string]string{}
-	serverOnline = map[int]innerbean.ServerRunTime{}
-	allCertificate = map[int]map[string]*tls.Certificate{}
+	waf.hostTarget = map[string]*wafenginmodel.HostSafe{}
+	waf.hostCode = map[string]string{}
+	waf.serverOnline = map[int]innerbean.ServerRunTime{}
+	waf.allCertificate = map[int]map[string]*tls.Certificate{}
 
 }

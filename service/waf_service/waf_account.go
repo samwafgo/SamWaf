@@ -60,6 +60,15 @@ func (receiver *WafAccountService) GetInfoByLoginApi(req request.WafLoginReq) mo
 	return bean
 }
 
+/*
+*
+通过登录account获取账号信息
+*/
+func (receiver *WafAccountService) GetInfoByLoginAccount(loginAccount string) model.Account {
+	var bean model.Account
+	global.GWAF_LOCAL_DB.Debug().Where("login_account=? ", loginAccount).Find(&bean)
+	return bean
+}
 func (receiver *WafAccountService) GetDetailByIdApi(id string) model.Account {
 	var bean model.Account
 	global.GWAF_LOCAL_DB.Debug().Where("id=?", id).Find(&bean)

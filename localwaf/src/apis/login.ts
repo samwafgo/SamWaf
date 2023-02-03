@@ -2,16 +2,16 @@ import request from '@/utils/request'
 //登录
 export function loginapi(params) {
   return request({
-    url: 'login',
+    url: 'public/login',
     method: 'post',
     data: params
   })
 }
 
-//登录
-export function loginout(params) {
+//注销
+export function logoutapi(params) {
   return request({
-    url: 'loginout',
+    url: 'logout',
     method: 'post',
     data: params
   })

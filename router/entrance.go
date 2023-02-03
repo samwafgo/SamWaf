@@ -14,7 +14,11 @@ type ApiGroup struct {
 	BlockUrlRouter
 	AccountRouter
 	AccountLogRouter
+	LoginOutRouter
+}
+type PublicApiGroup struct {
 	LoginRouter
 }
 
 var ApiGroupApp = new(ApiGroup)
+var PublicApiGroupApp = new(PublicApiGroup)

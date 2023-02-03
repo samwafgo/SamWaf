@@ -1,6 +1,6 @@
 import axios from 'axios';
 import proxy from '../config/host';
-
+import router from '../router/index';
 const env = import.meta.env.MODE || 'development';
 
 const API_HOST = env === 'mock' ? '/' : proxy[env].API; // 如果是mock模式 就不配置host 会走本地Mock拦截
@@ -48,9 +48,9 @@ instance.interceptors.response.use(
       if (data.code === CODE.REQUEST_SUCCESS) {
         return data;
       }else if(data.code === CODE.AUTH_FAILURE){
-        //return Promise.reject("鉴权失败");
-        console.log("鉴权失败") 
-        return
+          localStorage.clear();     //删除用户信息 
+          console.log("鉴权失败")
+          router.replace({path: '/login'})
       }
       return data;
     }

@@ -2,6 +2,7 @@ package utils
 
 import (
 	"SamWaf/model"
+	"SamWaf/utils/zlog"
 	"net"
 	"strconv"
 	"strings"
@@ -75,4 +76,37 @@ func GetPublicIP() string {
 	localAddr := conn.LocalAddr().String()
 	idx := strings.LastIndex(localAddr, ":")
 	return localAddr[0:idx]
+}
+
+func GetCountry(ip string) []string {
+	// 2、用全局的 cBuff 创建完全基于内存的查询对象。
+	searcher, err := xdb.NewWithBuffer(ipcBuff)
+	if err != nil {
+		fmt.Printf("failed to create searcher with content: %s\n", err)
+
+	}
+
+	defer searcher.Close()
+
+	// do the search
+	var tStart = time.Now()
+
+	// 备注：并发使用，每个 goroutine 需要创建一个独立的 searcher 对象。
+	region, err := searcher.SearchByStr(ip)
+	if err != nil {
+		fmt.Printf("failed to SearchIP(%s): %s\n", ip, err)
+		return []string{"无", "无"}
+	}
+
+	zlog.Debug("{region: %s, took: %s}\n", region, time.Since(tStart))
+	regions := strings.Split(region, "|")
+
+	return regions
+	/*if regions[0] == "中国" {
+		return true
+	} else if regions[0] == "0" {
+		return true
+	} else {
+		return false
+	}*/
 }

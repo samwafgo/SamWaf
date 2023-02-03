@@ -63,6 +63,12 @@ func main() {
 		zlog.Debug("i am alive")
 		go TaskCounter()
 	})
+
+	// 获取最近token
+	s.Every(1).Hour().Do(func() {
+		zlog.Debug("获取最新token")
+		go TaskWechatAccessToken()
+	})
 	s.StartAsync()
 
 	//脱敏处理初始化

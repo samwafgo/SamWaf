@@ -3,6 +3,8 @@ package main
 import (
 	"SamWaf/global"
 	"SamWaf/model"
+	"SamWaf/utils/zlog"
+	"SamWaf/wechat"
 	"time"
 )
 
@@ -117,4 +119,18 @@ func TaskCounter() {
 
 	}
 	global.GWAF_LAST_UPDATE_TIME = currenyDayBak
+}
+
+func TaskWechatAccessToken() {
+	zlog.Info("TaskWechatAccessToken")
+	wr, err := wechat.GetAppAccessToken("wx8640c6a135dc4b55", "eb57b4a6c445d3624bac7fa3e85efbaf")
+	if err != nil {
+		zlog.Error(err.Error())
+	} else if wr.ErrCode != 0 {
+		zlog.Error("Wechat Server:", wr.ErrMsg)
+	} else {
+		global.GCACHE_WECHAT_ACCESS = wr.AccessToken
+		zlog.Info("TaskWechatAccessToken获取到最新token:" + global.GCACHE_WECHAT_ACCESS)
+	}
+
 }

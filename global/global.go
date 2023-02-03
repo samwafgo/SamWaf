@@ -28,4 +28,5 @@ var (
 
 	GWAF_CHAN_MSG = make(chan spec.ChanCommonHost, 10) //全局通讯包
 
+	GCACHE_WECHAT_ACCESS string //微信访问密钥
 )

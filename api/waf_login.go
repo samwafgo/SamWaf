@@ -5,6 +5,7 @@ import (
 	"SamWaf/model/request"
 	response2 "SamWaf/model/response"
 	"SamWaf/utils"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	uuid "github.com/satori/go.uuid"
 )
@@ -26,6 +27,11 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 			//记录状态
 			accessToken := utils.Md5String(uuid.NewV4().String())
 			tokenInfo := wafTokenInfoService.AddApi(bean.LoginAccount, accessToken, c.ClientIP())
+
+			//通知信息
+			noticeStr := fmt.Sprintf("登录IP:%s 归属地区：%s", c.ClientIP(), GetCountry)
+			utils.NotifyHelperApp.SendInfo("登录信息", noticeStr, "无")
+
 			response.OkWithDetailed(response2.LoginRep{
 				AccessToken: tokenInfo.AccessToken,
 			}, "登录成功", c)

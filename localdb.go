@@ -39,7 +39,8 @@ func InitDb() {
 		//抵抗CC
 		db.AutoMigrate(&model.AntiCC{})
 
-		//waf自生账号
+		//waf自身账号
+		db.AutoMigrate(&model.TokenInfo{})
 		db.AutoMigrate(&model.Account{})
 		db.AutoMigrate(&model.AccountLog{})
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)

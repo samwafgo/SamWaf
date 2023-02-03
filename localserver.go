@@ -30,8 +30,11 @@ func InitRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitBlockUrlRouter(RouterGroup)
 		router.ApiGroupApp.InitAccountRouter(RouterGroup)
 		router.ApiGroupApp.InitAccountLogRouter(RouterGroup)
-		router.ApiGroupApp.InitLoginRouter(RouterGroup)
+		router.ApiGroupApp.InitLoginOutRouter(RouterGroup)
 	}
+	PublicRouterGroup := r.Group("")
+	router.PublicApiGroupApp.InitLoginRouter(PublicRouterGroup)
+
 }
 func Cors() gin.HandlerFunc {
 	return func(c *gin.Context) {

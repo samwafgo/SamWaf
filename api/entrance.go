@@ -35,4 +35,5 @@ var (
 
 	wafAccountService    = waf_service.WafAccountServiceApp
 	wafAccountLogService = waf_service.WafAccountLogServiceApp
+	wafTokenInfoService  = waf_service.WafTokenInfoServiceApp
 )

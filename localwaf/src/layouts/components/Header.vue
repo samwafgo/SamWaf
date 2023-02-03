@@ -82,7 +82,7 @@
   import Notice from './Notice.vue';
   import Search from './Search.vue';
   import MenuContent from './MenuContent.vue';
-
+  import {logoutapi} from '@/apis/login'
   export default Vue.extend({
     components: {
       MenuContent,
@@ -163,7 +163,17 @@
         this.$store.commit('setting/toggleSettingPanel', true);
       },
       handleLogout() {
-        this.$router.push(`/login?redirect=${this.$router.history.current.fullPath}`);
+        let current_account_token = localStorage.getItem("account_token")?localStorage.getItem("account_token"):""
+        logoutapi({account_token:current_account_token})
+        .then((res)=>{
+            if(res.code==0){
+              this.$router.push(`/login?redirect=${this.$router.history.current.fullPath}`);
+            }else{
+              this.$message.warning(res.msg);
+            }
+        })
+
+
       },
       changeCollapsed() {
         this.$store.commit('setting/toggleSidebarCompact');

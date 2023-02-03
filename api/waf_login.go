@@ -18,6 +18,11 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 	if err == nil {
 		bean := wafAccountService.GetInfoByLoginApi(req)
 		if bean.Id != "" {
+			//如果存在旧的状态删除
+			oldTokenInfo := wafTokenInfoService.GetInfoByLoginAccount(req.LoginAccount)
+			if oldTokenInfo.Id != "" {
+				wafTokenInfoService.DelApiByAccount(oldTokenInfo.LoginAccount)
+			}
 			//记录状态
 			accessToken := utils.Md5String(uuid.NewV4().String())
 			tokenInfo := wafTokenInfoService.AddApi(bean.LoginAccount, accessToken, c.ClientIP())

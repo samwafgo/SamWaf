@@ -58,7 +58,6 @@ var (
 	hostTarget = map[string]*HostSafe{}
 	//主机和code的关系
 	hostCode     = map[string]string{}
-	ipcBuff      = []byte{} //ip数据
 	serverOnline = map[int]innerbean.ServerRunTime{}
 
 	//所有证书情况 对应端口 可能多个端口都是https 443，或者其他非标准端口也要实现https证书
@@ -73,38 +72,6 @@ var (
 
 type baseHandle struct{}
 
-func GetCountry(ip string) []string {
-	// 2、用全局的 cBuff 创建完全基于内存的查询对象。
-	searcher, err := xdb.NewWithBuffer(ipcBuff)
-	if err != nil {
-		fmt.Printf("failed to create searcher with content: %s\n", err)
-
-	}
-
-	defer searcher.Close()
-
-	// do the search
-	var tStart = time.Now()
-
-	// 备注：并发使用，每个 goroutine 需要创建一个独立的 searcher 对象。
-	region, err := searcher.SearchByStr(ip)
-	if err != nil {
-		fmt.Printf("failed to SearchIP(%s): %s\n", ip, err)
-		return []string{"无", "无"}
-	}
-
-	zlog.Debug("{region: %s, took: %s}\n", region, time.Since(tStart))
-	regions := strings.Split(region, "|")
-
-	return regions
-	/*if regions[0] == "中国" {
-		return true
-	} else if regions[0] == "0" {
-		return true
-	} else {
-		return false
-	}*/
-}
 func customResult(w http.ResponseWriter, r *http.Request, webLog innerbean.WebLog) {
 
 }
@@ -142,7 +109,7 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		header, _ := json.Marshal(r.Header)
 		// 取出客户IP
 		ipAndPort := strings.Split(r.RemoteAddr, ":")
-		region := GetCountry(ipAndPort[0])
+		region := utils.GetCountry(ipAndPort[0])
 		currentDay, _ := strconv.Atoi(time.Now().Format("20060102"))
 		weblogbean := innerbean.WebLog{
 			HOST:           host,
@@ -311,7 +278,7 @@ func (h *baseHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		header, _ := json.Marshal(r.Header)
 		// 取出客户IP
 		ipAndPort := strings.Split(r.RemoteAddr, ":")
-		region := GetCountry(ipAndPort[0])
+		region := utils.GetCountry(ipAndPort[0])
 		currentDay, _ := strconv.Atoi(time.Now().Format("20060102"))
 		weblogbean := innerbean.WebLog{
 			HOST:           r.Host,
@@ -476,7 +443,7 @@ func Start_WAF() {
 		zlog.Debug("failed to load content from `%s`: %s\n", dbPath, err)
 		return
 	}
-	ipcBuff = cBuff
+	global.GCACHE_IP_CBUFF = cBuff
 
 	//第一步 检测合法性并加入到全局
 	for i := 0; i < len(hosts); i++ {

@@ -23,9 +23,3 @@ int64转成string：
 string := strconv.FormatInt(int64,10)
 
 
-
-# 远程linux调试
-go env -w GOPROXY=goproxy.cn,direct
-go install github.com/go-delve/delve/cmd/dlv@latest
-
-/root/go/bin/dlv --listen=:26667 --headless=true --api-version=2 --accept-multiclient exec ./SamWafLinux64.exe

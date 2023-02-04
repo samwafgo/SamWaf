@@ -9,6 +9,8 @@ import (
 	"SamWaf/plugin"
 	"SamWaf/utils"
 	"SamWaf/utils/zlog"
+	"SamWaf/wafenginecore"
+	"SamWaf/waftask"
 	"crypto/tls"
 	dlp "github.com/bytedance/godlp"
 	"github.com/go-co-op/gocron"
@@ -50,26 +52,26 @@ func main() {
 	}()*/
 
 	//初始化本地数据库
-	InitDb()
+	wafenginecore.InitDb()
 
 	//启动waf
-	wafEngine := WafEngine{
-		hostTarget: map[string]*wafenginmodel.HostSafe{},
+	wafEngine := wafenginecore.WafEngine{
+		HostTarget: map[string]*wafenginmodel.HostSafe{},
 		//主机和code的关系
-		hostCode:     map[string]string{},
-		serverOnline: map[int]innerbean.ServerRunTime{},
+		HostCode:     map[string]string{},
+		ServerOnline: map[int]innerbean.ServerRunTime{},
 		//所有证书情况 对应端口 可能多个端口都是https 443，或者其他非标准端口也要实现https证书
-		allCertificate: map[int]map[string]*tls.Certificate{},
-		esHelper:       utils.EsHelper{},
+		AllCertificate: map[int]map[string]*tls.Certificate{},
+		EsHelper:       utils.EsHelper{},
 
-		engineCurrentStatus: 0, // 当前waf引擎状态
+		EngineCurrentStatus: 0, // 当前waf引擎状态
 	}
 	http.Handle("/", &wafEngine)
 	wafEngine.Start_WAF()
 
 	//启动管理界面
 	go func() {
-		StartLocalServer()
+		wafenginecore.StartLocalServer()
 	}()
 
 	//定时取规则并更新（考虑后期定时拉取公共规则 待定，可能会影响实际生产）
@@ -81,13 +83,13 @@ func main() {
 	// 每秒执行一次 TODO 改数据成分钟统计
 	s.Every(10).Seconds().Do(func() {
 		zlog.Debug("i am alive")
-		go TaskCounter()
+		go waftask.TaskCounter()
 	})
 
 	// 获取最近token
 	s.Every(1).Hour().Do(func() {
 		zlog.Debug("获取最新token")
-		go TaskWechatAccessToken()
+		go waftask.TaskWechatAccessToken()
 	})
 	s.StartAsync()
 
@@ -99,32 +101,32 @@ func main() {
 		case msg := <-global.GWAF_CHAN_MSG:
 			switch msg.Type {
 			case enums.ChanTypeWhiteIP:
-				wafEngine.hostTarget[wafEngine.hostCode[msg.HostCode]].IPWhiteLists = msg.Content.([]model.IPWhiteList)
+				wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].IPWhiteLists = msg.Content.([]model.IPWhiteList)
 				zlog.Debug("远程配置", zap.Any("IPWhiteLists", msg.Content.([]model.IPWhiteList)))
 				break
 			case enums.ChanTypeWhiteURL:
-				wafEngine.hostTarget[wafEngine.hostCode[msg.HostCode]].UrlWhiteLists = msg.Content.([]model.URLWhiteList)
+				wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].UrlWhiteLists = msg.Content.([]model.URLWhiteList)
 				zlog.Debug("远程配置", zap.Any("UrlWhiteLists", msg.Content.([]model.URLWhiteList)))
 				break
 			case enums.ChanTypeBlockIP:
-				wafEngine.hostTarget[wafEngine.hostCode[msg.HostCode]].IPBlockLists = msg.Content.([]model.IPBlockList)
+				wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].IPBlockLists = msg.Content.([]model.IPBlockList)
 				zlog.Debug("远程配置", zap.Any("IPBlockLists", msg))
 				break
 			case enums.ChanTypeBlockURL:
-				wafEngine.hostTarget[wafEngine.hostCode[msg.HostCode]].UrlBlockLists = msg.Content.([]model.URLBlockList)
+				wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].UrlBlockLists = msg.Content.([]model.URLBlockList)
 				zlog.Debug("远程配置", zap.Any("UrlBlockLists", msg.Content.([]model.URLBlockList)))
 				break
 			case enums.ChanTypeLdp:
-				wafEngine.hostTarget[wafEngine.hostCode[msg.HostCode]].LdpUrlLists = msg.Content.([]model.LDPUrl)
+				wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].LdpUrlLists = msg.Content.([]model.LDPUrl)
 				zlog.Debug("远程配置", zap.Any("LdpUrlLists", msg.Content.([]model.LDPUrl)))
 				break
 			case enums.ChanTypeRule:
-				wafEngine.hostTarget[wafEngine.hostCode[msg.HostCode]].RuleData = msg.Content.([]model.Rules)
-				wafEngine.hostTarget[wafEngine.hostCode[msg.HostCode]].Rule.LoadRules(msg.Content.([]model.Rules))
+				wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].RuleData = msg.Content.([]model.Rules)
+				wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Rule.LoadRules(msg.Content.([]model.Rules))
 				zlog.Debug("远程配置", zap.Any("Rule", msg.Content.([]model.Rules)))
 				break
 			case enums.ChanTypeAnticc:
-				wafEngine.hostTarget[wafEngine.hostCode[msg.HostCode]].PluginIpRateLimiter = plugin.NewIPRateLimiter(rate.Limit(msg.Content.(model.AntiCC).Rate), msg.Content.(model.AntiCC).Limit)
+				wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].PluginIpRateLimiter = plugin.NewIPRateLimiter(rate.Limit(msg.Content.(model.AntiCC).Rate), msg.Content.(model.AntiCC).Limit)
 				zlog.Debug("远程配置", zap.Any("Anticc", msg.Content.(model.AntiCC)))
 				break
 
@@ -142,7 +144,7 @@ func main() {
 			break
 		case host := <-global.GWAF_CHAN_HOST:
 
-			wafEngine.hostTarget[host.Host+":"+strconv.Itoa(host.Port)].Host.GUARD_STATUS = host.GUARD_STATUS
+			wafEngine.HostTarget[host.Host+":"+strconv.Itoa(host.Port)].Host.GUARD_STATUS = host.GUARD_STATUS
 			zlog.Debug("规则", zap.Any("主机", host))
 			break
 		}

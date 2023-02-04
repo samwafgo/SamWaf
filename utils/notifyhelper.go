@@ -4,6 +4,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/utils/zlog"
 	"SamWaf/wechat"
+	"fmt"
 )
 
 type NotifyHelper struct {
@@ -12,6 +13,11 @@ type NotifyHelper struct {
 var NotifyHelperApp = new(NotifyHelper)
 
 func (receiver *NotifyHelper) SendInfo(title string, content string, remarks string) {
+	if global.GCACHE_WECHAT_ACCESS == "" {
+		zlog.Error("未初始化wechat")
+		return
+	}
+	content = fmt.Sprintf("服务器：%s ", global.GWAF_CUSTOM_SERVER_NAME) + content
 	tm, err := wechat.BuildTemplateMessage("oUBYM65NIBB2_QhApG7DgOl6A0FU",
 		"E0nquOCrrTcMQr6BsyhBraEq6-KukkjD5ZblpPbCcsg", title, content, remarks)
 	if err != nil {

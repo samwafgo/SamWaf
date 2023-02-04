@@ -1,3 +1,4 @@
 user_code: gps_server
 local_port: 26666
 htmlfilepath: C:\huawei\goproject\SamWaf\localwaf\dist
+custom_server_name: 开发机

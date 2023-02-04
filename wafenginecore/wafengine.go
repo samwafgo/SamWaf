@@ -406,7 +406,8 @@ func (waf *WafEngine) Start_WAF() {
 
 	global.GWAF_USER_CODE = config.GetString("user_code") // 读取配置
 	global.GWAF_TENANT_ID = global.GWAF_USER_CODE
-	global.GWAF_LOCAL_SERVER_PORT = config.GetInt("local_port") //读取本地端口
+	global.GWAF_LOCAL_SERVER_PORT = config.GetInt("local_port")             //读取本地端口
+	global.GWAF_CUSTOM_SERVER_NAME = config.GetString("custom_server_name") //本地服务器其定义名称
 	zlog.Debug(" load ini: ", global.GWAF_USER_CODE)
 
 	var hosts []model.Hosts

@@ -76,21 +76,25 @@ func main() {
 
 	//定时取规则并更新（考虑后期定时拉取公共规则 待定，可能会影响实际生产）
 
-	//定时器
+	//定时器 （后期考虑是否独立包处理）
 	timezone, _ := time.LoadLocation("Asia/Shanghai")
 	s := gocron.NewScheduler(timezone)
-
-	// 每秒执行一次 TODO 改数据成分钟统计
-	s.Every(10).Seconds().Do(func() {
-		zlog.Debug("i am alive")
-		go waftask.TaskCounter()
-	})
-
 	// 获取最近token
 	s.Every(1).Hour().Do(func() {
 		zlog.Debug("获取最新token")
 		go waftask.TaskWechatAccessToken()
+
 	})
+	// 每10秒执行一次
+	s.Every(10).Seconds().Do(func() {
+		zlog.Debug("i am alive")
+		go waftask.TaskCounter()
+	})
+	// 每天早晚8点进行数据汇总通知
+	s.Every(1).Day().At("08:00;20:00").Do(func() {
+		go waftask.TaskStatusNotify()
+	})
+
 	s.StartAsync()
 
 	//脱敏处理初始化

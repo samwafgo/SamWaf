@@ -3,8 +3,11 @@ package waftask
 import (
 	"SamWaf/global"
 	"SamWaf/model"
+	"SamWaf/service/waf_service"
+	"SamWaf/utils"
 	"SamWaf/utils/zlog"
 	"SamWaf/wechat"
+	"fmt"
 	"time"
 )
 
@@ -131,6 +134,18 @@ func TaskWechatAccessToken() {
 	} else {
 		global.GCACHE_WECHAT_ACCESS = wr.AccessToken
 		zlog.Info("TaskWechatAccessToken获取到最新token:" + global.GCACHE_WECHAT_ACCESS)
+	}
+
+}
+
+func TaskStatusNotify() {
+	zlog.Info("TaskStatusNotify")
+	statHomeInfo, err := waf_service.WafStatServiceApp.StatHomeSumDayApi()
+	if err == nil {
+		noticeStr := fmt.Sprintf("今日访问量：%d 今天恶意访问量:%d 昨日恶意访问量:%d", statHomeInfo.VisitCountOfToday, statHomeInfo.AttackCountOfToday, statHomeInfo.AttackCountOfYesterday)
+		utils.NotifyHelperApp.SendInfo("汇总通知", noticeStr, "无")
+	} else {
+		zlog.Error("TaskStatusNotifyerror", err)
 	}
 
 }

@@ -4,8 +4,8 @@
 
     <div class="login-container">
       <div class="title-container">
-        <h1 class="title margin-no">登录到</h1>
-        <h1 class="title">SamWaf</h1>
+        <h1 class="title margin-no">登录</h1>
+        <h1 class="title">SamWAF入侵防御系统后台</h1>
         <div class="sub-title">
           <p class="tip">{{ type == 'register' ? '已有账号?' : '没有账号吗?' }}</p>
           <p class="tip" @click="switchType(type == 'register' ? 'login' : 'register')">

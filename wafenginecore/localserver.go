@@ -1,4 +1,4 @@
-package main
+package wafenginecore
 
 import (
 	"SamWaf/global"

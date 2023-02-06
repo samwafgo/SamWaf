@@ -19,6 +19,7 @@ func (receiver *WafWhiteUrlService) AddApi(req request.WafWhiteUrlAddReq) error 
 		TenantId:       global.GWAF_TENANT_ID,
 		Id:             uuid.NewV4().String(),
 		HostCode:       req.HostCode,
+		CompareType:    req.CompareType,
 		Url:            req.Url,
 		Remarks:        req.Remarks,
 		CreateTime:     time.Now(),
@@ -41,6 +42,7 @@ func (receiver *WafWhiteUrlService) ModifyApi(req request.WafWhiteUrlEditReq) er
 	}
 	ipWhiteMap := map[string]interface{}{
 		"Host_Code":        req.HostCode,
+		"Compare_Type":     req.CompareType,
 		"Url":              req.Url,
 		"Remarks":          req.Remarks,
 		"last_update_time": time.Now(),

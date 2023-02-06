@@ -45,7 +45,15 @@
                 :key="index">
                 {{ item.label }}
               </t-option>
-            </t-select> 
+            </t-select>
+          </t-form-item>
+          <t-form-item label="匹配方式" name="compare_type">
+            <t-select v-model="formData.compare_type" clearable :style="{ width: '480px' }">
+              <t-option v-for="(item, index) in compare_type_options" :value="item.value" :label="item.label"
+                :key="index">
+                {{ item.label }}
+              </t-option>
+            </t-select>
           </t-form-item>
           <t-form-item label="Url" name="url">
             <t-input :style="{ width: '480px' }" v-model="formData.url" placeholder="请输入白名单Url"></t-input>
@@ -73,7 +81,15 @@
                 :key="index">
                 {{ item.label }}
               </t-option>
-            </t-select>  
+            </t-select>
+          </t-form-item>
+          <t-form-item label="匹配方式" name="compare_type">
+            <t-select v-model="formEditData.compare_type" clearable :style="{ width: '480px' }">
+              <t-option v-for="(item, index) in compare_type_options" :value="item.value" :label="item.label"
+                :key="index">
+                {{ item.label }}
+              </t-option>
+            </t-select>
           </t-form-item>
          <t-form-item label="Url" name="url">
            <t-input :style="{ width: '480px' }" v-model="formEditData.url" placeholder="请输入白名单Url"></t-input>
@@ -121,6 +137,7 @@
     host_code: '',
     url: '',
     remarks: '',
+    compare_type:"等于"
   };
   export default Vue.extend({
     name: 'ListBase',
@@ -152,6 +169,23 @@
             type: 'error'
           }],
         },
+        compare_type_options: [{
+            label: '等于',
+            value: '等于'
+          },
+          {
+            label: '前缀匹配',
+            value: '前缀匹配'
+          },
+          {
+            label: '后缀匹配',
+            value: '后缀匹配'
+          },
+          {
+            label: '包含匹配',
+            value: '包含匹配'
+          },
+        ],
         textareaValue: '',
         prefix,
         dataLoading: false,
@@ -171,6 +205,13 @@
             width: 250,
             ellipsis: true,
             colKey: 'host_code',
+            fixed: 'left',
+          },{
+            title: '匹配方式',
+            align: 'left',
+            width: 250,
+            ellipsis: true,
+            colKey: 'compare_type',
             fixed: 'left',
           },
           {

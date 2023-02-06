@@ -103,40 +103,42 @@ func main() {
 	for {
 		select {
 		case msg := <-global.GWAF_CHAN_MSG:
-			switch msg.Type {
-			case enums.ChanTypeWhiteIP:
-				wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].IPWhiteLists = msg.Content.([]model.IPWhiteList)
-				zlog.Debug("远程配置", zap.Any("IPWhiteLists", msg.Content.([]model.IPWhiteList)))
-				break
-			case enums.ChanTypeWhiteURL:
-				wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].UrlWhiteLists = msg.Content.([]model.URLWhiteList)
-				zlog.Debug("远程配置", zap.Any("UrlWhiteLists", msg.Content.([]model.URLWhiteList)))
-				break
-			case enums.ChanTypeBlockIP:
-				wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].IPBlockLists = msg.Content.([]model.IPBlockList)
-				zlog.Debug("远程配置", zap.Any("IPBlockLists", msg))
-				break
-			case enums.ChanTypeBlockURL:
-				wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].UrlBlockLists = msg.Content.([]model.URLBlockList)
-				zlog.Debug("远程配置", zap.Any("UrlBlockLists", msg.Content.([]model.URLBlockList)))
-				break
-			case enums.ChanTypeLdp:
-				wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].LdpUrlLists = msg.Content.([]model.LDPUrl)
-				zlog.Debug("远程配置", zap.Any("LdpUrlLists", msg.Content.([]model.LDPUrl)))
-				break
-			case enums.ChanTypeRule:
-				wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].RuleData = msg.Content.([]model.Rules)
-				wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Rule.LoadRules(msg.Content.([]model.Rules))
-				zlog.Debug("远程配置", zap.Any("Rule", msg.Content.([]model.Rules)))
-				break
-			case enums.ChanTypeAnticc:
-				wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].PluginIpRateLimiter = plugin.NewIPRateLimiter(rate.Limit(msg.Content.(model.AntiCC).Rate), msg.Content.(model.AntiCC).Limit)
-				zlog.Debug("远程配置", zap.Any("Anticc", msg.Content.(model.AntiCC)))
-				break
+			if wafEngine.HostCode[msg.HostCode] != "" && wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]] != nil {
+				switch msg.Type {
+				case enums.ChanTypeWhiteIP:
+					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].IPWhiteLists = msg.Content.([]model.IPWhiteList)
+					zlog.Debug("远程配置", zap.Any("IPWhiteLists", msg.Content.([]model.IPWhiteList)))
+					break
+				case enums.ChanTypeWhiteURL:
+					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].UrlWhiteLists = msg.Content.([]model.URLWhiteList)
+					zlog.Debug("远程配置", zap.Any("UrlWhiteLists", msg.Content.([]model.URLWhiteList)))
+					break
+				case enums.ChanTypeBlockIP:
+					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].IPBlockLists = msg.Content.([]model.IPBlockList)
+					zlog.Debug("远程配置", zap.Any("IPBlockLists", msg))
+					break
+				case enums.ChanTypeBlockURL:
+					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].UrlBlockLists = msg.Content.([]model.URLBlockList)
+					zlog.Debug("远程配置", zap.Any("UrlBlockLists", msg.Content.([]model.URLBlockList)))
+					break
+				case enums.ChanTypeLdp:
+					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].LdpUrlLists = msg.Content.([]model.LDPUrl)
+					zlog.Debug("远程配置", zap.Any("LdpUrlLists", msg.Content.([]model.LDPUrl)))
+					break
+				case enums.ChanTypeRule:
+					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].RuleData = msg.Content.([]model.Rules)
+					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Rule.LoadRules(msg.Content.([]model.Rules))
+					zlog.Debug("远程配置", zap.Any("Rule", msg.Content.([]model.Rules)))
+					break
+				case enums.ChanTypeAnticc:
+					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].PluginIpRateLimiter = plugin.NewIPRateLimiter(rate.Limit(msg.Content.(model.AntiCC).Rate), msg.Content.(model.AntiCC).Limit)
+					zlog.Debug("远程配置", zap.Any("Anticc", msg.Content.(model.AntiCC)))
+					break
 
-			case enums.ChanTypeHost: //此处待定
-				break
-			} //end switch
+				case enums.ChanTypeHost: //此处待定
+					break
+				} //end switch
+			}
 		case engineStatus := <-global.GWAF_CHAN_ENGINE:
 			if engineStatus == 1 {
 				zlog.Info("准备关闭WAF引擎")

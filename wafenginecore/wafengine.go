@@ -114,37 +114,6 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		if waf.HostTarget[host].Host.GUARD_STATUS == 1 {
 			var jumpGuardFlag = false
-
-			var sqlFlag = false
-			//检测sql注入
-			sqliResult, _ := libinjection.IsSQLi(weblogbean.URL)
-			if sqliResult {
-				sqlFlag = true
-			}
-			sqliResult, _ = libinjection.IsSQLi(weblogbean.BODY)
-			if sqliResult {
-				sqlFlag = true
-			}
-			if sqlFlag == true {
-				EchoErrorInfo(w, r, weblogbean, "SQL注入", "请正确访问")
-				return
-			}
-			//检测xss注入
-			var xssFlag = false
-			sqlixssResult := libinjection.IsXSS(weblogbean.URL)
-			if sqlixssResult == true {
-				xssFlag = true
-			}
-			sqlixssResult = libinjection.IsXSS(weblogbean.BODY)
-			if sqlixssResult == true {
-				xssFlag = true
-			}
-			if xssFlag == true {
-				EchoErrorInfo(w, r, weblogbean, "XSS跨站注入", "请正确访问")
-				return
-			}
-			//检测xss
-
 			//ip白名单策略（待优化性能）
 			if waf.HostTarget[host].IPWhiteLists != nil {
 				for i := 0; i < len(waf.HostTarget[host].IPWhiteLists); i++ {
@@ -157,7 +126,10 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			//url白名单策略（待优化性能）
 			if waf.HostTarget[host].UrlWhiteLists != nil {
 				for i := 0; i < len(waf.HostTarget[host].UrlWhiteLists); i++ {
-					if waf.HostTarget[host].UrlWhiteLists[i].Url == weblogbean.URL {
+					if (waf.HostTarget[host].UrlWhiteLists[i].CompareType == "等于" && waf.HostTarget[host].UrlWhiteLists[i].Url == weblogbean.URL) ||
+						(waf.HostTarget[host].UrlWhiteLists[i].CompareType == "前缀匹配" && strings.HasPrefix(weblogbean.URL, waf.HostTarget[host].UrlWhiteLists[i].Url)) ||
+						(waf.HostTarget[host].UrlWhiteLists[i].CompareType == "后缀匹配" && strings.HasSuffix(weblogbean.URL, waf.HostTarget[host].UrlWhiteLists[i].Url)) ||
+						(waf.HostTarget[host].UrlWhiteLists[i].CompareType == "包含匹配" && strings.Contains(weblogbean.URL, waf.HostTarget[host].UrlWhiteLists[i].Url)) {
 						jumpGuardFlag = true
 						break
 					}
@@ -183,6 +155,35 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if jumpGuardFlag == false {
+				var sqlFlag = false
+				//检测sql注入
+				sqliResult, _ := libinjection.IsSQLi(weblogbean.URL)
+				if sqliResult {
+					sqlFlag = true
+				}
+				sqliResult, _ = libinjection.IsSQLi(weblogbean.BODY)
+				if sqliResult {
+					sqlFlag = true
+				}
+				if sqlFlag == true {
+					EchoErrorInfo(w, r, weblogbean, "SQL注入", "请正确访问")
+					return
+				}
+				//检测xss注入
+				var xssFlag = false
+				sqlixssResult := libinjection.IsXSS(weblogbean.URL)
+				if sqlixssResult == true {
+					xssFlag = true
+				}
+				sqlixssResult = libinjection.IsXSS(weblogbean.BODY)
+				if sqlixssResult == true {
+					xssFlag = true
+				}
+				if xssFlag == true {
+					EchoErrorInfo(w, r, weblogbean, "XSS跨站注入", "请正确访问")
+					return
+				}
+				//检测xss
 				//cc 防护
 				if waf.HostTarget[host].PluginIpRateLimiter != nil {
 					limiter := waf.HostTarget[host].PluginIpRateLimiter.GetLimiter(weblogbean.SRC_IP)

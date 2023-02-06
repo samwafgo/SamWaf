@@ -18,6 +18,7 @@ type URLWhiteList struct {
 	UserCode       string    `json:"user_code"`        //用户码（主要键）
 	TenantId       string    `json:"tenant_id"`        //租户ID（主要键）
 	HostCode       string    `json:"host_code"`        //网站唯一码（主要键）
+	CompareType    string    `json:"compare_type"`     //判断类型，包含、开始、结束、完全匹配
 	Url            string    `json:"url"`              //请求地址
 	Remarks        string    `json:"remarks"`          //备注
 	CreateTime     time.Time `json:"create_time"`      //创建时间

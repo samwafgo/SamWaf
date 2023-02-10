@@ -15,12 +15,13 @@ const (
 
 var (
 	GWAF_LOCAL_DB           *gorm.DB                    //通用本地数据库，尊重用户隐私
+	GWAF_LOCAL_LOG_DB       *gorm.DB                    //通用本地数据库存日志数据，尊重用户隐私
 	GWAF_REMOTE_DB          *gorm.DB                    //仅当用户使用云数据库
 	GWAF_LOCAL_SERVER_PORT  int                 = 26666 // 本地local端口
 	GWAF_USER_CODE          string                      // 当前识别号
 	GWAF_CUSTOM_SERVER_NAME string                      // 当前服务器自定义名称
 	GWAF_TENANT_ID          string                      // 当前租户ID
-	GWAF_RELEASE            bool                = true  // 当前是否为发行版
+	GWAF_RELEASE            bool                = false // 当前是否为发行版
 	GWAF_LAST_UPDATE_TIME   time.Time                   // 上次时间
 	GWAF_DLP                dlpheader.EngineAPI         // 脱敏引擎
 	/**链聚合**/
@@ -29,6 +30,8 @@ var (
 
 	GWAF_CHAN_MSG = make(chan spec.ChanCommonHost, 10) //全局通讯包
 
-	GCACHE_WECHAT_ACCESS string //微信访问密钥
-	GCACHE_IP_CBUFF      []byte // IP相关缓存
+	GCACHE_WECHAT_ACCESS string = "" //微信访问密钥
+	GCACHE_IP_CBUFF      []byte      // IP相关缓存
+
+	GDATA_DELETE_INTERVAL = 100 // 删除100天前的数据
 )

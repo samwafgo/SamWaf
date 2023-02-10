@@ -19,27 +19,27 @@ func (receiver *WafStatService) StatHomeSumDayApi() (response2.WafStat, error) {
 	yesterdayDay, _ := strconv.Atoi(time.Now().AddDate(0, 0, -1).Format("20060102"))
 
 	var AttackCountOfToday int64
-	global.GWAF_LOCAL_DB.Debug().Model(&model.StatsDay{}).Where("day = ? and type = ? ",
+	global.GWAF_LOCAL_LOG_DB.Debug().Model(&model.StatsDay{}).Where("day = ? and type = ? ",
 		currentDay, "阻止").Select("sum(count) as vcnt").Row().Scan(&AttackCountOfToday)
 
 	var VisitCountOfToday int64
-	global.GWAF_LOCAL_DB.Debug().Model(&model.StatsDay{}).Where("day = ? ",
+	global.GWAF_LOCAL_LOG_DB.Debug().Model(&model.StatsDay{}).Where("day = ? ",
 		currentDay).Select("sum(count) as vcnt").Row().Scan(&VisitCountOfToday)
 
 	var AttackCountOfYesterday int64
-	global.GWAF_LOCAL_DB.Debug().Model(&model.StatsDay{}).Where("day = ? and type = ? ",
+	global.GWAF_LOCAL_LOG_DB.Debug().Model(&model.StatsDay{}).Where("day = ? and type = ? ",
 		yesterdayDay, "阻止").Select("sum(count) as vcnt").Row().Scan(&AttackCountOfYesterday)
 
 	var VisitCountOfYesterday int64
-	global.GWAF_LOCAL_DB.Debug().Model(&model.StatsDay{}).Where("day = ? ",
+	global.GWAF_LOCAL_LOG_DB.Debug().Model(&model.StatsDay{}).Where("day = ? ",
 		yesterdayDay).Select("sum(count) as vcnt").Row().Scan(&VisitCountOfYesterday)
 
 	var NormalIpCountOfToday int64
-	global.GWAF_LOCAL_DB.Debug().Model(&model.StatsIPDay{}).Where("day = ? and type = ? ",
+	global.GWAF_LOCAL_LOG_DB.Debug().Model(&model.StatsIPDay{}).Where("day = ? and type = ? ",
 		currentDay, "放行").Group("ip").Count(&NormalIpCountOfToday)
 
 	var IllegalIpCountOfToday int64
-	global.GWAF_LOCAL_DB.Debug().Model(&model.StatsIPDay{}).Where("day = ? and type = ? ",
+	global.GWAF_LOCAL_LOG_DB.Debug().Model(&model.StatsIPDay{}).Where("day = ? and type = ? ",
 		currentDay, "阻止").Group("ip").Count(&IllegalIpCountOfToday)
 	return response2.WafStat{
 			AttackCountOfToday:          AttackCountOfToday,
@@ -71,10 +71,10 @@ func (receiver *WafStatService) StatHomeSumDayRangeApi(req request.WafStatsDayRa
 	}
 
 	var AttackCountOfRange []model.StatsDayCount
-	global.GWAF_LOCAL_DB.Debug().Model(&model.StatsDay{}).Where("day between ? and ? and type = ? ",
+	global.GWAF_LOCAL_LOG_DB.Debug().Model(&model.StatsDay{}).Where("day between ? and ? and type = ? ",
 		req.StartDay, req.EndDay, "阻止").Select("day,sum(count) as count").Group("day").Scan(&AttackCountOfRange)
 	var NormalCountOfRange []model.StatsDayCount
-	global.GWAF_LOCAL_DB.Debug().Model(&model.StatsDay{}).Where("day between ? and ? and type = ? ",
+	global.GWAF_LOCAL_LOG_DB.Debug().Model(&model.StatsDay{}).Where("day between ? and ? and type = ? ",
 		req.StartDay, req.EndDay, "放行").Select("day,sum(count) as count").Group("day").Scan(&NormalCountOfRange)
 
 	for i := 0; i < len(AttackCountOfRange); i++ {
@@ -99,10 +99,10 @@ func (receiver *WafStatService) StatHomeSumDayRangeApi(req request.WafStatsDayRa
 }
 func (receiver *WafStatService) StatHomeSumDayTopIPRangeApi(req request.WafStatsDayRangeReq) (response2.WafIPStats, error) {
 	var AttackCountOfRange []model.StatsIPCount
-	global.GWAF_LOCAL_DB.Debug().Model(&model.StatsIPDay{}).Where("day between ? and ? and type = ? ",
+	global.GWAF_LOCAL_LOG_DB.Debug().Model(&model.StatsIPDay{}).Where("day between ? and ? and type = ? ",
 		req.StartDay, req.EndDay, "阻止").Select("ip,sum(count) as count").Group("ip").Order("sum(count) desc").Limit(10).Scan(&AttackCountOfRange)
 	var NormalCountOfRange []model.StatsIPCount
-	global.GWAF_LOCAL_DB.Debug().Model(&model.StatsIPDay{}).Where("day between ? and ? and type = ? ",
+	global.GWAF_LOCAL_LOG_DB.Debug().Model(&model.StatsIPDay{}).Where("day between ? and ? and type = ? ",
 		req.StartDay, req.EndDay, "放行").Select("ip,sum(count) as count").Group("ip").Order("sum(count) desc").Limit(10).Scan(&NormalCountOfRange)
 
 	return response2.WafIPStats{

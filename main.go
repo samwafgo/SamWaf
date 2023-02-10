@@ -79,22 +79,31 @@ func main() {
 	//定时器 （后期考虑是否独立包处理）
 	timezone, _ := time.LoadLocation("Asia/Shanghai")
 	s := gocron.NewScheduler(timezone)
-	// 获取最近token
-	s.Every(1).Hour().Do(func() {
-		zlog.Debug("获取最新token")
-		go waftask.TaskWechatAccessToken()
 
-	})
 	// 每10秒执行一次
 	s.Every(10).Seconds().Do(func() {
 		zlog.Debug("i am alive")
 		go waftask.TaskCounter()
+	})
+
+	// 获取最近token
+	s.Every(1).Hour().Do(func() {
+		//defer func() {
+		//	 zlog.Info("token errr")
+		//}()
+		zlog.Debug("获取最新token")
+		go waftask.TaskWechatAccessToken()
+
 	})
 	// 每天早晚8点进行数据汇总通知
 	s.Every(1).Day().At("08:00;20:00").Do(func() {
 		go waftask.TaskStatusNotify()
 	})
 
+	// 每天早5点删除历史信息
+	s.Every(1).Day().At("05:00").Do(func() {
+		go waftask.TaskDeleteHistoryInfo()
+	})
 	s.StartAsync()
 
 	//脱敏处理初始化
@@ -139,6 +148,7 @@ func main() {
 					break
 				} //end switch
 			}
+			break
 		case engineStatus := <-global.GWAF_CHAN_ENGINE:
 			if engineStatus == 1 {
 				zlog.Info("准备关闭WAF引擎")

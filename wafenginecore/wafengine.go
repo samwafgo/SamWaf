@@ -234,7 +234,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			proxy.ServeHTTP(w, r)
 		}
 		weblogbean.ACTION = "放行"
-		global.GWAF_LOCAL_DB.Create(weblogbean)
+		global.GWAF_LOCAL_LOG_DB.Create(weblogbean)
 		return
 	} else {
 		w.Write([]byte("403: Host forbidden " + host))
@@ -281,7 +281,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Day:            currentDay,
 		}
 		weblogbean.ACTION = "禁止"
-		global.GWAF_LOCAL_DB.Create(weblogbean)
+		global.GWAF_LOCAL_LOG_DB.Create(weblogbean)
 	}
 }
 func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean innerbean.WebLog, ruleName string, blockInfo string) {
@@ -291,7 +291,7 @@ func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean innerbean.
 	utils.NotifyHelperApp.SendInfo("命中保护规则", noticeStr, "无")
 	weblogbean.RULE = ruleName
 	weblogbean.ACTION = "阻止"
-	global.GWAF_LOCAL_DB.Create(weblogbean)
+	global.GWAF_LOCAL_LOG_DB.Create(weblogbean)
 	w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>" + blockInfo + "</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
 	zlog.Debug(ruleName)
 }

@@ -15,6 +15,7 @@ type ApiGroup struct {
 	AccountRouter
 	AccountLogRouter
 	LoginOutRouter
+	SysLogRouter
 }
 type PublicApiGroup struct {
 	LoginRouter

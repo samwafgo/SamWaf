@@ -22,8 +22,8 @@
 
 
           <template #op="slotProps">
-            <a class="t-button-link" @click="handleClickDetail(slotProps)">详情</a>
-            <a class="t-button-link" @click="handleClickEdit(slotProps)">编辑</a>
+           <!-- <a class="t-button-link" @click="handleClickDetail(slotProps)">详情</a>-->
+            <a class="t-button-link" @click="handleClickEdit(slotProps)">详情</a>
           </template>
         </t-table>
       </div>
@@ -67,8 +67,8 @@
     prefix
   } from '@/config/global';
   import {
-    account_log_list_api
-  } from '@/apis/account';
+    sys_log_list_api
+  } from '@/apis/syslog';
 
 
   import {
@@ -117,15 +117,7 @@
             type: 'multiple',
             width: 64,
             fixed: 'left'
-          },
-          {
-            title: '操作账号',
-            align: 'left',
-            width: 250,
-            ellipsis: true,
-            colKey: 'login_account',
-            fixed: 'left',
-          },
+          }, 
           {
             title: '操作类型',
             width: 200,
@@ -191,27 +183,17 @@
     },
 
     methods: {
-      loadHostList(){
-       /* let that = this;
-        allhost().then((res) => {
-              let resdata = res
-              console.log(resdata)
-              if (resdata.code === 0) {
-                  that.host_options = resdata.data;
-              }
-            })
-            .catch((e: Error) => {
-              console.log(e);
-        }) */
+      loadHostList(){ 
       },
       getList(keyword) {
         let that = this
         this.$request
-          .get('/account_log/list', {
+          .get('/sys_log/list', {
             params: {
               pageSize: that.pagination.pageSize,
               pageIndex: that.pagination.current,
-              login_account: '',
+              op_type: '',
+              op_content: '',
             }
           })
           .then((res) => {
@@ -293,7 +275,7 @@
       getDetail(id) {
         let that = this
         this.$request
-          .get('/account_log/detail', {
+          .get('/sys_log/detail', {
             params: {
               id: id,
             }

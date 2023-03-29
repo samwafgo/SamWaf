@@ -519,6 +519,17 @@ func (waf *WafEngine) Start_WAF() {
 		waf.HostCode[hosts[i].Code] = hosts[i].Host + ":" + strconv.Itoa(hosts[i].Port)
 
 	}
+
+	wafSysLog := &model.WafSysLog{
+		Id:         uuid.NewV4().String(),
+		UserCode:   global.GWAF_USER_CODE,
+		TenantId:   global.GWAF_TENANT_ID,
+		OpType:     "信息",
+		OpContent:  "WAF启动",
+		CreateTime: time.Now(),
+	}
+	global.GWAF_LOCAL_LOG_DB.Create(wafSysLog)
+
 	for _, v := range waf.ServerOnline {
 		go func(innruntime innerbean.ServerRunTime) {
 
@@ -547,6 +558,16 @@ func (waf *WafEngine) Start_WAF() {
 				if err == http.ErrServerClosed {
 					zlog.Info("[HTTPServer] https server has been close, cause:[%v]", err)
 				} else {
+					//TODO 记录如果https 端口被占用的情况 记录日志 且应该推送websocket
+					wafSysLog := model.WafSysLog{
+						Id:         uuid.NewV4().String(),
+						UserCode:   global.GWAF_USER_CODE,
+						TenantId:   global.GWAF_TENANT_ID,
+						OpType:     "系统运行错误",
+						OpContent:  "HTTPS端口被占用: " + strconv.Itoa(innruntime.Port) + ",请检查",
+						CreateTime: time.Time{},
+					}
+					global.GWAF_LOCAL_LOG_DB.Create(wafSysLog)
 					zlog.Error("[HTTPServer] https server start fail, cause:[%v]", err)
 				}
 				zlog.Info("server https shutdown")
@@ -571,6 +592,16 @@ func (waf *WafEngine) Start_WAF() {
 				if err == http.ErrServerClosed {
 					zlog.Warn("[HTTPServer] http server has been close, cause:[%v]", err)
 				} else {
+					//TODO 记录如果http 端口被占用的情况 记录日志 且应该推送websocket
+					wafSysLog := model.WafSysLog{
+						Id:         uuid.NewV4().String(),
+						UserCode:   global.GWAF_USER_CODE,
+						TenantId:   global.GWAF_TENANT_ID,
+						OpType:     "系统运行错误",
+						OpContent:  "HTTP端口被占用: " + strconv.Itoa(innruntime.Port) + ",请检查",
+						CreateTime: time.Time{},
+					}
+					global.GWAF_LOCAL_LOG_DB.Create(wafSysLog)
 					zlog.Error("[HTTPServer] http server start fail, cause:[%v]", err)
 				}
 				zlog.Info("server  http shutdown")
@@ -589,6 +620,15 @@ func (waf *WafEngine) CLoseWAF() {
 			zlog.Debug("关闭 recover ", e)
 		}
 	}()
+	wafSysLog := &model.WafSysLog{
+		Id:         uuid.NewV4().String(),
+		UserCode:   global.GWAF_USER_CODE,
+		TenantId:   global.GWAF_TENANT_ID,
+		OpType:     "信息",
+		OpContent:  "WAF关闭",
+		CreateTime: time.Now(),
+	}
+	global.GWAF_LOCAL_LOG_DB.Create(wafSysLog)
 	waf.EngineCurrentStatus = 0
 	for _, v := range waf.ServerOnline {
 		if v.Svr != nil {

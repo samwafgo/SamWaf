@@ -58,13 +58,13 @@ func Cors() gin.HandlerFunc {
 	}
 }
 func StartLocalServer() {
-	if global.GWAF_RELEASE {
+	if global.GWAF_RELEASE == "true" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	r := gin.Default()
 	r.Use(Cors()) //解决跨域
 
-	if global.GWAF_RELEASE {
+	if global.GWAF_RELEASE == "true" {
 		index(r)
 	}
 	InitRouter(r)

@@ -26,9 +26,11 @@ import (
 )
 
 func main() {
-	zlog.Info("初始化系统")
-	if !global.GWAF_RELEASE {
+	zlog.Info("初始化系统 版本号：" + global.GWAF_RELEASE_VERSION_NAME + "(" + global.GWAF_RELEASE_VERSION + ")")
+	if global.GWAF_RELEASE == "debug" {
 		zlog.Info("调试版本")
+	} else {
+		zlog.Info("发行版本")
 	}
 	global.GWAF_LAST_UPDATE_TIME = time.Now()
 	if runtime.GOOS == "linux" {

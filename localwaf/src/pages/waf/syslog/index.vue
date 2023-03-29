@@ -37,9 +37,6 @@
       <div slot="body">
         <!-- 表单内容 -->
         <t-form :data="formEditData" ref="form" :rules="rules" :labelWidth="100">
-           <t-form-item label="操作账号" name="login_account">
-             <t-input :style="{ width: '480px' }" v-model="formEditData.login_account" placeholder="操作账号"></t-input>
-           </t-form-item>
           <t-form-item label="操作类型" name="op_type">
             <t-input :style="{ width: '480px' }" v-model="formEditData.op_type" placeholder="请输入操作类型"></t-input>
           </t-form-item>

@@ -17,6 +17,7 @@ type APIGroup struct {
 	WafAccountApi
 	WafAccountLogApi
 	WafLoginApi
+	WafSysLogApi
 }
 
 var APIGroupAPP = new(APIGroup)
@@ -36,4 +37,6 @@ var (
 	wafAccountService    = waf_service.WafAccountServiceApp
 	wafAccountLogService = waf_service.WafAccountLogServiceApp
 	wafTokenInfoService  = waf_service.WafTokenInfoServiceApp
+
+	wafSysLogService = waf_service.WafSysLogServiceApp
 )

@@ -57,6 +57,7 @@ func InitDb() {
 		logDB.AutoMigrate(&model.StatsIPCityDay{})
 		logDB.AutoMigrate(&innerbean.WebLog{})
 		logDB.AutoMigrate(&model.AccountLog{})
+		logDB.AutoMigrate(&model.WafSysLog{})
 		global.GWAF_LOCAL_LOG_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 
 	}

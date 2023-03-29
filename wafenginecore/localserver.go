@@ -31,6 +31,7 @@ func InitRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitAccountRouter(RouterGroup)
 		router.ApiGroupApp.InitAccountLogRouter(RouterGroup)
 		router.ApiGroupApp.InitLoginOutRouter(RouterGroup)
+		router.ApiGroupApp.InitSysLogRouter(RouterGroup)
 	}
 	PublicRouterGroup := r.Group("")
 	router.PublicApiGroupApp.InitLoginRouter(PublicRouterGroup)

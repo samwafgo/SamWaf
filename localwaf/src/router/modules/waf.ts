@@ -48,6 +48,25 @@ export default [
 
      ],
    },
+   
+  {
+    path: '/sys',
+    name: 'sys',
+    component: Layout,
+    redirect: '/sys',
+    meta: { title: '系统设置', icon: ViewModuleIcon },
+    children: [ 
+      {
+         path: 'SysLog',
+         name: 'SysLog',
+         component: () => import('@/pages/waf/syslog/index.vue'),
+         meta: { title: '系统操作日志' },
+      },
+
+
+    ],
+  },
+
   {
     path: '/waf-host',
     name: 'wafhost',

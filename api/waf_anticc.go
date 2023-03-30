@@ -107,7 +107,7 @@ func (w *WafAntiCCApi) ModifyAntiCCApi(c *gin.Context) {
 */
 func (w *WafAntiCCApi) NotifyWaf(host_code string) {
 	var antiCC model.AntiCC
-	global.GWAF_LOCAL_DB.Debug().Where("host_code = ? ", host_code).Limit(1).Find(&antiCC)
+	global.GWAF_LOCAL_DB.Where("host_code = ? ", host_code).Limit(1).Find(&antiCC)
 	var chanInfo = spec.ChanCommonHost{
 		HostCode: host_code,
 		Type:     enums.ChanTypeAnticc,

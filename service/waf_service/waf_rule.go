@@ -26,7 +26,7 @@ func (receiver *WafRuleService) AddApi(wafRuleAddReq request.WafRuleAddReq, rule
 		IsManualRule:    wafRuleAddReq.IsManualRule,
 		RuleStatus:      1,
 	}
-	global.GWAF_LOCAL_DB.Debug().Create(wafRule)
+	global.GWAF_LOCAL_DB.Create(wafRule)
 	return nil
 }
 
@@ -37,7 +37,7 @@ func (receiver *WafRuleService) CheckIsExistApi(ruleName string, ruleCode string
 func (receiver *WafRuleService) ModifyApi(wafRuleEditReq request.WafRuleEditReq, chsName string, hostCode string, ruleContent string) error {
 	var rule model.Rules
 
-	global.GWAF_LOCAL_DB.Debug().Where("rule_name = ? and host_code= ?",
+	global.GWAF_LOCAL_DB.Where("rule_name = ? and host_code= ?",
 		chsName, hostCode).Find(&rule)
 
 	if rule.Id != 0 && rule.RuleCode != wafRuleEditReq.CODE {
@@ -45,7 +45,7 @@ func (receiver *WafRuleService) ModifyApi(wafRuleEditReq request.WafRuleEditReq,
 		return errors.New("当前规则名称已经存在")
 	}
 
-	global.GWAF_LOCAL_DB.Debug().Where("rule_code=?", wafRuleEditReq.CODE).Find(&rule)
+	global.GWAF_LOCAL_DB.Where("rule_code=?", wafRuleEditReq.CODE).Find(&rule)
 
 	ruleMap := map[string]interface{}{
 		"HostCode":        hostCode,
@@ -60,25 +60,25 @@ func (receiver *WafRuleService) ModifyApi(wafRuleEditReq request.WafRuleEditReq,
 		"RuleStatus":      "1",
 		//"UPDATE_TIME": time.Now(),
 	}
-	err := global.GWAF_LOCAL_DB.Debug().Model(model.Rules{}).Where("rule_code=?", wafRuleEditReq.CODE).Updates(ruleMap).Error
+	err := global.GWAF_LOCAL_DB.Model(model.Rules{}).Where("rule_code=?", wafRuleEditReq.CODE).Updates(ruleMap).Error
 
 	return err
 }
 func (receiver *WafRuleService) GetDetailApi(wafRuleDetailReq request.WafRuleDetailReq) model.Rules {
 	var rules model.Rules
-	global.GWAF_LOCAL_DB.Debug().Where("RULE_CODE=?", wafRuleDetailReq.CODE).Find(&rules)
+	global.GWAF_LOCAL_DB.Where("RULE_CODE=?", wafRuleDetailReq.CODE).Find(&rules)
 	return rules
 }
 func (receiver *WafRuleService) GetDetailByCodeApi(ruleCode string) model.Rules {
 	var webRule model.Rules
-	global.GWAF_LOCAL_DB.Debug().Where("rule_code=?", ruleCode).Find(&webRule)
+	global.GWAF_LOCAL_DB.Where("rule_code=?", ruleCode).Find(&webRule)
 	return webRule
 }
 func (receiver *WafRuleService) GetListApi(wafRuleSearchReq request.WafRuleSearchReq) ([]model.Rules, int64, error) {
 	var total int64 = 0
 	var rules []model.Rules
-	global.GWAF_LOCAL_DB.Debug().Where("rule_status= 1").Limit(wafRuleSearchReq.PageSize).Offset(wafRuleSearchReq.PageSize * (wafRuleSearchReq.PageIndex - 1)).Find(&rules)
-	global.GWAF_LOCAL_DB.Debug().Model(&model.Rules{}).Count(&total)
+	global.GWAF_LOCAL_DB.Where("rule_status= 1").Limit(wafRuleSearchReq.PageSize).Offset(wafRuleSearchReq.PageSize * (wafRuleSearchReq.PageIndex - 1)).Find(&rules)
+	global.GWAF_LOCAL_DB.Model(&model.Rules{}).Count(&total)
 
 	return rules, total, nil
 }
@@ -86,9 +86,9 @@ func (receiver *WafRuleService) GetListApi(wafRuleSearchReq request.WafRuleSearc
 func (receiver *WafRuleService) GetListByHostCodeApi(wafRuleSearchReq request.WafRuleSearchReq) ([]model.Rules, int64, error) {
 	var total int64 = 0
 	var rules []model.Rules
-	global.GWAF_LOCAL_DB.Debug().Where("host_code = ? and rule_status= 1",
+	global.GWAF_LOCAL_DB.Where("host_code = ? and rule_status= 1",
 		global.GWAF_TENANT_ID, global.GWAF_USER_CODE, wafRuleSearchReq.HostCode).Limit(wafRuleSearchReq.PageSize).Offset(wafRuleSearchReq.PageSize * (wafRuleSearchReq.PageIndex - 1)).Find(&rules)
-	global.GWAF_LOCAL_DB.Debug().Where("host_code = ? and rule_status= 1",
+	global.GWAF_LOCAL_DB.Where("host_code = ? and rule_status= 1",
 		global.GWAF_TENANT_ID, global.GWAF_USER_CODE, wafRuleSearchReq.HostCode).Model(&model.Rules{}).Count(&total)
 
 	return rules, total, nil

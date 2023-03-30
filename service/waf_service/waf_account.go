@@ -25,7 +25,7 @@ func (receiver *WafAccountService) AddApi(req request.WafAccountAddReq) error {
 		CreateTime:     time.Now(),
 		LastUpdateTime: time.Now(),
 	}
-	global.GWAF_LOCAL_DB.Debug().Create(bean)
+	global.GWAF_LOCAL_DB.Create(bean)
 	return nil
 }
 
@@ -34,7 +34,7 @@ func (receiver *WafAccountService) CheckIsExistApi(req request.WafAccountAddReq)
 }
 func (receiver *WafAccountService) ModifyApi(req request.WafAccountEditReq) error {
 	var bean model.Account
-	global.GWAF_LOCAL_DB.Debug().Where("login_account = ?", req.LoginAccount).Find(&bean)
+	global.GWAF_LOCAL_DB.Where("login_account = ?", req.LoginAccount).Find(&bean)
 	if bean.Id != "" && bean.LoginAccount != req.LoginAccount {
 		return errors.New("当前数据已经存在")
 	}
@@ -45,18 +45,18 @@ func (receiver *WafAccountService) ModifyApi(req request.WafAccountEditReq) erro
 		"Remarks":          req.Remarks,
 		"last_update_time": time.Now(),
 	}
-	err := global.GWAF_LOCAL_DB.Debug().Model(model.Account{}).Where("id = ?", req.Id).Updates(beanMap).Error
+	err := global.GWAF_LOCAL_DB.Model(model.Account{}).Where("id = ?", req.Id).Updates(beanMap).Error
 
 	return err
 }
 func (receiver *WafAccountService) GetDetailApi(req request.WafAccountDetailReq) model.Account {
 	var bean model.Account
-	global.GWAF_LOCAL_DB.Debug().Where("id=?", req.Id).Find(&bean)
+	global.GWAF_LOCAL_DB.Where("id=?", req.Id).Find(&bean)
 	return bean
 }
 func (receiver *WafAccountService) GetInfoByLoginApi(req request.WafLoginReq) model.Account {
 	var bean model.Account
-	global.GWAF_LOCAL_DB.Debug().Where("login_account=? and login_password=?", req.LoginAccount, req.LoginPassword).Find(&bean)
+	global.GWAF_LOCAL_DB.Where("login_account=? and login_password=?", req.LoginAccount, req.LoginPassword).Find(&bean)
 	return bean
 }
 
@@ -66,19 +66,19 @@ func (receiver *WafAccountService) GetInfoByLoginApi(req request.WafLoginReq) mo
 */
 func (receiver *WafAccountService) GetInfoByLoginAccount(loginAccount string) model.Account {
 	var bean model.Account
-	global.GWAF_LOCAL_DB.Debug().Where("login_account=? ", loginAccount).Find(&bean)
+	global.GWAF_LOCAL_DB.Where("login_account=? ", loginAccount).Find(&bean)
 	return bean
 }
 func (receiver *WafAccountService) GetDetailByIdApi(id string) model.Account {
 	var bean model.Account
-	global.GWAF_LOCAL_DB.Debug().Where("id=?", id).Find(&bean)
+	global.GWAF_LOCAL_DB.Where("id=?", id).Find(&bean)
 	return bean
 }
 func (receiver *WafAccountService) GetListApi(req request.WafAccountSearchReq) ([]model.Account, int64, error) {
 	var bean []model.Account
 	var total int64 = 0
-	global.GWAF_LOCAL_DB.Debug().Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&bean)
-	global.GWAF_LOCAL_DB.Debug().Model(&model.Account{}).Count(&total)
+	global.GWAF_LOCAL_DB.Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&bean)
+	global.GWAF_LOCAL_DB.Model(&model.Account{}).Count(&total)
 	return bean, total, nil
 }
 func (receiver *WafAccountService) DelApi(req request.WafAccountDelReq) error {
@@ -94,6 +94,6 @@ func (receiver *WafAccountService) DelApi(req request.WafAccountDelReq) error {
 // 获取系统所有账号数量
 func (receiver *WafAccountService) GetAccountCountApi() (int64, error) {
 	var total int64 = 0
-	global.GWAF_LOCAL_DB.Debug().Model(&model.Account{}).Count(&total)
+	global.GWAF_LOCAL_DB.Model(&model.Account{}).Count(&total)
 	return total, nil
 }

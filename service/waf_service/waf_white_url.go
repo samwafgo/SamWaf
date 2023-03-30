@@ -25,7 +25,7 @@ func (receiver *WafWhiteUrlService) AddApi(req request.WafWhiteUrlAddReq) error 
 		CreateTime:     time.Now(),
 		LastUpdateTime: time.Now(),
 	}
-	global.GWAF_LOCAL_DB.Debug().Create(bean)
+	global.GWAF_LOCAL_DB.Create(bean)
 	return nil
 }
 
@@ -35,7 +35,7 @@ func (receiver *WafWhiteUrlService) CheckIsExistApi(req request.WafWhiteUrlAddRe
 }
 func (receiver *WafWhiteUrlService) ModifyApi(req request.WafWhiteUrlEditReq) error {
 	var ipWhite model.URLWhiteList
-	global.GWAF_LOCAL_DB.Debug().Where("host_code = ? and url= ?", req.HostCode,
+	global.GWAF_LOCAL_DB.Where("host_code = ? and url= ?", req.HostCode,
 		req.Url).Find(&ipWhite)
 	if ipWhite.Id != "" && ipWhite.Url != req.Url {
 		return errors.New("当前网站和url已经存在")
@@ -47,25 +47,25 @@ func (receiver *WafWhiteUrlService) ModifyApi(req request.WafWhiteUrlEditReq) er
 		"Remarks":          req.Remarks,
 		"last_update_time": time.Now(),
 	}
-	err := global.GWAF_LOCAL_DB.Debug().Model(model.URLWhiteList{}).Where("id = ?", req.Id).Updates(ipWhiteMap).Error
+	err := global.GWAF_LOCAL_DB.Model(model.URLWhiteList{}).Where("id = ?", req.Id).Updates(ipWhiteMap).Error
 
 	return err
 }
 func (receiver *WafWhiteUrlService) GetDetailApi(req request.WafWhiteUrlDetailReq) model.URLWhiteList {
 	var bean model.URLWhiteList
-	global.GWAF_LOCAL_DB.Debug().Where("id=?", req.Id).Find(&bean)
+	global.GWAF_LOCAL_DB.Where("id=?", req.Id).Find(&bean)
 	return bean
 }
 func (receiver *WafWhiteUrlService) GetDetailByIdApi(id string) model.URLWhiteList {
 	var bean model.URLWhiteList
-	global.GWAF_LOCAL_DB.Debug().Where("id=?", id).Find(&bean)
+	global.GWAF_LOCAL_DB.Where("id=?", id).Find(&bean)
 	return bean
 }
 func (receiver *WafWhiteUrlService) GetListApi(req request.WafWhiteUrlSearchReq) ([]model.URLWhiteList, int64, error) {
 	var ipWhites []model.URLWhiteList
 	var total int64 = 0
-	global.GWAF_LOCAL_DB.Debug().Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&ipWhites)
-	global.GWAF_LOCAL_DB.Debug().Model(&model.URLWhiteList{}).Count(&total)
+	global.GWAF_LOCAL_DB.Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&ipWhites)
+	global.GWAF_LOCAL_DB.Model(&model.URLWhiteList{}).Count(&total)
 	return ipWhites, total, nil
 }
 func (receiver *WafWhiteUrlService) DelApi(req request.WafWhiteUrlDelReq) error {

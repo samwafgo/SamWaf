@@ -132,7 +132,7 @@ func (w *WafHostAPi) ModifyGuardStatusApi(c *gin.Context) {
 */
 func (w *WafHostAPi) NotifyWaf(host_code string) {
 	/*var idpUrls []model.Hosts
-	global.GWAF_LOCAL_DB.Debug().Where("host_code = ? ", host_code).Find(&idpUrls)
+	global.GWAF_LOCAL_DB.Where("host_code = ? ", host_code).Find(&idpUrls)
 	var chanInfo = spec.ChanCommonHost{
 		HostCode: host_code,
 		Type:     enums.ChanTypeHost,

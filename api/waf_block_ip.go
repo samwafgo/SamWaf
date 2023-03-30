@@ -107,7 +107,7 @@ func (w *WafBlockIpApi) ModifyBlockIpApi(c *gin.Context) {
 */
 func (w *WafBlockIpApi) NotifyWaf(host_code string) {
 	var ipWhites []model.IPBlockList
-	global.GWAF_LOCAL_DB.Debug().Where("host_code = ? ", host_code).Find(&ipWhites)
+	global.GWAF_LOCAL_DB.Where("host_code = ? ", host_code).Find(&ipWhites)
 	var chanInfo = spec.ChanCommonHost{
 		HostCode: host_code,
 		Type:     enums.ChanTypeBlockIP,

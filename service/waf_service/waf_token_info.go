@@ -24,7 +24,7 @@ func (receiver *WafTokenInfoService) AddApi(loginAccount string, AccessToken str
 		CreateTime:     time.Now(),
 		LastUpdateTime: time.Now(),
 	}
-	global.GWAF_LOCAL_DB.Debug().Create(bean)
+	global.GWAF_LOCAL_DB.Create(bean)
 	return bean
 }
 
@@ -33,7 +33,7 @@ func (receiver *WafTokenInfoService) CheckIsExistByLoginAccountApi(loginAccount 
 }
 func (receiver *WafTokenInfoService) ModifyApi(loginAccount string, AccessToken string, LoginIp string) error {
 	var bean model.Account
-	global.GWAF_LOCAL_DB.Debug().Where("login_account = ? ,access_token = ? ", loginAccount, AccessToken).Find(&bean)
+	global.GWAF_LOCAL_DB.Where("login_account = ? ,access_token = ? ", loginAccount, AccessToken).Find(&bean)
 	if bean.Id == "" {
 		return errors.New("当前数据不存在")
 	}
@@ -41,7 +41,7 @@ func (receiver *WafTokenInfoService) ModifyApi(loginAccount string, AccessToken 
 		"login_ip":         LoginIp,
 		"last_update_time": time.Now(),
 	}
-	err := global.GWAF_LOCAL_DB.Debug().Model(model.Account{}).Where("login_account = ? ,access_token = ? ", loginAccount, AccessToken).Updates(beanMap).Error
+	err := global.GWAF_LOCAL_DB.Model(model.Account{}).Where("login_account = ? ,access_token = ? ", loginAccount, AccessToken).Updates(beanMap).Error
 
 	return err
 }
@@ -52,7 +52,7 @@ func (receiver *WafTokenInfoService) ModifyApi(loginAccount string, AccessToken 
 */
 func (receiver *WafTokenInfoService) GetInfoByLoginAccount(loginAccount string) model.TokenInfo {
 	var bean model.TokenInfo
-	global.GWAF_LOCAL_DB.Debug().Where("login_account=? ", loginAccount).Limit(1).Find(&bean)
+	global.GWAF_LOCAL_DB.Where("login_account=? ", loginAccount).Limit(1).Find(&bean)
 	return bean
 }
 
@@ -62,7 +62,7 @@ func (receiver *WafTokenInfoService) GetInfoByLoginAccount(loginAccount string) 
 */
 func (receiver *WafTokenInfoService) GetInfoByAccessToken(accessToken string) model.TokenInfo {
 	var bean model.TokenInfo
-	global.GWAF_LOCAL_DB.Debug().Where("access_token=? ", accessToken).Find(&bean)
+	global.GWAF_LOCAL_DB.Where("access_token=? ", accessToken).Find(&bean)
 	return bean
 }
 

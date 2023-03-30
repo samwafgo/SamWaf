@@ -38,6 +38,7 @@ func InitDb() {
 		db.AutoMigrate(&model.TokenInfo{})
 		db.AutoMigrate(&model.Account{})
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
+		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
 
 		//重启需要删除无效规则
 		db.Where("user_code = ? and rule_status = 999", global.GWAF_USER_CODE).Delete(model.Rules{})
@@ -59,11 +60,19 @@ func InitDb() {
 		logDB.AutoMigrate(&model.AccountLog{})
 		logDB.AutoMigrate(&model.WafSysLog{})
 		global.GWAF_LOCAL_LOG_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
+		global.GWAF_LOCAL_LOG_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
 
 	}
 }
 func before_query(db *gorm.DB) {
-	db.Debug()
+	if global.GWAF_RELEASE == "false" {
+		db.Debug()
+	}
 	db.Where("tenant_id = ? and user_code=? ", global.GWAF_TENANT_ID, global.GWAF_USER_CODE)
 	zlog.Debug("before_query")
+}
+func before_update(db *gorm.DB) {
+	if global.GWAF_RELEASE == "false" {
+		db.Debug()
+	}
 }

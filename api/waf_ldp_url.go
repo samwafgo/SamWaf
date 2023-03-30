@@ -107,7 +107,7 @@ func (w *WafLdpUrlApi) ModifyLdpUrlApi(c *gin.Context) {
 */
 func (w *WafLdpUrlApi) NotifyWaf(host_code string) {
 	var idpUrls []model.LDPUrl
-	global.GWAF_LOCAL_DB.Debug().Where("host_code = ? ", host_code).Find(&idpUrls)
+	global.GWAF_LOCAL_DB.Where("host_code = ? ", host_code).Find(&idpUrls)
 	var chanInfo = spec.ChanCommonHost{
 		HostCode: host_code,
 		Type:     enums.ChanTypeLdp,

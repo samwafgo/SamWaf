@@ -107,7 +107,7 @@ func (w *WafWhiteUrlApi) ModifyWhiteUrlApi(c *gin.Context) {
 */
 func (w *WafWhiteUrlApi) NotifyWaf(host_code string) {
 	var urlWhites []model.URLWhiteList
-	global.GWAF_LOCAL_DB.Debug().Where("host_code = ? ", host_code).Find(&urlWhites)
+	global.GWAF_LOCAL_DB.Where("host_code = ? ", host_code).Find(&urlWhites)
 	var chanInfo = spec.ChanCommonHost{
 		HostCode: host_code,
 		Type:     enums.ChanTypeWhiteURL,

@@ -24,7 +24,7 @@ func (receiver *WafBlockIpService) AddApi(req request.WafBlockIpAddReq) error {
 		CreateTime:     time.Now(),
 		LastUpdateTime: time.Now(),
 	}
-	global.GWAF_LOCAL_DB.Debug().Create(bean)
+	global.GWAF_LOCAL_DB.Create(bean)
 	return nil
 }
 
@@ -34,7 +34,7 @@ func (receiver *WafBlockIpService) CheckIsExistApi(req request.WafBlockIpAddReq)
 }
 func (receiver *WafBlockIpService) ModifyApi(req request.WafBlockIpEditReq) error {
 	var ipWhite model.IPBlockList
-	global.GWAF_LOCAL_DB.Debug().Where("host_code = ? and ip= ?", req.HostCode,
+	global.GWAF_LOCAL_DB.Where("host_code = ? and ip= ?", req.HostCode,
 		req.Ip).Find(&ipWhite)
 	if ipWhite.Id != "" && ipWhite.Ip != req.Ip {
 		return errors.New("当前网站和IP已经存在")
@@ -45,25 +45,25 @@ func (receiver *WafBlockIpService) ModifyApi(req request.WafBlockIpEditReq) erro
 		"Remarks":          req.Remarks,
 		"last_update_time": time.Now(),
 	}
-	err := global.GWAF_LOCAL_DB.Debug().Model(model.IPBlockList{}).Where("id = ?", req.Id).Updates(ipWhiteMap).Error
+	err := global.GWAF_LOCAL_DB.Model(model.IPBlockList{}).Where("id = ?", req.Id).Updates(ipWhiteMap).Error
 
 	return err
 }
 func (receiver *WafBlockIpService) GetDetailApi(req request.WafBlockIpDetailReq) model.IPBlockList {
 	var bean model.IPBlockList
-	global.GWAF_LOCAL_DB.Debug().Where("id=?", req.Id).Find(&bean)
+	global.GWAF_LOCAL_DB.Where("id=?", req.Id).Find(&bean)
 	return bean
 }
 func (receiver *WafBlockIpService) GetDetailByIdApi(id string) model.IPBlockList {
 	var bean model.IPBlockList
-	global.GWAF_LOCAL_DB.Debug().Where("id=?", id).Find(&bean)
+	global.GWAF_LOCAL_DB.Where("id=?", id).Find(&bean)
 	return bean
 }
 func (receiver *WafBlockIpService) GetListApi(req request.WafBlockIpSearchReq) ([]model.IPBlockList, int64, error) {
 	var list []model.IPBlockList
 	var total int64 = 0
-	global.GWAF_LOCAL_DB.Debug().Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&list)
-	global.GWAF_LOCAL_DB.Debug().Model(&model.IPBlockList{}).Count(&total)
+	global.GWAF_LOCAL_DB.Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&list)
+	global.GWAF_LOCAL_DB.Model(&model.IPBlockList{}).Count(&total)
 	return list, total, nil
 }
 func (receiver *WafBlockIpService) DelApi(req request.WafBlockIpDelReq) error {

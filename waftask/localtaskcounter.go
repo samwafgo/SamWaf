@@ -126,21 +126,21 @@ func TaskCounter() {
 }
 
 func TaskWechatAccessToken() {
-	zlog.Info("TaskWechatAccessToken")
+	zlog.Debug("TaskWechatAccessToken")
 	wr, err := wechat.GetAppAccessToken("wx8640c6a135dc4b55", "eb57b4a6c445d3624bac7fa3e85efbaf")
 	if err != nil {
-		zlog.Info("请求错误GetAppAccessToken")
+		zlog.Error("请求错误GetAppAccessToken")
 	} else if wr.ErrCode != 0 {
-		zlog.Info("Wechat Server:", wr.ErrMsg)
+		zlog.Error("Wechat Server:", wr.ErrMsg)
 	} else {
 		global.GCACHE_WECHAT_ACCESS = wr.AccessToken
-		zlog.Info("TaskWechatAccessToken获取到最新token:" + global.GCACHE_WECHAT_ACCESS)
+		zlog.Debug("TaskWechatAccessToken获取到最新token:" + global.GCACHE_WECHAT_ACCESS)
 	}
 
 }
 
 func TaskStatusNotify() {
-	zlog.Info("TaskStatusNotify")
+	zlog.Debug("TaskStatusNotify")
 	statHomeInfo, err := waf_service.WafStatServiceApp.StatHomeSumDayApi()
 	if err == nil {
 		noticeStr := fmt.Sprintf("今日访问量：%d 今天恶意访问量:%d 昨日恶意访问量:%d", statHomeInfo.VisitCountOfToday, statHomeInfo.AttackCountOfToday, statHomeInfo.AttackCountOfYesterday)
@@ -161,7 +161,7 @@ func TaskStatusNotify() {
 定时删除指定历史信息 通过开关操作
 */
 func TaskDeleteHistoryInfo() {
-	zlog.Info("TaskDeleteHistoryInfo")
+	zlog.Debug("TaskDeleteHistoryInfo")
 	deleteBeforeDay, _ := strconv.Atoi(time.Now().AddDate(0, 0, -global.GDATA_DELETE_INTERVAL).Format("20060102"))
 	waf_service.WafLogServiceApp.DeleteHistory(deleteBeforeDay)
 }

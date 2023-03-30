@@ -88,7 +88,7 @@ func (rulehelper *RuleHelper) Match(key string, ruleinfo *innerbean.WebLog) ([]*
 	defer func() {
 		e := recover()
 		if e != nil { // 捕获该协程的panic 111111
-			zlog.Warn("Match", e)
+			zlog.Warn("RuleMatch", e)
 		}
 	}()
 	dataCtx := ast.NewDataContext()

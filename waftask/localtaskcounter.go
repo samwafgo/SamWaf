@@ -72,7 +72,7 @@ func TaskCounter() {
 					"last_update_time": currenyDayBak,
 				}
 
-				global.GWAF_LOCAL_LOG_DB.Debug().Model(model.StatsDay{}).Where("tenant_id = ? and user_code= ? and host_code=? and type=? and day=?",
+				global.GWAF_LOCAL_LOG_DB.Model(model.StatsDay{}).Where("tenant_id = ? and user_code= ? and host_code=? and type=? and day=?",
 					value.TenantId, value.UserCode, value.HostCode, value.ACTION, value.Day).Updates(statDayMap)
 			}
 		}
@@ -112,7 +112,7 @@ func TaskCounter() {
 					"last_update_time": currenyDayBak,
 				}
 
-				global.GWAF_LOCAL_LOG_DB.Debug().Model(model.StatsIPDay{}).Where("tenant_id = ? and user_code= ? and host_code=? and ip=? and type=? and day=?",
+				global.GWAF_LOCAL_LOG_DB.Model(model.StatsIPDay{}).Where("tenant_id = ? and user_code= ? and host_code=? and ip=? and type=? and day=?",
 					value.TenantId, value.UserCode, value.HostCode, value.Ip, value.ACTION, value.Day).Updates(statDayMap)
 			}
 		}

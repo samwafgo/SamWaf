@@ -2,9 +2,9 @@ package waftask
 
 import (
 	"SamWaf/global"
+	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/service/waf_service"
-	"SamWaf/utils"
 	"SamWaf/utils/zlog"
 	"SamWaf/wechat"
 	"fmt"
@@ -65,7 +65,7 @@ func TaskCounter() {
 					CreateTime:     time.Now(),
 					LastUpdateTime: time.Now(),
 				}
-				global.GWAF_LOCAL_LOG_DB.Debug().Create(statDay2)
+				global.GQEQUE_LOG_DB.PushBack(statDay2)
 			} else {
 				statDayMap := map[string]interface{}{
 					"Count":            value.Count + statDay.Count,
@@ -105,7 +105,7 @@ func TaskCounter() {
 					CreateTime:     time.Now(),
 					LastUpdateTime: time.Now(),
 				}
-				global.GWAF_LOCAL_LOG_DB.Debug().Create(statDay2)
+				global.GQEQUE_LOG_DB.PushBack(statDay2)
 			} else {
 				statDayMap := map[string]interface{}{
 					"Count":            value.Count + statDay.Count,
@@ -144,7 +144,12 @@ func TaskStatusNotify() {
 	statHomeInfo, err := waf_service.WafStatServiceApp.StatHomeSumDayApi()
 	if err == nil {
 		noticeStr := fmt.Sprintf("今日访问量：%d 今天恶意访问量:%d 昨日恶意访问量:%d", statHomeInfo.VisitCountOfToday, statHomeInfo.AttackCountOfToday, statHomeInfo.AttackCountOfYesterday)
-		utils.NotifyHelperApp.SendInfo("汇总通知", noticeStr, "无")
+
+		global.GQEQUE_MESSAGE_DB.PushBack(innerbean.MessageInfo{
+			Title:   "汇总通知",
+			Content: noticeStr,
+			Remarks: "无",
+		})
 	} else {
 		zlog.Error("TaskStatusNotifyerror", err)
 	}

@@ -1,6 +1,8 @@
 package api
 
 import (
+	"SamWaf/global"
+	"SamWaf/innerbean"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	response2 "SamWaf/model/response"
@@ -39,7 +41,11 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 
 			//通知信息
 			noticeStr := fmt.Sprintf("登录IP:%s 归属地区：%s", c.ClientIP(), utils.GetCountry(c.ClientIP()))
-			utils.NotifyHelperApp.SendInfo("登录信息", noticeStr, "无")
+			global.GQEQUE_MESSAGE_DB.PushBack(innerbean.MessageInfo{
+				Title:   "登录信息",
+				Content: noticeStr,
+				Remarks: "无",
+			})
 
 			response.OkWithDetailed(response2.LoginRep{
 				AccessToken: tokenInfo.AccessToken,

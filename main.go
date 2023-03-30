@@ -56,6 +56,13 @@ func main() {
 	//初始化本地数据库
 	wafenginecore.InitDb()
 
+	//初始化队列引擎
+	wafenginecore.InitDequeEngine()
+	//启动队列消费
+	go func() {
+		wafenginecore.ProcessDequeEngine()
+	}()
+
 	//启动waf
 	wafEngine := wafenginecore.WafEngine{
 		HostTarget: map[string]*wafenginmodel.HostSafe{},
@@ -85,6 +92,13 @@ func main() {
 	// 每10秒执行一次
 	s.Every(10).Seconds().Do(func() {
 		zlog.Debug("i am alive")
+
+		global.GQEQUE_MESSAGE_DB.PushBack(innerbean.MessageInfo{
+			Title:   "命中保护规则",
+			Content: "asdfasdf",
+			Remarks: "无",
+		})
+
 		go waftask.TaskCounter()
 	})
 

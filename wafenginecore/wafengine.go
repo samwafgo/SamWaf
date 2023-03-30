@@ -234,7 +234,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			proxy.ServeHTTP(w, r)
 		}
 		weblogbean.ACTION = "放行"
-		global.GWAF_LOCAL_LOG_DB.Create(weblogbean)
+		global.GQEQUE_LOG_DB.PushBack(weblogbean)
 		return
 	} else {
 		w.Write([]byte("403: Host forbidden " + host))
@@ -281,17 +281,21 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Day:            currentDay,
 		}
 		weblogbean.ACTION = "禁止"
-		global.GWAF_LOCAL_LOG_DB.Create(weblogbean)
+		global.GQEQUE_LOG_DB.PushBack(weblogbean)
 	}
 }
 func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean innerbean.WebLog, ruleName string, blockInfo string) {
 	//通知信息
 	noticeStr := fmt.Sprintf("网站域名:%s 访问IP:%s 归属地区：%s  规则：%s 阻止信息：%s", weblogbean.HOST, weblogbean.SRC_IP, utils.GetCountry(weblogbean.SRC_IP), ruleName, blockInfo)
 	zlog.Info(noticeStr)
-	utils.NotifyHelperApp.SendInfo("命中保护规则", noticeStr, "无")
+	global.GQEQUE_MESSAGE_DB.PushBack(innerbean.MessageInfo{
+		Title:   "命中保护规则",
+		Content: noticeStr,
+		Remarks: "无",
+	})
 	weblogbean.RULE = ruleName
 	weblogbean.ACTION = "阻止"
-	global.GWAF_LOCAL_LOG_DB.Create(weblogbean)
+	global.GQEQUE_LOG_DB.PushBack(weblogbean)
 	w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>" + blockInfo + "</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
 	zlog.Debug(ruleName)
 }
@@ -528,7 +532,7 @@ func (waf *WafEngine) Start_WAF() {
 		OpContent:  "WAF启动",
 		CreateTime: time.Now(),
 	}
-	global.GWAF_LOCAL_LOG_DB.Create(wafSysLog)
+	global.GQEQUE_LOG_DB.PushBack(wafSysLog)
 
 	for _, v := range waf.ServerOnline {
 		go func(innruntime innerbean.ServerRunTime) {
@@ -567,7 +571,7 @@ func (waf *WafEngine) Start_WAF() {
 						OpContent:  "HTTPS端口被占用: " + strconv.Itoa(innruntime.Port) + ",请检查",
 						CreateTime: time.Time{},
 					}
-					global.GWAF_LOCAL_LOG_DB.Create(wafSysLog)
+					global.GQEQUE_LOG_DB.PushBack(wafSysLog)
 					zlog.Error("[HTTPServer] https server start fail, cause:[%v]", err)
 				}
 				zlog.Info("server https shutdown")
@@ -601,7 +605,7 @@ func (waf *WafEngine) Start_WAF() {
 						OpContent:  "HTTP端口被占用: " + strconv.Itoa(innruntime.Port) + ",请检查",
 						CreateTime: time.Time{},
 					}
-					global.GWAF_LOCAL_LOG_DB.Create(wafSysLog)
+					global.GQEQUE_LOG_DB.PushBack(wafSysLog)
 					zlog.Error("[HTTPServer] http server start fail, cause:[%v]", err)
 				}
 				zlog.Info("server  http shutdown")
@@ -628,7 +632,7 @@ func (waf *WafEngine) CLoseWAF() {
 		OpContent:  "WAF关闭",
 		CreateTime: time.Now(),
 	}
-	global.GWAF_LOCAL_LOG_DB.Create(wafSysLog)
+	global.GQEQUE_LOG_DB.PushBack(wafSysLog)
 	waf.EngineCurrentStatus = 0
 	for _, v := range waf.ServerOnline {
 		if v.Svr != nil {

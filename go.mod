@@ -4,6 +4,7 @@ go 1.19
 
 require (
 	github.com/bytedance/godlp v1.2.15
+	github.com/edwingeng/deque v1.0.3
 	github.com/elastic/go-elasticsearch/v7 v7.17.1
 	github.com/elazarl/go-bindata-assetfs v1.0.1
 	github.com/gin-gonic/gin v1.8.1
@@ -13,7 +14,6 @@ require (
 	github.com/satori/go.uuid v1.2.0
 	github.com/spf13/viper v1.13.0
 	github.com/stretchr/testify v1.8.0
-	github.com/takama/daemon v1.0.0
 	go.uber.org/zap v1.21.0
 	golang.org/x/net v0.0.0-20220520000938-2e3eb7b945c2
 	golang.org/x/text v0.3.7

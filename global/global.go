@@ -4,6 +4,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/spec"
 	"github.com/bytedance/godlp/dlpheader"
+	Dequelib "github.com/edwingeng/deque"
 	"gorm.io/gorm"
 	"time"
 )
@@ -36,4 +37,9 @@ var (
 	GCACHE_IP_CBUFF      []byte      // IP相关缓存
 
 	GDATA_DELETE_INTERVAL = 100 // 删除100天前的数据
+
+	/****队列相关*****/
+	GQEQUE_DB         Dequelib.Deque //正常DB队列
+	GQEQUE_LOG_DB     Dequelib.Deque //日志DB队列
+	GQEQUE_MESSAGE_DB Dequelib.Deque //发送消息队列
 )

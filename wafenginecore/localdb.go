@@ -40,7 +40,7 @@ func InitDb() {
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 
 		//重启需要删除无效规则
-		db.Debug().Where("user_code = ? and rule_status = 999", global.GWAF_USER_CODE).Delete(model.Rules{})
+		db.Where("user_code = ? and rule_status = 999", global.GWAF_USER_CODE).Delete(model.Rules{})
 
 	}
 	if global.GWAF_LOCAL_LOG_DB == nil {
@@ -65,5 +65,5 @@ func InitDb() {
 func before_query(db *gorm.DB) {
 	db.Debug()
 	db.Where("tenant_id = ? and user_code=? ", global.GWAF_TENANT_ID, global.GWAF_USER_CODE)
-	zlog.Info("before_query")
+	zlog.Debug("before_query")
 }

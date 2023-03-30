@@ -1,6 +1,7 @@
 package zlog
 
 import (
+	"SamWaf/global"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -25,12 +26,23 @@ func init() {
 	//fileWriteSyncer = zapcore.AddSync(file)
 	fileWriteSyncer := getFileLogWriter()
 
-	core := zapcore.NewTee(
-		// 同时向控制台和文件写日志， 生产环境记得把控制台写入去掉
-		zapcore.NewCore(encoder, zapcore.AddSync(os.Stdout), zapcore.DebugLevel),
-		zapcore.NewCore(encoder, fileWriteSyncer, zapcore.DebugLevel),
-	)
-	logger = zap.New(core)
+	if global.GWAF_RELEASE == "false" {
+		core := zapcore.NewTee(
+			// 同时向控制台和文件写日志， 生产环境记得把控制台写入去掉
+			zapcore.NewCore(encoder, zapcore.AddSync(os.Stdout), zapcore.DebugLevel),
+			zapcore.NewCore(encoder, fileWriteSyncer, zapcore.DebugLevel),
+		)
+		logger = zap.New(core)
+	} else {
+		core := zapcore.NewTee(
+			zapcore.NewCore(encoder, zapcore.AddSync(os.Stdout), zapcore.InfoLevel),
+			zapcore.NewCore(encoder, fileWriteSyncer, zapcore.InfoLevel),
+			zapcore.NewCore(encoder, fileWriteSyncer, zapcore.ErrorLevel),
+			zapcore.NewCore(encoder, fileWriteSyncer, zapcore.FatalLevel),
+		)
+		logger = zap.New(core)
+	}
+
 }
 
 func getFileLogWriter() (writeSyncer zapcore.WriteSyncer) {

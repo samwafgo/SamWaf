@@ -287,7 +287,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean innerbean.WebLog, ruleName string, blockInfo string) {
 	//通知信息
 	noticeStr := fmt.Sprintf("网站域名:%s 访问IP:%s 归属地区：%s  规则：%s 阻止信息：%s", weblogbean.HOST, weblogbean.SRC_IP, utils.GetCountry(weblogbean.SRC_IP), ruleName, blockInfo)
-	zlog.Info(noticeStr)
+	zlog.Debug(noticeStr)
 	global.GQEQUE_MESSAGE_DB.PushBack(innerbean.MessageInfo{
 		Title:   "命中保护规则",
 		Content: noticeStr,
@@ -463,12 +463,12 @@ func (waf *WafEngine) Start_WAF() {
 		//查询规则
 		//TODO 未加租户ID
 		var vcnt int
-		global.GWAF_LOCAL_DB.Debug().Model(&model.Rules{}).Where("host_code = ? and user_code=? ",
+		global.GWAF_LOCAL_DB.Model(&model.Rules{}).Where("host_code = ? and user_code=? ",
 			hosts[i].Code, global.GWAF_USER_CODE).Select("sum(rule_version) as vcnt").Row().Scan(&vcnt)
 		zlog.Debug("主机host" + hosts[i].Code + " 版本" + strconv.Itoa(vcnt))
 		var ruleconfigs []model.Rules
 		if vcnt > 0 {
-			global.GWAF_LOCAL_DB.Debug().Where("host_code = ? and user_code=? ", hosts[i].Code, global.GWAF_USER_CODE).Find(&ruleconfigs)
+			global.GWAF_LOCAL_DB.Where("host_code = ? and user_code=? ", hosts[i].Code, global.GWAF_USER_CODE).Find(&ruleconfigs)
 			ruleHelper.LoadRules(ruleconfigs)
 		}
 		//查询ip限流(应该针对一个网址只有一个)
@@ -560,7 +560,7 @@ func (waf *WafEngine) Start_WAF() {
 				zlog.Info("启动HTTPS 服务器" + strconv.Itoa(innruntime.Port))
 				err = svr.ListenAndServeTLS("", "")
 				if err == http.ErrServerClosed {
-					zlog.Info("[HTTPServer] https server has been close, cause:[%v]", err)
+					zlog.Error("[HTTPServer] https server has been close, cause:[%v]", err)
 				} else {
 					//TODO 记录如果https 端口被占用的情况 记录日志 且应该推送websocket
 					wafSysLog := model.WafSysLog{

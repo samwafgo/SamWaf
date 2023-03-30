@@ -26,18 +26,22 @@ import (
 )
 
 func main() {
-	zlog.Info("初始化系统 版本号：" + global.GWAF_RELEASE_VERSION_NAME + "(" + global.GWAF_RELEASE_VERSION + ")")
+	rversion := "初始化系统 版本号：" + global.GWAF_RELEASE_VERSION_NAME + "(" + global.GWAF_RELEASE_VERSION + ")"
 	if global.GWAF_RELEASE == "false" {
-		zlog.Info("调试版本")
+		rversion = rversion + " 调试版本"
 	} else {
-		zlog.Info("发行版本")
+		rversion = rversion + " 发行版本"
 	}
-	global.GWAF_LAST_UPDATE_TIME = time.Now()
 	if runtime.GOOS == "linux" {
-		println("linux")
+		rversion = rversion + " linux"
 	} else if runtime.GOOS == "windows" {
-		println("windows")
+		rversion = rversion + " windows"
 	}
+
+	zlog.Info(rversion)
+
+	global.GWAF_LAST_UPDATE_TIME = time.Now()
+
 	pwd, err := os.Getwd()
 	syscall.Setenv("ZONEINFO", pwd+"//data//zoneinfo")
 	if err != nil {
@@ -92,13 +96,6 @@ func main() {
 	// 每10秒执行一次
 	s.Every(10).Seconds().Do(func() {
 		zlog.Debug("i am alive")
-
-		global.GQEQUE_MESSAGE_DB.PushBack(innerbean.MessageInfo{
-			Title:   "命中保护规则",
-			Content: "asdfasdf",
-			Remarks: "无",
-		})
-
 		go waftask.TaskCounter()
 	})
 

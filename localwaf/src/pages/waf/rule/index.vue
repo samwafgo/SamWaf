@@ -75,8 +75,8 @@ import Vue from 'vue';
 import { SearchIcon } from 'tdesign-icons-vue';
 import Trend from '@/components/trend/index.vue';
 import { prefix } from '@/config/global';
-import {attacklogList} from '@/apis/waflog/attacklog';
-
+import { wafRuleListApi,wafRuleDelApi } from '@/apis/rules';
+import { allhost } from '@/apis/host';
 import { RULE_STATUS,CONTRACT_STATUS, CONTRACT_STATUS_OPTIONS, CONTRACT_TYPES, CONTRACT_PAYMENT_TYPES } from '@/constants';
 
 const INITIAL_DATA = {
@@ -167,7 +167,7 @@ export default Vue.extend({
     confirmBody() {
       if (this.deleteIdx > -1) {
         const { host } = this.data?.[this.deleteIdx];
-        return `删除后，${host}的所有网站信息和规则将被清空，且无法恢复`;
+        return `确认要删除吗？`;
       }
       return '';
     },
@@ -182,13 +182,12 @@ export default Vue.extend({
   methods: {
     getList(keyword){
       let that = this
-      this.$request
-        .get('/wafhost/rule/list', {
-          params: {
-             pageSize: that.pagination.pageSize,
-             pageIndex: that.pagination.current,
-          }
-        })
+      wafRuleListApi(
+              {
+                 pageSize: that.pagination.pageSize,
+                 pageIndex: that.pagination.current
+             }
+        )
         .then((res) => {
           let resdata = res
           console.log(resdata)
@@ -251,70 +250,6 @@ export default Vue.extend({
               },
        );
     },
-    onSubmit({ result, firstError }): void {
-       let that = this
-      if (!firstError) {
-
-        let postdata = {...that.formData}
-        postdata['ssl'] = Number(postdata['ssl'])
-        this.$request
-          .post('/wafhost/host/add', {
-            ...postdata
-          })
-          .then((res) => {
-            let resdata = res
-            console.log(resdata)
-            if (resdata.code === 0) {
-              that.$message.success(resdata.msg);
-              that.addFormVisible = false;
-              that.pagination.current = 1
-              that.getList("")
-            }else{
-               that.$message.warning(resdata.msg);
-            }
-          })
-          .catch((e: Error) => {
-            console.log(e);
-          })
-          .finally(() => {
-          });
-      } else {
-        console.log('Errors: ', result);
-        that.$message.warning(firstError);
-      }
-    },
-    onSubmitEdit({ result, firstError }): void {
-       let that = this
-      if (!firstError) {
-
-        let postdata = {...that.formEditData}
-        postdata['ssl'] = Number(postdata['ssl'])
-        this.$request
-          .post('/wafhost/host/edit', {
-            ...postdata
-          })
-          .then((res) => {
-            let resdata = res
-            console.log(resdata)
-            if (resdata.code === 0) {
-              that.$message.success(resdata.msg);
-              that.editFormVisible = false;
-              that.pagination.current = 1
-              that.getList("")
-            }else{
-               that.$message.warning(resdata.msg);
-            }
-          })
-          .catch((e: Error) => {
-            console.log(e);
-          })
-          .finally(() => {
-          });
-      } else {
-        console.log('Errors: ', result);
-        that.$message.warning(firstError);
-      }
-    },
     onClickCloseBtn(): void {
       this.formVisible = false;
       this.formData = {};
@@ -334,12 +269,7 @@ export default Vue.extend({
       console.log('delete',this.data[this.deleteIdx])
       let {code} =  this.data[this.deleteIdx]
       let that = this
-      this.$request
-        .get('/wafhost/host/del', {
-          params: {
-            CODE: code,
-          }
-        })
+      wafRuleDelApi({ CODE: code })
         .then((res) => {
           let resdata = res
           console.log(resdata)
@@ -365,28 +295,6 @@ export default Vue.extend({
     },
     resetIdx() {
       this.deleteIdx = -1;
-    },
-    getDetail(id) {
-      let that = this
-      this.$request
-        .get('/wafhost/host/detail', {
-          params: {
-            CODE: id,
-          }
-        })
-        .then((res) => {
-          let resdata = res
-          console.log(resdata)
-          if (resdata.code === 0) {
-            that.detail_data = resdata.data;
-            that.detail_data.ssl = that.detail_data.ssl.toString()
-            that.formEditData =  {...that.detail_data}
-          }
-        })
-        .catch((e: Error) => {
-          console.log(e);
-        })
-        .finally(() => {});
     },
   },
 });

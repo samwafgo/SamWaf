@@ -386,8 +386,7 @@ import {
           let postdata = {
             ...that.formEditData
           }
-          this.$request
-            .post('/wafhost/anticc/edit', {
+          wafAntiCCEditApi({
               ...postdata
             })
             .then((res) => {
@@ -432,11 +431,8 @@ import {
           id
         } = this.data[this.deleteIdx]
         let that = this
-        this.$request
-          .get('/wafhost/anticc/del', {
-            params: {
-              id: id,
-            }
+        wafAntiCCDelApi( {
+              id: id
           })
           .then((res) => {
             let resdata = res
@@ -466,11 +462,8 @@ import {
       },
       getDetail(id) {
         let that = this
-        this.$request
-          .get('/wafhost/anticc/detail', {
-            params: {
-              id: id,
-            }
+        wafAntiCCDetailApi( { 
+              id: id
           })
           .then((res) => {
             let resdata = res

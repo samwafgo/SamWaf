@@ -23,7 +23,6 @@
 
 
           <template #op="slotProps">
-            <a class="t-button-link" @click="handleClickDetail(slotProps)">详情</a>
             <a class="t-button-link" @click="handleClickEdit(slotProps)">编辑</a>
             <a class="t-button-link" @click="handleClickDelete(slotProps)">删除</a>
           </template>
@@ -39,13 +38,13 @@
       <div slot="body">
         <!-- 表单内容 -->
         <t-form :data="formData" ref="form" :rules="rules" @submit="onSubmit" :labelWidth="100">
-          <t-form-item label="网站" name="host_code"> 
+          <t-form-item label="网站" name="host_code">
             <t-select v-model="formData.host_code" clearable :style="{ width: '480px' }">
               <t-option v-for="(item, index) in host_options" :value="item.value" :label="item.label"
                 :key="index">
                 {{ item.label }}
               </t-option>
-            </t-select> 
+            </t-select>
           </t-form-item>
           <t-form-item label="IP" name="ip">
             <t-input :style="{ width: '480px' }" v-model="formData.ip" placeholder="请输入白名单IP"></t-input>
@@ -67,13 +66,13 @@
       <div slot="body">
         <!-- 表单内容 -->
         <t-form :data="formEditData" ref="form" :rules="rules" @submit="onSubmitEdit" :labelWidth="100">
-          <t-form-item label="网站" name="host_code"> 
+          <t-form-item label="网站" name="host_code">
             <t-select v-model="formEditData.host_code" clearable :style="{ width: '480px' }">
               <t-option v-for="(item, index) in host_options" :value="item.value" :label="item.label"
                 :key="index">
                 {{ item.label }}
               </t-option>
-            </t-select>  
+            </t-select>
           </t-form-item>
          <t-form-item label="IP" name="ip">
            <t-input :style="{ width: '480px' }" v-model="formEditData.ip" placeholder="请输入白名单IP"></t-input>
@@ -108,6 +107,9 @@
     allhost
   } from '@/apis/host';
 
+  import {
+    wafIPWhiteListApi,wafIPWhiteDelApi,wafIPWhiteEditApi,wafIPWhiteAddApi,wafIPWhiteDetailApi
+  } from '@/apis/ipwhite';
   import {
     SSL_STATUS,
     GUARD_STATUS,
@@ -225,7 +227,7 @@
           const {
             host
           } = this.data?. [this.deleteIdx];
-          return `删除后，${host}的IP将被删除，且无法恢复`;
+          return `确认要删除吗？`;
         }
         return '';
       },
@@ -234,7 +236,7 @@
       },
     },
     mounted() {
-      this.getList("") 
+      this.getList("")
       this.loadHostList()
     },
 
@@ -254,14 +256,11 @@
         },
       getList(keyword) {
         let that = this
-        this.$request
-          .get('/wafhost/ipwhite/list', {
-            params: {
+        wafIPWhiteListApi( {
               pageSize: that.pagination.pageSize,
               pageIndex: that.pagination.current,
               host_code: '',
-              ip:'',
-            }
+              ip:''
           })
           .then((res) => {
             let resdata = res
@@ -303,19 +302,6 @@
       rehandleChange(changeParams, triggerAndData) {
         console.log('统一Change', changeParams, triggerAndData);
       },
-      handleClickDetail(e) {
-        console.log(e)
-        const {
-          id
-        } = e.row
-        console.log('hostlist',id)
-        this.$router.push({
-          path: '/waf-host/ipwhite/detail',
-          query: {
-            id: id,
-          },
-        }, );
-      },
       handleClickEdit(e) {
         console.log(e)
         const {
@@ -344,10 +330,7 @@
           let postdata = {
             ...that.formData
           }
-          this.$request
-            .post('/wafhost/ipwhite/add', {
-              ...postdata
-            })
+          wafIPWhiteAddApi({...postdata})
             .then((res) => {
               let resdata = res
               console.log(resdata)
@@ -379,10 +362,7 @@
           let postdata = {
             ...that.formEditData
           }
-          this.$request
-            .post('/wafhost/ipwhite/edit', {
-              ...postdata
-            })
+          wafIPWhiteEditApi({...postdata})
             .then((res) => {
               let resdata = res
               console.log(resdata)
@@ -425,11 +405,8 @@
           id
         } = this.data[this.deleteIdx]
         let that = this
-        this.$request
-          .get('/wafhost/ipwhite/del', {
-            params: {
-              id: id,
-            }
+        wafIPWhiteDelApi({
+              id: id
           })
           .then((res) => {
             let resdata = res
@@ -459,11 +436,8 @@
       },
       getDetail(id) {
         let that = this
-        this.$request
-          .get('/wafhost/ipwhite/detail', {
-            params: {
-              id: id,
-            }
+        wafIPWhiteDetailApi({
+              id: id
           })
           .then((res) => {
             let resdata = res

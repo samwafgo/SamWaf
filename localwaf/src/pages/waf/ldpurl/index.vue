@@ -123,7 +123,7 @@
   } from '@/apis/host';
   import {
     wafLdpURLListApi,wafLdpURLDelApi,wafLdpURLEditApi,wafLdpURLAddApi,wafLdpURLDetailApi
-  } from '@/apis/anticc';
+  } from '@/apis/ldpurl';
   import {
     SSL_STATUS,
     GUARD_STATUS,
@@ -448,7 +448,7 @@
           id
         } = this.data[this.deleteIdx]
         let that = this
-        wafLdpURLDelApi( {
+        wafLdpURLDelApi({
               id: id
           })
           .then((res) => {
@@ -478,11 +478,10 @@
         this.deleteIdx = -1;
       },
       getDetail(id) {
+        console.log(id)
         let that = this
-        wafLdpURLDetailApi{
-            params: {
-              id: id,
-            }
+        wafLdpURLDetailApi({
+              id: id
           })
           .then((res) => {
             let resdata = res

@@ -48,14 +48,14 @@ export default [
 
      ],
    },
-   
+
   {
     path: '/sys',
     name: 'sys',
     component: Layout,
     redirect: '/sys',
     meta: { title: '系统设置', icon: ViewModuleIcon },
-    children: [ 
+    children: [
       {
          path: 'SysLog',
          name: 'SysLog',
@@ -106,23 +106,11 @@ export default [
 
       },
       {
-        path: 'wafipwhitedetail',
-        name: 'WafIpWhiteDetail',
-        component: () => import('@/pages/waf/ipwhite/detail/index.vue'),
-        meta: { title: 'IP白名单详情', hidden: true},
-      },
-      {
         path: 'wafurlwhitelist',
         name: 'WafUrlWhiteList',
         component: () => import('@/pages/waf/urlwhite/index.vue'),
         meta: { title: 'Url白名单' },
 
-      },
-      {
-        path: 'wafurlwhitedetail',
-        name: 'WafUrlWhiteDetail',
-        component: () => import('@/pages/waf/urlwhite/detail/index.vue'),
-        meta: { title: 'Url白名单详情', hidden: true},
       },
 
       {
@@ -133,12 +121,6 @@ export default [
 
       },
       {
-        path: 'wafipblockdetail',
-        name: 'WafIpBlockDetail',
-        component: () => import('@/pages/waf/ipblock/detail/index.vue'),
-        meta: { title: 'IP黑名单详情', hidden: true},
-      },
-      {
         path: 'wafurlblocklist',
         name: 'WafUrlBlockList',
         component: () => import('@/pages/waf/urlblock/index.vue'),
@@ -146,37 +128,17 @@ export default [
 
       },
       {
-        path: 'wafurlblockdetail',
-        name: 'WafUrlBlockDetail',
-        component: () => import('@/pages/waf/urlblock/detail/index.vue'),
-        meta: { title: '限制访问Url详情', hidden: true},
-      },
-
-
-      {
         path: 'wafldpurllist',
         name: 'WafLdpUrlList',
         component: () => import('@/pages/waf/ldpurl/index.vue'),
         meta: { title: '隐私保护Url' },
 
-      },
-      {
-        path: 'wafldpurldetail',
-        name: 'WafldpUrlDetail',
-        component: () => import('@/pages/waf/ldpurl/detail/index.vue'),
-        meta: { title: '隐私保护Url详情', hidden: true},
       },{
         path: 'wafanticclist',
         name: 'WafAntiCCList',
         component: () => import('@/pages/waf/anticc/index.vue'),
         meta: { title: 'CC防护设置' },
 
-      },
-      {
-        path: 'wafanticcdetail',
-        name: 'WafAntiCCDetail',
-        component: () => import('@/pages/waf/anticc/detail/index.vue'),
-        meta: { title: 'CC防护详情', hidden: true},
       },
     ],
   },

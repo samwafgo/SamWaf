@@ -125,7 +125,7 @@ func main() {
 	for {
 		select {
 		case msg := <-global.GWAF_CHAN_MSG:
-			if wafEngine.HostCode[msg.HostCode] != "" && wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]] != nil {
+			if wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]] != nil && wafEngine.HostCode[msg.HostCode] != "" {
 				switch msg.Type {
 				case enums.ChanTypeWhiteIP:
 					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].IPWhiteLists = msg.Content.([]model.IPWhiteList)

@@ -88,6 +88,20 @@ func (receiver *WafHostService) DelHostApi(req request.WafHostDelReq) error {
 		return err
 	}
 	err = global.GWAF_LOCAL_DB.Where("CODE = ?", req.CODE).Delete(model.Hosts{}).Error
+	//删除规则
+	err = global.GWAF_LOCAL_DB.Where("HostCode = ?", req.CODE).Delete(model.Rules{}).Error
+	//删除Anticc
+	err = global.GWAF_LOCAL_DB.Where("Host_Code = ?", req.CODE).Delete(model.AntiCC{}).Error
+	//删除禁用ip
+	err = global.GWAF_LOCAL_DB.Where("Host_Code = ?", req.CODE).Delete(model.IPBlockList{}).Error
+	//删除禁用url
+	err = global.GWAF_LOCAL_DB.Where("Host_Code = ?", req.CODE).Delete(model.URLBlockList{}).Error
+	//删除隐私保护url
+	err = global.GWAF_LOCAL_DB.Where("Host_Code = ?", req.CODE).Delete(model.LDPUrl{}).Error
+	//删除白名单ip
+	err = global.GWAF_LOCAL_DB.Where("Host_Code = ?", req.CODE).Delete(model.IPWhiteList{}).Error
+	//删除白名单URL
+	err = global.GWAF_LOCAL_DB.Where("Host_Code = ?", req.CODE).Delete(model.URLWhiteList{}).Error
 	return err
 }
 func (receiver *WafHostService) ModifyGuardStatusApi(req request.WafHostGuardStatusReq) error {

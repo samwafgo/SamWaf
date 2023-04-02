@@ -462,7 +462,7 @@ func (waf *WafEngine) Start_WAF() {
 
 		//加载主机对于的规则
 		ruleHelper := &utils.RuleHelper{}
-
+		ruleHelper.InitRuleEngine()
 		//查询规则
 		//TODO 未加租户ID
 		var vcnt int

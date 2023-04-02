@@ -18,19 +18,19 @@ type RuleHelper struct {
 	ruleBuilder      *builder.RuleBuilder
 }
 
-func (rulehelper *RuleHelper) LoadRule(ruleconfig model.Rules) {
-
+func (rulehelper *RuleHelper) InitRuleEngine() {
 	rulehelper.knowledgeLibrary = ast.NewKnowledgeLibrary()
 	rulehelper.ruleBuilder = builder.NewRuleBuilder(rulehelper.knowledgeLibrary)
+	rulehelper.engine = engine.NewGruleEngine()
+}
+func (rulehelper *RuleHelper) LoadRule(ruleconfig model.Rules) {
+
 	byteArr := pkg.NewBytesResource([]byte(ruleconfig.RuleContent))
 	err := rulehelper.ruleBuilder.BuildRuleFromResource("Region", "0.0.1", byteArr)
 	if err != nil {
 		zlog.Error("LoadRule", err)
 	}
-
 	rulehelper.knowledgeBase = rulehelper.knowledgeLibrary.NewKnowledgeBaseInstance("Region", "0.0.1")
-
-	rulehelper.engine = engine.NewGruleEngine()
 }
 
 func (rulehelper *RuleHelper) LoadRules(ruleconfig []model.Rules) string {
@@ -41,8 +41,6 @@ func (rulehelper *RuleHelper) LoadRules(ruleconfig []model.Rules) string {
 			zlog.Error("LoadRules error ", e)
 		}
 	}()
-	rulehelper.knowledgeLibrary = ast.NewKnowledgeLibrary()
-	rulehelper.ruleBuilder = builder.NewRuleBuilder(rulehelper.knowledgeLibrary)
 
 	//rulehelper.dataCtx = ast.NewDataContext()
 	/*drls = `
@@ -66,7 +64,6 @@ func (rulehelper *RuleHelper) LoadRules(ruleconfig []model.Rules) string {
 
 	rulehelper.knowledgeBase = rulehelper.knowledgeLibrary.NewKnowledgeBaseInstance("Region", "0.0.1")
 
-	rulehelper.engine = engine.NewGruleEngine()
 	return rulestr
 }
 func (rulehelper *RuleHelper) Exec(key string, ruleinfo *innerbean.WAF_REQUEST_FULL) error {

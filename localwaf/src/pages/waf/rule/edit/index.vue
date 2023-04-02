@@ -278,8 +278,7 @@
         <t-space size="10px">
           <!-- type = submit，表单中的提交按钮，原生行为 -->
           <t-button theme="primary" type="submit">提交</t-button>
-          <!-- type = reset，表单中的重置按钮，原生行为 -->
-          <t-button theme="default" variant="base" type="reset">重置</t-button>
+          <t-button theme="primary" type="button" @click="backPage">返回</t-button>
         </t-space>
       </t-form-item>
     </t-form>
@@ -298,7 +297,7 @@
   import {
     allhost
   } from '@/apis/host';
-
+  import { wafRuleEditApi,wafRuleAddApi,wafRuleDetailApi } from '@/apis/rules';
   export default {
     name: 'WafRuleEdit',
     components: {
@@ -492,6 +491,9 @@
       },
     },
     methods: {
+      backPage(){
+        　history.go(-1) 
+      },
       loadHostList(){
         let that = this;
         allhost().then((res) => {
@@ -507,11 +509,9 @@
       },
       getDetail(id) {
         let that = this
-        this.$request
-          .get('/wafhost/rule/detail', {
-            params: {
-              CODE: id,
-            }
+        wafRuleDetailApi(
+          {
+              CODE: id
           })
           .then((res) => {
             let resdata = res
@@ -543,6 +543,27 @@
                           is_manual_rule:parseInt( that.formData.is_manual_rule),
                           rule_content:that.formData.rule_content,
                         }
+
+
+              wafRuleAddApi(postdata)
+              .then((res) => {
+                  let resdata = res
+                  console.log(resdata)
+                  if (resdata.code === 0) {
+                    that.$message.success(resdata.msg);
+                    this.$router.push(
+                      {
+                        path:'/waf-host/wafrule',
+                      },
+                    );
+
+                  }else{
+                     that.$message.warning(resdata.msg);
+                  }
+              })
+              .catch((e: Error) => {
+                console.log(e);
+              })
           }else{
              url = '/wafhost/rule/edit'
              postdata = {
@@ -551,32 +572,26 @@
                is_manual_rule:parseInt( that.formData.is_manual_rule),
                rule_content:that.formData.rule_content,
              }
+             wafRuleEditApi(postdata)
+             .then((res) => {
+                 let resdata = res
+                 console.log(resdata)
+                 if (resdata.code === 0) {
+                   that.$message.success(resdata.msg);
+                   this.$router.push(
+                     {
+                       path:'/waf-host/wafrule',
+                     },
+                   );
+
+                 }else{
+                    that.$message.warning(resdata.msg);
+                 }
+             })
+             .catch((e: Error) => {
+               console.log(e);
+             })
           }
-
-          this.$request
-            .post(url, {
-              ...postdata
-            })
-            .then((res) => {
-              let resdata = res
-              console.log(resdata)
-              if (resdata.code === 0) {
-                that.$message.success(resdata.msg);
-                this.$router.push(
-                  {
-                    path:'/waf-host/wafrule',
-                  },
-                );
-
-              }else{
-                 that.$message.warning(resdata.msg);
-              }
-            })
-            .catch((e: Error) => {
-              console.log(e);
-            })
-            .finally(() => {
-            });
         } else {
           console.log('Errors: ', result);
           that.$message.warning(firstError);

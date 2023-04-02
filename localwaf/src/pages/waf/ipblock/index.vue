@@ -7,7 +7,7 @@
           <t-button variant="base" theme="default" :disabled="!selectedRowKeys.length"> 导出日志 </t-button>
           <p v-if="!!selectedRowKeys.length" class="selected-count">已选{{ selectedRowKeys.length }}项</p>
         </div>
-        <t-input v-model="searchValue" class="search-input" placeholder="请输入你需要搜索的攻击日志" clearable>
+        <t-input v-model="searchValue" class="search-input" placeholder="请输入你需要搜索的" clearable>
           <template #suffix-icon>
             <search-icon size="20px" />
           </template>
@@ -23,7 +23,6 @@
 
 
           <template #op="slotProps">
-            <a class="t-button-link" @click="handleClickDetail(slotProps)">详情</a>
             <a class="t-button-link" @click="handleClickEdit(slotProps)">编辑</a>
             <a class="t-button-link" @click="handleClickDelete(slotProps)">删除</a>
           </template>
@@ -39,13 +38,13 @@
       <div slot="body">
         <!-- 表单内容 -->
         <t-form :data="formData" ref="form" :rules="rules" @submit="onSubmit" :labelWidth="100">
-          <t-form-item label="网站" name="host_code"> 
+          <t-form-item label="网站" name="host_code">
             <t-select v-model="formData.host_code" clearable :style="{ width: '480px' }">
               <t-option v-for="(item, index) in host_options" :value="item.value" :label="item.label"
                 :key="index">
                 {{ item.label }}
               </t-option>
-            </t-select> 
+            </t-select>
           </t-form-item>
           <t-form-item label="IP" name="ip">
             <t-input :style="{ width: '480px' }" v-model="formData.ip" placeholder="请输入黑名单IP"></t-input>
@@ -67,13 +66,13 @@
       <div slot="body">
         <!-- 表单内容 -->
         <t-form :data="formEditData" ref="form" :rules="rules" @submit="onSubmitEdit" :labelWidth="100">
-          <t-form-item label="网站" name="host_code"> 
+          <t-form-item label="网站" name="host_code">
             <t-select v-model="formEditData.host_code" clearable :style="{ width: '480px' }">
               <t-option v-for="(item, index) in host_options" :value="item.value" :label="item.label"
                 :key="index">
                 {{ item.label }}
               </t-option>
-            </t-select>  
+            </t-select>
           </t-form-item>
          <t-form-item label="IP" name="ip">
            <t-input :style="{ width: '480px' }" v-model="formEditData.ip" placeholder="请输入黑名单IP"></t-input>
@@ -107,7 +106,9 @@
   import {
     allhost
   } from '@/apis/host';
-
+  import {
+    wafIPBlockListApi,wafIPBlockDelApi,wafIPBlockEditApi,wafIPBlockAddApi,wafIPBlockDetailApi
+  } from '@/apis/ipblock';
   import {
     SSL_STATUS,
     GUARD_STATUS,
@@ -225,7 +226,7 @@
           const {
             host
           } = this.data?. [this.deleteIdx];
-          return `删除后，${host}的IP将被删除，且无法恢复`;
+          return `确认要删除吗？`;
         }
         return '';
       },
@@ -234,7 +235,7 @@
       },
     },
     mounted() {
-      this.getList("") 
+      this.getList("")
       this.loadHostList()
     },
 
@@ -254,14 +255,11 @@
         },
       getList(keyword) {
         let that = this
-        this.$request
-          .get('/wafhost/ipblock/list', {
-            params: {
+        wafIPBlockListApi( {
               pageSize: that.pagination.pageSize,
               pageIndex: that.pagination.current,
               host_code: '',
-              ip:'',
-            }
+              ip:''
           })
           .then((res) => {
             let resdata = res
@@ -303,19 +301,6 @@
       rehandleChange(changeParams, triggerAndData) {
         console.log('统一Change', changeParams, triggerAndData);
       },
-      handleClickDetail(e) {
-        console.log(e)
-        const {
-          id
-        } = e.row
-        console.log('hostlist',id)
-        this.$router.push({
-          path: '/waf-host/ipblock/detail',
-          query: {
-            id: id,
-          },
-        }, );
-      },
       handleClickEdit(e) {
         console.log(e)
         const {
@@ -344,8 +329,7 @@
           let postdata = {
             ...that.formData
           }
-          this.$request
-            .post('/wafhost/ipblock/add', {
+          wafIPBlockAddApi({
               ...postdata
             })
             .then((res) => {
@@ -379,8 +363,7 @@
           let postdata = {
             ...that.formEditData
           }
-          this.$request
-            .post('/wafhost/ipblock/edit', {
+          wafIPBlockEditApi({
               ...postdata
             })
             .then((res) => {
@@ -425,14 +408,11 @@
           id
         } = this.data[this.deleteIdx]
         let that = this
-        this.$request
-          .get('/wafhost/ipblock/del', {
-            params: {
-              id: id,
-            }
+        wafIPBlockDelApi({
+              id: id
           })
-          .then((res) => { 
-            let resdata = res 
+          .then((res) => {
+            let resdata = res
             if (resdata.code === 0) {
 
               that.pagination.current = 1
@@ -458,11 +438,8 @@
       },
       getDetail(id) {
         let that = this
-        this.$request
-          .get('/wafhost/ipblock/detail', {
-            params: {
-              id: id,
-            }
+        wafIPBlockDetailApi({ 
+              id: id
           })
           .then((res) => {
             let resdata = res

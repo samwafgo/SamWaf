@@ -20,7 +20,9 @@
           :headerAffixedTop="true" :headerAffixProps="{ offsetTop: offsetTop, container: getContainer }">
 
 
-
+          <template #host_code="{ row }">
+            <span> {{host_dic[row.host_code]}}</span>
+          </template>
           <template #op="slotProps">
             <a class="t-button-link" @click="handleClickEdit(slotProps)">编辑</a>
             <a class="t-button-link" @click="handleClickDelete(slotProps)">删除</a>
@@ -39,9 +41,9 @@
         <t-form :data="formData" ref="form" :rules="rules" @submit="onSubmit" :labelWidth="100">
           <t-form-item label="网站" name="host_code">
             <t-select v-model="formData.host_code" clearable :style="{ width: '480px' }">
-              <t-option v-for="(item, index) in host_options" :value="item.value" :label="item.label"
+              <t-option v-for="(item, index) in host_dic" :value="index" :label="item"
                 :key="index">
-                {{ item.label }}
+                {{ item }}
               </t-option>
             </t-select>
           </t-form-item>
@@ -75,9 +77,9 @@
         <t-form :data="formEditData" ref="form" :rules="rules" @submit="onSubmitEdit" :labelWidth="100">
           <t-form-item label="网站" name="host_code">
             <t-select v-model="formEditData.host_code" clearable :style="{ width: '480px' }">
-              <t-option v-for="(item, index) in host_options" :value="item.value" :label="item.label"
+              <t-option v-for="(item, index) in host_dic" :value="index" :label="item"
                 :key="index">
-                {{ item.label }}
+                {{ item }}
               </t-option>
             </t-select>
           </t-form-item>
@@ -256,8 +258,8 @@
         //索引区域
         deleteIdx: -1,
         guardStatusIdx :-1,
-        //主机列表
-        host_options:[]
+        //主机字典
+        host_dic:{}
       };
     },
     computed: {
@@ -286,7 +288,10 @@
               let resdata = res
               console.log(resdata)
               if (resdata.code === 0) {
-                  that.host_options = resdata.data;
+                  let host_options = resdata.data;
+                  for(let i = 0;i<host_options.length;i++){
+                      that.host_dic[host_options[i].value] =  host_options[i].label
+                  }
               }
             })
             .catch((e: Error) => {

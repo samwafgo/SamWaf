@@ -4,8 +4,7 @@
       <t-row justify="space-between">
         <div class="left-operation-container">
           <t-button @click="handleAddIpWhite"> 新建白名单IP </t-button>
-          <t-button variant="base" theme="default" :disabled="!selectedRowKeys.length"> 导出日志 </t-button>
-          <p v-if="!!selectedRowKeys.length" class="selected-count">已选{{ selectedRowKeys.length }}项</p>
+           <p v-if="!!selectedRowKeys.length" class="selected-count">已选{{ selectedRowKeys.length }}项</p>
         </div>
         <t-input v-model="searchValue" class="search-input" placeholder="请输入你需要搜索的攻击日志" clearable>
           <template #suffix-icon>

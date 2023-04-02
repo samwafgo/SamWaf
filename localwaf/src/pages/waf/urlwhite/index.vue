@@ -23,7 +23,6 @@
 
 
           <template #op="slotProps">
-            <a class="t-button-link" @click="handleClickDetail(slotProps)">详情</a>
             <a class="t-button-link" @click="handleClickEdit(slotProps)">编辑</a>
             <a class="t-button-link" @click="handleClickDelete(slotProps)">删除</a>
           </template>
@@ -123,7 +122,9 @@
   import {
     allhost
   } from '@/apis/host';
-
+  import {
+    wafURLWhiteListApi,wafURLWhiteDelApi,wafURLWhiteEditApi,wafURLWhiteAddApi,wafURLWhiteDetailApi
+  } from '@/apis/urlwhite';
   import {
     SSL_STATUS,
     GUARD_STATUS,
@@ -266,7 +267,7 @@
           const {
             url
           } = this.data?. [this.deleteIdx];
-          return `删除后，${url}的Url将被删除，且无法恢复`;
+          return `确认要删除吗？`;
         }
         return '';
       },
@@ -295,14 +296,11 @@
       },
       getList(keyword) {
         let that = this
-        this.$request
-          .get('/wafhost/urlwhite/list', {
-            params: {
+        wafURLWhiteListApi({
               pageSize: that.pagination.pageSize,
               pageIndex: that.pagination.current,
               host_code: '',
-              url:'',
-            }
+              url:''
           })
           .then((res) => {
             let resdata = res
@@ -344,19 +342,6 @@
       rehandleChange(changeParams, triggerAndData) {
         console.log('统一Change', changeParams, triggerAndData);
       },
-      handleClickDetail(e) {
-        console.log(e)
-        const {
-          id
-        } = e.row
-        console.log('hostlist',id)
-        this.$router.push({
-          path: '/waf-host/urlwhite/detail',
-          query: {
-            id: id,
-          },
-        }, );
-      },
       handleClickEdit(e) {
         console.log(e)
         const {
@@ -385,8 +370,7 @@
           let postdata = {
             ...that.formData
           }
-          this.$request
-            .post('/wafhost/urlwhite/add', {
+          wafURLWhiteAddApi( {
               ...postdata
             })
             .then((res) => {
@@ -420,8 +404,7 @@
           let postdata = {
             ...that.formEditData
           }
-          this.$request
-            .post('/wafhost/urlwhite/edit', {
+          wafURLWhiteEditApi( {
               ...postdata
             })
             .then((res) => {
@@ -466,11 +449,8 @@
           id
         } = this.data[this.deleteIdx]
         let that = this
-        this.$request
-          .get('/wafhost/urlwhite/del', {
-            params: {
+        wafURLWhiteDelApi({
               id: id,
-            }
           })
           .then((res) => {
             let resdata = res
@@ -500,11 +480,8 @@
       },
       getDetail(id) {
         let that = this
-        this.$request
-          .get('/wafhost/urlwhite/detail', {
-            params: {
-              id: id,
-            }
+        wafURLWhiteDetailApi({ 
+              id: id
           })
           .then((res) => {
             let resdata = res

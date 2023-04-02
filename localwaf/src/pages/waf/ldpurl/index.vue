@@ -4,10 +4,9 @@
       <t-row justify="space-between">
         <div class="left-operation-container">
           <t-button @click="handleAddLdpUrl"> 新建隐私保护Url </t-button>
-          <t-button variant="base" theme="default" :disabled="!selectedRowKeys.length"> 导出日志 </t-button>
-          <p v-if="!!selectedRowKeys.length" class="selected-count">已选{{ selectedRowKeys.length }}项</p>
+           <p v-if="!!selectedRowKeys.length" class="selected-count">已选{{ selectedRowKeys.length }}项</p>
         </div>
-        <t-input v-model="searchValue" class="search-input" placeholder="请输入你需要搜索的攻击日志" clearable>
+        <t-input v-model="searchValue" class="search-input" placeholder="请输入你需要搜索的" clearable>
           <template #suffix-icon>
             <search-icon size="20px" />
           </template>
@@ -23,7 +22,6 @@
 
 
           <template #op="slotProps">
-            <a class="t-button-link" @click="handleClickDetail(slotProps)">详情</a>
             <a class="t-button-link" @click="handleClickEdit(slotProps)">编辑</a>
             <a class="t-button-link" @click="handleClickDelete(slotProps)">删除</a>
           </template>
@@ -39,13 +37,13 @@
       <div slot="body">
         <!-- 表单内容 -->
         <t-form :data="formData" ref="form" :rules="rules" @submit="onSubmit" :labelWidth="100">
-          <t-form-item label="网站" name="host_code"> 
+          <t-form-item label="网站" name="host_code">
             <t-select v-model="formData.host_code" clearable :style="{ width: '480px' }">
               <t-option v-for="(item, index) in host_options" :value="item.value" :label="item.label"
                 :key="index">
                 {{ item.label }}
               </t-option>
-            </t-select> 
+            </t-select>
           </t-form-item>
           <t-form-item label="匹配方式" name="compare_type">
             <t-select v-model="formData.compare_type" clearable :style="{ width: '480px' }">
@@ -81,7 +79,7 @@
                 :key="index">
                 {{ item.label }}
               </t-option>
-            </t-select>  
+            </t-select>
           </t-form-item>
           <t-form-item label="匹配方式" name="compare_type">
             <t-select v-model="formEditData.compare_type" clearable :style="{ width: '480px' }">
@@ -123,7 +121,9 @@
   import {
     allhost
   } from '@/apis/host';
-
+  import {
+    wafLdpURLListApi,wafLdpURLDelApi,wafLdpURLEditApi,wafLdpURLAddApi,wafLdpURLDetailApi
+  } from '@/apis/anticc';
   import {
     SSL_STATUS,
     GUARD_STATUS,
@@ -266,7 +266,7 @@
           const {
             url
           } = this.data?. [this.deleteIdx];
-          return `删除后，${url}的Url将被删除，且无法恢复`;
+          return `确认是否要删除吗？`;
         }
         return '';
       },
@@ -275,7 +275,7 @@
       },
     },
     mounted() {
-      this.getList("") 
+      this.getList("")
       this.loadHostList()
     },
 
@@ -295,14 +295,11 @@
       },
       getList(keyword) {
         let that = this
-        this.$request
-          .get('/wafhost/ldpurl/list', {
-            params: {
+        wafLdpURLListApi({
               pageSize: that.pagination.pageSize,
               pageIndex: that.pagination.current,
               host_code: '',
-              url:'',
-            }
+              url:''
           })
           .then((res) => {
             let resdata = res
@@ -344,19 +341,6 @@
       rehandleChange(changeParams, triggerAndData) {
         console.log('统一Change', changeParams, triggerAndData);
       },
-      handleClickDetail(e) {
-        console.log(e)
-        const {
-          id
-        } = e.row
-        console.log('hostlist',id)
-        this.$router.push({
-          path: '/waf-host/ldpurl/detail',
-          query: {
-            id: id,
-          },
-        }, );
-      },
       handleClickEdit(e) {
         console.log(e)
         const {
@@ -385,8 +369,7 @@
           let postdata = {
             ...that.formData
           }
-          this.$request
-            .post('/wafhost/ldpurl/add', {
+          wafLdpURLAddApi({
               ...postdata
             })
             .then((res) => {
@@ -420,8 +403,7 @@
           let postdata = {
             ...that.formEditData
           }
-          this.$request
-            .post('/wafhost/ldpurl/edit', {
+          wafLdpURLEditApi( {
               ...postdata
             })
             .then((res) => {
@@ -466,11 +448,8 @@
           id
         } = this.data[this.deleteIdx]
         let that = this
-        this.$request
-          .get('/wafhost/ldpurl/del', {
-            params: {
-              id: id,
-            }
+        wafLdpURLDelApi( {
+              id: id
           })
           .then((res) => {
             let resdata = res
@@ -500,8 +479,7 @@
       },
       getDetail(id) {
         let that = this
-        this.$request
-          .get('/wafhost/ldpurl/detail', {
+        wafLdpURLDetailApi{
             params: {
               id: id,
             }

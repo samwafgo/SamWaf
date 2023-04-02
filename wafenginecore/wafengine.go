@@ -193,26 +193,29 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						return
 					}
 				}
-				ruleMatchs, err := waf.HostTarget[host].Rule.Match("MF", &weblogbean)
-				if err == nil {
-					if len(ruleMatchs) > 0 {
+				if waf.HostTarget[host].Rule != nil {
+					ruleMatchs, err := waf.HostTarget[host].Rule.Match("MF", &weblogbean)
+					if err == nil {
+						if len(ruleMatchs) > 0 {
 
-						rulestr := ""
-						for _, v := range ruleMatchs {
-							rulestr = rulestr + v.RuleDescription + ","
+							rulestr := ""
+							for _, v := range ruleMatchs {
+								rulestr = rulestr + v.RuleDescription + ","
+							}
+							w.Header().Set("WAF", "SAMWAF DROP")
+							/*expiration := time.Now()
+							expiration = expiration.AddDate(1, 0, 0)
+							cookie := http.Cookie{Name: "IDENFY", Value: weblogbean.REQ_UUID, Expires: expiration}
+							http.SetCookie(w, &cookie)*/
+							//w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止触发规则</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
+							EchoErrorInfo(w, r, weblogbean, rulestr, "您的访问被阻止触发规则")
+							return
 						}
-						w.Header().Set("WAF", "SAMWAF DROP")
-						/*expiration := time.Now()
-						expiration = expiration.AddDate(1, 0, 0)
-						cookie := http.Cookie{Name: "IDENFY", Value: weblogbean.REQ_UUID, Expires: expiration}
-						http.SetCookie(w, &cookie)*/
-						//w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止触发规则</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
-						EchoErrorInfo(w, r, weblogbean, rulestr, "您的访问被阻止触发规则")
-						return
+					} else {
+						zlog.Debug("规则 ", err)
 					}
-				} else {
-					zlog.Debug("规则 ", err)
 				}
+
 			}
 
 		}

@@ -4,10 +4,9 @@
       <t-row justify="space-between">
         <div class="left-operation-container">
           <t-button @click="handleAddurlblock"> 新建限制访问Url </t-button>
-          <t-button variant="base" theme="default" :disabled="!selectedRowKeys.length"> 导出日志 </t-button>
-          <p v-if="!!selectedRowKeys.length" class="selected-count">已选{{ selectedRowKeys.length }}项</p>
+           <p v-if="!!selectedRowKeys.length" class="selected-count">已选{{ selectedRowKeys.length }}项</p>
         </div>
-        <t-input v-model="searchValue" class="search-input" placeholder="请输入你需要搜索的攻击日志" clearable>
+        <t-input v-model="searchValue" class="search-input" placeholder="请输入你需要搜索的" clearable>
           <template #suffix-icon>
             <search-icon size="20px" />
           </template>
@@ -23,7 +22,6 @@
 
 
           <template #op="slotProps">
-            <a class="t-button-link" @click="handleClickDetail(slotProps)">详情</a>
             <a class="t-button-link" @click="handleClickEdit(slotProps)">编辑</a>
             <a class="t-button-link" @click="handleClickDelete(slotProps)">删除</a>
           </template>
@@ -45,7 +43,7 @@
                 :key="index">
                 {{ item.label }}
               </t-option>
-            </t-select> 
+            </t-select>
           </t-form-item>
           <t-form-item label="Url" name="url">
             <t-input :style="{ width: '480px' }" v-model="formData.url" placeholder="请输入限制访问Url"></t-input>
@@ -73,7 +71,7 @@
                 :key="index">
                 {{ item.label }}
               </t-option>
-            </t-select>  
+            </t-select>
           </t-form-item>
          <t-form-item label="Url" name="url">
            <t-input :style="{ width: '480px' }" v-model="formEditData.url" placeholder="请输入限制访问Url"></t-input>
@@ -107,7 +105,9 @@
   import {
     allhost
   } from '@/apis/host';
-
+  import {
+    wafURLBlockListApi,wafURLBlockDelApi,wafURLBlockEditApi,wafURLBlockAddApi,wafURLBlockDetailApi
+  } from '@/apis/urlblock';
   import {
     SSL_STATUS,
     GUARD_STATUS,
@@ -225,7 +225,7 @@
           const {
             url
           } = this.data?. [this.deleteIdx];
-          return `删除后，${url}的Url将被删除，且无法恢复`;
+          return `确认是否要删除？`;
         }
         return '';
       },
@@ -254,14 +254,11 @@
       },
       getList(keyword) {
         let that = this
-        this.$request
-          .get('/wafhost/urlblock/list', {
-            params: {
+        wafURLBlockListApi({
               pageSize: that.pagination.pageSize,
               pageIndex: that.pagination.current,
               host_code: '',
-              url:'',
-            }
+              url:''
           })
           .then((res) => {
             let resdata = res
@@ -303,19 +300,6 @@
       rehandleChange(changeParams, triggerAndData) {
         console.log('统一Change', changeParams, triggerAndData);
       },
-      handleClickDetail(e) {
-        console.log(e)
-        const {
-          id
-        } = e.row
-        console.log('hostlist',id)
-        this.$router.push({
-          path: '/waf-host/urlblock/detail',
-          query: {
-            id: id,
-          },
-        }, );
-      },
       handleClickEdit(e) {
         console.log(e)
         const {
@@ -344,8 +328,7 @@
           let postdata = {
             ...that.formData
           }
-          this.$request
-            .post('/wafhost/urlblock/add', {
+          wafURLBlockAddApi( {
               ...postdata
             })
             .then((res) => {
@@ -379,8 +362,7 @@
           let postdata = {
             ...that.formEditData
           }
-          this.$request
-            .post('/wafhost/urlblock/edit', {
+          wafURLBlockEditApi({
               ...postdata
             })
             .then((res) => {
@@ -425,11 +407,8 @@
           id
         } = this.data[this.deleteIdx]
         let that = this
-        this.$request
-          .get('/wafhost/urlblock/del', {
-            params: {
-              id: id,
-            }
+        wafURLBlockDelApi({
+              id: id
           })
           .then((res) => {
             let resdata = res
@@ -459,11 +438,8 @@
       },
       getDetail(id) {
         let that = this
-        this.$request
-          .get('/wafhost/urlblock/detail', {
-            params: {
-              id: id,
-            }
+        wafURLBlockDetailApi( {
+              id: id
           })
           .then((res) => {
             let resdata = res

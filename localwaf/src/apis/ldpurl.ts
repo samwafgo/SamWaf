@@ -34,7 +34,7 @@ export function wafLdpURLAddApi(params) {
 //详细隐私保护URL
 export function wafLdpURLDetailApi(params) {
   return request({
-    url: '/wafhost/anticc/detail',
+    url: '/wafhost/ldpurl/detail',
     method: 'get',
     params: params
   })

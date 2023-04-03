@@ -67,10 +67,18 @@ func (w *WafHostAPi) GetAllListApi(c *gin.Context) {
 	allHostRep := make([]response2.AllHostRep, len(wafHosts)) // 创建数组
 	for i, _ := range wafHosts {
 
-		allHostRep[i] = response2.AllHostRep{
-			Host: wafHosts[i].Host,
-			Code: wafHosts[i].Code,
+		if wafHosts[i].Ssl == 1 {
+			allHostRep[i] = response2.AllHostRep{
+				Host: wafHosts[i].Host + "(SSL)",
+				Code: wafHosts[i].Code,
+			}
+		} else {
+			allHostRep[i] = response2.AllHostRep{
+				Host: wafHosts[i].Host,
+				Code: wafHosts[i].Code,
+			}
 		}
+
 	}
 	response.OkWithDetailed(allHostRep, "获取成功", c)
 }

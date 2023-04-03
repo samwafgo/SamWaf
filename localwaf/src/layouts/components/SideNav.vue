@@ -15,7 +15,8 @@
       </template>
       <menu-content :navData="menu" />
       <template #operations>
-        <span class="version-container"> {{ !collapsed && '网站安全' }} {{ pgk.version }} </span>
+        <span class="version-container"> {{ !collapsed && '网站安全' }} {{ getversion.version_name  }}
+        <span v-if="getversion.version_release=='false'" style="color:red"> 调试</span></span>
       </template>
     </t-menu>
     <div :class="`${prefix}-side-nav-placeholder${collapsed ? '-hidden' : ''}`"></div>
@@ -24,6 +25,7 @@
 
 <script lang="ts">
 import Vue from 'vue';
+import { mapState, mapGetters } from 'vuex';
 import { prefix } from '@/config/global';
 import { ClassName } from '@/interface';
 import Logo from '@/assets/assets-t-logo.svg';
@@ -31,7 +33,7 @@ import LogoFull from '@/assets/assets-logo-full.svg';
 
 import MenuContent from './MenuContent.vue';
 import pgk from '../../../package.json';
-
+import { SysVersionApi } from '@/apis/sysinfo';
 const MIN_POINT = 992 - 1;
 
 export default Vue.extend({
@@ -74,6 +76,8 @@ export default Vue.extend({
     };
   },
   computed: {
+    ...mapState('version', ['version']),
+    ...mapGetters('version', ['getversion']),
     defaultExpanded() {
       const path = this.active;
       const parentPath = path.substring(0, path.lastIndexOf('/'));
@@ -119,14 +123,14 @@ export default Vue.extend({
     getLogo() {
       if (this.collapsed) {
         return Logo;
-      } 
+      }
       return LogoFull;
-      
+
     },
   },
   mounted() {
     this.autoCollapsed();
-
+    this.loadversion()
     window.onresize = () => {
       this.autoCollapsed();
     };
@@ -141,6 +145,20 @@ export default Vue.extend({
     },
     handleNav(url: string) {
       this.$router.push(url);
+    },
+    loadversion(){
+      let that = this;
+      SysVersionApi().then((res) => {
+            let resdata = res
+            console.log(resdata)
+            if (resdata.code === 0) {
+              console.log(resdata.data)
+              that.$store.commit('version/setVersionData', resdata.data);
+            }
+          })
+          .catch((e: Error) => {
+            console.log(e);
+      })
     },
   },
 });

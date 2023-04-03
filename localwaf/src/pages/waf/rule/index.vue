@@ -29,7 +29,9 @@
           @select-change="rehandleSelectChange"
           :headerAffixedTop="true"
           :headerAffixProps="{ offsetTop: offsetTop, container: getContainer }"
-        >
+        ><template #host_code="{ row }">
+            <span> {{host_dic[row.host_code]}}</span>
+          </template>
           <template #rule_status="{ row }">
             <t-tag v-if="row.rule_status === RULE_STATUS.STOPPING" theme="danger" variant="light">未生效</t-tag>
             <t-tag v-if="row.rule_status === RULE_STATUS.RUNNING" theme="success" variant="light">生效</t-tag>
@@ -129,6 +131,14 @@ export default Vue.extend({
       value: 'first',
       columns: [
         { colKey: 'row-select', type: 'multiple', width: 64, fixed: 'left' },
+          {
+            title: '网站',
+            align: 'left',
+            width: 250,
+            ellipsis: true,
+            colKey: 'host_code',
+            fixed: 'left',
+          },
         {
           title: '规则名',
           align: 'left',
@@ -161,6 +171,8 @@ export default Vue.extend({
       searchValue: '',
       confirmVisible: false,
       deleteIdx: -1,
+      //主机字典
+      host_dic:{}
     };
   },
   computed: {
@@ -176,10 +188,27 @@ export default Vue.extend({
     },
   },
   mounted() {
+    this.loadHostList()
     this.getList("")
   },
 
   methods: {
+    loadHostList(){
+      let that = this;
+      allhost().then((res) => {
+            let resdata = res
+            console.log(resdata)
+            if (resdata.code === 0) {
+                let host_options = resdata.data;
+                for(let i = 0;i<host_options.length;i++){
+                    that.host_dic[host_options[i].value] =  host_options[i].label
+                }
+            }
+          })
+          .catch((e: Error) => {
+            console.log(e);
+      })
+    },
     getList(keyword){
       let that = this
       wafRuleListApi(
@@ -267,9 +296,9 @@ export default Vue.extend({
       this.confirmVisible = false;
       console.log('delete',this.data)
       console.log('delete',this.data[this.deleteIdx])
-      let {code} =  this.data[this.deleteIdx]
+      let {rule_code} =  this.data[this.deleteIdx]
       let that = this
-      wafRuleDelApi({ CODE: code })
+      wafRuleDelApi({ CODE: rule_code })
         .then((res) => {
           let resdata = res
           console.log(resdata)

@@ -291,6 +291,7 @@ func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean innerbean.
 	//通知信息
 	noticeStr := fmt.Sprintf("网站域名:%s 访问IP:%s 归属地区：%s  规则：%s 阻止信息：%s", weblogbean.HOST, weblogbean.SRC_IP, utils.GetCountry(weblogbean.SRC_IP), ruleName, blockInfo)
 	zlog.Debug(noticeStr)
+	//发送微信推送消息
 	global.GQEQUE_MESSAGE_DB.PushBack(innerbean.MessageInfo{
 		Title:   "命中保护规则",
 		Content: noticeStr,

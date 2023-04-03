@@ -14,6 +14,7 @@ import (
 	"crypto/tls"
 	dlp "github.com/bytedance/godlp"
 	"github.com/go-co-op/gocron"
+	Wssocket "github.com/gorilla/websocket"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 	"log"
@@ -87,6 +88,8 @@ func main() {
 		wafenginecore.StartLocalServer()
 	}()
 
+	//启动websocket
+	global.GWebSocket = map[string]*Wssocket.Conn{}
 	//定时取规则并更新（考虑后期定时拉取公共规则 待定，可能会影响实际生产）
 
 	//定时器 （后期考虑是否独立包处理）

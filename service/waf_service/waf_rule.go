@@ -99,7 +99,7 @@ func (receiver *WafRuleService) DelRuleApi(req request.WafRuleDelReq) error {
 	err := global.GWAF_LOCAL_DB.Where("rule_code = ?", req.CODE).First(&rule).Error
 	if err != nil {
 
-		return errors.New("请检测参数")
+		return errors.New("要删除的规则信息未找到")
 	}
 	ruleMap := map[string]interface{}{
 		"RuleStatus":  "999",

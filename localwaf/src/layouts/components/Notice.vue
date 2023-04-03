@@ -17,10 +17,10 @@
         <t-list v-if="unreadMsg.length > 0" class="narrow-scrollbar" :split="true">
           <t-list-item v-for="(item, index) in unreadMsg" :key="index">
             <div>
-              <p class="msg-content">{{ item.content }}</p>
-              <p class="msg-type">{{ item.type }}</p>
+              <p class="msg-content">{{ item.message_data }}</p>
+              <p class="msg-type">{{ item.message_type }}</p>
             </div>
-            <p class="msg-time">{{ item.date }}</p>
+            <p class="msg-time">{{ item.message_datetime }}</p>
             <template #action>
               <t-button size="small" variant="outline" @click="setRead('radio', item)"> 设为已读 </t-button>
             </template>
@@ -87,15 +87,16 @@ export default Vue.extend({
       const changeMsg = this.msgData;
       if (type === 'all') {
         changeMsg.forEach((e) => {
-          e.status = false;
+          e.message_unread_status = false;
         });
       } else {
         changeMsg.forEach((e) => {
-          if (e.id === item.id) {
-            e.status = false;
+          if (e.message_id === item.message_id) {
+            e.message_unread_status = false;
           }
         });
       }
+      console.log(changeMsg)
       this.$store.commit('notification/setMsgData', changeMsg);
     },
   },

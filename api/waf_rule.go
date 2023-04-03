@@ -107,6 +107,7 @@ func (w *WafRuleAPi) DelRuleApi(c *gin.Context) {
 	if err == nil {
 		wafRule := wafRuleService.GetDetailByCodeApi(req.CODE)
 		err = wafRuleService.DelRuleApi(req)
+		//TODO 通知引擎重新加载某个网站的规则信息
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 			response.FailWithMessage("请检测参数", c)
 		} else if err != nil {

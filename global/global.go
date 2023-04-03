@@ -5,6 +5,7 @@ import (
 	"SamWaf/model/spec"
 	"github.com/bytedance/godlp/dlpheader"
 	Dequelib "github.com/edwingeng/deque"
+	Wssocket "github.com/gorilla/websocket"
 	"gorm.io/gorm"
 	"time"
 )
@@ -42,4 +43,7 @@ var (
 	GQEQUE_DB         Dequelib.Deque //正常DB队列
 	GQEQUE_LOG_DB     Dequelib.Deque //日志DB队列
 	GQEQUE_MESSAGE_DB Dequelib.Deque //发送消息队列
+
+	/******WebSocket*********/
+	GWebSocket map[string]*Wssocket.Conn
 )

@@ -10,7 +10,12 @@ import (
 func Auth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 获取请求头中 token，实际是一个完整被签名过的 token；a complete, signed token
-		tokenStr := c.GetHeader("X-Token")
+		tokenStr := ""
+		if c.Request.RequestURI == "/samwaf/ws" {
+			tokenStr = c.GetHeader("Sec-WebSocket-Protocol")
+		} else {
+			tokenStr = c.GetHeader("X-Token")
+		}
 		if tokenStr == "" {
 			zlog.Debug("无token")
 

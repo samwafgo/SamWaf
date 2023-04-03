@@ -82,6 +82,7 @@
         </t-list-item>
       </t-list>
     </t-card>
+     <t-button theme="primary" type="button" @click="backPage">返回</t-button>
 
 
   </div>
@@ -133,6 +134,9 @@
       },
     },
     methods: {
+      backPage(){
+        　history.go(-1) 
+      },
       getDetail(id) {
         let that = this
         this.$request

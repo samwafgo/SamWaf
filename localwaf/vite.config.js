@@ -46,6 +46,8 @@ export default ({ mode }) => {
 
     build: {
       cssCodeSplit: false,
+      outDir: '../vue/dist',
+      emptyOutDir:true
     },
 
     server: {

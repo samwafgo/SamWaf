@@ -76,7 +76,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var bodyByte []byte
 
 		// 拷贝一份request的Body
-		if r.Body != nil {
+		if r.Body != nil && r.Body != http.NoBody {
 			bodyByte, _ = io.ReadAll(r.Body)
 			// 把刚刚读出来的再写进去，不然后面解析表单数据就解析不到了
 			r.Body = io.NopCloser(bytes.NewBuffer(bodyByte))

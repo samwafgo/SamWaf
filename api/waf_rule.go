@@ -32,6 +32,7 @@ func (w *WafRuleAPi) AddApi(c *gin.Context) {
 		err = wafRuleService.CheckIsExistApi(ruleInfo.RuleBase.RuleName, ruleInfo.RuleBase.RuleDomainCode)
 		if err != nil {
 			response.FailWithMessage("当前规则名称已存在", c)
+			return
 		}
 		chsName := ruleInfo.RuleBase.RuleName
 		var ruleCode = uuid.NewV4().String()
@@ -52,12 +53,15 @@ func (w *WafRuleAPi) AddApi(c *gin.Context) {
 		if err == nil {
 			w.NotifyWaf(ruleInfo.RuleBase.RuleDomainCode)
 			response.OkWithMessage("添加成功", c)
+			return
 		} else {
 
 			response.FailWithMessage("添加失败", c)
+			return
 		}
 	} else {
 		response.FailWithMessage("解析失败", c)
+		return
 	}
 }
 func (w *WafRuleAPi) GetDetailApi(c *gin.Context) {
@@ -110,6 +114,7 @@ func (w *WafRuleAPi) DelRuleApi(c *gin.Context) {
 		//TODO 通知引擎重新加载某个网站的规则信息
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 			response.FailWithMessage("请检测参数", c)
+			return
 		} else if err != nil {
 			response.FailWithMessage("发生错误", c)
 		} else {

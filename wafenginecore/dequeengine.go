@@ -5,6 +5,7 @@ import (
 	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/utils"
+	"SamWaf/utils/zlog"
 	"encoding/json"
 	"github.com/edwingeng/deque"
 	uuid "github.com/satori/go.uuid"
@@ -27,16 +28,24 @@ func InitDequeEngine() {
 */
 func ProcessDequeEngine() {
 	for {
+		defer func() {
+			e := recover()
+			if e != nil {
+				zlog.Error("ProcessErrorException", e)
+			}
+		}()
 		for !global.GQEQUE_DB.Empty() {
 			weblogbean := global.GQEQUE_DB.PopFront()
-			global.GWAF_LOCAL_DB.Create(weblogbean)
-			//zlog.Info("DB", weblogbean)
+			if weblogbean != nil {
+				global.GWAF_LOCAL_DB.Create(weblogbean)
+			}
 		}
 
 		for !global.GQEQUE_LOG_DB.Empty() {
 			weblogbean := global.GQEQUE_LOG_DB.PopFront()
-			global.GWAF_LOCAL_LOG_DB.Create(weblogbean)
-			//zlog.Info("LOGDB", weblogbean)
+			if weblogbean != nil {
+				global.GWAF_LOCAL_LOG_DB.Create(weblogbean)
+			}
 		}
 
 		for !global.GQEQUE_MESSAGE_DB.Empty() {

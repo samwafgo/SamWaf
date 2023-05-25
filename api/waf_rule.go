@@ -29,9 +29,9 @@ func (w *WafRuleAPi) AddApi(c *gin.Context) {
 			response.FailWithMessage("规则解析错误", c)
 			return
 		}
-		err = wafRuleService.CheckIsExistApi(ruleInfo.RuleBase.RuleName, ruleInfo.RuleBase.RuleDomainCode)
-		if err != nil {
-			response.FailWithMessage("当前规则名称已存在", c)
+		count := wafRuleService.CheckIsExistApi(ruleInfo.RuleBase.RuleName, ruleInfo.RuleBase.RuleDomainCode)
+		if count > 0 {
+			response.FailWithMessage("当前规则已存在", c)
 			return
 		}
 		chsName := ruleInfo.RuleBase.RuleName

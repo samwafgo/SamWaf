@@ -15,14 +15,13 @@ require (
 	github.com/satori/go.uuid v1.2.0
 	github.com/spf13/viper v1.13.0
 	github.com/stretchr/testify v1.8.0
-	github.com/takama/daemon v1.0.0
 	go.uber.org/zap v1.21.0
 	golang.org/x/net v0.0.0-20220520000938-2e3eb7b945c2
 	golang.org/x/text v0.3.7
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
-	gorm.io/driver/sqlite v1.3.6
-	gorm.io/gorm v1.23.10
+	gorm.io/driver/sqlite v1.5.1
+	gorm.io/gorm v1.25.1
 )
 
 require (
@@ -46,7 +45,7 @@ require (
 	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/magiconair/properties v1.8.6 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
-	github.com/mattn/go-sqlite3 v1.14.12 // indirect
+	github.com/mattn/go-sqlite3 v1.14.16 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect

@@ -4,6 +4,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/model/request"
+	"SamWaf/utils/zlog"
 	"errors"
 )
 
@@ -30,8 +31,18 @@ func (receiver *WafRuleService) AddApi(wafRuleAddReq request.WafRuleAddReq, rule
 	return nil
 }
 
-func (receiver *WafRuleService) CheckIsExistApi(ruleName string, ruleCode string) error {
-	return global.GWAF_LOCAL_DB.First(&model.Rules{}, "rule_name = ? and rule_code = ?", ruleName, ruleCode).Error
+/*
+*
+
+	false表明 不存在
+*/
+func (receiver *WafRuleService) CheckIsExistApi(ruleName string, hostCode string) int64 {
+	var count int64 = 0
+	err := global.GWAF_LOCAL_DB.Model(&model.Rules{}).Where("rule_name = ? and host_code = ? and rule_status<> 999", ruleName, hostCode).Count(&count)
+	if err != nil {
+		zlog.Error("检查是否存在错误", err)
+	}
+	return count
 }
 
 func (receiver *WafRuleService) ModifyApi(wafRuleEditReq request.WafRuleEditReq, chsName string, hostCode string, ruleContent string) error {
@@ -66,20 +77,22 @@ func (receiver *WafRuleService) ModifyApi(wafRuleEditReq request.WafRuleEditReq,
 }
 func (receiver *WafRuleService) GetDetailApi(wafRuleDetailReq request.WafRuleDetailReq) model.Rules {
 	var rules model.Rules
-	global.GWAF_LOCAL_DB.Where("RULE_CODE=?", wafRuleDetailReq.CODE).Find(&rules)
+	global.GWAF_LOCAL_DB.Where("RULE_CODE=?  and rule_status<> 999", wafRuleDetailReq.CODE).Find(&rules)
 	return rules
 }
 func (receiver *WafRuleService) GetDetailByCodeApi(ruleCode string) model.Rules {
 	var webRule model.Rules
-	global.GWAF_LOCAL_DB.Where("rule_code=?", ruleCode).Find(&webRule)
+	global.GWAF_LOCAL_DB.Where("rule_code=?  and rule_status<> 999 ", ruleCode).Find(&webRule)
 	return webRule
 }
 func (receiver *WafRuleService) GetListApi(wafRuleSearchReq request.WafRuleSearchReq) ([]model.Rules, int64, error) {
 	var total int64 = 0
 	var rules []model.Rules
 	global.GWAF_LOCAL_DB.Where("rule_status= 1").Limit(wafRuleSearchReq.PageSize).Offset(wafRuleSearchReq.PageSize * (wafRuleSearchReq.PageIndex - 1)).Find(&rules)
-	global.GWAF_LOCAL_DB.Model(&model.Rules{}).Count(&total)
-
+	err := global.GWAF_LOCAL_DB.Where("rule_status= 1 ").Model(&model.Rules{}).Count(&total)
+	if err != nil {
+		zlog.Debug("列查询", err)
+	}
 	return rules, total, nil
 }
 

@@ -22,8 +22,7 @@
 
 
 
-          <template #op="slotProps">
-            <a class="t-button-link" @click="handleClickDetail(slotProps)">详情</a>
+          <template #op="slotProps"> 
             <a class="t-button-link" @click="handleClickEdit(slotProps)">编辑</a>
             <a class="t-button-link" @click="handleClickDelete(slotProps)">删除</a>
           </template>
@@ -170,12 +169,6 @@
             ellipsis: true,
             colKey: 'login_account',
             fixed: 'left',
-          },
-          {
-            title: '登录密码',
-            width: 200,
-            ellipsis: true,
-            colKey: 'login_password',
           },
           {
             title: '备注',

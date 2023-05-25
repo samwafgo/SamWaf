@@ -11,6 +11,7 @@ import (
 	"SamWaf/utils/zlog"
 	"SamWaf/wafenginecore"
 	"SamWaf/waftask"
+	"SamWaf/xdaemon"
 	"crypto/tls"
 	dlp "github.com/bytedance/godlp"
 	"github.com/go-co-op/gocron"
@@ -20,6 +21,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"syscall"
@@ -27,6 +29,7 @@ import (
 )
 
 func main() {
+
 	rversion := "初始化系统 版本号：" + global.GWAF_RELEASE_VERSION_NAME + "(" + global.GWAF_RELEASE_VERSION + ")"
 	if global.GWAF_RELEASE == "false" {
 		rversion = rversion + " 调试版本"
@@ -48,6 +51,39 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	// if received any kind of command, do it
+	if len(os.Args) > 1 {
+		command := os.Args[1]
+		switch command {
+		case "-d":
+			logFile := "./logs/daemon.log"
+			//启动一个子进程后主程序退出
+			xdaemon.Background(logFile, true)
+			break
+		case "-c":
+			println("关闭")
+			if runtime.GOOS == "windows" {
+				c := exec.Command("taskkill.exe", "/f", "/im", "SamWaf.exe")
+				c.Start()
+			} else {
+				println("SamWaf -d")
+			}
+			break
+		case "-help":
+			if runtime.GOOS == "windows" {
+				println("SamWaf.exe  -d 是后台运行 -c 是强制关闭  -help 是帮助说明")
+			} else {
+				println("SamWaf -d 是后台运行 -c 是强制关闭  -help 是帮助说明")
+			}
+			break
+		default:
+			println(command)
+		}
+	}
+
+	//守护程序开始
+	//xdaemon.DaemonProcess("GoTest.exe","./logs/damon.log")
+
 	/*runtime.GOMAXPROCS(1)              // 限制 CPU 使用数，避免过载
 	runtime.SetMutexProfileFraction(1) // 开启对锁调用的跟踪
 	runtime.SetBlockProfileRate(1)     // 开启对阻塞操作的跟踪

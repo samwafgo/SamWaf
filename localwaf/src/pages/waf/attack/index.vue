@@ -14,6 +14,17 @@
             <t-col :span="10">
               <t-row :gutter="[16, 24]">
                 <t-col :flex="1">
+                  <t-form-item label="网站" name="rule">
+                    <t-select v-model="searchformData.host_code" clearable :style="{ width: '150px' }">
+                      <t-option v-for="(item, index) in host_dic" :value="index" :label="item"
+                        :key="index">
+                        {{ item }}
+                      </t-option>
+                    </t-select>
+                  </t-form-item>
+                </t-col>
+                <t-col :flex="1">
+
                   <t-form-item label="规则名称" name="rule">
                     <t-input
                       v-model="searchformData.rule"
@@ -30,7 +41,7 @@
                       v-model="searchformData.action"
                       class="form-item-content`"
                       :options="action_options"
-                      placeholder="请选择防御状态"
+                      placeholder="请选择防御状态" :style="{ width: '100px' }"
                     />
                   </t-form-item>
                 </t-col>
@@ -57,23 +68,32 @@
 
       <div class="table-container">
         <t-table
-        table-layout: auto
           :columns="columns"
           :data="data"
+          size="small"
           :rowKey="rowKey"
           :verticalAlign="verticalAlign"
-          :hover="hover"
           :pagination="pagination"
           :selected-row-keys="selectedRowKeys"
           :loading="dataLoading"
           @page-change="rehandlePageChange"
           @change="rehandleChange"
           @select-change="rehandleSelectChange"
-          :headerAffixedTop="true"
           :headerAffixProps="{ offsetTop: offsetTop, container: getContainer }"
         >
 
+         <template #action="{ row }">
+            <t-tag v-if="row.action === '放行'" shape="round" theme="success" >{{row.action}}</t-tag>
+            <t-tag v-if="row.action === '阻止'" shape="round" theme="danger" >{{row.action}}</t-tag>
+            <t-tag v-if="row.action === '禁止'" shape="round" theme="warning" >{{row.action}}</t-tag>
 
+          </template>
+          <template #rule="{ row }">
+             <t-tag  v-if="row.rule !== ''" shape="round" theme="primary" variant="outline">{{row.rule}}</t-tag>
+           </template>
+           <template #country="{ row }">
+            {{row.src_ip }} ({{row.country }}{{row.province }}{{row.city }})
+            </template>
           <template #op="slotProps">
             <a class="t-button-link" @click="handleClickDetail(slotProps)">详情</a>
             <a class="t-button-link" @click="handleClickDelete(slotProps)">删除</a>
@@ -98,7 +118,12 @@ import Trend from '@/components/trend/index.vue';
 import { prefix } from '@/config/global';
 import {attacklogList} from '@/apis/waflog/attacklog';
 
+  import {
+    allhost
+  } from '@/apis/host';
+
 import { CONTRACT_STATUS, CONTRACT_STATUS_OPTIONS, CONTRACT_TYPES, CONTRACT_PAYMENT_TYPES } from '@/constants';
+import { ErrorCircleFilledIcon, CheckCircleFilledIcon, CloseCircleFilledIcon } from 'tdesign-icons-vue';
 
 export default Vue.extend({
   name: 'ListBase',
@@ -128,32 +153,12 @@ export default Vue.extend({
       prefix,
       dataLoading: false,
       data: [],
-      selectedRowKeys: [1, 2],
+      selectedRowKeys: [],
       value: 'first',
       columns: [
         {
-          title: '时间',
-          width: 200,
-          ellipsis: true,
-          colKey: 'create_time',
-        },
-        {
-          title: '域名',
-          align: 'left',
-          width: 250,
-          ellipsis: true,
-          colKey: 'host', 
-        },
-
-        {
-          title: '访客IP',
-          width: 150,
-          ellipsis: true,
-          colKey: 'src_ip',
-        },
-        {
-          title: '放行结果',
-          width: 120,
+          title: '状态',
+          width: 60,
           ellipsis: true,
           colKey: 'action',
         },
@@ -162,7 +167,33 @@ export default Vue.extend({
           align: 'left',
           width: 150,
           ellipsis: true,
-          colKey: 'rule', 
+          colKey: 'rule',
+        },
+        {
+          title: '时间',
+          width: 170,
+          ellipsis: true,
+          colKey: 'create_time',
+        },
+        {
+          title: '域名',
+          align: 'left',
+          width: 250,
+          ellipsis: true,
+          colKey: 'host',
+        },
+
+        {
+          title: '请求',
+          width: 70,
+          ellipsis: true,
+          colKey: 'method',
+        },
+        {
+          title: '来源IP',
+          width: 150,
+          ellipsis: true,
+          colKey: 'country',
         },
         {
           title: '访问url',
@@ -171,32 +202,7 @@ export default Vue.extend({
           colKey: 'url',
         },
         {
-          title: '国家',
-          width: 150,
-          ellipsis: true,
-          colKey: 'country',
-        },
-        {
-          title: '省',
-          width: 150,
-          ellipsis: true,
-          colKey: 'province',
-        },{
-          title: '市',
-          width: 150,
-          ellipsis: true,
-          colKey: 'city',
-        },
-        {
-          title: '请求类型',
-          width: 150,
-          ellipsis: true,
-          colKey: 'method',
-        },
-
-        {
           align: 'left',
-          fixed: 'right',
           width: 200,
           colKey: 'op',
           title: '操作',
@@ -220,8 +226,11 @@ export default Vue.extend({
       searchformData:{
           rule:"",
           action:"",
-          src_ip:""
+          src_ip:"",
+          host_code:""
       },
+      //主机字典
+      host_dic:{}
     };
   },
   computed: {
@@ -237,10 +246,27 @@ export default Vue.extend({
     },
   },
   mounted() {
+    this.loadHostList()
     this.getList("")
   },
 
   methods: {
+    loadHostList(){
+      let that = this;
+      allhost().then((res) => {
+            let resdata = res
+            console.log(resdata)
+            if (resdata.code === 0) {
+                let host_options = resdata.data;
+                for(let i = 0;i<host_options.length;i++){
+                    that.host_dic[host_options[i].value] =  host_options[i].label
+                }
+            }
+          })
+          .catch((e: Error) => {
+            console.log(e);
+      })
+    },
     getList(keyword){
 
       let that = this

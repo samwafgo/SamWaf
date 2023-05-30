@@ -86,13 +86,12 @@ func main() {
 
 	/*runtime.GOMAXPROCS(1)              // 限制 CPU 使用数，避免过载
 	runtime.SetMutexProfileFraction(1) // 开启对锁调用的跟踪
-	runtime.SetBlockProfileRate(1)     // 开启对阻塞操作的跟踪
+	runtime.SetBlockProfileRate(1)     // 开启对阻塞操作的跟踪*/
 	go func() {
 
 		err2 := http.ListenAndServe("0.0.0.0:16060", nil)
-		time.Sleep(10000)
-		log.Fatal(err2)
-	}()*/
+		zlog.Error("调试报错", err2)
+	}()
 
 	//初始化本地数据库
 	wafenginecore.InitDb()
@@ -218,4 +217,5 @@ func main() {
 		}
 
 	}
+	zlog.Info("normal program close")
 }

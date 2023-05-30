@@ -73,6 +73,6 @@ func ProcessDequeEngine() {
 			}
 			//zlog.Info("MESSAGE", messageinfo)
 		}
-		time.Sleep(1)
+		time.Sleep((100 * time.Millisecond))
 	}
 }

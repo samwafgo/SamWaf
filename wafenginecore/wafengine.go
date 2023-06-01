@@ -75,8 +75,8 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		//server_online[8081].Svr.Close()
 		var bodyByte []byte
 
-		// 拷贝一份request的Body
-		if r.Body != nil && r.Body != http.NoBody {
+		// 拷贝一份request的Body ,控制不记录大文件的情况 ，先写死的
+		if r.Body != nil && r.Body != http.NoBody && contentLength < (1024*2) {
 			bodyByte, _ = io.ReadAll(r.Body)
 			// 把刚刚读出来的再写进去，不然后面解析表单数据就解析不到了
 			r.Body = io.NopCloser(bytes.NewBuffer(bodyByte))
@@ -175,10 +175,6 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				if sqlixssResult == true {
 					xssFlag = true
 				}
-				sqlixssResult = libinjection.IsXSS(weblogbean.BODY)
-				if sqlixssResult == true {
-					xssFlag = true
-				}
 				if xssFlag == true {
 					EchoErrorInfo(w, r, weblogbean, "XSS跨站注入", "请正确访问")
 					return
@@ -247,8 +243,8 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		//server_online[8081].Svr.Close()
 		var bodyByte []byte
 
-		// 拷贝一份request的Body
-		if r.Body != nil {
+		// 拷贝一份request的Body ,控制不记录大文件的情况 ，先写死的
+		if r.Body != nil && r.Body != http.NoBody && contentLength < (1024*2) {
 			bodyByte, _ = io.ReadAll(r.Body)
 			// 把刚刚读出来的再写进去，不然后面解析表单数据就解析不到了
 			r.Body = io.NopCloser(bytes.NewBuffer(bodyByte))
@@ -314,6 +310,8 @@ func errorHandler() func(http.ResponseWriter, *http.Request, error) {
 func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 	return func(resp *http.Response) error {
 		resp.Header.Set("WAF", "SamWAF")
+		resp.Header.Set("Server", "SamWAF")
+
 		host := resp.Request.Host
 		if !strings.Contains(host, ":") {
 			host = host + ":80"

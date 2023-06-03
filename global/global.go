@@ -46,4 +46,7 @@ var (
 
 	/******WebSocket*********/
 	GWebSocket map[string]*Wssocket.Conn
+
+	//限制记录最大的body 长度
+	GCONFIG_RECORD_MAX_BODY_LENGTH int64 = 1024 * 2
 )

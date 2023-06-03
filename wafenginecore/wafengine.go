@@ -76,7 +76,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var bodyByte []byte
 
 		// 拷贝一份request的Body ,控制不记录大文件的情况 ，先写死的
-		if r.Body != nil && r.Body != http.NoBody && contentLength < (1024*2) {
+		if r.Body != nil && r.Body != http.NoBody && contentLength < (global.GCONFIG_RECORD_MAX_BODY_LENGTH) {
 			bodyByte, _ = io.ReadAll(r.Body)
 			// 把刚刚读出来的再写进去，不然后面解析表单数据就解析不到了
 			r.Body = io.NopCloser(bytes.NewBuffer(bodyByte))
@@ -244,7 +244,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var bodyByte []byte
 
 		// 拷贝一份request的Body ,控制不记录大文件的情况 ，先写死的
-		if r.Body != nil && r.Body != http.NoBody && contentLength < (1024*2) {
+		if r.Body != nil && r.Body != http.NoBody && contentLength < (global.GCONFIG_RECORD_MAX_BODY_LENGTH) {
 			bodyByte, _ = io.ReadAll(r.Body)
 			// 把刚刚读出来的再写进去，不然后面解析表单数据就解析不到了
 			r.Body = io.NopCloser(bytes.NewBuffer(bodyByte))

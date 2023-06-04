@@ -69,7 +69,7 @@ func (w *WafAccountApi) DelAccountApi(c *gin.Context) {
 		} else if err != nil {
 			response.FailWithMessage("发生错误", c)
 		} else {
-			response.FailWithMessage("删除成功", c)
+			response.OkWithMessage("删除成功", c)
 		}
 
 	} else {

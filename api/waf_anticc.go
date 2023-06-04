@@ -76,7 +76,7 @@ func (w *WafAntiCCApi) DelAntiCCApi(c *gin.Context) {
 			response.FailWithMessage("发生错误", c)
 		} else {
 			w.NotifyWaf(bean.HostCode)
-			response.FailWithMessage("删除成功", c)
+			response.OkWithMessage("删除成功", c)
 		}
 
 	} else {

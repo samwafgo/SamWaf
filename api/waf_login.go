@@ -41,10 +41,9 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 
 			//通知信息
 			noticeStr := fmt.Sprintf("登录IP:%s 归属地区：%s", c.ClientIP(), utils.GetCountry(c.ClientIP()))
-			global.GQEQUE_MESSAGE_DB.PushBack(innerbean.MessageInfo{
-				Title:   "登录信息",
-				Content: noticeStr,
-				Remarks: "无",
+			global.GQEQUE_MESSAGE_DB.PushBack(innerbean.OperatorMessageInfo{
+				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "登录信息"},
+				OperaCnt:        noticeStr,
 			})
 
 			response.OkWithDetailed(response2.LoginRep{

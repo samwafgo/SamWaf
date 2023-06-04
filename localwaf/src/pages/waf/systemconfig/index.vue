@@ -213,7 +213,7 @@
           const {
             url
           } = this.data?. [this.deleteIdx];
-          return `删除后，${url}的数据将被删除，且无法恢复`;
+          return `删除后，数据将被删除，且无法恢复`;
         }
         return '';
       },
@@ -223,23 +223,9 @@
     },
     mounted() {
       this.getList("")
-      this.loadHostList()
     },
 
     methods: {
-      loadHostList(){
-        /* let that = this;
-        allhost().then((res) => {
-              let resdata = res
-              console.log(resdata)
-              if (resdata.code === 0) {
-                  that.host_options = resdata.data;
-              }
-            })
-            .catch((e: Error) => {
-              console.log(e);
-        }) */
-      },
       getList(keyword) {
         let that = this
         this.$request

@@ -47,8 +47,7 @@ export default [
 
 
      ],
-   },
-
+   }, 
   {
     path: '/sys',
     name: 'sys',
@@ -62,7 +61,12 @@ export default [
          component: () => import('@/pages/waf/syslog/index.vue'),
          meta: { title: '系统操作日志' },
       },
-
+      {
+         path: 'SystemConfig',
+         name: 'SystemConfig',
+         component: () => import('@/pages/waf/systemconfig/index.vue'),
+         meta: { title: '参数设置' },
+       },
 
     ],
   },

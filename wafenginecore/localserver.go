@@ -34,6 +34,7 @@ func InitRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitSysLogRouter(RouterGroup)
 		router.ApiGroupApp.InitWebSocketRouter(RouterGroup)
 		router.ApiGroupApp.InitSysInfoRouter(RouterGroup)
+		router.ApiGroupApp.InitSystemConfigRouter(RouterGroup)
 	}
 	PublicRouterGroup := r.Group("")
 	router.PublicApiGroupApp.InitLoginRouter(PublicRouterGroup)

@@ -214,7 +214,7 @@
           const {
             url
           } = this.data?. [this.deleteIdx];
-          return `删除后，${url}的数据将被删除，且无法恢复`;
+          return `删除后，数据将被删除，且无法恢复`;
         }
         return '';
       },

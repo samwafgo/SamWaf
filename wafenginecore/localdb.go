@@ -37,6 +37,9 @@ func InitDb() {
 		//waf自身账号
 		db.AutoMigrate(&model.TokenInfo{})
 		db.AutoMigrate(&model.Account{})
+
+		//系统参数
+		db.AutoMigrate(&model.SystemConfig{})
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
 

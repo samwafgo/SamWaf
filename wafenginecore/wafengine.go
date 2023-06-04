@@ -289,10 +289,11 @@ func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean innerbean.
 
 	zlog.Debug(noticeStr)
 	//发送微信推送消息
-	global.GQEQUE_MESSAGE_DB.PushBack(innerbean.MessageInfo{
-		Title:   "命中保护规则",
-		Content: noticeStr,
-		Remarks: "无",
+	global.GQEQUE_MESSAGE_DB.PushBack(innerbean.RuleMessageInfo{
+		BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "命中保护规则", Server: global.GWAF_CUSTOM_SERVER_NAME},
+		Domain:          weblogbean.HOST,
+		RuleInfo:        ruleName,
+		Ip:              fmt.Sprintf("%s (%s)", weblogbean.SRC_IP, utils.GetCountry(weblogbean.SRC_IP)),
 	})
 	weblogbean.RULE = ruleName
 	weblogbean.ACTION = "阻止"

@@ -145,10 +145,9 @@ func TaskStatusNotify() {
 	if err == nil {
 		noticeStr := fmt.Sprintf("今日访问量：%d 今天恶意访问量:%d 昨日恶意访问量:%d", statHomeInfo.VisitCountOfToday, statHomeInfo.AttackCountOfToday, statHomeInfo.AttackCountOfYesterday)
 
-		global.GQEQUE_MESSAGE_DB.PushBack(innerbean.MessageInfo{
-			Title:   "汇总通知",
-			Content: noticeStr,
-			Remarks: "无",
+		global.GQEQUE_MESSAGE_DB.PushBack(innerbean.OperatorMessageInfo{
+			BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "汇总通知"},
+			OperaCnt:        noticeStr,
 		})
 	} else {
 		zlog.Error("TaskStatusNotifyerror", err)

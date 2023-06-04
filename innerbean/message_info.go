@@ -1,7 +1,85 @@
 package innerbean
 
-type MessageInfo struct {
-	Title   string `json:"title"`
-	Content string `json:"content"`
-	Remarks string `json:"remarks"`
+import (
+	"SamWaf/wechat"
+)
+
+type BaseInfo interface {
+	ToFormat() string
+}
+
+/***
+
+信息类型:
+服务器:
+IP地址:
+
+*/
+
+type BaseMessageInfo struct {
+	OperaType string `json:"operatype"`
+	Server    string `json:"server"`
+}
+
+/*
+**
+域名信息:
+触发规则:
+*/
+type RuleMessageInfo struct {
+	BaseMessageInfo
+	Domain   string `json:"domain"`
+	RuleInfo string `json:"ruleinfo"`
+	Ip       string `json:"ip"`
+}
+
+func (r RuleMessageInfo) ToFormat() map[string]*wechat.DataItem {
+	Data := map[string]*wechat.DataItem{}
+	Data["domain"] = &wechat.DataItem{
+		Value: r.Domain,
+		Color: "#808080",
+	}
+	Data["ruleinfo"] = &wechat.DataItem{
+		Value: r.RuleInfo,
+		Color: "#808080",
+	}
+	Data["ip"] = &wechat.DataItem{
+		Value: r.Ip,
+		Color: "#808080",
+	}
+	Data["server"] = &wechat.DataItem{
+		Value: r.Server,
+		Color: "#808080",
+	}
+	Data["operatype"] = &wechat.DataItem{
+		Value: r.OperaType,
+		Color: "#808080",
+	}
+	return Data
+}
+
+func (r OperatorMessageInfo) ToFormat() map[string]*wechat.DataItem {
+	Data := map[string]*wechat.DataItem{}
+	Data["operacnt"] = &wechat.DataItem{
+		Value: r.OperaCnt,
+		Color: "#808080",
+	}
+	Data["server"] = &wechat.DataItem{
+		Value: r.Server,
+		Color: "#808080",
+	}
+	Data["operatype"] = &wechat.DataItem{
+		Value: r.OperaType,
+		Color: "#808080",
+	}
+	return Data
+}
+
+/*
+**
+信息内容:
+*/
+type OperatorMessageInfo struct {
+	BaseMessageInfo
+	OperaCnt string `json:"operacnt"`
 }

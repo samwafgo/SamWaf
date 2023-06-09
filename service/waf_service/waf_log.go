@@ -50,7 +50,6 @@ func (receiver *WafLogService) GetListByHostCodeApi(log request.WafAttackLogSear
 	global.GWAF_LOCAL_LOG_DB.Where("host_code = ? ", global.GWAF_TENANT_ID, global.GWAF_USER_CODE, log.HostCode).Model(&innerbean.WebLog{}).Count(&total)
 	return weblogs, total, nil
 }
-func (receiver *WafLogService) DeleteHistory(day int) {
-	//重启需要删除无效规则
+func (receiver *WafLogService) DeleteHistory(day string) {
 	global.GWAF_LOCAL_LOG_DB.Where("create_time <'?' ", day).Delete(&innerbean.WebLog{})
 }

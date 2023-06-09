@@ -51,5 +51,5 @@ func (receiver *WafLogService) GetListByHostCodeApi(log request.WafAttackLogSear
 	return weblogs, total, nil
 }
 func (receiver *WafLogService) DeleteHistory(day string) {
-	global.GWAF_LOCAL_LOG_DB.Where("create_time <'?' ", day).Delete(&innerbean.WebLog{})
+	global.GWAF_LOCAL_LOG_DB.Where("create_time < ?", day).Delete(&innerbean.WebLog{})
 }

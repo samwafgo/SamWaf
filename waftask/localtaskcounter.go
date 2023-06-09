@@ -161,6 +161,6 @@ func TaskStatusNotify() {
 */
 func TaskDeleteHistoryInfo() {
 	zlog.Debug("TaskDeleteHistoryInfo")
-	deleteBeforeDay, _ := strconv.Atoi(time.Now().AddDate(0, 0, -global.GDATA_DELETE_INTERVAL).Format("20060102"))
+	deleteBeforeDay := time.Now().AddDate(0, 0, -global.GDATA_DELETE_INTERVAL).Format("2006-01-02 15:04")
 	waf_service.WafLogServiceApp.DeleteHistory(deleteBeforeDay)
 }

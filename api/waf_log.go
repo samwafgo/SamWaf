@@ -23,6 +23,10 @@ func (w *WafLogAPi) GetListApi(c *gin.Context) {
 	var req request.WafAttackLogSearch
 	err := c.ShouldBind(&req)
 	if err == nil {
+		/*//TOOD 模拟意外退出
+
+		os.Exit(-1) //退出进程*/
+
 		wafLogs, total, _ := wafLogService.GetListApi(req)
 		response.OkWithDetailed(response.PageResult{
 			List:      wafLogs,

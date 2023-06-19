@@ -7,11 +7,28 @@ import (
 	"fmt"
 	"github.com/lionsoul2014/ip2region/binding/golang/xdb"
 	"net"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 )
 
+func GetCurrentDir() string {
+	/*	pwd, err := os.Getwd()
+		if err != nil {
+			fmt.Errorf("currentPath")
+		}
+	    return pwd*/
+	exePath, err := os.Executable()
+	if err != nil {
+		fmt.Println("Failed to get executable path:", err)
+		return ""
+	}
+
+	exeDir := filepath.Dir(exePath)
+	return exeDir
+}
 func GetServerByHosts(hosts model.Hosts) string {
 	if hosts.Ssl == 1 {
 		return "https"

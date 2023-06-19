@@ -4,6 +4,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model"
+	"SamWaf/utils"
 	"SamWaf/utils/zlog"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -11,7 +12,7 @@ import (
 
 func InitDb() {
 	if global.GWAF_LOCAL_DB == nil {
-		db, err := gorm.Open(sqlite.Open("data/local.db"), &gorm.Config{})
+		db, err := gorm.Open(sqlite.Open(utils.GetCurrentDir()+"/data/local.db"), &gorm.Config{})
 		if err != nil {
 			panic("failed to connect database")
 		}
@@ -48,7 +49,7 @@ func InitDb() {
 
 	}
 	if global.GWAF_LOCAL_LOG_DB == nil {
-		logDB, err := gorm.Open(sqlite.Open("data/local_log.db"), &gorm.Config{})
+		logDB, err := gorm.Open(sqlite.Open(utils.GetCurrentDir()+"/data/local_log.db"), &gorm.Config{})
 		if err != nil {
 			panic("failed to connect database")
 		}

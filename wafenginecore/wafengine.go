@@ -424,7 +424,7 @@ func (waf *WafEngine) Start_WAF() {
 	global.GWAF_LOCAL_DB.Where("tenant_id = ? and user_code=? ", global.GWAF_TENANT_ID, global.GWAF_USER_CODE).Where("user_code = ?", global.GWAF_USER_CODE).Find(&hosts)
 
 	//初始化步骤[加载ip数据库]
-	var dbPath = "data/ip2region.xdb"
+	var dbPath = utils.GetCurrentDir() + "/data/ip2region.xdb"
 	// 1、从 dbPath 加载整个 xdb 到内存
 	cBuff, err := xdb.LoadContentFromFile(dbPath)
 	if err != nil {
@@ -543,6 +543,12 @@ func (waf *WafEngine) Start_WAF() {
 
 			if (innruntime.ServerType) == "https" {
 
+				defer func() {
+					e := recover()
+					if e != nil { // 捕获该协程的panic 111111
+						zlog.Warn("https recover ", e)
+					}
+				}()
 				svr := &http.Server{
 					Addr:    ":" + strconv.Itoa(innruntime.Port),
 					Handler: waf,
@@ -584,7 +590,7 @@ func (waf *WafEngine) Start_WAF() {
 				defer func() {
 					e := recover()
 					if e != nil { // 捕获该协程的panic 111111
-						zlog.Warn("recover ", e)
+						zlog.Warn("http recover ", e)
 					}
 				}()
 				svr := &http.Server{

@@ -10,78 +10,43 @@ import (
 	"SamWaf/utils"
 	"SamWaf/utils/zlog"
 	"SamWaf/wafenginecore"
-	"SamWaf/wafsystem"
 	"SamWaf/waftask"
-	"SamWaf/xdaemon"
 	"crypto/tls"
 	"fmt"
 	dlp "github.com/bytedance/godlp"
 	"github.com/go-co-op/gocron"
 	Wssocket "github.com/gorilla/websocket"
+	"github.com/kardianos/service"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
+	"log"
 	"net/http"
 	"os"
-	"os/exec"
+	"os/signal"
 	"runtime"
 	"strconv"
 	"syscall"
 	"time"
 )
 
-func main() {
+// wafSystenService 实现了 service.Service 接口
+type wafSystenService struct{}
 
-	fmt.Println(utils.GetCurrentDir())
-	// if received any kind of command, do it
-	if len(os.Args) > 1 {
-		serviceName := "SamWafService"
+// Start 是服务启动时调用的方法
+func (m *wafSystenService) Start(s service.Service) error {
+	go m.run()
+	return nil
+}
 
-		serviceManager := wafsystem.NewWafServiceManager(serviceName)
-		command := os.Args[1]
-		switch command {
-		case "-d":
-			logFile := utils.GetCurrentDir() + "/logs/daemon.log"
-			fmt.Println(logFile)
-			//启动一个子进程后主程序退出
-			xdaemon.Background(logFile, true)
-			break
-		case "-c":
-			println("关闭")
-			if runtime.GOOS == "windows" {
-				c := exec.Command("taskkill.exe", "/f", "/im", "SamWaf.exe")
-				c.Start()
-			} else {
-				println("SamWaf -d")
-			}
-			break
+// Stop 是服务停止时调用的方法
+func (m *wafSystenService) Stop(s service.Service) error {
+	return nil
+}
 
-		case "-install":
-			serviceManager.Install()
-			return
-			break
-		case "-uninstall":
-			serviceManager.Uninstall()
-			return
-			break
-		case "-stop":
-			serviceManager.Stop()
-			return
-			break
-		case "-start":
-			serviceManager.StartService()
-			return
-			break
-		case "-help":
-			if runtime.GOOS == "windows" {
-				println("SamWaf.exe  -d 是后台运行, -install 是以服务安装 ，-uninstall 卸载服务 ,-stop 暂停服务")
-			} else {
-				println("SamWaf -d 是后台运行 , -install 是以服务安装 ，-uninstall 卸载服务 ,-stop 暂停服务")
-			}
-			break
-		default:
-			println(command)
-		}
-	}
+// run 是服务的主要逻辑
+func (m *wafSystenService) run() {
+	// 在这里编写你的服务逻辑代码
+	fmt.Println("Service is running...")
 
 	rversion := "初始化系统 版本号：" + global.GWAF_RELEASE_VERSION_NAME + "(" + global.GWAF_RELEASE_VERSION + ")"
 	if global.GWAF_RELEASE == "false" {
@@ -240,4 +205,110 @@ func main() {
 
 	}
 	zlog.Info("normal program close")
+
+	// 模拟一个长时间运行的任务
+	for {
+		select {
+		case <-time.After(time.Second):
+			fmt.Println("Service is still running...")
+		}
+	}
+}
+func main() {
+	/*
+		// if received any kind of command, do it
+		if len(os.Args) > 1 {
+			serviceName := "SamWafService"
+
+			serviceManager := wafsystem.NewWafServiceManager(serviceName)
+			command := os.Args[1]
+			switch command {
+			case "-d":
+				logFile := utils.GetCurrentDir() + "/logs/daemon.log"
+				fmt.Println(logFile)
+				//启动一个子进程后主程序退出
+				xdaemon.Background(logFile, true)
+				break
+			case "-c":
+				println("关闭")
+				if runtime.GOOS == "windows" {
+					c := exec.Command("taskkill.exe", "/f", "/im", "SamWaf.exe")
+					c.Start()
+				} else {
+					println("SamWaf -d")
+				}
+				break
+
+			case "-install":
+				serviceManager.Install()
+				return
+				break
+			case "-uninstall":
+				serviceManager.Uninstall()
+				return
+				break
+			case "-stop":
+				serviceManager.Stop()
+				return
+				break
+			case "-start":
+				serviceManager.StartService()
+				return
+				break
+			case "-help":
+				if runtime.GOOS == "windows" {
+					println("SamWaf.exe  -d 是后台运行, -install 是以服务安装 ，-uninstall 卸载服务 ,-stop 暂停服务")
+				} else {
+					println("SamWaf -d 是后台运行 , -install 是以服务安装 ，-uninstall 卸载服务 ,-stop 暂停服务")
+				}
+				break
+			default:
+				println(command)
+			}
+		}*/
+
+	option := service.KeyValue{}
+	//windows
+	//OnFailure:"restart",
+	if runtime.GOOS == "windows" {
+		option["OnFailure"] = "restart"
+		option["OnFailureDelayDuration"] = "1s"
+		option["OnFailureResetPeriod"] = "10"
+	} else {
+		option["Restart"] = "always"
+	}
+
+	// 创建服务对象
+	svcConfig := &service.Config{
+		Name:        "SamWafService",
+		DisplayName: "SamWaf Service",
+		Description: "SamWaf is a Web Application Firewall (WAF)",
+		Option:      option,
+	}
+	prg := &wafSystenService{}
+	s, err := service.New(prg, svcConfig)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// 设置服务控制信号处理程序
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, os.Kill, syscall.SIGTERM)
+
+	// 以服务方式运行
+	if len(os.Args) > 1 {
+		command := os.Args[1]
+		err := service.Control(s, command)
+		if err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+
+	// 以常规方式运行
+	err = s.Run()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 }

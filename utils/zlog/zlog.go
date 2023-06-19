@@ -2,11 +2,13 @@ package zlog
 
 import (
 	"SamWaf/global"
+	"fmt"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
 	"os"
 	"path"
+	"path/filepath"
 	"runtime"
 )
 
@@ -46,9 +48,15 @@ func init() {
 }
 
 func getFileLogWriter() (writeSyncer zapcore.WriteSyncer) {
+	exePath, err := os.Executable()
+	if err != nil {
+		fmt.Println("Failed to get executable path:", err)
+	}
+
+	exeDir := filepath.Dir(exePath)
 	// 使用 lumberjack 实现 log rotate
 	lumberJackLogger := &lumberjack.Logger{
-		Filename:   "./logs/log.log",
+		Filename:   exeDir + "/logs/log.log",
 		MaxSize:    100,
 		MaxBackups: 60,
 		MaxAge:     1,

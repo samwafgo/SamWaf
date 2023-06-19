@@ -11,6 +11,7 @@ require (
 	github.com/go-co-op/gocron v1.17.1
 	github.com/gorilla/websocket v1.5.0
 	github.com/hyperjumptech/grule-rule-engine v1.11.0
+	github.com/kardianos/service v1.2.2
 	github.com/lionsoul2014/ip2region/binding/golang v0.0.0-20220907060842-b2ba5d58e48d
 	github.com/satori/go.uuid v1.2.0
 	github.com/spf13/viper v1.13.0

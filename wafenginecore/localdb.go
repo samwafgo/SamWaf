@@ -12,7 +12,8 @@ import (
 
 func InitDb() {
 	if global.GWAF_LOCAL_DB == nil {
-		db, err := gorm.Open(sqlite.Open(utils.GetCurrentDir()+"/data/local.db"), &gorm.Config{})
+		path := utils.GetCurrentDir() + "/data/local.db"
+		db, err := gorm.Open(sqlite.Open(path), &gorm.Config{})
 		if err != nil {
 			panic("failed to connect database")
 		}

@@ -401,9 +401,9 @@ func determinePageEncoding(r *bufio.Reader) encoding.Encoding {
 }
 func (waf *WafEngine) Start_WAF() {
 	config := viper.New()
-	config.AddConfigPath("./conf/") // 文件所在目录
-	config.SetConfigName("config")  // 文件名
-	config.SetConfigType("yml")     // 文件类型
+	config.AddConfigPath(utils.GetCurrentDir() + "/conf/") // 文件所在目录
+	config.SetConfigName("config")                         // 文件名
+	config.SetConfigType("yml")                            // 文件类型
 	waf.EngineCurrentStatus = 1
 	if err := config.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {

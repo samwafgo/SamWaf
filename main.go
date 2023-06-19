@@ -10,15 +10,16 @@ import (
 	"SamWaf/utils"
 	"SamWaf/utils/zlog"
 	"SamWaf/wafenginecore"
+	"SamWaf/wafsystem"
 	"SamWaf/waftask"
 	"SamWaf/xdaemon"
 	"crypto/tls"
+	"fmt"
 	dlp "github.com/bytedance/godlp"
 	"github.com/go-co-op/gocron"
 	Wssocket "github.com/gorilla/websocket"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
-	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -29,6 +30,58 @@ import (
 )
 
 func main() {
+
+	fmt.Println(utils.GetCurrentDir())
+	// if received any kind of command, do it
+	if len(os.Args) > 1 {
+		serviceName := "SamWafService"
+
+		serviceManager := wafsystem.NewWafServiceManager(serviceName)
+		command := os.Args[1]
+		switch command {
+		case "-d":
+			logFile := utils.GetCurrentDir() + "/logs/daemon.log"
+			fmt.Println(logFile)
+			//启动一个子进程后主程序退出
+			xdaemon.Background(logFile, true)
+			break
+		case "-c":
+			println("关闭")
+			if runtime.GOOS == "windows" {
+				c := exec.Command("taskkill.exe", "/f", "/im", "SamWaf.exe")
+				c.Start()
+			} else {
+				println("SamWaf -d")
+			}
+			break
+
+		case "-install":
+			serviceManager.Install()
+			return
+			break
+		case "-uninstall":
+			serviceManager.Uninstall()
+			return
+			break
+		case "-stop":
+			serviceManager.Stop()
+			return
+			break
+		case "-start":
+			serviceManager.StartService()
+			return
+			break
+		case "-help":
+			if runtime.GOOS == "windows" {
+				println("SamWaf.exe  -d 是后台运行, -install 是以服务安装 ，-uninstall 卸载服务 ,-stop 暂停服务")
+			} else {
+				println("SamWaf -d 是后台运行 , -install 是以服务安装 ，-uninstall 卸载服务 ,-stop 暂停服务")
+			}
+			break
+		default:
+			println(command)
+		}
+	}
 
 	rversion := "初始化系统 版本号：" + global.GWAF_RELEASE_VERSION_NAME + "(" + global.GWAF_RELEASE_VERSION + ")"
 	if global.GWAF_RELEASE == "false" {
@@ -46,40 +99,7 @@ func main() {
 
 	global.GWAF_LAST_UPDATE_TIME = time.Now()
 
-	pwd, err := os.Getwd()
-	syscall.Setenv("ZONEINFO", pwd+"//data//zoneinfo")
-	if err != nil {
-		log.Fatal(err)
-	}
-	// if received any kind of command, do it
-	if len(os.Args) > 1 {
-		command := os.Args[1]
-		switch command {
-		case "-d":
-			logFile := "./logs/daemon.log"
-			//启动一个子进程后主程序退出
-			xdaemon.Background(logFile, true)
-			break
-		case "-c":
-			println("关闭")
-			if runtime.GOOS == "windows" {
-				c := exec.Command("taskkill.exe", "/f", "/im", "SamWaf.exe")
-				c.Start()
-			} else {
-				println("SamWaf -d")
-			}
-			break
-		case "-help":
-			if runtime.GOOS == "windows" {
-				println("SamWaf.exe  -d 是后台运行 -c 是强制关闭  -help 是帮助说明")
-			} else {
-				println("SamWaf -d 是后台运行 -c 是强制关闭  -help 是帮助说明")
-			}
-			break
-		default:
-			println(command)
-		}
-	}
+	syscall.Setenv("ZONEINFO", utils.GetCurrentDir()+"//data//zoneinfo")
 
 	//守护程序开始
 	//xdaemon.DaemonProcess("GoTest.exe","./logs/damon.log")

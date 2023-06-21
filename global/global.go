@@ -49,4 +49,7 @@ var (
 
 	//限制记录最大的body 长度
 	GCONFIG_RECORD_MAX_BODY_LENGTH int64 = 1024 * 2
+
+	//升级相关
+	GUPDATE_VERSION_URL string = "http://update.binaite.net/version.json"
 )

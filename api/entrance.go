@@ -21,6 +21,7 @@ type APIGroup struct {
 	WafWebSocketApi
 	WafSysInfoApi
 	WafSystemConfigApi
+	WafCommonApi
 }
 
 var APIGroupAPP = new(APIGroup)

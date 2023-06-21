@@ -7,6 +7,7 @@ import (
 	Dequelib "github.com/edwingeng/deque"
 	Wssocket "github.com/gorilla/websocket"
 	"gorm.io/gorm"
+	"strconv"
 	"time"
 )
 
@@ -53,3 +54,8 @@ var (
 	//升级相关
 	GUPDATE_VERSION_URL string = "http://update.binaite.net/version.json"
 )
+
+func GetCurrentVersionInt() int {
+	version, _ := strconv.Atoi(GWAF_RELEASE_VERSION)
+	return version
+}

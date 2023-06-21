@@ -205,67 +205,14 @@ func (m *wafSystenService) run() {
 
 	}
 	zlog.Info("normal program close")
-
-	// 模拟一个长时间运行的任务
-	for {
-		select {
-		case <-time.After(time.Second):
-			fmt.Println("Service is still running...")
-		}
-	}
 }
+
+// 优雅升级
+func (m *wafSystenService) Graceful() {
+	//https://github.com/pengge/uranus/blob/main/main.go 预备参考
+}
+
 func main() {
-	/*
-		// if received any kind of command, do it
-		if len(os.Args) > 1 {
-			serviceName := "SamWafService"
-
-			serviceManager := wafsystem.NewWafServiceManager(serviceName)
-			command := os.Args[1]
-			switch command {
-			case "-d":
-				logFile := utils.GetCurrentDir() + "/logs/daemon.log"
-				fmt.Println(logFile)
-				//启动一个子进程后主程序退出
-				xdaemon.Background(logFile, true)
-				break
-			case "-c":
-				println("关闭")
-				if runtime.GOOS == "windows" {
-					c := exec.Command("taskkill.exe", "/f", "/im", "SamWaf.exe")
-					c.Start()
-				} else {
-					println("SamWaf -d")
-				}
-				break
-
-			case "-install":
-				serviceManager.Install()
-				return
-				break
-			case "-uninstall":
-				serviceManager.Uninstall()
-				return
-				break
-			case "-stop":
-				serviceManager.Stop()
-				return
-				break
-			case "-start":
-				serviceManager.StartService()
-				return
-				break
-			case "-help":
-				if runtime.GOOS == "windows" {
-					println("SamWaf.exe  -d 是后台运行, -install 是以服务安装 ，-uninstall 卸载服务 ,-stop 暂停服务")
-				} else {
-					println("SamWaf -d 是后台运行 , -install 是以服务安装 ，-uninstall 卸载服务 ,-stop 暂停服务")
-				}
-				break
-			default:
-				println(command)
-			}
-		}*/
 
 	option := service.KeyValue{}
 	//windows

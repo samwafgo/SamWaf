@@ -20,6 +20,9 @@ func GetCurrentDir() string {
 			fmt.Errorf("currentPath")
 		}
 	    return pwd*/
+	if global.GWAF_RELEASE == "false" {
+		return "."
+	}
 	exePath, err := os.Executable()
 	if err != nil {
 		fmt.Println("Failed to get executable path:", err)

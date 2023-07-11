@@ -431,7 +431,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 			global.GQEQUE_LOG_DB.PushBack(weblogbean)
 		}
 		//TODO 如果是指定URL 或者 IP 不记录日志
-		if !isStaticAssist && !strings.HasPrefix(weblogbean.URL, "/index.php/lttshop/task_scheduling/") {
+		if !isStaticAssist && !strings.Contains(weblogbean.URL, "index.php/lttshop/task_scheduling/") {
 			weblogbean.ACTION = "放行"
 			global.GQEQUE_LOG_DB.PushBack(weblogbean)
 		}

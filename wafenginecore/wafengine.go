@@ -232,8 +232,6 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			waf.HostTarget[host].RevProxy = proxy // 放入缓存
 			proxy.ServeHTTP(w, r)
 		}
-		weblogbean.ACTION = "放行"
-		global.GQEQUE_LOG_DB.PushBack(weblogbean)
 		return
 	} else {
 		w.Write([]byte("403: Host forbidden " + host))
@@ -312,6 +310,50 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 	return func(resp *http.Response) error {
 		resp.Header.Set("WAF", "SamWAF")
 		resp.Header.Set("Server", "SamWAF")
+		r := resp.Request
+		//开始准备req数据
+		//获取请求报文的内容长度
+		contentLength := r.ContentLength
+
+		//server_online[8081].Svr.Close()
+		var bodyByte []byte
+
+		// 拷贝一份request的Body ,控制不记录大文件的情况 ，先写死的
+		if r.Body != nil && r.Body != http.NoBody && contentLength < (global.GCONFIG_RECORD_MAX_BODY_LENGTH) {
+			bodyByte, _ = io.ReadAll(r.Body)
+			// 把刚刚读出来的再写进去，不然后面解析表单数据就解析不到了
+			r.Body = io.NopCloser(bytes.NewBuffer(bodyByte))
+		}
+		cookies, _ := json.Marshal(r.Cookies())
+		header, _ := json.Marshal(r.Header)
+		// 取出客户IP
+		ipAndPort := strings.Split(r.RemoteAddr, ":")
+		region := utils.GetCountry(ipAndPort[0])
+		currentDay, _ := strconv.Atoi(time.Now().Format("20060102"))
+		weblogbean := innerbean.WebLog{
+			HOST:           r.Host,
+			URL:            r.RequestURI,
+			REFERER:        r.Referer(),
+			USER_AGENT:     r.UserAgent(),
+			METHOD:         r.Method,
+			HEADER:         string(header),
+			COUNTRY:        region[0],
+			PROVINCE:       region[2],
+			CITY:           region[3],
+			SRC_IP:         ipAndPort[0],
+			SRC_PORT:       ipAndPort[1],
+			CREATE_TIME:    time.Now().Format("2006-01-02 15:04:05"),
+			CONTENT_LENGTH: contentLength,
+			COOKIES:        string(cookies),
+			BODY:           string(bodyByte),
+			REQ_UUID:       uuid.NewV4().String(),
+			USER_CODE:      global.GWAF_USER_CODE,
+			HOST_CODE:      "",
+			TenantId:       global.GWAF_TENANT_ID,
+			RULE:           "",
+			ACTION:         "通过",
+			Day:            currentDay,
+		}
 
 		host := resp.Request.Host
 		if !strings.Contains(host, ":") {
@@ -356,6 +398,44 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 			resp.ContentLength = int64(len(newPayload))
 			resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalBytes)), 10))
 		}
+		//返回内容的类型
+		respContentType := resp.Header.Get("Content-Type")
+		contentType := ""
+		//JS情况
+		if respContentType == "application/javascript" {
+			contentType = "js"
+		}
+		//CSS情况
+		if respContentType == "text/css" {
+			contentType = "css"
+		}
+		//图片情况
+		if respContentType == "image/jpeg" || respContentType == "image/png" ||
+			respContentType == "image/gif" || respContentType == "image/x-icon" {
+			contentType = "img"
+		}
+		//记录静态日志
+		isStaticAssist := false
+		switch contentType {
+		case "js":
+			isStaticAssist = true
+			break
+		case "css":
+			isStaticAssist = true
+			break
+		case "img":
+			isStaticAssist = true
+			break
+		default:
+			weblogbean.ACTION = "放行"
+			global.GQEQUE_LOG_DB.PushBack(weblogbean)
+		}
+		//TODO 如果是指定URL 或者 IP 不记录日志
+		if !isStaticAssist && weblogbean.URL != "/index.php/lttshop/task_scheduling/orderSale" && weblogbean.URL != "/index.php/lttshop/task_scheduling/orderHotSale" {
+			weblogbean.ACTION = "放行"
+			global.GQEQUE_LOG_DB.PushBack(weblogbean)
+		}
+
 		return nil
 	}
 }

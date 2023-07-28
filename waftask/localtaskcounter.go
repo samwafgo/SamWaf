@@ -30,6 +30,18 @@ type CountIPResult struct {
 	ACTION   string `json:"action"`
 	Count    int    `json:"count"` //数量
 }
+type CountCityResult struct {
+	UserCode string `json:"user_code"` //用户码（主要键）
+	TenantId string `json:"tenant_id"` //租户ID（主要键）
+	HostCode string `json:"host_code"` //主机ID （主要键）
+	Day      int    `json:"day"`       //年月日（主要键）
+	Host     string `json:"host"`      //域名
+	Country  string `json:"country"`   //国家
+	Province string `json:"province"`  //省份
+	City     string `json:"city"`      //城市
+	ACTION   string `json:"action"`
+	Count    int    `json:"count"` //数量
+}
 
 /**
 定时统计
@@ -37,7 +49,14 @@ type CountIPResult struct {
 
 func TaskCounter() {
 
-	currenyDayBak := time.Now()
+	dateTime, err := time.Parse("2006-01-02", "2023-01-01")
+	if err != nil {
+		fmt.Println("解析日期出错:", err)
+		return
+	}
+	currenyDayBak := dateTime
+
+	//currenyDayBak :=  time.Now() TODO 正式时候注意
 	//一、 主机聚合统计
 	{
 		var resultHosts []CountHostResult
@@ -119,7 +138,44 @@ func TaskCounter() {
 
 	//三、 城市信息聚合统计
 	{
+		var resultCitys []CountCityResult
+		global.GWAF_LOCAL_LOG_DB.Raw("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host,country,province,city  FROM \"web_logs\" where create_time>? GROUP BY host_code, user_code,action,tenant_id,day,host,country,province,city",
+			global.GWAF_LAST_UPDATE_TIME.Format("2006-01-02 15:04:05")).Scan(&resultCitys)
+		/****
+		1.如果不存在则创建
+		2.如果存在则累加这个周期的统计数
+		*/
+		for _, value := range resultCitys {
+			var statDay model.StatsIPCityDay
+			global.GWAF_LOCAL_LOG_DB.Where("tenant_id = ? and user_code = ? and host_code=? and country = ? and province = ? and city = ? and type=? and day=?",
+				value.TenantId, value.UserCode, value.HostCode, value.Country, value.Province, value.City, value.ACTION, value.Day).Find(&statDay)
 
+			if statDay.HostCode == "" {
+				statDay2 := &model.StatsIPCityDay{
+					UserCode:       value.UserCode,
+					TenantId:       value.TenantId,
+					HostCode:       value.HostCode,
+					Day:            value.Day,
+					Host:           value.Host,
+					Type:           value.ACTION,
+					Count:          value.Count,
+					Country:        value.Country,
+					Province:       value.Province,
+					City:           value.City,
+					CreateTime:     time.Now(),
+					LastUpdateTime: time.Now(),
+				}
+				global.GQEQUE_LOG_DB.PushBack(statDay2)
+			} else {
+				statDayMap := map[string]interface{}{
+					"Count":            value.Count + statDay.Count,
+					"last_update_time": currenyDayBak,
+				}
+
+				global.GWAF_LOCAL_LOG_DB.Model(model.StatsIPDay{}).Where("tenant_id = ? and user_code= ? and host_code=? and country = ? and province = ? and city = ? and type=? and day=?",
+					value.TenantId, value.UserCode, value.HostCode, value.Country, value.Province, value.City, value.ACTION, value.Day).Updates(statDayMap)
+			}
+		}
 	}
 	global.GWAF_LAST_UPDATE_TIME = currenyDayBak
 }

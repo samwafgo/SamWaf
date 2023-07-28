@@ -5,12 +5,7 @@
     <!-- 中部图表  -->
     <middle-chart class="row-container" />
     <!-- 列表排名 -->
-    <rank-list class="row-container" />
-    <!-- 出入库概览 -->
-    <output-overview class="row-container" />
-
-     <baidu-map class="map"  :center="center" :zoom="zoom" @ready="handler">
-      </baidu-map>
+   <!-- <rank-list class="row-container" /> -->
   </div>
 </template>
 <script>

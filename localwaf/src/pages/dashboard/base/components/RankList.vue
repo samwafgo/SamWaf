@@ -5,7 +5,7 @@
         <template #actions>
           <t-radio-group default-value="dateVal">
             <t-radio-button value="dateVal">本周</t-radio-button>
-            <t-radio-button value="monthVal">近三个月</t-radio-button>
+            <!-- <t-radio-button value="monthVal">近三个月</t-radio-button> -->
           </t-radio-group>
         </template>
         <t-table :data="attackNowList" :columns="attackColumns" rowKey="IP">
@@ -28,7 +28,7 @@
         <template #actions>
           <t-radio-group default-value="dateVal">
             <t-radio-button value="dateVal">本周</t-radio-button>
-            <t-radio-button value="monthVal">近三个月</t-radio-button>
+            <!-- <t-radio-button value="monthVal">近三个月</t-radio-button> -->
           </t-radio-group>
         </template>
         <t-table :data="normalNowList" :columns="normalColumns" rowKey="productName">

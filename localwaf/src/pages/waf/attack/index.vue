@@ -246,8 +246,20 @@ export default Vue.extend({
     },
   },
   mounted() {
+    if(this.$route.query.action != null){
+        console.log(this.$route.query.action)
+        this.searchformData.action = this.$route.query.action
+    }
+
     this.loadHostList()
     this.getList("")
+  },
+  watch: {
+    '$route.query.action'(newVal, oldVal) {
+      console.log('action changed', newVal, oldVal)
+      this.searchformData.action = newVal
+      this.getList("")
+    },
   },
 
   methods: {

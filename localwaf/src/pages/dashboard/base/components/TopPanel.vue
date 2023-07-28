@@ -5,6 +5,7 @@
         :title="item.title"
         :style="{ height: '168px' }"
         :class="{ 'dashboard-item': true, 'dashboard-item--main-color': index == 0 }"
+        @click.native="jumpLog(item.title)"
       >
         <div class="dashboard-item-top">
           <span :style="{ fontSize: `${resizeTime * 36}px` }">{{ item.number }}</span>
@@ -106,6 +107,47 @@ export default {
   },
 
   methods: {
+    jumpLog(title){
+      console.log(title)
+      switch (title){
+        case '今日攻击数':
+          this.$router.push({
+        		path: '/waf/wafattacklog',
+        		query: {
+        			action: "阻止"
+        		}
+        	});
+          break;
+        case '今天总访问量':
+        this.$router.push({
+        	path: '/waf/wafattacklog',
+        	query: {
+
+        	}
+        });
+            break;
+        case '今天异常IP（个）':
+        this.$router.push({
+        	path: '/waf/wafattacklog',
+        	query: {
+        		action: "禁止"
+        	}
+        });
+              break;
+        case '今天正常IP（个）':
+        this.$router.push({
+        	path: '/waf/wafattacklog',
+        	query: {
+        			action: "放行"
+        	}
+        });
+            break;
+        default:
+          break;
+      }
+
+
+    },
     getWafStat() {
       let that = this
       wafstatsumdayapi()
@@ -120,25 +162,25 @@ export default {
             that.panelList.push({
               title: '今日攻击数',
               number: that.wafstat_data.AttackCountOfToday,
-              upTrend: '20.5%',
+              upTrend: '0%',
               leftType: 'echarts-line',
             })
             that.panelList.push({
               title: '今天总访问量',
               number: that.wafstat_data.VisitCountOfToday,
-              upTrend: '20.5%',
+              upTrend: '0%',
               leftType: 'echarts-line',
             })
             that.panelList.push({
               title: '今天异常IP（个）',
               number: that.wafstat_data.IllegalIpCountOfToday,
-              upTrend: '20.5%',
+              upTrend: '0%',
               leftType: 'echarts-line',
             })
             that.panelList.push({
               title: '今天正常IP（个）',
               number: that.wafstat_data.NormalIpCountOfToday,
-              upTrend: '20.5%',
+              upTrend: '0%',
               leftType: 'echarts-line',
             })
           }

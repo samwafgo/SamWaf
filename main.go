@@ -214,6 +214,9 @@ func (m *wafSystenService) Graceful() {
 
 func main() {
 
+	//获取外网IP
+	global.GWAF_RUNTIME_IP = utils.GetExternalIp()
+
 	option := service.KeyValue{}
 	//windows
 	//OnFailure:"restart",
@@ -229,7 +232,7 @@ func main() {
 	svcConfig := &service.Config{
 		Name:        "SamWafService",
 		DisplayName: "SamWaf Service",
-		Description: "SamWaf is a Web Application Firewall (WAF)",
+		Description: "SamWaf is a Web Application Firewall (WAF) By SamWaf.com",
 		Option:      option,
 	}
 	prg := &wafSystenService{}

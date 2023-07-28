@@ -6,7 +6,7 @@ import othersRouters from './modules/others';
 import wafRouters from './modules/waf';
 
 // 存放动态路由
-export const asyncRouterList = [...baseRouters,...wafRouters, ...componentsRouters, ...othersRouters];
+export const asyncRouterList = [...baseRouters,...wafRouters];
 
 // 存放固定的路由
 const defaultRouterList = [

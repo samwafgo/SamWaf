@@ -49,14 +49,14 @@ type CountCityResult struct {
 
 func TaskCounter() {
 
-	dateTime, err := time.Parse("2006-01-02", "2023-01-01")
+	/*dateTime, err := time.Parse("2006-01-02", "2023-01-01")
 	if err != nil {
 		fmt.Println("解析日期出错:", err)
 		return
 	}
-	currenyDayBak := dateTime
+	currenyDayBak := dateTime*/
 
-	//currenyDayBak :=  time.Now() TODO 正式时候注意
+	currenyDayBak := time.Now()
 	//一、 主机聚合统计
 	{
 		var resultHosts []CountHostResult

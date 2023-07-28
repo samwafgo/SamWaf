@@ -427,8 +427,8 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 			isStaticAssist = true
 			break
 		default:
-			weblogbean.ACTION = "放行"
-			global.GQEQUE_LOG_DB.PushBack(weblogbean)
+			/*weblogbean.ACTION = "放行"
+			global.GQEQUE_LOG_DB.PushBack(weblogbean)*/
 		}
 		//TODO 如果是指定URL 或者 IP 不记录日志
 		if !isStaticAssist && !strings.Contains(weblogbean.URL, "index.php/lttshop/task_scheduling/") {

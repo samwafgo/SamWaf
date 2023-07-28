@@ -6,13 +6,28 @@ import (
 	"SamWaf/utils/zlog"
 	"fmt"
 	"github.com/lionsoul2014/ip2region/binding/golang/xdb"
+	"io"
+	"io/ioutil"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 )
+
+func GetExternalIp() string {
+	resp, err := http.Get("http://myexternalip.com/raw")
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	io.Copy(os.Stdout, resp.Body)
+	body, _ := ioutil.ReadAll(resp.Body)
+	clientIP := fmt.Sprintf("%s", string(body))
+	return clientIP
+}
 
 func GetCurrentDir() string {
 	/*	pwd, err := os.Getwd()

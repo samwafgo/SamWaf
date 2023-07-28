@@ -17,6 +17,11 @@ const (
 )
 
 var (
+
+	/*本机信息**/
+	GWAF_RUNTIME_IP   string = "127.0.0.1" //本机当前外网IP
+	GWAF_RUNTIME_AREA string = ""          //本机当前所在区域
+
 	GWAF_LOCAL_DB             *gorm.DB                      //通用本地数据库，尊重用户隐私
 	GWAF_LOCAL_LOG_DB         *gorm.DB                      //通用本地数据库存日志数据，尊重用户隐私
 	GWAF_REMOTE_DB            *gorm.DB                      //仅当用户使用云数据库

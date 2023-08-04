@@ -1,6 +1,7 @@
 package firewall
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"golang.org/x/sys/windows/registry"
@@ -9,6 +10,15 @@ import (
 	"io/ioutil"
 	"os/exec"
 	"runtime"
+	"strings"
+	"unicode/utf8"
+)
+
+type Charset string
+
+const (
+	UTF8    = Charset("UTF-8")
+	GB18030 = Charset("GB18030")
 )
 
 const ACTION_ALLOW string = "allow" //，allow 表示允许连接，block 表示阻止连接，bypass 表示只允许安全连接。 =
@@ -42,14 +52,22 @@ func (fw *FireWallEngine) IsFirewallEnabled() bool {
 	return false
 }
 
-func (fw *FireWallEngine) executeCommand(cmd *exec.Cmd) error {
-	output, err := cmd.CombinedOutput()
+func (fw *FireWallEngine) executeCommand(cmd *exec.Cmd) (error error, printstr string) {
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		fmt.Println(fmt.Sprint(err) + ": " + ConvertByte2String(output, "UTF8"))
-		return err
+		fmt.Println(err)
+		return err, err.Error()
 	}
-	fmt.Println(string(output))
-	return nil
+	cmd.Start()
+	in := bufio.NewScanner(stdout)
+	printstr = ""
+	for in.Scan() {
+		cmdRe := ConvertByte2String(in.Bytes(), "GB18030")
+		//fmt.Println(cmdRe)
+		printstr += cmdRe
+	}
+	cmd.Wait()
+	return nil, printstr
 }
 
 func (fw *FireWallEngine) AddRule(ruleName, ipToAdd, action, proc, localport string) error {
@@ -70,7 +88,8 @@ func (fw *FireWallEngine) AddRule(ruleName, ipToAdd, action, proc, localport str
 	} else {
 		return fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
 	}
-	return fw.executeCommand(cmd)
+	err, _ := fw.executeCommand(cmd)
+	return err
 }
 
 func (fw *FireWallEngine) EditRule(ruleNum int, newRule string) error {
@@ -86,23 +105,67 @@ func (fw *FireWallEngine) DeleteRule(ruleNum int) error {
 	} else {
 		return fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
 	}
-	return fw.executeCommand(cmd)
+	err, _ := fw.executeCommand(cmd)
+	return err
+}
+func (fw *FireWallEngine) IsRuleExists(ruleName string) (bool, error) {
+	if runtime.GOOS == "linux" {
+		cmd := exec.Command("iptables-save")
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return false, fmt.Errorf("failed to list iptables rules: %s, output: %s", err, string(output))
+		}
+		return strings.Contains(string(output), "-A INPUT -s "+ruleName+" -j ACCEPT"), nil
+	} else if runtime.GOOS == "windows" {
+		cmd := exec.Command("netsh", "advfirewall", "firewall", "show", "rule", "name="+ruleName)
+		err, output := fw.executeCommand(cmd)
+		if err == nil {
+			if strings.Contains(output, "No rules match the specified criteria") {
+				return false, nil
+			}
+			if strings.Contains(output, "没有与指定标准相匹配的规则。") {
+				return false, nil
+			}
+			if strings.Contains(output, " "+ruleName+"-----") {
+				return true, nil
+			}
+		} else {
+			return false, fmt.Errorf("failed to show firewall rule: %s, output: %s", err, string(output))
+		}
+	}
+	return false, fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
 }
 
 func GbkToUtf8(gbk []byte) ([]byte, error) {
 	reader := transform.NewReader(bytes.NewReader(gbk), simplifiedchinese.GBK.NewDecoder())
 	return ioutil.ReadAll(reader)
 }
-func ConvertByte2String(byte []byte, charset string) string {
+func ConvertByte2String(byte []byte, charset Charset) string {
 	var str string
 	switch charset {
-	case "GB18030":
+	case GB18030:
 		var decodeBytes, _ = simplifiedchinese.GB18030.NewDecoder().Bytes(byte)
 		str = string(decodeBytes)
-	case "UTF8":
+	case UTF8:
 		fallthrough
 	default:
 		str = string(byte)
 	}
 	return str
+}
+func DecodeOutput(data []byte) ([]byte, error) {
+	// Try decoding with UTF-8
+	utf8Decoded := data
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if !utf8.Valid(line) {
+			// If decoding with UTF-8 fails, try decoding with GBK
+			gbkDecoded, err := GbkToUtf8(data)
+			if err == nil {
+				return gbkDecoded, nil
+			}
+		}
+	}
+	return utf8Decoded, nil
 }

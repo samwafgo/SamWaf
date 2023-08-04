@@ -96,17 +96,30 @@ func (fw *FireWallEngine) EditRule(ruleNum int, newRule string) error {
 	return fmt.Errorf("editRule is not supported on Windows")
 }
 
-func (fw *FireWallEngine) DeleteRule(ruleNum int) error {
+func (fw *FireWallEngine) DeleteRule(ruleName string) (bool, error) {
 	var cmd *exec.Cmd
 	if runtime.GOOS == "linux" {
-		cmd = exec.Command("iptables", "-D", "INPUT", fmt.Sprintf("%d", ruleNum))
+		cmd = exec.Command("iptables", "-D", "INPUT", fmt.Sprintf("%s", ruleName))
 	} else if runtime.GOOS == "windows" {
-		cmd = exec.Command("netsh", "advfirewall", "firewall", "delete", "rule", fmt.Sprintf("name=Rule%d", ruleNum))
-	} else {
-		return fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
+		cmd = exec.Command("netsh", "advfirewall", "firewall", "delete", "rule", fmt.Sprintf("name=%s", ruleName))
+		err, output := fw.executeCommand(cmd)
+		fmt.Println(output)
+		//已删除 1 规则。确定。
+		if err == nil {
+			if strings.Contains(output, "No rules match the specified criteria") {
+				return false, fmt.Errorf("error:delete firewall rule: %s, output: %s", ruleName, output)
+			}
+			if strings.Contains(output, "没有与指定标准相匹配的规则。") {
+				return false, fmt.Errorf("error:delete firewall rule: %s, output: %s", ruleName, output)
+			}
+			if strings.Contains(output, "已删除") {
+				return true, nil
+			}
+		} else {
+			return false, fmt.Errorf("error:delete firewall rule: %s, output: %s", ruleName, output)
+		}
 	}
-	err, _ := fw.executeCommand(cmd)
-	return err
+	return false, fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
 }
 func (fw *FireWallEngine) IsRuleExists(ruleName string) (bool, error) {
 	if runtime.GOOS == "linux" {

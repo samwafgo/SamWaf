@@ -23,13 +23,29 @@ func TestFireWallEngine_AddRule(t *testing.T) {
 }
 func TestFireWallEngine_DeleteRule(t *testing.T) {
 	fw := FireWallEngine{}
-	// Delete a firewall rule
-	ruleNumToDelete := 1
-	if err := fw.DeleteRule(ruleNumToDelete); err != nil {
-		fmt.Println("Failed to delete firewall rule:", err)
-	} else {
-		fmt.Println("Firewall rule deleted successfully.")
+	ruleName := "testwaf1"
+
+	exists, err := fw.IsRuleExists(ruleName)
+	if err != nil {
+		fmt.Println("Error:", err)
+		os.Exit(1)
 	}
+
+	if exists {
+		if excuteResult, err := fw.DeleteRule(ruleName); err != nil {
+			fmt.Println("Failed to delete firewall rule:", err)
+		} else {
+			if excuteResult {
+				fmt.Println("Firewall rule deleted successfully.")
+			} else {
+				fmt.Println("Firewall rule deleted failed.", err)
+			}
+		}
+
+	} else {
+		fmt.Println("Rule does not exist.")
+	}
+
 }
 func TestFireWallEngine_EditRule(t *testing.T) {
 	fw := FireWallEngine{}

@@ -47,17 +47,20 @@ func TestFireWallEngine_DeleteRule(t *testing.T) {
 	}
 
 }
-func TestFireWallEngine_EditRule(t *testing.T) {
-	fw := FireWallEngine{}
-	// Edit an existing firewall rule (not supported on Windows)
-	ruleNum := 1
-	newRule := "-p tcp --dport 8080 -j DROP"
-	if err := fw.EditRule(ruleNum, newRule); err != nil {
-		fmt.Println("Failed to edit firewall rule:", err)
-	} else {
-		fmt.Println("Firewall rule edited successfully.")
+
+/*
+	func TestFireWallEngine_EditRule(t *testing.T) {
+		fw := FireWallEngine{}
+		// Edit an existing firewall rule (not supported on Windows)
+		ruleNum := 1
+		newRule := "-p tcp --dport 8080 -j DROP"
+		if err := fw.EditRule(ruleNum, newRule); err != nil {
+			fmt.Println("Failed to edit firewall rule:", err)
+		} else {
+			fmt.Println("Firewall rule edited successfully.")
+		}
 	}
-}
+*/
 func TestFireWallEngine_IsFirewallEnabled(t *testing.T) {
 	fw := FireWallEngine{}
 

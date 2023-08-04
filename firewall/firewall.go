@@ -2,16 +2,12 @@ package firewall
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"golang.org/x/sys/windows/registry"
 	"golang.org/x/text/encoding/simplifiedchinese"
-	"golang.org/x/text/transform"
-	"io/ioutil"
 	"os/exec"
 	"runtime"
 	"strings"
-	"unicode/utf8"
 )
 
 type Charset string
@@ -92,9 +88,9 @@ func (fw *FireWallEngine) AddRule(ruleName, ipToAdd, action, proc, localport str
 	return err
 }
 
-func (fw *FireWallEngine) EditRule(ruleNum int, newRule string) error {
+/*func (fw *FireWallEngine) EditRule(ruleNum int, newRule string) error {
 	return fmt.Errorf("editRule is not supported on Windows")
-}
+}*/
 
 func (fw *FireWallEngine) DeleteRule(ruleName string) (bool, error) {
 	var cmd *exec.Cmd
@@ -148,11 +144,6 @@ func (fw *FireWallEngine) IsRuleExists(ruleName string) (bool, error) {
 	}
 	return false, fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
 }
-
-func GbkToUtf8(gbk []byte) ([]byte, error) {
-	reader := transform.NewReader(bytes.NewReader(gbk), simplifiedchinese.GBK.NewDecoder())
-	return ioutil.ReadAll(reader)
-}
 func ConvertByte2String(byte []byte, charset Charset) string {
 	var str string
 	switch charset {
@@ -165,20 +156,4 @@ func ConvertByte2String(byte []byte, charset Charset) string {
 		str = string(byte)
 	}
 	return str
-}
-func DecodeOutput(data []byte) ([]byte, error) {
-	// Try decoding with UTF-8
-	utf8Decoded := data
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		if !utf8.Valid(line) {
-			// If decoding with UTF-8 fails, try decoding with GBK
-			gbkDecoded, err := GbkToUtf8(data)
-			if err == nil {
-				return gbkDecoded, nil
-			}
-		}
-	}
-	return utf8Decoded, nil
 }

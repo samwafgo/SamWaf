@@ -1,9 +1,10 @@
+//go:build linux
+
 package firewall
 
 import (
 	"bufio"
 	"fmt"
-	"golang.org/x/sys/windows/registry"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"os/exec"
 	"runtime"
@@ -31,19 +32,6 @@ func (fw *FireWallEngine) IsFirewallEnabled() bool {
 			return false
 		}
 		return len(out) > 0
-	} else if runtime.GOOS == "windows" {
-		const firewallRegistryPath = `SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy\StandardProfile`
-		key, err := registry.OpenKey(registry.LOCAL_MACHINE, firewallRegistryPath, registry.QUERY_VALUE)
-		if err != nil {
-			return false
-		}
-		defer key.Close()
-
-		enabled, _, err := key.GetIntegerValue("EnableFirewall")
-		if err != nil {
-			return false
-		}
-		return enabled == 1
 	}
 	return false
 }
@@ -67,82 +55,28 @@ func (fw *FireWallEngine) executeCommand(cmd *exec.Cmd) (error error, printstr s
 }
 
 func (fw *FireWallEngine) AddRule(ruleName, ipToAdd, action, proc, localport string) error {
-	var cmd *exec.Cmd
-	if runtime.GOOS == "linux" {
-		cmd = exec.Command("iptables", "-A", "INPUT", ipToAdd)
-	} else if runtime.GOOS == "windows" {
-		/*s := fmt.Sprintf(`netsh advfirewall firewall add rule name="%s" dir=in action=allow protocol=TCP localport=8080 remoteip=%s`, ruleName, ipToAdd)
-		cmd = exec.Command("netsh", s)*/
-		/*cmd = exec.Command("netsh", "advfirewall", "firewall", "add", "rule",
-			fmt.Sprintf(`name="%s"`, ruleName),
-			fmt.Sprintf(`dir=in action=allow protocol=TCP localport=8080 remoteip=%s`, ipToAdd),
-		)*/
-		cmd = exec.Command("netsh", "advfirewall", "firewall", "add", "rule",
-			"name="+ruleName, "dir=in", "action="+action, "protocol="+proc, "localport="+localport,
-			"remoteip="+ipToAdd,
-		)
-	} else {
-		return fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
-	}
+	cmd := exec.Command("iptables", "-A", "INPUT", ipToAdd)
 	err, _ := fw.executeCommand(cmd)
 	return err
 }
 
-/*func (fw *FireWallEngine) EditRule(ruleNum int, newRule string) error {
+func (fw *FireWallEngine) EditRule(ruleNum int, newRule string) error {
 	return fmt.Errorf("editRule is not supported on Windows")
-}*/
+}
 
 func (fw *FireWallEngine) DeleteRule(ruleName string) (bool, error) {
 	var cmd *exec.Cmd
-	if runtime.GOOS == "linux" {
-		cmd = exec.Command("iptables", "-D", "INPUT", fmt.Sprintf("%s", ruleName))
-	} else if runtime.GOOS == "windows" {
-		cmd = exec.Command("netsh", "advfirewall", "firewall", "delete", "rule", fmt.Sprintf("name=%s", ruleName))
-		err, output := fw.executeCommand(cmd)
-		fmt.Println(output)
-		//已删除 1 规则。确定。
-		if err == nil {
-			if strings.Contains(output, "No rules match the specified criteria") {
-				return false, fmt.Errorf("error:delete firewall rule: %s, output: %s", ruleName, output)
-			}
-			if strings.Contains(output, "没有与指定标准相匹配的规则。") {
-				return false, fmt.Errorf("error:delete firewall rule: %s, output: %s", ruleName, output)
-			}
-			if strings.Contains(output, "已删除") {
-				return true, nil
-			}
-		} else {
-			return false, fmt.Errorf("error:delete firewall rule: %s, output: %s", ruleName, output)
-		}
-	}
-	return false, fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
+	cmd = exec.Command("iptables", "-D", "INPUT", fmt.Sprintf("%s", ruleName))
+	err, _ := fw.executeCommand(cmd)
+	return false, err
 }
 func (fw *FireWallEngine) IsRuleExists(ruleName string) (bool, error) {
-	if runtime.GOOS == "linux" {
-		cmd := exec.Command("iptables-save")
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			return false, fmt.Errorf("failed to list iptables rules: %s, output: %s", err, string(output))
-		}
-		return strings.Contains(string(output), "-A INPUT -s "+ruleName+" -j ACCEPT"), nil
-	} else if runtime.GOOS == "windows" {
-		cmd := exec.Command("netsh", "advfirewall", "firewall", "show", "rule", "name="+ruleName)
-		err, output := fw.executeCommand(cmd)
-		if err == nil {
-			if strings.Contains(output, "No rules match the specified criteria") {
-				return false, nil
-			}
-			if strings.Contains(output, "没有与指定标准相匹配的规则。") {
-				return false, nil
-			}
-			if strings.Contains(output, " "+ruleName+"-----") {
-				return true, nil
-			}
-		} else {
-			return false, fmt.Errorf("failed to show firewall rule: %s, output: %s", err, string(output))
-		}
+	cmd := exec.Command("iptables-save")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return false, fmt.Errorf("failed to list iptables rules: %s, output: %s", err, string(output))
 	}
-	return false, fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
+	return strings.Contains(string(output), "-A INPUT -s "+ruleName+" -j ACCEPT"), nil
 }
 func ConvertByte2String(byte []byte, charset Charset) string {
 	var str string

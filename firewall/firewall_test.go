@@ -2,6 +2,7 @@ package firewall
 
 import (
 	"fmt"
+	"os"
 	"testing"
 )
 
@@ -49,5 +50,23 @@ func TestFireWallEngine_IsFirewallEnabled(t *testing.T) {
 		fmt.Println("Firewall is enabled.")
 	} else {
 		fmt.Println("Firewall is not enabled.")
+	}
+}
+
+func TestFireWallEngine_IsRuleExists(t *testing.T) {
+	fw := FireWallEngine{}
+
+	// Check if the rule exists
+	ruleName := "testwaf"
+	exists, err := fw.IsRuleExists(ruleName)
+	if err != nil {
+		fmt.Println("Error:", err)
+		os.Exit(1)
+	}
+
+	if exists {
+		fmt.Println("Rule exists.")
+	} else {
+		fmt.Println("Rule does not exist.")
 	}
 }

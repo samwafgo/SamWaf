@@ -428,7 +428,7 @@
           },
           {
             label: '或者',
-            value: 'or'
+            value: '||'
           },
         ],
         formData: {
@@ -492,7 +492,7 @@
     },
     methods: {
       backPage(){
-        　history.go(-1) 
+        　history.go(-1)
       },
       loadHostList(){
         let that = this;

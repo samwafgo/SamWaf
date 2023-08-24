@@ -33,3 +33,12 @@ func TestWafCache_GetString(t *testing.T) {
 		println(key1Value)
 	}
 }
+func TestWafCache_IsKeyExist(t *testing.T) {
+	wafcache := InitWafCache()
+	bExist := wafcache.IsKeyExist("KEY1")
+	if bExist {
+		println("存在")
+	} else {
+		println("不存在")
+	}
+}

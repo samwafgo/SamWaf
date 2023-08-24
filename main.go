@@ -1,6 +1,7 @@
 package main
 
 import (
+	"SamWaf/cache"
 	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/innerbean"
@@ -47,7 +48,8 @@ func (m *wafSystenService) Stop(s service.Service) error {
 func (m *wafSystenService) run() {
 	// 在这里编写你的服务逻辑代码
 	fmt.Println("Service is running...")
-
+	//初始化cache
+	global.GCACHE_WAFCACHE = cache.InitWafCache()
 	rversion := "初始化系统 版本号：" + global.GWAF_RELEASE_VERSION_NAME + "(" + global.GWAF_RELEASE_VERSION + ")"
 	if global.GWAF_RELEASE == "false" {
 		rversion = rversion + " 调试版本"

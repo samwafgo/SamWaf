@@ -52,6 +52,19 @@ func (wafCache *WafCache) GetString(key string) (string, error) {
 	}
 	return "", errors.New("数据不存在")
 }
+func (wafCache *WafCache) IsKeyExist(key string) bool {
+	wafCache.mu.Lock()
+	defer wafCache.mu.Unlock()
+	item, found := wafCache.cache[key]
+	if !found {
+		return false
+	}
+	if time.Since(item.createTime) <= item.ttl {
+		return true
+	}
+	delete(wafCache.cache, key)
+	return false
+}
 func (wafCache *WafCache) Get(key string) interface{} {
 	wafCache.mu.Lock()
 	defer wafCache.mu.Unlock()

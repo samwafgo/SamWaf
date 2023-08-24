@@ -50,10 +50,26 @@ func ProcessDequeEngine() {
 
 		for !global.GQEQUE_MESSAGE_DB.Empty() {
 			messageinfo := global.GQEQUE_MESSAGE_DB.PopFront().(interface{})
+			isCanSend := false
 			switch messageinfo.(type) {
 			case innerbean.RuleMessageInfo:
 				rulemessage := messageinfo.(innerbean.RuleMessageInfo)
-				utils.NotifyHelperApp.SendRuleInfo(rulemessage)
+				couter := 1
+				if global.GCACHE_WAFCACHE.IsKeyExist(rulemessage.RuleInfo) {
+					hitCounter, isok := global.GCACHE_WAFCACHE.GetInt(rulemessage.RuleInfo)
+					if isok == nil {
+						if hitCounter == 3 || hitCounter == 30 {
+							isCanSend = true
+						}
+						couter = couter + 1
+					}
+				} else {
+					isCanSend = true
+				}
+				global.GCACHE_WAFCACHE.SetWithTTl(rulemessage.RuleInfo, 1, 30*time.Minute)
+				if isCanSend {
+					utils.NotifyHelperApp.SendRuleInfo(rulemessage)
+				}
 				if rulemessage.BaseMessageInfo.OperaType == "命中保护规则" {
 					//发送websocket
 					for _, ws := range global.GWebSocket {

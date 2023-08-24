@@ -52,6 +52,13 @@ func (wafCache *WafCache) GetString(key string) (string, error) {
 	}
 	return "", errors.New("数据不存在")
 }
+func (wafCache *WafCache) GetInt(key string) (int, error) {
+	key1Value := wafCache.Get(key)
+	if str, ok := key1Value.(int); ok {
+		return str, nil
+	}
+	return -1, errors.New("数据不存在")
+}
 func (wafCache *WafCache) IsKeyExist(key string) bool {
 	wafCache.mu.Lock()
 	defer wafCache.mu.Unlock()
@@ -92,17 +99,14 @@ func (wafCache *WafCache) GetLastTime(key string) (time.Time, error) {
 	return time.Time{}, errors.New("数据已过期")
 }
 func (wafCache *WafCache) ClearExpirationCache() {
-	println("准备检测过期键")
 	now := time.Now()
 	for key, item := range wafCache.cache {
 		if now.Sub(item.createTime) > item.ttl {
-			println("删除" + key)
 			delete(wafCache.cache, key)
 		}
 	}
 }
 func (wafCache *WafCache) ClearExpirationCacheRoutine() {
-	println("启动协程检测过期的")
 	ticker := time.NewTicker(60 * time.Second)
 	defer ticker.Stop()
 	for range ticker.C {

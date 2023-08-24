@@ -1,6 +1,7 @@
 package global
 
 import (
+	"SamWaf/cache"
 	"SamWaf/model"
 	"SamWaf/model/spec"
 	"github.com/bytedance/godlp/dlpheader"
@@ -40,8 +41,10 @@ var (
 
 	GWAF_CHAN_MSG = make(chan spec.ChanCommonHost, 10) //全局通讯包
 
-	GCACHE_WECHAT_ACCESS string = "" //微信访问密钥
-	GCACHE_IP_CBUFF      []byte      // IP相关缓存
+	/*****CACHE相关*********/
+	GCACHE_WAFCACHE      *cache.WafCache      //cache
+	GCACHE_WECHAT_ACCESS string          = "" //微信访问密钥
+	GCACHE_IP_CBUFF      []byte               // IP相关缓存
 
 	GDATA_DELETE_INTERVAL = 100 // 删除100天前的数据
 

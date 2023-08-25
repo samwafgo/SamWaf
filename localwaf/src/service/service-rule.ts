@@ -1,6 +1,6 @@
 export const RULE = {
   is_manual_rule:"0",
-  rule_content:"zxcv",
+  rule_content:"",
   rule_base: {
     salience: 10,
     rule_name: "规则名称",

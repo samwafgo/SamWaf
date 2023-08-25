@@ -6,6 +6,7 @@ import (
 	"SamWaf/model/request"
 	"SamWaf/utils/zlog"
 	"errors"
+	"time"
 )
 
 type WafRuleService struct{}
@@ -26,6 +27,8 @@ func (receiver *WafRuleService) AddApi(wafRuleAddReq request.WafRuleAddReq, rule
 		IsPublicRule:    0,
 		IsManualRule:    wafRuleAddReq.IsManualRule,
 		RuleStatus:      1,
+		CreateTime:      time.Now(),
+		LastUpdateTime:  time.Now(),
 	}
 	global.GWAF_LOCAL_DB.Create(wafRule)
 	return nil
@@ -69,6 +72,7 @@ func (receiver *WafRuleService) ModifyApi(wafRuleEditReq request.WafRuleEditReq,
 		"IsPublicRule":    0,
 		"IsManualRule":    wafRuleEditReq.IsManualRule,
 		"RuleStatus":      "1",
+		"LastUpdateTime":  time.Now(),
 		//"UPDATE_TIME": time.Now(),
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.Rules{}).Where("rule_code=?", wafRuleEditReq.CODE).Updates(ruleMap).Error

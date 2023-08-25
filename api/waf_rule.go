@@ -36,6 +36,14 @@ func (w *WafRuleAPi) AddApi(c *gin.Context) {
 		}
 		chsName := ruleInfo.RuleBase.RuleName
 		var ruleCode = uuid.NewV4().String()
+		if req.IsManualRule == 1 && req.RuleCode != "" {
+			ruleCode = req.RuleCode
+			existBean := wafRuleService.GetDetailByCodeApi(ruleCode)
+			if existBean.RuleCode != "" {
+				response.FailWithMessage("当前编码已存在，请刷新页面重新尝试", c)
+				return
+			}
+		}
 		ruleInfo.RuleBase.RuleName = strings.Replace(ruleCode, "-", "", -1)
 
 		var ruleContent = ruleTool.GenRuleInfo(ruleInfo, chsName)

@@ -8,7 +8,7 @@
         <t-step-item title="响应状态" :content="detail_data.status" />
       </t-steps>
     </t-card>
-    <t-card title="本次请求详情">
+    <t-card title="本次请求详情" >
       <div class="info-block">
         <div class="info-item">
           <h1> 请求标识</h1>
@@ -68,28 +68,32 @@
       </div>
     </t-card>
     <t-card title="访问其他记录" class="container-base-margin-top">
-
+         <template #actions>
+           <t-tooltip content="鼠标选中想要添加的内容后,点击页面空白即可">
+               快捷加入规则:  <t-switch size="large" v-model="quickAddRuleChecked" :label="['开', '关']"></t-switch>
+               </t-tooltip>
+        </template>
       <t-list :split="true">
         <t-list-item>
           <t-list-item-meta title="请求路径"></t-list-item-meta>
         </t-list-item>
-         <t-textarea v-model="detail_data.url" :autosize="{ minRows: 3, maxRows: 5 }" readonly/>
+         <t-textarea v-model="detail_data.url" :autosize="{ minRows: 3, maxRows: 5 }" readonly @blur="handleMouseSelect('url')"/>
         <t-list-item>
           <t-list-item-meta title="请求头"></t-list-item-meta>
         </t-list-item>
-         <t-textarea v-model="detail_data.header" :autosize="{ minRows: 3, maxRows: 5 }" readonly/>
+         <t-textarea v-model="detail_data.header" :autosize="{ minRows: 3, maxRows: 5 }"  readonly @blur="handleMouseSelect('header')"/>
         <t-list-item>
          <t-list-item-meta title="请求用户浏览器" ></t-list-item-meta>
         </t-list-item>
-         <t-textarea v-model="detail_data.user_agent" :autosize="{ minRows: 3, maxRows: 5 }" readonly/>
+         <t-textarea v-model="detail_data.user_agent" :autosize="{ minRows: 3, maxRows: 5 }" readonly @blur="handleMouseSelect('user_agent')"/>
         <t-list-item>
           <t-list-item-meta title="请求cookies" ></t-list-item-meta>
         </t-list-item>
-         <t-textarea v-model="detail_data.cookies" :autosize="{ minRows: 3, maxRows: 5 }" readonly/>
+         <t-textarea v-model="detail_data.cookies" :autosize="{ minRows: 3, maxRows: 5 }" readonly @blur="handleMouseSelect('cookies')"/>
         <t-list-item >
           <t-list-item-meta title="请求BODY" ></t-list-item-meta>
         </t-list-item>
-        <t-textarea v-model="detail_data.body" :autosize="{ minRows: 3, maxRows: 5 }" readonly/>
+        <t-textarea v-model="detail_data.body" :autosize="{ minRows: 3, maxRows: 5 }" readonly @blur="handleMouseSelect('body')"/>
       </t-list>
     </t-card>
      <t-button theme="primary" type="button" @click="backPage">返回</t-button>
@@ -112,7 +116,8 @@
       return {
         prefix,
         baseInfoData: model.getBaseInfoData(),
-        detail_data: {}
+        detail_data: {},
+        quickAddRuleChecked:false,
       };
     },
     beforeRouteUpdate(to, from) {
@@ -225,6 +230,26 @@
 
 
       },
+      handleMouseSelect(sourcePoint) {
+         if(this.quickAddRuleChecked==false){
+           return
+         }
+      		let text = window.getSelection().toString()
+      		console.log(text)
+          let that = this
+          this.$router.push(
+                  {
+                    path:'/waf-host/wafruleedit',
+                    query: {
+                      type: "add",
+                      host_code: that.detail_data.host_code,
+                      contentstr:text,
+                      is_manual_rule :1,
+                      sourcePoint :sourcePoint
+                    },
+                  },
+           );
+      	}
     },
   };
 </script>

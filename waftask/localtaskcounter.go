@@ -8,7 +8,13 @@ import (
 	"SamWaf/utils/zlog"
 	"SamWaf/wechat"
 	"fmt"
+	"strconv"
 	"time"
+)
+
+var (
+	wafSysLogService       = waf_service.WafSysLogServiceApp
+	wafSystemConfigService = waf_service.WafSystemConfigServiceApp
 )
 
 type CountHostResult struct {
@@ -216,6 +222,15 @@ func TaskStatusNotify() {
 */
 func TaskDeleteHistoryInfo() {
 	zlog.Debug("TaskDeleteHistoryInfo")
+	configItem := wafSystemConfigService.GetDetailByItem("delete_history_log_day")
+	if configItem.Id != "" {
+		value, err := strconv.Atoi(configItem.Value)
+		if err == nil {
+			if global.GDATA_DELETE_INTERVAL != value {
+				global.GDATA_DELETE_INTERVAL = value
+			}
+		}
+	}
 	deleteBeforeDay := time.Now().AddDate(0, 0, -global.GDATA_DELETE_INTERVAL).Format("2006-01-02 15:04")
 	waf_service.WafLogServiceApp.DeleteHistory(deleteBeforeDay)
 }

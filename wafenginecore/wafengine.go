@@ -276,6 +276,8 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			RULE:           "",
 			ACTION:         "通过",
 			Day:            currentDay,
+			STATUS:         "禁止访问",
+			STATUS_CODE:    403,
 		}
 		weblogbean.ACTION = "禁止"
 		global.GQEQUE_LOG_DB.PushBack(weblogbean)
@@ -295,6 +297,8 @@ func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean innerbean.
 	})
 	weblogbean.RULE = ruleName
 	weblogbean.ACTION = "阻止"
+	weblogbean.STATUS = "阻止访问"
+	weblogbean.STATUS_CODE = 403
 	global.GQEQUE_LOG_DB.PushBack(weblogbean)
 	w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>" + blockInfo + "</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
 	zlog.Debug(ruleName)
@@ -353,6 +357,8 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 			RULE:           "",
 			ACTION:         "通过",
 			Day:            currentDay,
+			STATUS:         resp.Status,
+			STATUS_CODE:    resp.StatusCode,
 		}
 
 		host := resp.Request.Host
@@ -433,6 +439,8 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 		//TODO 如果是指定URL 或者 IP 不记录日志
 		if !isStaticAssist && !strings.Contains(weblogbean.URL, "index.php/lttshop/task_scheduling/") {
 			weblogbean.ACTION = "放行"
+			weblogbean.STATUS = resp.Status
+			weblogbean.STATUS_CODE = resp.StatusCode
 			global.GQEQUE_LOG_DB.PushBack(weblogbean)
 		}
 

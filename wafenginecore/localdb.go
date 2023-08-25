@@ -10,9 +10,12 @@ import (
 	"gorm.io/gorm"
 )
 
-func InitDb() {
+func InitDb(currentDir string) {
+	if currentDir == "" {
+		currentDir = utils.GetCurrentDir()
+	}
 	if global.GWAF_LOCAL_DB == nil {
-		path := utils.GetCurrentDir() + "/data/local.db"
+		path := currentDir + "/data/local.db"
 		db, err := gorm.Open(sqlite.Open(path), &gorm.Config{})
 		if err != nil {
 			panic("failed to connect database")
@@ -50,7 +53,7 @@ func InitDb() {
 
 	}
 	if global.GWAF_LOCAL_LOG_DB == nil {
-		logDB, err := gorm.Open(sqlite.Open(utils.GetCurrentDir()+"/data/local_log.db"), &gorm.Config{})
+		logDB, err := gorm.Open(sqlite.Open(currentDir+"/data/local_log.db"), &gorm.Config{})
 		if err != nil {
 			panic("failed to connect database")
 		}

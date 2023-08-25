@@ -163,6 +163,12 @@ export default Vue.extend({
           colKey: 'action',
         },
         {
+          title: '响应码',
+          width: 60,
+          ellipsis: false,
+          colKey: 'status_code',
+        },
+        {
           title: '触发规则',
           align: 'left',
           width: 150,

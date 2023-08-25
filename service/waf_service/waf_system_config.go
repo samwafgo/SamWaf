@@ -59,6 +59,11 @@ func (receiver *WafSystemConfigService) GetDetailByIdApi(id string) model.System
 	global.GWAF_LOCAL_DB.Where("id=?", id).Find(&bean)
 	return bean
 }
+func (receiver *WafSystemConfigService) GetDetailByItem(item string) model.SystemConfig {
+	var bean model.SystemConfig
+	global.GWAF_LOCAL_DB.Where("Item=?", item).Find(&bean)
+	return bean
+}
 func (receiver *WafSystemConfigService) GetListApi(req request.WafSystemConfigSearchReq) ([]model.SystemConfig, int64, error) {
 	var beans []model.SystemConfig
 	var total int64 = 0

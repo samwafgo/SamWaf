@@ -24,6 +24,8 @@ type WebLog struct {
 	Day            int    `json:"day"`       //日 （主要键）
 	ACTION         string `json:"action"`
 	RULE           string `json:"rule"`
+	STATUS         string `json:"status"`      //状态
+	STATUS_CODE    int    `json:"status_code"` //状态编码
 }
 type WAFLog struct {
 	REQ_UUID    string `json:"req_uuid"`

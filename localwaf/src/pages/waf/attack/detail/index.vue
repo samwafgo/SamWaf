@@ -1,10 +1,11 @@
 <template>
   <div class="detail-base">
     <t-card title="防御情况" class="container-base-margin-top">
-      <t-steps class="detail-base-info-steps" layout="horizontal" theme="dot" :current="2">
+      <t-steps class="detail-base-info-steps" layout="horizontal" theme="dot" :current="3">
         <t-step-item title="访问" :content="detail_data.create_time" />
         <t-step-item title="检测" :content="detail_data.create_time" />
         <t-step-item title="防御状态" :content="detail_data.action" />
+        <t-step-item title="响应状态" :content="detail_data.status" />
       </t-steps>
     </t-card>
     <t-card title="本次请求详情">
@@ -28,12 +29,6 @@
           </span>
         </div>
         <div class="info-item">
-          <h1> 请求路径</h1>
-          <span>
-            {{ detail_data.url }}
-          </span>
-        </div>
-        <div class="info-item">
           <h1> 请求方法</h1>
           <span>
             {{ detail_data.method }}
@@ -49,6 +44,7 @@
           <h1> 访问者IP</h1>
           <span>
             {{ detail_data.src_ip }}
+            <t-button theme="primary" shape="round" size="small" @click="handleAddipblock">加黑名单</t-button>
           </span>
         </div>
         <div class="info-item">
@@ -63,23 +59,37 @@
             {{ detail_data.country }} {{ detail_data.province }} {{ detail_data.city }}
           </span>
         </div>
+        <div class="info-item">
+          <h1> 响应编码</h1>
+          <span>
+            {{ detail_data.status_code }} ({{detail_data.status}} )
+          </span>
+        </div>
       </div>
     </t-card>
     <t-card title="访问其他记录" class="container-base-margin-top">
 
       <t-list :split="true">
         <t-list-item>
-          <t-list-item-meta title="请求头" :description="detail_data.header"></t-list-item-meta>
+          <t-list-item-meta title="请求路径"></t-list-item-meta>
         </t-list-item>
+         <t-textarea v-model="detail_data.url" :autosize="{ minRows: 3, maxRows: 5 }" readonly/>
         <t-list-item>
-          <t-list-item-meta title="请求用户浏览器" :description="detail_data.user_agent"></t-list-item-meta>
+          <t-list-item-meta title="请求头"></t-list-item-meta>
         </t-list-item>
+         <t-textarea v-model="detail_data.header" :autosize="{ minRows: 3, maxRows: 5 }" readonly/>
         <t-list-item>
-          <t-list-item-meta title="请求cookies" :description="detail_data.cookies"></t-list-item-meta>
+         <t-list-item-meta title="请求用户浏览器" ></t-list-item-meta>
         </t-list-item>
+         <t-textarea v-model="detail_data.user_agent" :autosize="{ minRows: 3, maxRows: 5 }" readonly/>
         <t-list-item>
-          <t-list-item-meta title="请求BODY" :description="detail_data.body"></t-list-item-meta>
+          <t-list-item-meta title="请求cookies" ></t-list-item-meta>
         </t-list-item>
+         <t-textarea v-model="detail_data.cookies" :autosize="{ minRows: 3, maxRows: 5 }" readonly/>
+        <t-list-item >
+          <t-list-item-meta title="请求BODY" ></t-list-item-meta>
+        </t-list-item>
+        <t-textarea v-model="detail_data.body" :autosize="{ minRows: 3, maxRows: 5 }" readonly/>
       </t-list>
     </t-card>
      <t-button theme="primary" type="button" @click="backPage">返回</t-button>
@@ -92,6 +102,9 @@
     prefix
   } from '@/config/global';
   import model from '@/service/service-detail-base';
+  import {
+    wafIPBlockAddApi
+  } from '@/apis/ipblock';
 
   export default {
     name: 'WafAttackLogDetail',
@@ -135,7 +148,7 @@
     },
     methods: {
       backPage(){
-        　history.go(-1) 
+        　history.go(-1)
       },
       getDetail(id) {
         let that = this
@@ -160,6 +173,57 @@
             console.log(e);
           })
           .finally(() => {});
+      },
+      handleAddipblock() {
+
+        if(this.detail_data.host_code==""){
+          this.$message.warning("当前网站不存在");
+          return
+        }
+        let that = this
+
+
+        const confirmDia = this.$dialog.confirm({
+                header: '加入IP黑名单',
+                body: '你确定要加入黑名单IP（'+ this.detail_data.src_ip +"）么？",
+                confirmBtn: '确定',
+                cancelBtn: '取消',
+                onConfirm: ({ e }) => {
+                   //添加黑名单IP
+                   let formData = {
+                     host_code: this.detail_data.host_code,
+                     ip: this.detail_data.src_ip,
+                     remarks: '手工增加',
+                   };
+                   wafIPBlockAddApi({
+                       ...formData
+                     })
+                     .then((res) => {
+                       let resdata = res
+                       console.log(resdata)
+                       if (resdata.code === 0) {
+                         that.$message.success(resdata.msg);
+                       } else {
+                         that.$message.warning(resdata.msg);
+                       }
+                     })
+                     .catch((e: Error) => {
+                       console.log(e);
+                     })
+                     .finally(() => {});
+
+                  // 请求成功后，销毁弹框
+                  confirmDia.destroy();
+                },
+                onClose: ({ e, trigger }) => {
+                  console.log('e: ', e);
+                  console.log('trigger: ', trigger);
+                  confirmDia.hide();
+                },
+              });
+
+
+
       },
     },
   };

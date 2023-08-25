@@ -1,5 +1,5 @@
 export const RULE = {
-  is_manual_rule:"1",
+  is_manual_rule:"0",
   rule_content:"zxcv",
   rule_base: {
     salience: 10,

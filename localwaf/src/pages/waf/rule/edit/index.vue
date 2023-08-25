@@ -19,7 +19,7 @@
           <t-input placeholder="请输入内容" v-model="formData.rule_base.salience" />
         </t-form-item>
         <t-form-item label="防护编排方式" name="is_manual_rule">
-            <t-select  :style="{ width: '480px' }"
+            <t-select  :style="{ width: '480px' }" @change="changeManualRule"
               v-model="formData.is_manual_rule">
               <t-option v-for="(item, index) in rule_manual_option" :value="item.value" :label="item.label"
                 :key="index">
@@ -266,7 +266,7 @@
     <div v-if="formData.is_manual_rule=='1'">
     <t-card title="规则编排">
       <writeRule>
-        valuecontent="formData.rule_content"
+        :valuecontent="formData.rule_content"
       	@edtinput="edtinput"
 
       ></writeRule>
@@ -298,6 +298,8 @@
     allhost
   } from '@/apis/host';
   import { wafRuleEditApi,wafRuleAddApi,wafRuleDetailApi } from '@/apis/rules';
+  import { v4 as uuidv4 } from 'uuid';
+
   export default {
     name: 'WafRuleEdit',
     components: {
@@ -436,7 +438,11 @@
         },
 
         //主机列表
-        host_options:[]
+        host_options:[],
+        //uuid标识
+        ruleuuid:"",
+        //来着日志的字符串
+        fromLogContentStr:""
       };
     },
     beforeRouteUpdate(to, from) {
@@ -461,6 +467,13 @@
       if(this.$route.query.type != undefined){
 
         this.op_type = this.$route.query.type
+
+        if( this.op_type=="add" && this.$route.query.sourcePoint!= undefined){
+            this.formData.is_manual_rule = this.$route.query.is_manual_rule
+            this.fromLogContentStr = this.$route.query.contentstr
+            this.formData.rule_base.rule_domain_code = this.$route.query.host_code
+            this.setRuleContentByMode()
+        }
       }
     },
     beforeCreate() {
@@ -468,6 +481,8 @@
     },
     created() {
       console.log('----created----')
+      this.ruleuuid = uuidv4()
+      console.log(this.ruleuuid)
     },
     beforeMount() {
       console.log('----beforeMount----')
@@ -522,7 +537,9 @@
 
               that.formData = JSON.parse(resdata.data.rule_content_json);
 
-              that.$bus.$emit("showcodeedit",resdata.data.rule_content)
+              that.$nextTick(() => {
+                  that.$bus.$emit("showcodeedit",resdata.data.rule_content)
+              });
               console.log('返回的', that.formData )
             }
           })
@@ -542,6 +559,7 @@
                           RuleJson : JSON.stringify(that.formData),
                           is_manual_rule:parseInt( that.formData.is_manual_rule),
                           rule_content:that.formData.rule_content,
+                          rule_code :that.ruleuuid
                         }
 
 
@@ -650,6 +668,39 @@
 
           console.log(this.$refs.changeSql)
       },
+      //切换模式触发
+      changeManualRule(e){
+        let that = this
+        if(this.formData.rule_content!=""){
+          return
+        }
+        console.log(e)
+
+
+        //手工编排
+        if(e=="1"){
+          this.setRuleContentByMode()
+        }
+      },
+      setRuleContentByMode(){
+        let that = this
+        let rulename =  this.ruleuuid .replace(/-/g,"")// 这个全局替换查找到的字符
+                let ruleremark = this.formData.rule_base.rule_name
+                 let rule_salience = this.formData.rule_base.salience
+                 let rule_condition = "MF.USER_AGENT.Contains('"+that.fromLogContentStr+"')==true"
+                  let rule_action = ""
+                let str = `rule R${rulename} "${ruleremark}" salience ${rule_salience} {
+            when
+                ${rule_condition}
+            then
+                ${rule_action}
+        		Retract("R${rulename}");
+        } `;
+        this.$nextTick(() => {
+          that.$bus.$emit("showcodeedit",str)
+        });
+      }
+      //end method
     },
   };
 </script>

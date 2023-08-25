@@ -17,6 +17,7 @@
       <div class="table-container">
         <t-table
           :columns="columns"
+             size="small"
           :data="data"
           :rowKey="rowKey"
           :verticalAlign="verticalAlign"
@@ -134,24 +135,27 @@ export default Vue.extend({
           {
             title: '网站',
             align: 'left',
-            width: 250,
+            width: 200,
             ellipsis: true,
             colKey: 'host_code',
-            fixed: 'left',
           },
         {
           title: '规则名',
           align: 'left',
-          width: 250,
+          width: 200,
           ellipsis: true,
           colKey: 'rule_name',
-          fixed: 'left',
         },
-        { title: '规则版本', colKey: 'rule_version', width: 200, cell: { col: 'version' } },
-        { title: '规则状态', colKey: 'rule_status', width: 200, cell: { col: 'rule_status' } },
+        { title: '规则版本', colKey: 'rule_version', width: 70, cell: { col: 'version' } },
+        { title: '规则状态', colKey: 'rule_status', width: 70, cell: { col: 'rule_status' } },
+        {
+          title: '添加时间',
+          width: 200,
+          ellipsis: true,
+          colKey: 'create_time',
+        },
         {
           align: 'left',
-          fixed: 'right',
           width: 200,
           colKey: 'op',
           title: '操作',

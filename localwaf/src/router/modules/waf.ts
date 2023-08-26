@@ -1,20 +1,20 @@
-import { ViewModuleIcon } from 'tdesign-icons-vue';
+import { UserSafetyIcon,SystemSettingIcon,UsergroupIcon,SystemLogIcon,ApplicationIcon } from 'tdesign-icons-vue';
 import Layout from '@/layouts/index.vue';
 
 export default [
-  
+
   {
     path: '/waf-host',
     name: 'wafhost',
     component: Layout,
-    meta: { title: '网站防护', icon: ViewModuleIcon },
+    meta: { title: '网站防护', icon: ApplicationIcon },
     children: [
       {
         path: 'wafhost',
         name: 'WafHost',
         component: () => import('@/pages/waf/host/index.vue'),
         meta: { title: '网站防护' },
-  
+
       },
       {
         path: 'wafhostdetail',
@@ -39,42 +39,42 @@ export default [
         name: 'WafIpWhiteList',
         component: () => import('@/pages/waf/ipwhite/index.vue'),
         meta: { title: 'IP白名单' },
-  
+
       },
       {
         path: 'wafurlwhitelist',
         name: 'WafUrlWhiteList',
         component: () => import('@/pages/waf/urlwhite/index.vue'),
         meta: { title: 'Url白名单' },
-  
+
       },
-  
+
       {
         path: 'wafipBlocklist',
         name: 'WafIpBlockList',
         component: () => import('@/pages/waf/ipblock/index.vue'),
         meta: { title: 'IP黑名单' },
-  
+
       },
       {
         path: 'wafurlblocklist',
         name: 'WafUrlBlockList',
         component: () => import('@/pages/waf/urlblock/index.vue'),
         meta: { title: '限制访问Url' },
-  
+
       },
       {
         path: 'wafldpurllist',
         name: 'WafLdpUrlList',
         component: () => import('@/pages/waf/ldpurl/index.vue'),
         meta: { title: '隐私保护Url' },
-  
+
       },{
         path: 'wafanticclist',
         name: 'WafAntiCCList',
         component: () => import('@/pages/waf/anticc/index.vue'),
         meta: { title: 'CC防护设置' },
-  
+
       },
     ],
   },
@@ -83,7 +83,7 @@ export default [
     name: 'waf',
     component: Layout,
     redirect: '/waf-log/visit',
-    meta: { title: '防护日志', icon: ViewModuleIcon },
+    meta: { title: '防护日志', icon: SystemLogIcon },
     children: [
       {
         path: 'wafattacklog',
@@ -106,7 +106,7 @@ export default [
      name: 'account',
      component: Layout,
      redirect: '/account',
-     meta: { title: '账号管理', icon: ViewModuleIcon },
+     meta: { title: '账号管理', icon: UsergroupIcon },
      children: [
        {
          path: 'Account',
@@ -129,7 +129,7 @@ export default [
     name: 'sys',
     component: Layout,
     redirect: '/sys',
-    meta: { title: '系统设置', icon: ViewModuleIcon },
+    meta: { title: '系统设置', icon: SystemSettingIcon },
     children: [
       {
          path: 'SysLog',

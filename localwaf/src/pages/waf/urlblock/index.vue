@@ -161,19 +161,13 @@
         detail_data: [], //加载详情信息用于编辑
         selectedRowKeys: [],
         value: 'first',
-        columns: [{
-            colKey: 'row-select',
-            type: 'multiple',
-            width: 64,
-            fixed: 'left'
-          },
+        columns: [ 
           {
             title: '网站',
             align: 'left',
             width: 250,
             ellipsis: true,
-            colKey: 'host_code',
-            fixed: 'left',
+            colKey: 'host_code', 
           },
           {
             title: 'Url',
@@ -195,8 +189,7 @@
           },
 
           {
-            align: 'left',
-            fixed: 'right',
+            align: 'left', 
             width: 200,
             colKey: 'op',
             title: '操作',

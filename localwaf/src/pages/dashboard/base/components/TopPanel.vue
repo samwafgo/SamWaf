@@ -198,7 +198,7 @@ export default {
       } else {
         this.resizeTime = 1;
       }
-      this.moneyCharts.resize({
+      /* this.moneyCharts.resize({
         // 根据父容器的大小设置大小
         width: `${this.resizeTime * 120}px`,
         height: `${this.resizeTime * 66}px`,
@@ -208,20 +208,20 @@ export default {
         // 根据父容器的大小设置大小
         width: `${this.resizeTime * 120}px`,
         height: `${this.resizeTime * 42}px`,
-      });
+      }); */
     },
 
     renderCharts() {
       const { chartColors } = this.$store.state.setting;
       // 收入汇总图
-      if (!this.moneyContainer) this.moneyContainer = document.getElementById('moneyContainer');
+    /*  if (!this.moneyContainer) this.moneyContainer = document.getElementById('moneyContainer');
       this.moneyCharts = echarts.init(this.moneyContainer);
       this.moneyCharts.setOption(constructInitDashboardDataset('line'));
 
       // 退款图
       if (!this.refundContainer) this.refundContainer = document.getElementById('refundContainer');
       this.refundChart = echarts.init(this.refundContainer);
-      this.refundChart.setOption(constructInitDashboardDataset('bar', chartColors));
+      this.refundChart.setOption(constructInitDashboardDataset('bar', chartColors)); */
     },
   },
 };

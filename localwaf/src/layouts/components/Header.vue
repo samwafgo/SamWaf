@@ -47,7 +47,7 @@
                 <user-circle-icon class="header-user-avatar" />
               </template>
               <div class="header-user-account">
-                Tencent
+                {{current_account}}
                 <chevron-down-icon />
               </div>
             </t-button>
@@ -128,7 +128,8 @@
         prefix,
         visibleNotice: false,
         isSearchFocus: false,
-        isResetloading:false
+        isResetloading:false,
+        current_account:"not login",
       };
     },
     computed: {
@@ -157,6 +158,9 @@
             .isCompact,
         }, ];
       },
+    },
+    mounted() {
+       this.current_account = localStorage.getItem("current_account")
     },
     methods: {
       toggleSettingPanel() {

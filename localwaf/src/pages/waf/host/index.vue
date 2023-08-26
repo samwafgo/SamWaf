@@ -15,7 +15,7 @@
       </t-row>
 
       <div class="table-container">
-        <t-table :columns="columns" :data="data" :rowKey="rowKey" :verticalAlign="verticalAlign" :hover="hover"
+        <t-table :columns="columns"  size="small" :data="data" :rowKey="rowKey" :verticalAlign="verticalAlign" :hover="hover"
           :pagination="pagination" :selected-row-keys="selectedRowKeys" :loading="dataLoading"
           @page-change="rehandlePageChange" @change="rehandleChange" @select-change="rehandleSelectChange"
           :headerAffixedTop="true" :headerAffixProps="{ offsetTop: offsetTop, container: getContainer }">
@@ -292,27 +292,27 @@
           {
             title: '网站',
             align: 'left',
-            width: 250,
+            width: 200,
             ellipsis: true,
-            colKey: 'host', 
+            colKey: 'host',
           },
           {
             title: '网站端口',
-            width: 200,
+            width: 100,
             ellipsis: true,
             colKey: 'port',
           },
           {
             title: '防护状态',
             colKey: 'guard_status',
-            width: 200,
+            width: 100,
             cell: {
               col: 'guard_status'
             }
           },
           {
             title: '加密证书',
-            width: 200,
+            width: 100,
             ellipsis: true,
             colKey: 'ssl',
             cell: {
@@ -333,7 +333,7 @@
           },
 
           {
-            align: 'left', 
+            align: 'left',
             width: 200,
             colKey: 'op',
             title: '操作',

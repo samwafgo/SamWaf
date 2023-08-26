@@ -118,7 +118,7 @@ export default [
           path: 'AccountLog',
           name: 'AccountLog',
           component: () => import('@/pages/waf/accountlog/index.vue'),
-          meta: { title: '账号操作日志' },
+          meta: { title: '账号日志' },
        },
 
 
@@ -135,7 +135,7 @@ export default [
          path: 'SysLog',
          name: 'SysLog',
          component: () => import('@/pages/waf/syslog/index.vue'),
-         meta: { title: '系统操作日志' },
+         meta: { title: '系统日志' },
       },
       {
          path: 'SystemConfig',

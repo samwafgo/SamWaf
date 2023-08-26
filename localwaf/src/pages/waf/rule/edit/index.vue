@@ -271,6 +271,17 @@
 
       ></writeRule>
     </t-card>
+
+
+    <t-collapse>
+              <t-collapse-panel header="系统变量">
+                 <t-list v-for=" (item, index) in attr_option ">
+                        <t-list-item>
+                          <t-list-item-meta :title="item.label" :description="item.value" />
+                        </t-list-item>
+                </t-list>
+              </t-collapse-panel>
+            </t-collapse>
     </div>
 
 
@@ -441,8 +452,10 @@
         host_options:[],
         //uuid标识
         ruleuuid:"",
-        //来着日志的字符串
-        fromLogContentStr:""
+        //来源日志的字符串
+        fromLogContentStr:"",
+        //来源的字段
+        fromSourcePoint:"",
       };
     },
     beforeRouteUpdate(to, from) {
@@ -472,6 +485,7 @@
             this.formData.is_manual_rule = this.$route.query.is_manual_rule
             this.fromLogContentStr = this.$route.query.contentstr
             this.formData.rule_base.rule_domain_code = this.$route.query.host_code
+            this.fromSourcePoint = this.$route.query.sourcePoint
             this.setRuleContentByMode()
         }
       }
@@ -687,7 +701,15 @@
         let rulename =  this.ruleuuid .replace(/-/g,"")// 这个全局替换查找到的字符
                 let ruleremark = this.formData.rule_base.rule_name
                  let rule_salience = this.formData.rule_base.salience
-                 let rule_condition = "MF.USER_AGENT.Contains('"+that.fromLogContentStr+"')==true"
+                 let bean = "USER_AGENT";
+                 switch(this.fromSourcePoint){
+                   case "url":bean = "URL";break
+                   case "header":bean = "HEADER";break
+                   case "user_agent":bean = "USER_AGENT";break
+                   case "cookies":bean = "COOKIES";break
+                   case "body":bean = "BODY";break
+                 }
+                 let rule_condition = "MF."+bean+".Contains(\""+that.fromLogContentStr+"\")==true"
                   let rule_action = ""
                 let str = `rule R${rulename} "${ruleremark}" salience ${rule_salience} {
             when

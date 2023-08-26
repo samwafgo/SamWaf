@@ -137,6 +137,7 @@ export default Vue.extend({
             console.log(res)
             if(res.code==0){
                 localStorage.setItem("access_token",res.data.access_token)
+                localStorage.setItem("current_account",this.formData.account)
                 this.$store.dispatch('user/login', this.formData);
 
                 this.$message.success('登录成功');

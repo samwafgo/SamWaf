@@ -173,17 +173,17 @@ export default {
         this.resizeTime = 1;
       }
 
-      this.countChart.resize({
+     /* this.countChart.resize({
         // 根据父容器的大小设置大小
         width: `${this.resizeTime * 326}px`,
         height: `${this.resizeTime * 326}px`,
-      });
+      }); */
 
-      this.monitorChart.resize({
+     /* this.monitorChart.resize({
         // 根据父容器的大小设置大小
         width: this.monitorContainer.clientWidth,
         height: `${this.resizeTime * 326}px`,
-      });
+      }); */
     },
     renderCharts() {
       const { chartColors } = this.$store.state.setting;

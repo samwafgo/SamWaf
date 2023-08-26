@@ -23,7 +23,7 @@
     "echarts": "~5.1.2",
     "nprogress": "^0.2.0",
     "qrcode.vue": "^1.7.0",
-    "tdesign-icons-vue": "^0.1.4",
+    "tdesign-icons-vue": "^0.2.2",
     "tdesign-vue": "^1.6.3",
     "tvision-color": "~1.4.0",
     "typescript": "^4.2.4",

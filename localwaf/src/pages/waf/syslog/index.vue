@@ -109,12 +109,7 @@
         detail_data: [], //加载详情信息用于编辑
         selectedRowKeys: [],
         value: 'first',
-        columns: [{
-            colKey: 'row-select',
-            type: 'multiple',
-            width: 64,
-            fixed: 'left'
-          }, 
+        columns: [
           {
             title: '操作类型',
             width: 200,
@@ -135,7 +130,6 @@
           },
           {
             align: 'left',
-            fixed: 'right',
             width: 200,
             colKey: 'op',
             title: '操作',

@@ -236,6 +236,9 @@
          }
       		let text = window.getSelection().toString()
       		console.log(text)
+          if(text.length==0){
+            return
+          }
           let that = this
           this.$router.push(
                   {

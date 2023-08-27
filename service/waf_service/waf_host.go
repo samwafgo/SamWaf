@@ -125,3 +125,8 @@ func (receiver *WafHostService) GetAllHostApi() []model.Hosts {
 	global.GWAF_LOCAL_DB.Order("global_host desc").Find(&webHosts)
 	return webHosts
 }
+func (receiver *WafHostService) CheckPortExistApi(port int) int64 {
+	var total int64 = 0
+	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where("port=?", port).Count(&total)
+	return total
+}

@@ -4,6 +4,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model"
+	"SamWaf/model/request"
 	"SamWaf/service/waf_service"
 	"SamWaf/utils/zlog"
 	"SamWaf/wechat"
@@ -233,4 +234,58 @@ func TaskDeleteHistoryInfo() {
 	}
 	deleteBeforeDay := time.Now().AddDate(0, 0, -global.GDATA_DELETE_INTERVAL).Format("2006-01-02 15:04")
 	waf_service.WafLogServiceApp.DeleteHistory(deleteBeforeDay)
+}
+
+// 加载配置数据
+func TaskLoadSetting() {
+	zlog.Debug("TaskLoadSetting")
+	configItem := wafSystemConfigService.GetDetailByItem("record_max_req_body_length")
+	if configItem.Id != "" {
+		value, err := strconv.ParseInt(configItem.Value, 10, 0)
+		if err == nil {
+			if global.GCONFIG_RECORD_MAX_BODY_LENGTH != value {
+				global.GCONFIG_RECORD_MAX_BODY_LENGTH = value
+			}
+		}
+	} else {
+		wafSystemConfigAddReq := request.WafSystemConfigAddReq{
+			Item:    "record_max_req_body_length",
+			Value:   strconv.FormatInt(global.GCONFIG_RECORD_MAX_BODY_LENGTH, 10),
+			Remarks: "自动添加",
+		}
+		wafSystemConfigService.AddApi(wafSystemConfigAddReq)
+	}
+
+	configItem = wafSystemConfigService.GetDetailByItem("record_max_rep_body_length")
+	if configItem.Id != "" {
+		value, err := strconv.ParseInt(configItem.Value, 10, 0)
+		if err == nil {
+			if global.GCONFIG_RECORD_MAX_RES_BODY_LENGTH != value {
+				global.GCONFIG_RECORD_MAX_RES_BODY_LENGTH = value
+			}
+		}
+	} else {
+		wafSystemConfigAddReq := request.WafSystemConfigAddReq{
+			Item:    "record_max_rep_body_length",
+			Value:   strconv.FormatInt(global.GCONFIG_RECORD_MAX_RES_BODY_LENGTH, 10),
+			Remarks: "自动添加",
+		}
+		wafSystemConfigService.AddApi(wafSystemConfigAddReq)
+	}
+	configItem = wafSystemConfigService.GetDetailByItem("record_resp")
+	if configItem.Id != "" {
+		value, err := strconv.ParseInt(configItem.Value, 10, 0)
+		if err == nil {
+			if global.GCONFIG_RECORD_RESP != value {
+				global.GCONFIG_RECORD_RESP = value
+			}
+		}
+	} else {
+		wafSystemConfigAddReq := request.WafSystemConfigAddReq{
+			Item:    "record_resp",
+			Value:   strconv.FormatInt(global.GCONFIG_RECORD_RESP, 10),
+			Remarks: "自动添加",
+		}
+		wafSystemConfigService.AddApi(wafSystemConfigAddReq)
+	}
 }

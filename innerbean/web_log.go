@@ -26,6 +26,7 @@ type WebLog struct {
 	RULE           string `json:"rule"`
 	STATUS         string `json:"status"`      //状态
 	STATUS_CODE    int    `json:"status_code"` //状态编码
+	RES_BODY       string `json:"res_body"`    //返回信息
 }
 type WAFLog struct {
 	REQ_UUID    string `json:"req_uuid"`

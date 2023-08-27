@@ -45,6 +45,9 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 	if webHost.Id != 0 && webHost.Code != wafHostEditReq.CODE {
 		return errors.New("当前网站和端口已经存在")
 	}
+	if webHost.GLOBAL_HOST == 1 {
+		return errors.New("全局网站不允许单独编辑")
+	}
 	hostMap := map[string]interface{}{
 		"Host": wafHostEditReq.Host,
 		"Port": wafHostEditReq.Port,
@@ -77,13 +80,16 @@ func (receiver *WafHostService) GetDetailByCodeApi(code string) model.Hosts {
 func (receiver *WafHostService) GetListApi(wafHostSearchReq request.WafHostSearchReq) ([]model.Hosts, int64, error) {
 	var webHosts []model.Hosts
 	var total int64 = 0
-	global.GWAF_LOCAL_DB.Limit(wafHostSearchReq.PageSize).Offset(wafHostSearchReq.PageSize * (wafHostSearchReq.PageIndex - 1)).Find(&webHosts)
+	global.GWAF_LOCAL_DB.Limit(wafHostSearchReq.PageSize).Offset(wafHostSearchReq.PageSize * (wafHostSearchReq.PageIndex - 1)).Order("global_host desc").Find(&webHosts)
 	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Count(&total)
 	return webHosts, total, nil
 }
 func (receiver *WafHostService) DelHostApi(req request.WafHostDelReq) error {
 	var webhost model.Hosts
 	err := global.GWAF_LOCAL_DB.Where("CODE = ?", req.CODE).First(&webhost).Error
+	if webhost.GLOBAL_HOST == 1 {
+		return errors.New("全局网站不允许单独删除")
+	}
 	if err != nil {
 		return err
 	}
@@ -116,6 +122,6 @@ func (receiver *WafHostService) ModifyGuardStatusApi(req request.WafHostGuardSta
 
 func (receiver *WafHostService) GetAllHostApi() []model.Hosts {
 	var webHosts []model.Hosts
-	global.GWAF_LOCAL_DB.Find(&webHosts)
+	global.GWAF_LOCAL_DB.Order("global_host desc").Find(&webHosts)
 	return webHosts
 }

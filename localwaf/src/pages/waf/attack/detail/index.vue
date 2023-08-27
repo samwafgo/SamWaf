@@ -96,6 +96,10 @@
         <t-textarea v-model="detail_data.body" :autosize="{ minRows: 3, maxRows: 5 }" readonly @blur="handleMouseSelect('body')"/>
       </t-list>
     </t-card>
+    <t-card title="响应数据">
+      <t-textarea v-model="detail_data.res_body" :autosize="{ minRows: 5, maxRows: 10 }" readonly />
+
+      </t-card>
      <t-button theme="primary" type="button" @click="backPage">返回</t-button>
 
 

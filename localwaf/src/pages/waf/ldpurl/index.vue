@@ -201,15 +201,13 @@
             align: 'left',
             width: 250,
             ellipsis: true,
-            colKey: 'host_code',
-            fixed: 'left',
+            colKey: 'host_code', 
           },{
             title: '匹配方式',
             align: 'left',
             width: 250,
             ellipsis: true,
             colKey: 'compare_type',
-            fixed: 'left',
           },
           {
             title: 'Url',
@@ -232,7 +230,6 @@
 
           {
             align: 'left',
-            fixed: 'right',
             width: 200,
             colKey: 'op',
             title: '操作',

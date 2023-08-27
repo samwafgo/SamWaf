@@ -35,6 +35,7 @@ var (
 	GWAF_RELEASE_VERSION      string              = "1"     // 发行版的版本号
 	GWAF_LAST_UPDATE_TIME     time.Time                     // 上次时间
 	GWAF_DLP                  dlpheader.EngineAPI           // 脱敏引擎
+
 	/**链聚合**/
 	GWAF_CHAN_HOST   = make(chan model.Hosts, 10) //主机链
 	GWAF_CHAN_ENGINE = make(chan int, 10)         //引擎链
@@ -56,8 +57,10 @@ var (
 	/******WebSocket*********/
 	GWebSocket map[string]*Wssocket.Conn
 
-	//限制记录最大的body 长度
-	GCONFIG_RECORD_MAX_BODY_LENGTH int64 = 1024 * 2
+	/******记录参数配置****************/
+	GCONFIG_RECORD_MAX_BODY_LENGTH     int64 = 1024 * 2 //限制记录最大请求的body长度 record_max_req_body_length
+	GCONFIG_RECORD_MAX_RES_BODY_LENGTH int64 = 1024 * 4 //限制记录最大响应的body长度 record_max_rep_body_length
+	GCONFIG_RECORD_RESP                int64 = 0        // 是否记录响应记录 record_resp
 
 	//升级相关
 	GUPDATE_VERSION_URL string = "http://update.binaite.net/version.json"

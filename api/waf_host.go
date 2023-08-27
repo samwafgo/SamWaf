@@ -5,6 +5,7 @@ import (
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	response2 "SamWaf/model/response"
+	"SamWaf/utils"
 	"errors"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -17,6 +18,11 @@ func (w *WafHostAPi) AddApi(c *gin.Context) {
 	var req request.WafHostAddReq
 	err := c.ShouldBind(&req)
 	if err == nil {
+		//端口从未在本系统加过，检测端口是否被其他应用占用
+		if wafHostService.CheckPortExistApi(req.Port) == 0 && utils.PortCheck(req.Port) == false {
+			response.FailWithMessage("端口被其他应用占用不能使用", c)
+			return
+		}
 		err = wafHostService.CheckIsExistApi(req)
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 			err = wafHostService.AddApi(req)
@@ -104,6 +110,11 @@ func (w *WafHostAPi) ModifyHostApi(c *gin.Context) {
 	var req request.WafHostEditReq
 	err := c.ShouldBind(&req)
 	if err == nil {
+		//端口从未在本系统加过，检测端口是否被其他应用占用
+		if wafHostService.CheckPortExistApi(req.Port) == 0 && utils.PortCheck(req.Port) == false {
+			response.FailWithMessage("端口被其他应用占用不能使用", c)
+			return
+		}
 		err = wafHostService.ModifyApi(req)
 		if err != nil {
 			response.FailWithMessage("编辑发生错误", c)

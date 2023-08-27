@@ -141,3 +141,13 @@ func GetCountry(ip string) []string {
 
 	return regions
 }
+
+// PortCheck 检查端口是否可用，可用-true 不可用-false
+func PortCheck(port int) bool {
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf(":%d", port), time.Second)
+	if err != nil {
+		return true // Port is available
+	}
+	defer conn.Close()
+	return false // Port is not available
+}

@@ -478,7 +478,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 			reader := transform.NewReader(bodyReader, charset.NewDecoder())
 			oldBytes, err := io.ReadAll(reader)
 			if err != nil {
-				zlog.Error("error", err)
+				zlog.Info("error", err)
 				return nil
 			}
 
@@ -507,7 +507,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 			contentType = "css"
 		}
 		//图片情况
-		if respContentType == "image/jpeg" || respContentType == "image/png" ||
+		if respContentType == "image/jpeg" || respContentType == "image/png" || respContentType == "image/png; charset=utf-8" ||
 			respContentType == "image/gif" || respContentType == "image/x-icon" {
 			contentType = "img"
 		}
@@ -530,7 +530,17 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 
 		//记录响应body
 		if resp.Body != nil && resp.Body != http.NoBody && global.GCONFIG_RECORD_RESP == 1 {
-			resbodyByte, _ := io.ReadAll(resp.Body)
+			//编码转换，自动检测网页编码
+			convertCntReader, _ := switchContentEncoding(resp)
+			bodyReader := bufio.NewReader(convertCntReader)
+			charset := determinePageEncoding(bodyReader)
+
+			reader := transform.NewReader(bodyReader, charset.NewDecoder())
+			resbodyByte, err := io.ReadAll(reader)
+			if err != nil {
+				zlog.Info("error", err)
+				return nil
+			}
 			// 把刚刚读出来的再写进去，不然后面解析表单数据就解析不到了
 			resp.Body = io.NopCloser(bytes.NewBuffer(resbodyByte))
 			if resp.ContentLength < global.GCONFIG_RECORD_MAX_RES_BODY_LENGTH {

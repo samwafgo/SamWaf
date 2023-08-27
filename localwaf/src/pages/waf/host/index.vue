@@ -7,7 +7,7 @@
           <t-button variant="base" theme="default" :disabled="!selectedRowKeys.length"> 导出日志 </t-button>
           <p v-if="!!selectedRowKeys.length" class="selected-count">已选{{ selectedRowKeys.length }}项</p>
         </div>
-        <t-input v-model="searchValue" class="search-input" placeholder="请输入你需要搜索的攻击日志" clearable>
+        <t-input v-model="searchValue" class="search-input" placeholder="请输入需要搜索的信息" clearable>
           <template #suffix-icon>
             <search-icon size="20px" />
           </template>
@@ -51,9 +51,8 @@
           </template>
 
           <template #op="slotProps">
-            <a class="t-button-link" @click="handleClickDetail(slotProps)">详情</a>
             <a class="t-button-link" @click="handleClickEdit(slotProps)">编辑</a>
-            <a class="t-button-link" @click="handleClickDelete(slotProps)">删除</a>
+            <a class="t-button-link"  @click="handleClickDelete(slotProps)">删除</a>
           </template>
         </t-table>
       </div>
@@ -443,10 +442,15 @@
         }, );
       },
       handleClickEdit(e) {
+
         console.log(e)
         const {
-          code
+          code,global_host
         } = e.row
+        if(global_host===1){
+          this.$message.warning("全局网站只能配置保护状态");
+          return
+        }
         console.log(code)
         this.editFormVisible = true
         this.getDetail(code)
@@ -536,6 +540,13 @@
         this.formEditData = {};
       },
       handleClickDelete(row) {
+        const {
+          code,global_host
+        } = row.row
+        if(global_host===1){
+           this.$message.warning("全局网站只能配置保护状态");
+          //return
+        }
         console.log(row)
         this.deleteIdx = row.rowIndex;
         this.confirmVisible = true;
@@ -554,8 +565,8 @@
               CODE: code,
             }
           })
-          .then((res) => {
-            let resdata = res.data
+          .then((res) => { 
+            let resdata = res
             console.log(resdata)
             if (resdata.code === 0) {
 

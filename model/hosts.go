@@ -22,4 +22,5 @@ type Hosts struct {
 	REMARKS       string    `json:"remarks"`       //备注
 	CREATE_TIME   time.Time `json:"create_time"`   //创建时间
 	UPDATE_TIME   time.Time `json:"update_time"`   //更新时间
+	GLOBAL_HOST   int       `json:"global_host"`   //默认全局 1 全局 0非全局
 }

@@ -179,7 +179,7 @@ func (w *WafRuleAPi) ModifyRuleApi(c *gin.Context) {
 */
 func (w *WafRuleAPi) NotifyWaf(host_code string) {
 	var ruleconfig []model.Rules
-	global.GWAF_LOCAL_DB.Where("host_code = ? ", host_code).Find(&ruleconfig)
+	global.GWAF_LOCAL_DB.Where("host_code = ?  and rule_status<>999", host_code).Find(&ruleconfig)
 	var chanInfo = spec.ChanCommonHost{
 		HostCode: host_code,
 		Type:     enums.ChanTypeRule,

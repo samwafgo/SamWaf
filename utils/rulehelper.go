@@ -4,6 +4,7 @@ import (
 	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/utils/zlog"
+	"errors"
 	"github.com/hyperjumptech/grule-rule-engine/ast"
 	"github.com/hyperjumptech/grule-rule-engine/builder"
 	"github.com/hyperjumptech/grule-rule-engine/engine"
@@ -13,7 +14,7 @@ import (
 // 规则帮助类
 type RuleHelper struct {
 	engine           *engine.GruleEngine
-	knowledgeBase    *ast.KnowledgeBase
+	KnowledgeBase    *ast.KnowledgeBase
 	knowledgeLibrary *ast.KnowledgeLibrary
 	ruleBuilder      *builder.RuleBuilder
 }
@@ -30,7 +31,7 @@ func (rulehelper *RuleHelper) LoadRule(ruleconfig model.Rules) {
 	if err != nil {
 		zlog.Error("LoadRule", err)
 	}
-	rulehelper.knowledgeBase = rulehelper.knowledgeLibrary.NewKnowledgeBaseInstance("Region", "0.0.1")
+	rulehelper.KnowledgeBase = rulehelper.knowledgeLibrary.NewKnowledgeBaseInstance("Region", "0.0.1")
 }
 
 func (rulehelper *RuleHelper) LoadRules(ruleconfig []model.Rules) string {
@@ -52,6 +53,12 @@ func (rulehelper *RuleHelper) LoadRules(ruleconfig []model.Rules) string {
 			Retract("CheckRegionNotChina");
 	}
 	`*/
+	//清除之前的规则
+	for _, value := range rulehelper.knowledgeLibrary.Library {
+		for ruleKey, _ := range value.RuleEntries {
+			rulehelper.knowledgeLibrary.RemoveRuleEntry(ruleKey, value.Name, value.Version)
+		}
+	}
 	rulestr := ""
 	for _, v := range ruleconfig {
 		rulestr = rulestr + v.RuleContent + " \n"
@@ -62,7 +69,7 @@ func (rulehelper *RuleHelper) LoadRules(ruleconfig []model.Rules) string {
 		zlog.Error("LoadRules", err)
 	}
 
-	rulehelper.knowledgeBase = rulehelper.knowledgeLibrary.NewKnowledgeBaseInstance("Region", "0.0.1")
+	rulehelper.KnowledgeBase = rulehelper.knowledgeLibrary.NewKnowledgeBaseInstance("Region", "0.0.1")
 
 	return rulestr
 }
@@ -72,8 +79,8 @@ func (rulehelper *RuleHelper) Exec(key string, ruleinfo *innerbean.WAF_REQUEST_F
 	//rulehelper.dataCtx.Add(key, ruleinfo)
 	dataCtx := ast.NewDataContext()
 	dataCtx.Add(key, ruleinfo)
-	err := rulehelper.engine.Execute(dataCtx, rulehelper.knowledgeBase)
-	//err:= rulehelper.engine.Execute(rulehelper.dataCtx, rulehelper.knowledgeBase)
+	err := rulehelper.engine.Execute(dataCtx, rulehelper.KnowledgeBase)
+	//err:= rulehelper.engine.Execute(rulehelper.dataCtx, rulehelper.KnowledgeBase)
 	if err != nil {
 		zlog.Error("Exec", err)
 	}
@@ -90,7 +97,10 @@ func (rulehelper *RuleHelper) Match(key string, ruleinfo *innerbean.WebLog) ([]*
 	}()
 	dataCtx := ast.NewDataContext()
 	dataCtx.Add(key, ruleinfo)
-	return rulehelper.engine.FetchMatchingRules(dataCtx, rulehelper.knowledgeBase)
+	if rulehelper.KnowledgeBase == nil {
+		return nil, errors.New("没有规则数据")
+	}
+	return rulehelper.engine.FetchMatchingRules(dataCtx, rulehelper.KnowledgeBase)
 }
 func (rulehelper *RuleHelper) CheckRuleAvailable(ruleText string) error {
 	myFact := &innerbean.WebLog{

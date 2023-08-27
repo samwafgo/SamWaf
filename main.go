@@ -126,6 +126,12 @@ func (m *wafSystenService) run() {
 		go waftask.TaskCounter()
 	})
 
+	// 获取参数
+	s.Every(1).Minutes().Do(func() {
+		go waftask.TaskLoadSetting()
+
+	})
+
 	// 获取最近token
 	s.Every(1).Hour().Do(func() {
 		//defer func() {

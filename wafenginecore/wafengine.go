@@ -190,25 +190,27 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 				if waf.HostTarget[host].Rule != nil {
-					ruleMatchs, err := waf.HostTarget[host].Rule.Match("MF", &weblogbean)
-					if err == nil {
-						if len(ruleMatchs) > 0 {
+					if waf.HostTarget[host].Rule.KnowledgeBase != nil {
+						ruleMatchs, err := waf.HostTarget[host].Rule.Match("MF", &weblogbean)
+						if err == nil {
+							if len(ruleMatchs) > 0 {
 
-							rulestr := ""
-							for _, v := range ruleMatchs {
-								rulestr = rulestr + v.RuleDescription + ","
+								rulestr := ""
+								for _, v := range ruleMatchs {
+									rulestr = rulestr + v.RuleDescription + ","
+								}
+								w.Header().Set("WAF", "SAMWAF DROP")
+								/*expiration := time.Now()
+								expiration = expiration.AddDate(1, 0, 0)
+								cookie := http.Cookie{Name: "IDENFY", Value: weblogbean.REQ_UUID, Expires: expiration}
+								http.SetCookie(w, &cookie)*/
+								//w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止触发规则</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
+								EchoErrorInfo(w, r, weblogbean, rulestr, "您的访问被阻止触发规则")
+								return
 							}
-							w.Header().Set("WAF", "SAMWAF DROP")
-							/*expiration := time.Now()
-							expiration = expiration.AddDate(1, 0, 0)
-							cookie := http.Cookie{Name: "IDENFY", Value: weblogbean.REQ_UUID, Expires: expiration}
-							http.SetCookie(w, &cookie)*/
-							//w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>您的访问被阻止触发规则</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
-							EchoErrorInfo(w, r, weblogbean, rulestr, "您的访问被阻止触发规则")
-							return
+						} else {
+							zlog.Debug("规则 ", err)
 						}
-					} else {
-						zlog.Debug("规则 ", err)
 					}
 				}
 
@@ -234,7 +236,8 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	} else {
-		w.Write([]byte("403: Host forbidden " + host))
+		resBytes := []byte("403: Host forbidden " + host)
+		w.Write(resBytes)
 		// 获取请求报文的内容长度
 		contentLength := r.ContentLength
 
@@ -279,6 +282,9 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			STATUS:         "禁止访问",
 			STATUS_CODE:    403,
 		}
+
+		//记录响应body
+		weblogbean.RES_BODY = string(resBytes)
 		weblogbean.ACTION = "禁止"
 		global.GQEQUE_LOG_DB.PushBack(weblogbean)
 	}
@@ -295,12 +301,18 @@ func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean innerbean.
 		RuleInfo:        ruleName,
 		Ip:              fmt.Sprintf("%s (%s)", weblogbean.SRC_IP, utils.GetCountry(weblogbean.SRC_IP)),
 	})
+
+	resBytes := []byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>" + blockInfo + "</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>")
+	w.Write(resBytes)
+
+	//记录响应body
+	weblogbean.RES_BODY = string(resBytes)
 	weblogbean.RULE = ruleName
 	weblogbean.ACTION = "阻止"
 	weblogbean.STATUS = "阻止访问"
 	weblogbean.STATUS_CODE = 403
 	global.GQEQUE_LOG_DB.PushBack(weblogbean)
-	w.Write([]byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>" + blockInfo + "</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>"))
+
 	zlog.Debug(ruleName)
 }
 func errorHandler() func(http.ResponseWriter, *http.Request, error) {
@@ -364,6 +376,9 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 		host := resp.Request.Host
 		if !strings.Contains(host, ":") {
 			host = host + ":80"
+		}
+		if waf.HostTarget[host] != nil {
+			weblogbean.HOST_CODE = waf.HostTarget[host].Host.Code
 		}
 		zlog.Debug("%s %s", resp.Request.Host, resp.Request.RequestURI)
 		ldpFlag := false
@@ -436,6 +451,18 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 			/*weblogbean.ACTION = "放行"
 			global.GQEQUE_LOG_DB.PushBack(weblogbean)*/
 		}
+
+		//记录响应body
+		if resp.Body != nil && resp.Body != http.NoBody && global.GCONFIG_RECORD_RESP == 1 {
+			resbodyByte, _ := io.ReadAll(resp.Body)
+			// 把刚刚读出来的再写进去，不然后面解析表单数据就解析不到了
+			resp.Body = io.NopCloser(bytes.NewBuffer(resbodyByte))
+			if resp.ContentLength < global.GCONFIG_RECORD_MAX_RES_BODY_LENGTH {
+				weblogbean.RES_BODY = string(resbodyByte)
+			}
+
+		}
+
 		//TODO 如果是指定URL 或者 IP 不记录日志
 		if !isStaticAssist && !strings.Contains(weblogbean.URL, "index.php/lttshop/task_scheduling/") {
 			weblogbean.ACTION = "放行"
@@ -555,12 +582,12 @@ func (waf *WafEngine) Start_WAF() {
 		//查询规则
 		//TODO 未加租户ID
 		var vcnt int
-		global.GWAF_LOCAL_DB.Model(&model.Rules{}).Where("host_code = ? and user_code=? ",
+		global.GWAF_LOCAL_DB.Model(&model.Rules{}).Where("host_code = ? and user_code=? and rule_status<>999",
 			hosts[i].Code, global.GWAF_USER_CODE).Select("sum(rule_version) as vcnt").Row().Scan(&vcnt)
 		zlog.Debug("主机host" + hosts[i].Code + " 版本" + strconv.Itoa(vcnt))
 		var ruleconfigs []model.Rules
 		if vcnt > 0 {
-			global.GWAF_LOCAL_DB.Where("host_code = ? and user_code=? ", hosts[i].Code, global.GWAF_USER_CODE).Find(&ruleconfigs)
+			global.GWAF_LOCAL_DB.Where("host_code = ? and user_code=? and rule_status<>999", hosts[i].Code, global.GWAF_USER_CODE).Find(&ruleconfigs)
 			ruleHelper.LoadRules(ruleconfigs)
 		}
 		//查询ip限流(应该针对一个网址只有一个)

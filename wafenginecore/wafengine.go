@@ -27,7 +27,6 @@ import (
 	"golang.org/x/text/transform"
 	"golang.org/x/time/rate"
 	"io"
-	"log"
 	"net/http"
 	"net/http/httputil"
 	_ "net/http/pprof"
@@ -390,7 +389,7 @@ func errorHandler() func(http.ResponseWriter, *http.Request, error) {
 func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 	return func(resp *http.Response) error {
 		resp.Header.Set("WAF", "SamWAF")
-		resp.Header.Set("Server", "SamWAF")
+		resp.Header.Set("Server", "SamWAFServer")
 		r := resp.Request
 		//开始准备req数据
 		//获取请求报文的内容长度
@@ -470,33 +469,18 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 			}
 		}
 		if ldpFlag == true {
-			//编码转换，自动检测网页编码
-			convertCntReader, _ := switchContentEncoding(resp)
-			bodyReader := bufio.NewReader(convertCntReader)
-			charset := determinePageEncoding(bodyReader)
+			orgContentBytes, _ := waf.getOrgContent(resp)
+			newPayload := []byte("" + utils.DeSenText(string(orgContentBytes)))
+			finalBytes, _ := waf.compressContent(resp, newPayload)
 
-			reader := transform.NewReader(bodyReader, charset.NewDecoder())
-			oldBytes, err := io.ReadAll(reader)
-			if err != nil {
-				zlog.Info("error", err)
-				return nil
-			}
-
-			// body 追加内容
-			//zlog.Debug(string(oldBytes))
-			//newPayload := []byte("" +  strings.Replace(string(oldBytes), "青岛", "**", -1))
-			newPayload := []byte("" + utils.DeSenText(string(oldBytes)))
-
-			finalBytes, _ := switchReplyContentEncoding(resp, newPayload) //utils.GZipEncode(newPayload)
-			//zlog.Debug("转换完",string(finalBytes))
 			resp.Body = io.NopCloser(bytes.NewBuffer(finalBytes))
-
 			// head 修改追加内容
-			resp.ContentLength = int64(len(newPayload))
+			resp.ContentLength = int64(len(finalBytes))
 			resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalBytes)), 10))
 		}
 		//返回内容的类型
 		respContentType := resp.Header.Get("Content-Type")
+		respContentType = strings.Replace(respContentType, "; charset=utf-8", "", -1)
 		contentType := ""
 		//JS情况
 		if respContentType == "application/javascript" {
@@ -507,12 +491,18 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 			contentType = "css"
 		}
 		//图片情况
-		if respContentType == "image/jpeg" || respContentType == "image/png" || respContentType == "image/png; charset=utf-8" ||
+		if respContentType == "image/jpeg" || respContentType == "image/png" ||
 			respContentType == "image/gif" || respContentType == "image/x-icon" {
 			contentType = "img"
 		}
+		//文本资源
+		if respContentType == "text/html" || respContentType == "application/html" ||
+			respContentType == "application/json" || respContentType == "application/xml" {
+			contentType = "text"
+		}
 		//记录静态日志
 		isStaticAssist := false
+		isText := false
 		switch contentType {
 		case "js":
 			isStaticAssist = true
@@ -523,30 +513,28 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 		case "img":
 			isStaticAssist = true
 			break
+		case "text":
+			isText = true
+			break
 		default:
 			/*weblogbean.ACTION = "放行"
 			global.GQEQUE_LOG_DB.PushBack(weblogbean)*/
 		}
 
 		//记录响应body
-		if resp.Body != nil && resp.Body != http.NoBody && global.GCONFIG_RECORD_RESP == 1 {
+		if isText && resp.Body != nil && resp.Body != http.NoBody && global.GCONFIG_RECORD_RESP == 1 {
+
 			//编码转换，自动检测网页编码
-			convertCntReader, _ := switchContentEncoding(resp)
-			bodyReader := bufio.NewReader(convertCntReader)
-			charset := determinePageEncoding(bodyReader)
+			orgContentBytes, _ := waf.getOrgContent(resp)
+			finalBytes, _ := waf.compressContent(resp, orgContentBytes)
+			resp.Body = io.NopCloser(bytes.NewBuffer(finalBytes))
 
-			reader := transform.NewReader(bodyReader, charset.NewDecoder())
-			resbodyByte, err := io.ReadAll(reader)
-			if err != nil {
-				zlog.Info("error", err)
-				return nil
-			}
-			// 把刚刚读出来的再写进去，不然后面解析表单数据就解析不到了
-			resp.Body = io.NopCloser(bytes.NewBuffer(resbodyByte))
+			// head 修改追加内容
+			resp.ContentLength = int64(len(finalBytes))
+			resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalBytes)), 10))
 			if resp.ContentLength < global.GCONFIG_RECORD_MAX_RES_BODY_LENGTH {
-				weblogbean.RES_BODY = string(resbodyByte)
+				weblogbean.RES_BODY = string(finalBytes)
 			}
-
 		}
 
 		//TODO 如果是指定URL 或者 IP 不记录日志
@@ -561,9 +549,8 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 	}
 }
 
-// 返回是否需要进行压缩
-
-func switchReplyContentEncoding(res *http.Response, inputBytes []byte) (respBytes []byte, err error) {
+// 返回内容前依据情况进行返回压缩数据
+func (waf *WafEngine) compressContent(res *http.Response, inputBytes []byte) (respBytes []byte, err error) {
 
 	switch res.Header.Get("Content-Encoding") {
 	case "gzip":
@@ -576,29 +563,33 @@ func switchReplyContentEncoding(res *http.Response, inputBytes []byte) (respByte
 	return
 }
 
-// 检测返回的body是否经过压缩，并返回解压的内容
-func switchContentEncoding(res *http.Response) (bodyReader io.Reader, err error) {
-	switch res.Header.Get("Content-Encoding") {
+// 获取原始内容
+func (waf *WafEngine) getOrgContent(resp *http.Response) (cntBytes []byte, err error) {
+	var bodyReader io.Reader
+	switch resp.Header.Get("Content-Encoding") {
 	case "gzip":
-		bodyReader, err = gzip.NewReader(res.Body)
+		bodyReader, err = gzip.NewReader(resp.Body)
 	case "deflate":
-		bodyReader = flate.NewReader(res.Body)
+		bodyReader = flate.NewReader(resp.Body)
 	default:
-		bodyReader = res.Body
+		bodyReader = resp.Body
 	}
-	return
-}
-
-// 检测html页面编码
-func determinePageEncoding(r *bufio.Reader) encoding.Encoding {
+	newBodyReader := bufio.NewReader(bodyReader)
 	//使用peek读取十分关键，只是偷看一下，不会移动读取位置，否则其他地方就没法读取了
-	bytes, err := r.Peek(1024)
+	var currentEncoding encoding.Encoding
+	bytes, err := newBodyReader.Peek(1024)
 	if err != nil {
-		log.Printf("Fetcher error: %v\n", err)
-		return unicode.UTF8
+		currentEncoding = unicode.UTF8
+	} else {
+		currentEncoding, _, _ = charset.DetermineEncoding(bytes, "")
 	}
-	e, _, _ := charset.DetermineEncoding(bytes, "")
-	return e
+	reader := transform.NewReader(newBodyReader, currentEncoding.NewDecoder())
+	resbodyByte, err := io.ReadAll(reader)
+	if err != nil {
+		zlog.Info("error", err)
+		return nil, err
+	}
+	return resbodyByte, nil
 }
 func (waf *WafEngine) Start_WAF() {
 	config := viper.New()

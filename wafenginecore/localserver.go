@@ -77,7 +77,7 @@ func StartLocalServer() {
 		log.Fatal(err)
 	}
 	r.RunListener(l)
-	log.Println("本地 port:%d", global.GWAF_LOCAL_SERVER_PORT)
+	log.Printf("本地 port:%d\n", global.GWAF_LOCAL_SERVER_PORT)
 }
 
 // vue静态路由

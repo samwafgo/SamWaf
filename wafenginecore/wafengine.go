@@ -471,12 +471,12 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 		if ldpFlag == true {
 			orgContentBytes, _ := waf.getOrgContent(resp)
 			newPayload := []byte("" + utils.DeSenText(string(orgContentBytes)))
-			finalBytes, _ := waf.compressContent(resp, newPayload)
+			finalCompressBytes, _ := waf.compressContent(resp, newPayload)
 
-			resp.Body = io.NopCloser(bytes.NewBuffer(finalBytes))
+			resp.Body = io.NopCloser(bytes.NewBuffer(finalCompressBytes))
 			// head 修改追加内容
-			resp.ContentLength = int64(len(finalBytes))
-			resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalBytes)), 10))
+			resp.ContentLength = int64(len(finalCompressBytes))
+			resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalCompressBytes)), 10))
 		}
 		//返回内容的类型
 		respContentType := resp.Header.Get("Content-Type")
@@ -526,14 +526,14 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 
 			//编码转换，自动检测网页编码
 			orgContentBytes, _ := waf.getOrgContent(resp)
-			finalBytes, _ := waf.compressContent(resp, orgContentBytes)
-			resp.Body = io.NopCloser(bytes.NewBuffer(finalBytes))
+			finalCompressBytes, _ := waf.compressContent(resp, orgContentBytes)
+			resp.Body = io.NopCloser(bytes.NewBuffer(finalCompressBytes))
 
 			// head 修改追加内容
-			resp.ContentLength = int64(len(finalBytes))
-			resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalBytes)), 10))
+			resp.ContentLength = int64(len(finalCompressBytes))
+			resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalCompressBytes)), 10))
 			if resp.ContentLength < global.GCONFIG_RECORD_MAX_RES_BODY_LENGTH {
-				weblogbean.RES_BODY = string(finalBytes)
+				weblogbean.RES_BODY = string(orgContentBytes)
 			}
 		}
 

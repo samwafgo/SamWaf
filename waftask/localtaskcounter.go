@@ -223,15 +223,6 @@ func TaskStatusNotify() {
 */
 func TaskDeleteHistoryInfo() {
 	zlog.Debug("TaskDeleteHistoryInfo")
-	configItem := wafSystemConfigService.GetDetailByItem("delete_history_log_day")
-	if configItem.Id != "" {
-		value, err := strconv.Atoi(configItem.Value)
-		if err == nil {
-			if global.GDATA_DELETE_INTERVAL != value {
-				global.GDATA_DELETE_INTERVAL = value
-			}
-		}
-	}
 	deleteBeforeDay := time.Now().AddDate(0, 0, -global.GDATA_DELETE_INTERVAL).Format("2006-01-02 15:04")
 	waf_service.WafLogServiceApp.DeleteHistory(deleteBeforeDay)
 }
@@ -251,7 +242,7 @@ func TaskLoadSetting() {
 		wafSystemConfigAddReq := request.WafSystemConfigAddReq{
 			Item:    "record_max_req_body_length",
 			Value:   strconv.FormatInt(global.GCONFIG_RECORD_MAX_BODY_LENGTH, 10),
-			Remarks: "自动添加",
+			Remarks: "记录请求最大报文",
 		}
 		wafSystemConfigService.AddApi(wafSystemConfigAddReq)
 	}
@@ -268,7 +259,7 @@ func TaskLoadSetting() {
 		wafSystemConfigAddReq := request.WafSystemConfigAddReq{
 			Item:    "record_max_rep_body_length",
 			Value:   strconv.FormatInt(global.GCONFIG_RECORD_MAX_RES_BODY_LENGTH, 10),
-			Remarks: "自动添加",
+			Remarks: "如果可以记录，满足最大响应报文大小才记录",
 		}
 		wafSystemConfigService.AddApi(wafSystemConfigAddReq)
 	}
@@ -284,7 +275,23 @@ func TaskLoadSetting() {
 		wafSystemConfigAddReq := request.WafSystemConfigAddReq{
 			Item:    "record_resp",
 			Value:   strconv.FormatInt(global.GCONFIG_RECORD_RESP, 10),
-			Remarks: "自动添加",
+			Remarks: "是否记录响应报文",
+		}
+		wafSystemConfigService.AddApi(wafSystemConfigAddReq)
+	}
+	configItem = wafSystemConfigService.GetDetailByItem("delete_history_log_day")
+	if configItem.Id != "" {
+		value, err := strconv.Atoi(configItem.Value)
+		if err == nil {
+			if global.GDATA_DELETE_INTERVAL != value {
+				global.GDATA_DELETE_INTERVAL = value
+			}
+		}
+	} else {
+		wafSystemConfigAddReq := request.WafSystemConfigAddReq{
+			Item:    "delete_history_log_day",
+			Value:   strconv.Itoa(global.GDATA_DELETE_INTERVAL),
+			Remarks: "删除多少天前的日志数据(单位:天)",
 		}
 		wafSystemConfigService.AddApi(wafSystemConfigAddReq)
 	}

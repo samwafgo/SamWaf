@@ -1,13 +1,17 @@
 package wafenginecore
 
 import (
+	"context"
 	"fmt"
+	"log"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestWafEngine_Start_WAF(t *testing.T) {
@@ -21,12 +25,45 @@ func TestWafEngine_Start_WAF(t *testing.T) {
 	}))
 	defer testServer.Close()
 
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			// 在这里可以自定义 DNS 解析过程
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, err
+			}
+			// 使用解析后的 IP 地址进行连接
+			dialer := net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}
+			//通过自定义nameserver获取域名解析的IP
+			//ips, _ := dialer.Resolver.LookupHost(ctx, host)
+			//for _, s := range ips {
+			// log.Println(s)
+			//}
+
+			// 创建链接
+			if host == "www.qdbinet.com" {
+				ip := "127.0.0.1"
+				log.Println(ip)
+				log.Println(port)
+				conn, err := dialer.DialContext(ctx, network, ip+":"+"81")
+				if err == nil {
+					return conn, nil
+				}
+			}
+
+			return dialer.DialContext(ctx, network, host+":80")
+		},
+	}
 	// 创建反向代理
 	// 创建反向代理
 	proxy := httputil.NewSingleHostReverseProxy(&url.URL{
 		Scheme: "http",
-		Host:   "www.qdbinet.com:80",
+		Host:   "www.qdbinet.com",
 	})
+	proxy.Transport = transport
 	proxy.ModifyResponse = modifyResponse()
 	// 创建测试请求
 	req, err := http.NewRequest("GET", "/", nil)
@@ -60,7 +97,6 @@ func modifyResponse() func(*http.Response) error {
 			fmt.Printf("%s: %s\n", key, values)
 		}
 		fmt.Printf("%s: %d\n", "header长度", resp.ContentLength)
-		fmt.Printf("%s: %d\n", "实际长度")
 		return nil
 	}
 }

@@ -5,10 +5,12 @@ import (
 	"SamWaf/plugin"
 	"SamWaf/utils"
 	"net/http/httputil"
+	"sync"
 )
 
 // 主机安全配置
 type HostSafe struct {
+	Mux                 sync.Mutex //互斥锁
 	RevProxy            *httputil.ReverseProxy
 	Rule                *utils.RuleHelper
 	TargetHost          string

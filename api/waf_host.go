@@ -1,10 +1,13 @@
 package api
 
 import (
+	"SamWaf/enums"
 	"SamWaf/global"
+	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	response2 "SamWaf/model/response"
+	"SamWaf/model/spec"
 	"SamWaf/utils"
 	"errors"
 	"github.com/gin-gonic/gin"
@@ -25,9 +28,9 @@ func (w *WafHostAPi) AddApi(c *gin.Context) {
 		}
 		err = wafHostService.CheckIsExistApi(req)
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
-			err = wafHostService.AddApi(req)
+			hostCode, err := wafHostService.AddApi(req)
 			if err == nil {
-
+				w.NotifyWaf(hostCode)
 				response.OkWithMessage("添加成功", c)
 			} else {
 
@@ -119,6 +122,7 @@ func (w *WafHostAPi) ModifyHostApi(c *gin.Context) {
 		if err != nil {
 			response.FailWithMessage("编辑发生错误", c)
 		} else {
+			w.NotifyWaf(req.CODE)
 			response.OkWithMessage("编辑成功", c)
 		}
 
@@ -147,15 +151,19 @@ func (w *WafHostAPi) ModifyGuardStatusApi(c *gin.Context) {
 
 /*
 *
-通知到waf引擎实时生效(TODO 此处如果是删除 应该是解除所有相关的，如果是新增编辑等？)
+通知到waf引擎实时生效
 */
-func (w *WafHostAPi) NotifyWaf(host_code string) {
-	/*var idpUrls []model.Hosts
-	global.GWAF_LOCAL_DB.Where("host_code = ? ", host_code).Find(&idpUrls)
+func (w *WafHostAPi) NotifyWaf(hostCode string) {
+	//情况1，端口是新的，域名也是新的
+	//情况2, 端口不变，就是重新加载数据
+	//情况3，端口从A切换到B了，域名是旧的
+	//情况4，端口更改后，当前这个端口下没有域名了，应该是关闭了，并移除数据
+	var hosts []model.Hosts
+	global.GWAF_LOCAL_DB.Where("code = ? ", hostCode).Find(&hosts)
 	var chanInfo = spec.ChanCommonHost{
-		HostCode: host_code,
+		HostCode: hostCode,
 		Type:     enums.ChanTypeHost,
-		Content:  idpUrls,
+		Content:  hosts,
 	}
-	global.GWAF_CHAN_MSG <- chanInfo*/
+	global.GWAF_CHAN_MSG <- chanInfo
 }

@@ -17,8 +17,9 @@ type Hosts struct {
 	REMOTE_APP    string    `json:"remote_app"`    //是什么类型的应用
 	Remote_host   string    `json:"remote_host"`   //远端域名
 	Remote_port   int       `json:"remote_port"`   //远端端口
-	Certfile      string    `json:"certfile"`      // 证书文件
-	Keyfile       string    `json:"keyfile"`       // 密钥文件
+	Remote_ip     string    `json:"remote_ip"`     //远端指定IP
+	Certfile      string    `json:"certfile"`      //证书文件
+	Keyfile       string    `json:"keyfile"`       //密钥文件
 	REMARKS       string    `json:"remarks"`       //备注
 	CREATE_TIME   time.Time `json:"create_time"`   //创建时间
 	UPDATE_TIME   time.Time `json:"update_time"`   //更新时间

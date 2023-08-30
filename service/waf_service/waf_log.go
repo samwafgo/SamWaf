@@ -29,10 +29,11 @@ func (receiver *WafLogService) GetListApi(log request.WafAttackLogSearch) ([]inn
 	var weblogs []innerbean.WebLog
 
 	whereCondition := &request.WafAttackLogSearch{
-		HostCode: log.HostCode,
-		Rule:     log.Rule,
-		Action:   log.Action,
-		SrcIp:    log.SrcIp,
+		HostCode:   log.HostCode,
+		Rule:       log.Rule,
+		Action:     log.Action,
+		SrcIp:      log.SrcIp,
+		StatusCode: log.StatusCode,
 		PageInfo: request2.PageInfo{
 			PageIndex: 0,
 			PageSize:  0,

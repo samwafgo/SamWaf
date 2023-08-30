@@ -67,7 +67,7 @@
         <!-- 表单内容 -->
         <t-form :data="formData" ref="form" :rules="rules" @submit="onSubmit" :labelWidth="100">
           <t-form-item label="网站" name="host">
-            <t-input :style="{ width: '480px' }" v-model="formData.host" placeholder="请输入网站的网址"></t-input>
+            <t-input :style="{ width: '480px' }" v-model="formData.host" placeholder="请输入网站的网址" @change="ChangeHost('add')"></t-input>
           </t-form-item>
           <t-form-item label="端口" name="port">
             <t-input-number :style="{ width: '150px' }" v-model="formData.port" placeholder="请输入网站的端口一般是80/443">
@@ -106,6 +106,9 @@
           <t-form-item label="后端域名" name="remote_host">
             <t-input :style="{ width: '480px' }" v-model="formData.remote_host" placeholder="请输入后端域名"></t-input>
           </t-form-item>
+          <t-form-item label="后端IP" name="remote_ip">
+            <t-input :style="{ width: '480px' }" v-model="formData.remote_ip" placeholder="请输入后端IP"></t-input>
+          </t-form-item>
           <t-form-item label="后端端口" name="remote_port">
             <t-input-number :style="{ width: '150px' }" v-model="formData.remote_port" placeholder="请输入网站的端口一般是80/443">
             </t-input-number>
@@ -129,7 +132,7 @@
         <!-- 表单内容 -->
         <t-form :data="formEditData" ref="form" :rules="rules" @submit="onSubmitEdit" :labelWidth="100">
           <t-form-item label="网站" name="host">
-            <t-input :style="{ width: '480px' }" v-model="formEditData.host" placeholder="请输入网站的网址"></t-input>
+            <t-input :style="{ width: '480px' }" v-model="formEditData.host" placeholder="请输入网站的网址"  @change="ChangeHost('edit')"></t-input>
           </t-form-item>
           <t-form-item label="端口" name="port">
             <t-input-number :style="{ width: '150px' }" v-model="formEditData.port" placeholder="请输入网站的端口一般是80/443">
@@ -167,6 +170,9 @@
           </t-form-item>
           <t-form-item label="后端域名" name="remote_host">
             <t-input :style="{ width: '480px' }" v-model="formEditData.remote_host" placeholder="请输入后端域名"></t-input>
+          </t-form-item>
+          <t-form-item label="后端IP" name="remote_ip">
+            <t-input :style="{ width: '480px' }" v-model="formEditData.remote_ip" placeholder="请输入后端IP"></t-input>
           </t-form-item>
           <t-form-item label="后端端口" name="remote_port">
             <t-input-number :style="{ width: '150px' }" v-model="formEditData.remote_port"
@@ -216,6 +222,7 @@
     host: 'baidu.com',
     port: 80,
     remote_host: 'baidu2.com',
+    remote_ip: '127.0.0.1',
     remote_port: 80,
     ssl: '0',
     remote_system: "宝塔",
@@ -565,7 +572,7 @@
               CODE: code,
             }
           })
-          .then((res) => { 
+          .then((res) => {
             let resdata = res
             console.log(resdata)
             if (resdata.code === 0) {
@@ -679,6 +686,14 @@
           that.guardStatusIdx = -1;
         }
       },
+      ChangeHost(form){
+        if(form=="add"){
+          this.formData.remote_host = "http://"+ this.formData.host
+        }else if(form=="edit"){
+          this.formEditData.remote_host = "http://"+ this.formEditData.host
+        }
+      }
+      //end method
     },
   });
 </script>

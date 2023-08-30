@@ -13,7 +13,7 @@ type WafHostService struct{}
 
 var WafHostServiceApp = new(WafHostService)
 
-func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) error {
+func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (string, error) {
 	var wafHost = &model.Hosts{
 		USER_CODE:     global.GWAF_USER_CODE,
 		Tenant_id:     global.GWAF_TENANT_ID,
@@ -26,6 +26,7 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) erro
 		REMOTE_APP:    wafHostAddReq.REMOTE_APP,
 		Remote_host:   wafHostAddReq.Remote_host,
 		Remote_port:   wafHostAddReq.Remote_port,
+		Remote_ip:     wafHostAddReq.Remote_ip,
 		Certfile:      wafHostAddReq.Certfile,
 		Keyfile:       wafHostAddReq.Keyfile,
 		REMARKS:       wafHostAddReq.REMARKS,
@@ -33,7 +34,7 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) erro
 		UPDATE_TIME:   time.Now(),
 	}
 	global.GWAF_LOCAL_DB.Create(wafHost)
-	return nil
+	return wafHost.Code, nil
 }
 
 func (receiver *WafHostService) CheckIsExistApi(wafHostAddReq request.WafHostAddReq) error {
@@ -56,6 +57,7 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 		"REMOTE_SYSTEM": wafHostEditReq.REMOTE_SYSTEM,
 		"REMOTE_APP":    wafHostEditReq.REMOTE_APP,
 		"Remote_host":   wafHostEditReq.Remote_host,
+		"Remote_ip":     wafHostEditReq.Remote_ip,
 		"Remote_port":   wafHostEditReq.Remote_port,
 		"REMARKS":       wafHostEditReq.REMARKS,
 

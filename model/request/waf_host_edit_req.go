@@ -8,6 +8,7 @@ type WafHostEditReq struct {
 	REMOTE_SYSTEM string `json:"remote_system"` //是宝塔 phpstudy等
 	REMOTE_APP    string `json:"remote_app"`    //是什么类型的应用
 	Remote_host   string `json:"remote_host"`   //远端域名
+	Remote_ip     string `json:"remote_ip"`     //远端指定IP
 	Remote_port   int    `json:"remote_port"`   //远端端口
 	REMARKS       string `json:"remarks"`       //备注
 	Certfile      string `json:"certfile"`      // 证书文件

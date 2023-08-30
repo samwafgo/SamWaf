@@ -44,6 +44,16 @@
                       placeholder="请选择防御状态" :style="{ width: '100px' }"
                     />
                   </t-form-item>
+                </t-col> 
+                <t-col :flex="1">
+                  <t-form-item label="响应码" name="status_code">
+                    <t-input
+                      v-model="searchformData.status_code"
+                      class="form-item-content"
+                      placeholder="请输入响应码"
+                      :style="{ minWidth: '100px' }"
+                    />
+                  </t-form-item>
                 </t-col>
                 <t-col :flex="1">
                   <t-form-item label="访问IP" name="src_ip">
@@ -233,7 +243,8 @@ export default Vue.extend({
           rule:"",
           action:"",
           src_ip:"",
-          host_code:""
+          host_code:"",
+          status_code:""
       },
       //主机字典
       host_dic:{}

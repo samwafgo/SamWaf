@@ -105,7 +105,7 @@ func (m *wafSystenService) run() {
 		EngineCurrentStatus: 0, // 当前waf引擎状态
 	}
 	http.Handle("/", &wafEngine)
-	wafEngine.Start_WAF()
+	wafEngine.StartWaf()
 
 	//启动管理界面
 	go func() {
@@ -161,36 +161,59 @@ func (m *wafSystenService) run() {
 			if wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]] != nil && wafEngine.HostCode[msg.HostCode] != "" {
 				switch msg.Type {
 				case enums.ChanTypeWhiteIP:
+					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Lock()
 					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].IPWhiteLists = msg.Content.([]model.IPWhiteList)
 					zlog.Debug("远程配置", zap.Any("IPWhiteLists", msg.Content.([]model.IPWhiteList)))
+					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Unlock()
 					break
 				case enums.ChanTypeWhiteURL:
+					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Lock()
 					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].UrlWhiteLists = msg.Content.([]model.URLWhiteList)
 					zlog.Debug("远程配置", zap.Any("UrlWhiteLists", msg.Content.([]model.URLWhiteList)))
+					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Unlock()
 					break
 				case enums.ChanTypeBlockIP:
+					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Lock()
 					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].IPBlockLists = msg.Content.([]model.IPBlockList)
 					zlog.Debug("远程配置", zap.Any("IPBlockLists", msg))
+					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Unlock()
 					break
 				case enums.ChanTypeBlockURL:
+					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Lock()
 					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].UrlBlockLists = msg.Content.([]model.URLBlockList)
 					zlog.Debug("远程配置", zap.Any("UrlBlockLists", msg.Content.([]model.URLBlockList)))
+					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Unlock()
 					break
 				case enums.ChanTypeLdp:
+					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Lock()
 					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].LdpUrlLists = msg.Content.([]model.LDPUrl)
 					zlog.Debug("远程配置", zap.Any("LdpUrlLists", msg.Content.([]model.LDPUrl)))
+					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Unlock()
 					break
 				case enums.ChanTypeRule:
+					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Lock()
 					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].RuleData = msg.Content.([]model.Rules)
 					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Rule.LoadRules(msg.Content.([]model.Rules))
 					zlog.Debug("远程配置", zap.Any("Rule", msg.Content.([]model.Rules)))
+					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Unlock()
 					break
 				case enums.ChanTypeAnticc:
+					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Lock()
 					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].PluginIpRateLimiter = plugin.NewIPRateLimiter(rate.Limit(msg.Content.(model.AntiCC).Rate), msg.Content.(model.AntiCC).Limit)
 					zlog.Debug("远程配置", zap.Any("Anticc", msg.Content.(model.AntiCC)))
+					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Unlock()
 					break
+				case enums.ChanTypeHost:
+					hosts := msg.Content.([]model.Hosts)
+					if len(hosts) == 1 {
+						if wafEngine.HostTarget[hosts[0].Host+":"+strconv.Itoa(hosts[0].Port)].RevProxy != nil {
+							wafEngine.HostTarget[hosts[0].Host+":"+strconv.Itoa(hosts[0].Port)].RevProxy = nil
+							zlog.Debug("主机重新代理", hosts[0].Host+":"+strconv.Itoa(hosts[0].Port))
+						}
+						wafEngine.LoadHost(hosts[0])
+						wafEngine.StartAllProxyServer()
+					}
 
-				case enums.ChanTypeHost: //此处待定
 					break
 				} //end switch
 			}
@@ -198,9 +221,9 @@ func (m *wafSystenService) run() {
 		case engineStatus := <-global.GWAF_CHAN_ENGINE:
 			if engineStatus == 1 {
 				zlog.Info("准备关闭WAF引擎")
-				wafEngine.CLoseWAF()
+				wafEngine.CloseWaf()
 				zlog.Info("准备启动WAF引擎")
-				wafEngine.Start_WAF()
+				wafEngine.StartWaf()
 
 			}
 			break

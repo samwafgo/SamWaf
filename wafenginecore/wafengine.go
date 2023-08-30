@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"compress/flate"
 	"compress/gzip"
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
@@ -27,6 +28,7 @@ import (
 	"golang.org/x/text/transform"
 	"golang.org/x/time/rate"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	_ "net/http/pprof"
@@ -59,6 +61,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !strings.Contains(host, ":") {
 		host = host + ":80"
 	}
+
 	defer func() {
 		e := recover()
 		if e != nil { // 捕获该协程的panic 111111
@@ -67,6 +70,15 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 	// 检查域名是否已经注册
 	if target, ok := waf.HostTarget[host]; ok {
+		// 取出客户IP
+		ipAndPort := strings.Split(r.RemoteAddr, ":")
+		_, ok := waf.ServerOnline[waf.HostTarget[host].Host.Remote_port]
+		//检测如果访问IP和远程IP是同一个IP，且远程端口在本地Server已存在则显示配置错误
+		if ipAndPort[0] == waf.HostTarget[host].Host.Remote_ip && ok == true {
+			resBytes := []byte("500: 配置有误" + host + " 当前IP和访问远端IP一样，且端口也一样，会造成循环问题")
+			w.Write(resBytes)
+			return
+		}
 
 		// 获取请求报文的内容长度
 		contentLength := r.ContentLength
@@ -82,8 +94,6 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		cookies, _ := json.Marshal(r.Cookies())
 		header, _ := json.Marshal(r.Header)
-		// 取出客户IP
-		ipAndPort := strings.Split(r.RemoteAddr, ":")
 		region := utils.GetCountry(ipAndPort[0])
 		currentDay, _ := strconv.Atoi(time.Now().Format("20060102"))
 		weblogbean := innerbean.WebLog{
@@ -292,7 +302,36 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if waf.HostTarget[host].RevProxy != nil {
 			waf.HostTarget[host].RevProxy.ServeHTTP(w, r)
 		} else {
+			transport := &http.Transport{
+				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+					// 在这里可以自定义 DNS 解析过程
+					//priv_dns_host, priv_dns_port, err := net.SplitHostPort(addr)
+					if err != nil {
+						return nil, err
+					}
+					// 使用解析后的 IP 地址进行连接
+					dialer := net.Dialer{
+						Timeout:   30 * time.Second,
+						KeepAlive: 30 * time.Second,
+					}
+					//通过自定义nameserver获取域名解析的IP
+					//ips, _ := dialer.Resolver.LookupHost(ctx, host)
+					//for _, s := range ips {
+					// log.Println(s)
+					//}
+
+					// 创建链接
+					if waf.HostTarget[host].Host.Remote_ip != "" {
+						conn, err := dialer.DialContext(ctx, network, waf.HostTarget[host].Host.Remote_ip+":"+strconv.Itoa(waf.HostTarget[host].Host.Remote_port))
+						if err == nil {
+							return conn, nil
+						}
+					}
+					return dialer.DialContext(ctx, network, addr)
+				},
+			}
 			proxy := httputil.NewSingleHostReverseProxy(remoteUrl)
+			proxy.Transport = transport
 			proxy.ModifyResponse = waf.modifyResponse()
 			proxy.ErrorHandler = errorHandler()
 			waf.HostTarget[host].RevProxy = proxy // 放入缓存
@@ -591,25 +630,8 @@ func (waf *WafEngine) getOrgContent(resp *http.Response) (cntBytes []byte, err e
 	}
 	return resbodyByte, nil
 }
-func (waf *WafEngine) Start_WAF() {
-	config := viper.New()
-	config.AddConfigPath(utils.GetCurrentDir() + "/conf/") // 文件所在目录
-	config.SetConfigName("config")                         // 文件名
-	config.SetConfigType("yml")                            // 文件类型
-	waf.EngineCurrentStatus = 1
-	if err := config.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			zlog.Error("找不到配置文件..")
-		} else {
-			zlog.Error("配置文件出错..")
-		}
-	}
-
-	global.GWAF_USER_CODE = config.GetString("user_code") // 读取配置
-	global.GWAF_TENANT_ID = global.GWAF_USER_CODE
-	global.GWAF_LOCAL_SERVER_PORT = config.GetInt("local_port")             //读取本地端口
-	global.GWAF_CUSTOM_SERVER_NAME = config.GetString("custom_server_name") //本地服务器其定义名称
-	zlog.Debug(" load ini: ", global.GWAF_USER_CODE)
+func (waf *WafEngine) StartWaf() {
+	waf.LoadAndInitConfig()
 
 	var hosts []model.Hosts
 	//是否有初始化全局保护
@@ -637,8 +659,6 @@ func (waf *WafEngine) Start_WAF() {
 		}
 		global.GWAF_LOCAL_DB.Create(wafGlobalHost)
 	}
-	//重新查询
-	global.GWAF_LOCAL_DB.Find(&hosts)
 
 	//初始化步骤[加载ip数据库]
 	var dbPath = utils.GetCurrentDir() + "/data/ip2region.xdb"
@@ -652,98 +672,7 @@ func (waf *WafEngine) Start_WAF() {
 	global.GCACHE_IP_CBUFF = cBuff
 
 	//第一步 检测合法性并加入到全局
-
-	for i := 0; i < len(hosts); i++ {
-		//检测https
-		if hosts[i].Ssl == 1 {
-			cert, err := tls.X509KeyPair([]byte(hosts[i].Certfile), []byte(hosts[i].Keyfile))
-			if err != nil {
-				zlog.Warn("Cannot find %s cert & key file. Error is: %s\n", hosts[i].Host, err)
-				continue
-
-			}
-			//all_certificate[hosts[i].Port][hosts[i].Host] = &cert
-			mm, ok := waf.AllCertificate[hosts[i].Port] //[hosts[i].Host]
-			if !ok {
-				mm = make(map[string]*tls.Certificate)
-				waf.AllCertificate[hosts[i].Port] = mm
-			}
-			waf.AllCertificate[hosts[i].Port][hosts[i].Host] = &cert
-		}
-		_, ok := waf.ServerOnline[hosts[i].Port]
-		if ok == false && hosts[i].GLOBAL_HOST == 0 {
-			waf.ServerOnline[hosts[i].Port] = innerbean.ServerRunTime{
-				ServerType: utils.GetServerByHosts(hosts[i]),
-				Port:       hosts[i].Port,
-				Status:     0,
-			}
-		}
-
-		//加载主机对于的规则
-		ruleHelper := &utils.RuleHelper{}
-		ruleHelper.InitRuleEngine()
-		//查询规则
-		var vcnt int
-		global.GWAF_LOCAL_DB.Model(&model.Rules{}).Where("host_code = ? and rule_status<>999",
-			hosts[i].Code).Select("sum(rule_version) as vcnt").Row().Scan(&vcnt)
-		zlog.Debug("主机host" + hosts[i].Code + " 版本" + strconv.Itoa(vcnt))
-		var ruleconfigs []model.Rules
-		if vcnt > 0 {
-			global.GWAF_LOCAL_DB.Where("host_code = ?and rule_status<>999", hosts[i].Code).Find(&ruleconfigs)
-			ruleHelper.LoadRules(ruleconfigs)
-		}
-		//查询ip限流(应该针对一个网址只有一个)
-		var anticcBean model.AntiCC
-
-		global.GWAF_LOCAL_DB.Where("host_code=? ", hosts[i].Code).Limit(1).Find(&anticcBean)
-
-		//初始化插件-ip计数器
-		var pluginIpRateLimiter *plugin.IPRateLimiter
-		if anticcBean.Id != "" {
-			pluginIpRateLimiter = plugin.NewIPRateLimiter(rate.Limit(anticcBean.Rate), anticcBean.Limit)
-		}
-
-		//查询ip白名单
-		var ipwhitelist []model.IPWhiteList
-		global.GWAF_LOCAL_DB.Where("host_code=? ", hosts[i].Code).Find(&ipwhitelist)
-
-		//查询url白名单
-		var urlwhitelist []model.URLWhiteList
-		global.GWAF_LOCAL_DB.Where("host_code=? ", hosts[i].Code).Find(&urlwhitelist)
-
-		//查询ip黑名单
-		var ipblocklist []model.IPBlockList
-		global.GWAF_LOCAL_DB.Where("host_code=? ", hosts[i].Code).Find(&ipblocklist)
-
-		//查询url白名单
-		var urlblocklist []model.URLBlockList
-		global.GWAF_LOCAL_DB.Where("host_code=? ", hosts[i].Code).Find(&urlblocklist)
-
-		//查询url隐私保护
-		var ldpurls []model.LDPUrl
-		global.GWAF_LOCAL_DB.Where("host_code=? ", hosts[i].Code).Find(&ldpurls)
-
-		//初始化主机host
-		hostsafe := &wafenginmodel.HostSafe{
-			RevProxy:            nil,
-			Rule:                ruleHelper,
-			TargetHost:          hosts[i].Remote_host + ":" + strconv.Itoa(hosts[i].Remote_port),
-			RuleData:            ruleconfigs,
-			RuleVersionSum:      vcnt,
-			Host:                hosts[i],
-			PluginIpRateLimiter: pluginIpRateLimiter,
-			IPWhiteLists:        ipwhitelist,
-			UrlWhiteLists:       urlwhitelist,
-			LdpUrlLists:         ldpurls,
-			IPBlockLists:        ipblocklist,
-			UrlBlockLists:       urlblocklist,
-		}
-		//赋值到白名单里面
-		waf.HostTarget[hosts[i].Host+":"+strconv.Itoa(hosts[i].Port)] = hostsafe
-		//赋值到对照表里面
-		waf.HostCode[hosts[i].Code] = hosts[i].Host + ":" + strconv.Itoa(hosts[i].Port)
-
-	}
+	waf.LoadAllHost()
 
 	wafSysLog := &model.WafSysLog{
 		Id:         uuid.NewV4().String(),
@@ -755,96 +684,33 @@ func (waf *WafEngine) Start_WAF() {
 	}
 	global.GQEQUE_LOG_DB.PushBack(wafSysLog)
 
-	for _, v := range waf.ServerOnline {
-		go func(innruntime innerbean.ServerRunTime) {
+	waf.StartAllProxyServer()
+}
 
-			if (innruntime.ServerType) == "https" {
-
-				defer func() {
-					e := recover()
-					if e != nil { // 捕获该协程的panic 111111
-						zlog.Warn("https recover ", e)
-					}
-				}()
-				svr := &http.Server{
-					Addr:    ":" + strconv.Itoa(innruntime.Port),
-					Handler: waf,
-					TLSConfig: &tls.Config{
-						NameToCertificate: make(map[string]*tls.Certificate, 0),
-					},
-				}
-				serclone := waf.ServerOnline[innruntime.Port]
-				serclone.Svr = svr
-				waf.ServerOnline[innruntime.Port] = serclone
-
-				svr.TLSConfig.NameToCertificate = waf.AllCertificate[innruntime.Port]
-				svr.TLSConfig.GetCertificate = func(clientInfo *tls.ClientHelloInfo) (*tls.Certificate, error) {
-					if x509Cert, ok := svr.TLSConfig.NameToCertificate[clientInfo.ServerName]; ok {
-						return x509Cert, nil
-					}
-					return nil, errors.New("config error")
-				}
-				zlog.Info("启动HTTPS 服务器" + strconv.Itoa(innruntime.Port))
-				err = svr.ListenAndServeTLS("", "")
-				if err == http.ErrServerClosed {
-					zlog.Error("[HTTPServer] https server has been close, cause:[%v]", err)
-				} else {
-					//TODO 记录如果https 端口被占用的情况 记录日志 且应该推送websocket
-					wafSysLog := model.WafSysLog{
-						Id:         uuid.NewV4().String(),
-						UserCode:   global.GWAF_USER_CODE,
-						TenantId:   global.GWAF_TENANT_ID,
-						OpType:     "系统运行错误",
-						OpContent:  "HTTPS端口被占用: " + strconv.Itoa(innruntime.Port) + ",请检查",
-						CreateTime: time.Time{},
-					}
-					global.GQEQUE_LOG_DB.PushBack(wafSysLog)
-					zlog.Error("[HTTPServer] https server start fail, cause:[%v]", err)
-				}
-				zlog.Info("server https shutdown")
-
-			} else {
-				defer func() {
-					e := recover()
-					if e != nil { // 捕获该协程的panic 111111
-						zlog.Warn("http recover ", e)
-					}
-				}()
-				svr := &http.Server{
-					Addr:    ":" + strconv.Itoa(innruntime.Port),
-					Handler: waf,
-				}
-				serclone := waf.ServerOnline[innruntime.Port]
-				serclone.Svr = svr
-				waf.ServerOnline[innruntime.Port] = serclone
-
-				zlog.Info("启动HTTP 服务器" + strconv.Itoa(innruntime.Port))
-				err = svr.ListenAndServe()
-				if err == http.ErrServerClosed {
-					zlog.Warn("[HTTPServer] http server has been close, cause:[%v]", err)
-				} else {
-					//TODO 记录如果http 端口被占用的情况 记录日志 且应该推送websocket
-					wafSysLog := model.WafSysLog{
-						Id:         uuid.NewV4().String(),
-						UserCode:   global.GWAF_USER_CODE,
-						TenantId:   global.GWAF_TENANT_ID,
-						OpType:     "系统运行错误",
-						OpContent:  "HTTP端口被占用: " + strconv.Itoa(innruntime.Port) + ",请检查",
-						CreateTime: time.Time{},
-					}
-					global.GQEQUE_LOG_DB.PushBack(wafSysLog)
-					zlog.Error("[HTTPServer] http server start fail, cause:[%v]", err)
-				}
-				zlog.Info("server  http shutdown")
-			}
-
-		}(v)
-
+// 加载配置并初始化
+func (waf *WafEngine) LoadAndInitConfig() {
+	config := viper.New()
+	config.AddConfigPath(utils.GetCurrentDir() + "/conf/") // 文件所在目录
+	config.SetConfigName("config")                         // 文件名
+	config.SetConfigType("yml")                            // 文件类型
+	waf.EngineCurrentStatus = 1
+	if err := config.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			zlog.Error("找不到配置文件..")
+		} else {
+			zlog.Error("配置文件出错..")
+		}
 	}
+
+	global.GWAF_USER_CODE = config.GetString("user_code") // 读取配置
+	global.GWAF_TENANT_ID = global.GWAF_USER_CODE
+	global.GWAF_LOCAL_SERVER_PORT = config.GetInt("local_port")             //读取本地端口
+	global.GWAF_CUSTOM_SERVER_NAME = config.GetString("custom_server_name") //本地服务器其定义名称
+	zlog.Debug(" load ini: ", global.GWAF_USER_CODE)
 }
 
 // 关闭waf
-func (waf *WafEngine) CLoseWAF() {
+func (waf *WafEngine) CloseWaf() {
 	defer func() {
 		e := recover()
 		if e != nil { // 捕获该协程的panic 111111
@@ -861,17 +727,228 @@ func (waf *WafEngine) CLoseWAF() {
 	}
 	global.GQEQUE_LOG_DB.PushBack(wafSysLog)
 	waf.EngineCurrentStatus = 0
-	for _, v := range waf.ServerOnline {
-		if v.Svr != nil {
-			v.Svr.Close()
-		}
-	}
 
+	waf.StopAllProxyServer()
 	//重置信息
-
 	waf.HostTarget = map[string]*wafenginmodel.HostSafe{}
 	waf.HostCode = map[string]string{}
 	waf.ServerOnline = map[int]innerbean.ServerRunTime{}
 	waf.AllCertificate = map[int]map[string]*tls.Certificate{}
 
+}
+
+// 加载全部host
+func (waf *WafEngine) LoadAllHost() {
+	//重新查询
+	var hosts []model.Hosts
+	global.GWAF_LOCAL_DB.Find(&hosts)
+	for i := 0; i < len(hosts); i++ {
+		waf.LoadHost(hosts[i])
+	}
+}
+
+// 加载指定host
+func (waf *WafEngine) LoadHost(inHost model.Hosts) {
+
+	//检测https
+	if inHost.Ssl == 1 {
+		cert, err := tls.X509KeyPair([]byte(inHost.Certfile), []byte(inHost.Keyfile))
+		if err != nil {
+			zlog.Warn("Cannot find %s cert & key file. Error is: %s\n", inHost.Host, err)
+			return
+
+		}
+		//all_certificate[hosts[i].Port][hosts[i].Host] = &cert
+		mm, ok := waf.AllCertificate[inHost.Port] //[hosts[i].Host]
+		if !ok {
+			mm = make(map[string]*tls.Certificate)
+			waf.AllCertificate[inHost.Port] = mm
+		}
+		waf.AllCertificate[inHost.Port][inHost.Host] = &cert
+	}
+	_, ok := waf.ServerOnline[inHost.Port]
+	if ok == false && inHost.GLOBAL_HOST == 0 {
+		waf.ServerOnline[inHost.Port] = innerbean.ServerRunTime{
+			ServerType: utils.GetServerByHosts(inHost),
+			Port:       inHost.Port,
+			Status:     1,
+		}
+	}
+	//加载主机对于的规则
+	ruleHelper := &utils.RuleHelper{}
+	ruleHelper.InitRuleEngine()
+	//查询规则
+	var vcnt int
+	global.GWAF_LOCAL_DB.Model(&model.Rules{}).Where("host_code = ? and rule_status<>999",
+		inHost.Code).Select("sum(rule_version) as vcnt").Row().Scan(&vcnt)
+	zlog.Debug("主机host" + inHost.Code + " 版本" + strconv.Itoa(vcnt))
+	var ruleconfigs []model.Rules
+	if vcnt > 0 {
+		global.GWAF_LOCAL_DB.Where("host_code = ?and rule_status<>999", inHost.Code).Find(&ruleconfigs)
+		ruleHelper.LoadRules(ruleconfigs)
+	}
+	//查询ip限流(应该针对一个网址只有一个)
+	var anticcBean model.AntiCC
+
+	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Limit(1).Find(&anticcBean)
+
+	//初始化插件-ip计数器
+	var pluginIpRateLimiter *plugin.IPRateLimiter
+	if anticcBean.Id != "" {
+		pluginIpRateLimiter = plugin.NewIPRateLimiter(rate.Limit(anticcBean.Rate), anticcBean.Limit)
+	}
+
+	//查询ip白名单
+	var ipwhitelist []model.IPWhiteList
+	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&ipwhitelist)
+
+	//查询url白名单
+	var urlwhitelist []model.URLWhiteList
+	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&urlwhitelist)
+
+	//查询ip黑名单
+	var ipblocklist []model.IPBlockList
+	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&ipblocklist)
+
+	//查询url白名单
+	var urlblocklist []model.URLBlockList
+	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&urlblocklist)
+
+	//查询url隐私保护
+	var ldpurls []model.LDPUrl
+	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&ldpurls)
+
+	//初始化主机host
+	hostsafe := &wafenginmodel.HostSafe{
+		RevProxy:            nil,
+		Rule:                ruleHelper,
+		TargetHost:          inHost.Remote_host + ":" + strconv.Itoa(inHost.Remote_port),
+		RuleData:            ruleconfigs,
+		RuleVersionSum:      vcnt,
+		Host:                inHost,
+		PluginIpRateLimiter: pluginIpRateLimiter,
+		IPWhiteLists:        ipwhitelist,
+		UrlWhiteLists:       urlwhitelist,
+		LdpUrlLists:         ldpurls,
+		IPBlockLists:        ipblocklist,
+		UrlBlockLists:       urlblocklist,
+	}
+	hostsafe.Mux.Lock()
+	defer hostsafe.Mux.Unlock()
+	//赋值到白名单里面
+	waf.HostTarget[inHost.Host+":"+strconv.Itoa(inHost.Port)] = hostsafe
+	//赋值到对照表里面
+	waf.HostCode[inHost.Code] = inHost.Host + ":" + strconv.Itoa(inHost.Port)
+}
+
+// 开启所有代理
+func (waf *WafEngine) StartAllProxyServer() {
+	for _, v := range waf.ServerOnline {
+		waf.StartProxyServer(v)
+	}
+}
+func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
+	if innruntime.Status == 0 {
+		//启动完成的就不进这里了
+		return
+	}
+	go func(innruntime innerbean.ServerRunTime) {
+
+		if (innruntime.ServerType) == "https" {
+
+			defer func() {
+				e := recover()
+				if e != nil { // 捕获该协程的panic 111111
+					zlog.Warn("https recover ", e)
+				}
+			}()
+			svr := &http.Server{
+				Addr:    ":" + strconv.Itoa(innruntime.Port),
+				Handler: waf,
+				TLSConfig: &tls.Config{
+					NameToCertificate: make(map[string]*tls.Certificate, 0),
+				},
+			}
+			serclone := waf.ServerOnline[innruntime.Port]
+			serclone.Svr = svr
+			serclone.Status = 0
+			waf.ServerOnline[innruntime.Port] = serclone
+
+			svr.TLSConfig.NameToCertificate = waf.AllCertificate[innruntime.Port]
+			svr.TLSConfig.GetCertificate = func(clientInfo *tls.ClientHelloInfo) (*tls.Certificate, error) {
+				if x509Cert, ok := svr.TLSConfig.NameToCertificate[clientInfo.ServerName]; ok {
+					return x509Cert, nil
+				}
+				return nil, errors.New("config error")
+			}
+			zlog.Info("启动HTTPS 服务器" + strconv.Itoa(innruntime.Port))
+			err := svr.ListenAndServeTLS("", "")
+			if err == http.ErrServerClosed {
+				zlog.Error("[HTTPServer] https server has been close, cause:[%v]", err)
+			} else {
+				//TODO 记录如果https 端口被占用的情况 记录日志 且应该推送websocket
+				wafSysLog := model.WafSysLog{
+					Id:         uuid.NewV4().String(),
+					UserCode:   global.GWAF_USER_CODE,
+					TenantId:   global.GWAF_TENANT_ID,
+					OpType:     "系统运行错误",
+					OpContent:  "HTTPS端口被占用: " + strconv.Itoa(innruntime.Port) + ",请检查",
+					CreateTime: time.Time{},
+				}
+				global.GQEQUE_LOG_DB.PushBack(wafSysLog)
+				zlog.Error("[HTTPServer] https server start fail, cause:[%v]", err)
+			}
+			zlog.Info("server https shutdown")
+
+		} else {
+			defer func() {
+				e := recover()
+				if e != nil { // 捕获该协程的panic 111111
+					zlog.Warn("http recover ", e)
+				}
+			}()
+			svr := &http.Server{
+				Addr:    ":" + strconv.Itoa(innruntime.Port),
+				Handler: waf,
+			}
+			serclone := waf.ServerOnline[innruntime.Port]
+			serclone.Svr = svr
+			serclone.Status = 0
+			waf.ServerOnline[innruntime.Port] = serclone
+
+			zlog.Info("启动HTTP 服务器" + strconv.Itoa(innruntime.Port))
+			err := svr.ListenAndServe()
+			if err == http.ErrServerClosed {
+				zlog.Warn("[HTTPServer] http server has been close, cause:[%v]", err)
+			} else {
+				//TODO 记录如果http 端口被占用的情况 记录日志 且应该推送websocket
+				wafSysLog := model.WafSysLog{
+					Id:         uuid.NewV4().String(),
+					UserCode:   global.GWAF_USER_CODE,
+					TenantId:   global.GWAF_TENANT_ID,
+					OpType:     "系统运行错误",
+					OpContent:  "HTTP端口被占用: " + strconv.Itoa(innruntime.Port) + ",请检查",
+					CreateTime: time.Time{},
+				}
+				global.GQEQUE_LOG_DB.PushBack(wafSysLog)
+				zlog.Error("[HTTPServer] http server start fail, cause:[%v]", err)
+			}
+			zlog.Info("server  http shutdown")
+		}
+
+	}(innruntime)
+}
+
+// 关闭所有代理服务
+func (waf *WafEngine) StopAllProxyServer() {
+	for _, v := range waf.ServerOnline {
+		waf.StopProxyServer(v)
+	}
+}
+
+// 关闭指定代理服务
+func (waf *WafEngine) StopProxyServer(v innerbean.ServerRunTime) {
+	if v.Svr != nil {
+		v.Svr.Close()
+	}
 }

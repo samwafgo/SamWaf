@@ -23,6 +23,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"runtime"
 	"strconv"
@@ -232,6 +233,34 @@ func (m *wafSystenService) run() {
 			wafEngine.HostTarget[host.Host+":"+strconv.Itoa(host.Port)].Host.GUARD_STATUS = host.GUARD_STATUS
 			zlog.Debug("规则", zap.Any("主机", host))
 			break
+		case update := <-global.GWAF_CHAN_UPDATE:
+			if update == 1 {
+				//需要重新启动
+				if global.GWAF_RUNTIME_SERVER_TYPE == false {
+					zlog.Info("服务形式重启")
+					// 获取当前执行文件的路径
+					executablePath, err := os.Executable()
+					if err != nil {
+						fmt.Println("Error:", err)
+						return
+					}
+
+					// 使用filepath包提取文件名
+					//executableName := filepath.Base(executablePath)
+					var cmd *exec.Cmd
+					cmd = exec.Command(executablePath, "restart")
+					cmd.Run()
+					// 等待新实例完成
+					err = cmd.Wait()
+					if err != nil {
+						fmt.Println("Error:", err)
+						return
+					}
+				} else {
+					zlog.Info("非服务形式重启，请手工打开")
+					os.Exit(0)
+				}
+			}
 		}
 
 	}
@@ -284,6 +313,14 @@ func main() {
 			log.Fatal(err)
 		}
 		return
+	}
+
+	if service.Interactive() {
+		zlog.Info("main general run true")
+		global.GWAF_RUNTIME_SERVER_TYPE = service.Interactive()
+	} else {
+		zlog.Info("main server run false")
+		global.GWAF_RUNTIME_SERVER_TYPE = service.Interactive()
 	}
 
 	// 以常规方式运行

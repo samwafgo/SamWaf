@@ -33,6 +33,16 @@ type RuleMessageInfo struct {
 	Ip       string `json:"ip"`
 }
 
+/*
+*
+升级结果
+*/
+type UpdateResultMessageInfo struct {
+	BaseMessageInfo
+	Msg     string `json:"msg"`
+	Success string `json:"success"`
+}
+
 func (r RuleMessageInfo) ToFormat() map[string]*wechat.DataItem {
 	Data := map[string]*wechat.DataItem{}
 	Data["domain"] = &wechat.DataItem{

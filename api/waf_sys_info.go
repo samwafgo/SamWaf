@@ -2,13 +2,11 @@ package api
 
 import (
 	"SamWaf/global"
+	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/utils/zlog"
-	"encoding/json"
-	"io/ioutil"
-	"net/http"
-
+	"SamWaf/wafupdate"
 	"github.com/gin-gonic/gin"
 )
 
@@ -24,44 +22,70 @@ func (w *WafSysInfoApi) SysVersionApi(c *gin.Context) {
 }
 
 func (w *WafSysInfoApi) CheckVersionApi(c *gin.Context) {
-	resp, err := http.Get(global.GUPDATE_VERSION_URL)
-	if err != nil {
-		zlog.Error("读取版本信息失败", err.Error())
-		response.FailWithMessage("读取版本信息网络失败", c)
+	var updater = &wafupdate.Updater{
+		CurrentVersion: global.GWAF_RELEASE_VERSION, // Manually update the const, or set it using `go build -ldflags="-X main.VERSION=<newver>" -o hello-updater src/hello-updater/main.go`
+		ApiURL:         global.GUPDATE_VERSION_URL,  // The server hosting `$CmdName/$GOOS-$ARCH.json` which contains the checksum for the binary
+		BinURL:         global.GUPDATE_VERSION_URL,  // The server hosting the zip file containing the binary application which is a fallback for the patch method
+		DiffURL:        global.GUPDATE_VERSION_URL,  // The server hosting the binary patch diff for incremental updates
+		Dir:            "tmp_update/",               // The directory created by the app when run which stores the cktime file
+		CmdName:        "samwaf_update",             // The app name which is appended to the ApiURL to look for an update
+		//ForceCheck:     true,                     // For this example, always check for an update unless the version is "dev"
 	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+	available, newVer, desc, err := updater.UpdateAvailable()
 	if err != nil {
-		zlog.Error("读取版本信息失败", err.Error())
-		response.FailWithMessage("读取版本信息内容失败", c)
+		response.FailWithMessage("发生错误", c)
 		return
 	}
-	var updateInfo = model.UpdateVersion{}
-	json.Unmarshal(body, &updateInfo)
-	if updateInfo.VersionCode > global.GetCurrentVersionInt() {
+	if available {
 		response.OkWithDetailed(model.VersionInfo{
 			Version:        global.GWAF_RELEASE_VERSION,
 			VersionName:    global.GWAF_RELEASE_VERSION_NAME,
 			VersionRelease: global.GWAF_RELEASE,
 			NeedUpdate:     true,
+			VersionNew:     newVer,
+			VersionDesc:    desc,
 		}, "有新版本", c)
 	} else {
-		response.OkWithDetailed(model.VersionInfo{
-			Version:        global.GWAF_RELEASE_VERSION,
-			VersionName:    global.GWAF_RELEASE_VERSION_NAME,
-			VersionRelease: global.GWAF_RELEASE,
-			NeedUpdate:     false,
-		}, "已经是最新版本", c)
+		response.FailWithMessage("没有最新版本", c)
+		return
 	}
 
 }
 
-// TODO 去升级
+// 去升级
 func (w *WafSysInfoApi) UpdateApi(c *gin.Context) {
+	var updater = &wafupdate.Updater{
+		CurrentVersion: global.GWAF_RELEASE_VERSION, // Manually update the const, or set it using `go build -ldflags="-X main.VERSION=<newver>" -o hello-updater src/hello-updater/main.go`
+		ApiURL:         global.GUPDATE_VERSION_URL,  // The server hosting `$CmdName/$GOOS-$ARCH.json` which contains the checksum for the binary
+		BinURL:         global.GUPDATE_VERSION_URL,  // The server hosting the zip file containing the binary application which is a fallback for the patch method
+		DiffURL:        global.GUPDATE_VERSION_URL,  // The server hosting the binary patch diff for incremental updates
+		Dir:            "tmp_update/",               // The directory created by the app when run which stores the cktime file
+		CmdName:        "samwaf_update",             // The app name which is appended to the ApiURL to look for an update
+		//ForceCheck:     true,                     // For this example, always check for an update unless the version is "dev"
+		OnSuccessfulUpdate: func() {
+			zlog.Info("OnSuccessfulUpdate 升级成功")
+			global.GWAF_CHAN_UPDATE <- 1
+			//发送websocket 推送消息
+			global.GQEQUE_MESSAGE_DB.PushBack(innerbean.UpdateResultMessageInfo{
+				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "升级结果", Server: global.GWAF_CUSTOM_SERVER_NAME},
+				Msg:             "升级成功",
+				Success:         "true",
+			})
+		},
+	}
+	go func() {
+		// try to update
+		err := updater.BackgroundRun()
+		if err != nil {
 
-	response.OkWithDetailed(model.VersionInfo{
-		Version:        global.GWAF_RELEASE_VERSION,
-		VersionName:    global.GWAF_RELEASE_VERSION_NAME,
-		VersionRelease: global.GWAF_RELEASE,
-	}, "获取成功", c)
+			//发送websocket 推送消息
+			global.GQEQUE_MESSAGE_DB.PushBack(innerbean.UpdateResultMessageInfo{
+				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "升级结果", Server: global.GWAF_CUSTOM_SERVER_NAME},
+				Msg:             "升级错误",
+				Success:         "False",
+			})
+			zlog.Error("Failed to update app:", err)
+		}
+	}()
+	response.OkWithMessage("已发起升级，等待通知结果", c)
 }

@@ -1,5 +1,13 @@
 <template>
+
+
   <div :class="layoutCls">
+    <t-dialog :visible.sync="update_visible" @confirm="handleDoUpdate" header="有新版本啦">
+      <p>      <icon name="tangerinr" color="orange" />
+{{update_new_ver}}</p>
+ <p>      
+{{update_desc}}</p>
+    </t-dialog>
     <t-head-menu :class="menuCls" :theme="theme" expandType="popup" :value="active">
       <template #logo>
         <span v-if="showLogo" class="header-logo-container" @click="handleNav('/dashboard/base')">
@@ -20,7 +28,11 @@
 
           <!-- 全局通知 -->
           <notice />
-
+          <t-tooltip placement="bottom" content="升级">
+            <t-button :disabled="isUpdateloading" theme="default" shape="square" variant="text" @click="checkVersion">
+              <RotateIcon />
+            </t-button>
+          </t-tooltip>
           <t-tooltip placement="bottom" content="重启">
             <t-button :disabled="isResetloading" theme="default" shape="square" variant="text" @click="resetServer">
               <PoweroffIcon />
@@ -73,11 +85,17 @@
     PoweroffIcon,
     SettingIcon,
     ChevronDownIcon,
+    RotateIcon,
+    Icon
   } from 'tdesign-icons-vue';
   import {
     prefix
   } from '@/config/global';
   import LogoFull from '@/assets/assets-logo-full.svg';
+
+  import {
+    CheckVersionApi,DoUpdateApi
+  } from '@/apis/sysinfo';
 
   import Notice from './Notice.vue';
   import Search from './Search.vue';
@@ -96,6 +114,8 @@
       PoweroffIcon,
       SettingIcon,
       ChevronDownIcon,
+      RotateIcon,
+      Icon
     },
     props: {
       theme: String,
@@ -129,6 +149,11 @@
         visibleNotice: false,
         isSearchFocus: false,
         isResetloading:false,
+        /**更新内容**/
+        isUpdateloading:false,
+        update_visible:false,
+        update_new_ver:"",
+        update_desc:"",
         current_account:"not login",
       };
     },
@@ -210,6 +235,41 @@
             that.isResetloading = false
           })
           .finally(() => {});
+      } ,
+      checkVersion(){
+          let that = this;
+          CheckVersionApi().then((res) => {
+            let resdata = res
+            console.log(resdata)
+            if (resdata.code === 0) {
+              //that.$message.success(resdata.msg);
+              that.update_visible = true
+              that.update_new_ver = resdata.data.version_new
+              that.update_desc = resdata.data.version_desc
+            }else{
+              that.$message.warning(resdata.msg);
+            }
+          })
+          .catch((e: Error) => {
+             that.$message.warning("检测版本异常，请检测网络");
+          })
+      },
+      handleDoUpdate(){
+        //处理升级
+          let that = this;
+          DoUpdateApi().then((res) => {
+            let resdata = res
+            console.log(resdata)
+            if (resdata.code === 0) {
+              that.$message.success(resdata.msg);
+               that.update_visible = false
+            }else{
+              that.$message.warning(resdata.msg);
+            }
+          })
+          .catch((e: Error) => {
+            console.log(e);
+        })
       }
     },
   });

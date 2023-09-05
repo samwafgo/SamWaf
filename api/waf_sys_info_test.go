@@ -26,7 +26,7 @@ func TestCheckVersionApi(t *testing.T) {
 	// 创建一个基于 Gin 的引擎
 	r := gin.Default()
 
-	global.GWAF_RELEASE_VERSION = "111"
+	global.GWAF_RELEASE_VERSION = "v1.0.0"
 	r.GET("/samwaf/sysinfo/checkversion", new(WafSysInfoApi).CheckVersionApi)
 	// 创建一个模拟的 HTTP 请求
 	req, err := http.NewRequest(http.MethodGet, "/samwaf/sysinfo/checkversion", nil)

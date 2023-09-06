@@ -65,7 +65,7 @@ export default Vue.extend({
         console.log('关闭')
         // 意外关闭之后重新连接
         if(!this.disConnectTimer) {
-          this.ws.close();
+          //this.ws.close();
           this.ws = null;
           this.disConnectTimer = setTimeout(() => {
             this.initWebSocket()

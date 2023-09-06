@@ -402,6 +402,10 @@ func (u *Updater) fetch(url string) (io.ReadCloser, error) {
 	return readCloser, nil
 }
 
+func (u *Updater) GetHttps(url string) {
+
+}
+
 func readTime(path string) time.Time {
 	p, err := ioutil.ReadFile(path)
 	if os.IsNotExist(err) {

@@ -24,6 +24,9 @@ var (
 	GWAF_RUNTIME_AREA        string = ""          //本机当前所在区域
 	GWAF_RUNTIME_SERVER_TYPE bool   = false       //当前是是否以服务形式启动
 
+	GWAF_RUNTIME_NEW_VERSION      string = "" //最新版本号
+	GWAF_RUNTIME_NEW_VERSION_DESC string = "" //最新版本描述
+
 	GWAF_GLOBAL_HOST_NAME string = "全局网站:0" //全局网站
 
 	GWAF_LOCAL_DB             *gorm.DB                       //通用本地数据库，尊重用户隐私
@@ -66,7 +69,7 @@ var (
 	GCONFIG_RECORD_RESP                int64 = 0        // 是否记录响应记录 record_resp
 
 	//升级相关
-	GUPDATE_VERSION_URL string = "http://127.0.0.1:81/"
+	GUPDATE_VERSION_URL string = "http://127.0.0.1:81/" //https://update.samwaf.com/
 )
 
 func GetCurrentVersionInt() int {

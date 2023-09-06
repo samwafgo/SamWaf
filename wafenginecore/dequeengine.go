@@ -112,6 +112,7 @@ func ProcessDequeEngine() {
 						})
 						err = ws.WriteMessage(1, msgBytes)
 						if err != nil {
+							zlog.Info("发送websocket错误", err)
 							continue
 						}
 					}

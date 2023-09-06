@@ -44,4 +44,5 @@ var (
 
 	wafSysLogService       = waf_service.WafSysLogServiceApp
 	wafSystemConfigService = waf_service.WafSystemConfigServiceApp
+	wafDelayMsgService     = waf_service.WafDelayMsgServiceApp
 )

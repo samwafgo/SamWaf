@@ -8,7 +8,9 @@ import (
 	"SamWaf/service/waf_service"
 	"SamWaf/utils/zlog"
 	"SamWaf/wechat"
+	"encoding/json"
 	"fmt"
+	uuid "github.com/satori/go.uuid"
 	"strconv"
 	"time"
 )
@@ -294,5 +296,48 @@ func TaskLoadSetting() {
 			Remarks: "删除多少天前的日志数据(单位:天)",
 		}
 		wafSystemConfigService.AddApi(wafSystemConfigAddReq)
+	}
+}
+
+/*
+*
+定时发送延迟信息
+*/
+func TaskDelayInfo() {
+	zlog.Debug("TaskDelayInfo")
+
+	models, count, err := waf_service.WafDelayMsgServiceApp.GetAllList()
+	if err == nil {
+		if count > 0 {
+			for i := 0; i < len(models); i++ {
+				msg := models[i]
+				sendSuccess := 0
+				//发送websocket
+				for _, ws := range global.GWebSocket {
+					if ws != nil {
+						//写入ws数据
+						msgBytes, err := json.Marshal(model.MsgPacket{
+							MessageId:           uuid.NewV4().String(),
+							MessageType:         msg.DelayType,
+							MessageData:         msg.DelayContent,
+							MessageAttach:       nil,
+							MessageDateTime:     time.Now().Format("2006-01-02 15:04:05"),
+							MessageUnReadStatus: true,
+						})
+						err = ws.WriteMessage(1, msgBytes)
+						if err != nil {
+							continue
+						} else {
+							sendSuccess = sendSuccess + 1
+						}
+					}
+				}
+
+				if sendSuccess > 0 {
+					waf_service.WafDelayMsgServiceApp.DelApi(msg.Id)
+				}
+
+			}
+		}
 	}
 }

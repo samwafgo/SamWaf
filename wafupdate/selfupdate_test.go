@@ -3,6 +3,8 @@ package wafupdate
 import (
 	"bytes"
 	"io"
+	"io/ioutil"
+	"net/http"
 	"testing"
 	"time"
 )
@@ -103,19 +105,22 @@ func TestUpdateAvailable(t *testing.T) {
 	mr := &mockRequester{}
 	mr.handleRequest(
 		func(url string) (io.ReadCloser, error) {
-			equals(t, "http://updates.yourdomain.com/myapp/linux-amd64.json", url)
+			equals(t, "https://update.samwaf.com/samwaf_update/windows-amd64.json", url)
 			return newTestReaderCloser(`{
-    "Version": "2023-07-09-66c6c12",
-    "Sha256": "Q2vvTOW0p69A37StVANN+/ko1ZQDTElomq7fVcex/02="
+    "Version": "v1.0.30",
+    "Sha256": "Q2vvTOW0p69A37StVANN+/ko1ZQDTElomq7fVcex/02=",
+	"Desc":"fixsamebug"
 }`), nil
 		})
 	updater := createUpdater(mr)
 
-	version, err := updater.UpdateAvailable()
+	available, ver, desc, err := updater.UpdateAvailable()
 	if err != nil {
 		t.Errorf("Error occurred: %#v", err)
 	}
-	equals(t, "2023-07-09-66c6c12", version)
+	equals(t, true, available)
+	equals(t, "v1.0.30", ver)
+	equals(t, "fixsamebug", desc)
 }
 
 func createUpdater(mr *mockRequester) *Updater {
@@ -163,4 +168,16 @@ func (trc *testReadCloser) Read(p []byte) (n int, err error) {
 
 func (trc *testReadCloser) Close() error {
 	return nil
+}
+func TestUpdater_GetHttps(t *testing.T) {
+	resp, err := http.Get("https://update.samwaf.com/samwaf_update/windows-amd64.json")
+	if err != nil {
+		println(err)
+	} else {
+		defer resp.Body.Close()
+		body, _ := ioutil.ReadAll(resp.Body)
+
+		var strbody = "[" + string(body) + "]"
+		println(strbody)
+	}
 }

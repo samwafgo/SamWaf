@@ -1,1 +1,1 @@
-C:\huawei\goproject\SamWaf\setup\go_gen_updatefile\go_gen_updatefile.exe -o C:\huawei\goproject\SamWaf\release\web\samwaf_update C:\huawei\goproject\SamWaf\release\SamWaf64.exe v1.0.30 fixsamebug
+C:\huawei\goproject\SamWaf\setup\go_gen_updatefile\go_gen_updatefile.exe -o C:\huawei\goproject\SamWaf\release\web\samwaf_update C:\huawei\goproject\SamWaf\release\SamWaf64.exe v1.0.30 fixsamebugnewver

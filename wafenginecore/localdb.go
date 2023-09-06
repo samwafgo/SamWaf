@@ -45,6 +45,10 @@ func InitDb(currentDir string) {
 
 		//系统参数
 		db.AutoMigrate(&model.SystemConfig{})
+
+		//延迟信息
+		db.AutoMigrate(&model.DelayMsg{})
+
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
 

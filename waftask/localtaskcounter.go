@@ -315,16 +315,25 @@ func TaskDelayInfo() {
 				//发送websocket
 				for _, ws := range global.GWebSocket.SocketMap {
 					if ws != nil {
+
+						cmdType := "Info"
+						if msg.DelayType == "升级结果" {
+							cmdType = "RELOAD_PAGE"
+						}
 						//写入ws数据
-						msgBytes, err := json.Marshal(model.MsgPacket{
-							Code:                "成功",
-							MessageId:           uuid.NewV4().String(),
-							MessageType:         msg.DelayType,
-							MessageData:         msg.DelayContent,
-							MessageAttach:       nil,
-							MessageDateTime:     time.Now().Format("2006-01-02 15:04:05"),
-							MessageUnReadStatus: true,
-						})
+						msgBytes, err := json.Marshal(
+							model.MsgPacket{
+								MsgCode: "200",
+								MsgDataPacket: model.MsgDataPacket{
+									MessageId:           uuid.NewV4().String(),
+									MessageType:         msg.DelayType,
+									MessageData:         msg.DelayContent,
+									MessageAttach:       nil,
+									MessageDateTime:     time.Now().Format("2006-01-02 15:04:05"),
+									MessageUnReadStatus: true,
+								},
+								MsgCmdType: cmdType,
+							})
 						err = ws.WriteMessage(1, msgBytes)
 						if err != nil {
 							continue

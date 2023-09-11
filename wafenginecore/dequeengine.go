@@ -73,16 +73,20 @@ func ProcessDequeEngine() {
 				if rulemessage.BaseMessageInfo.OperaType == "命中保护规则" {
 					//发送websocket
 					for _, ws := range global.GWebSocket.SocketMap {
+
 						if ws != nil {
 							//写入ws数据
 							msgBytes, err := json.Marshal(model.MsgPacket{
-								Code:                "成功",
-								MessageId:           uuid.NewV4().String(),
-								MessageType:         "命中保护规则",
-								MessageData:         rulemessage.RuleInfo + rulemessage.Ip,
-								MessageAttach:       nil,
-								MessageDateTime:     time.Now().Format("2006-01-02 15:04:05"),
-								MessageUnReadStatus: true,
+								MsgCode: "200",
+								MsgDataPacket: model.MsgDataPacket{
+									MessageId:           uuid.NewV4().String(),
+									MessageType:         "命中保护规则",
+									MessageData:         rulemessage.RuleInfo + rulemessage.Ip,
+									MessageAttach:       nil,
+									MessageDateTime:     time.Now().Format("2006-01-02 15:04:05"),
+									MessageUnReadStatus: true,
+								},
+								MsgCmdType: "Info",
 							})
 							err = ws.WriteMessage(1, msgBytes)
 							if err != nil {
@@ -104,12 +108,16 @@ func ProcessDequeEngine() {
 					if ws != nil {
 						//写入ws数据
 						msgBytes, err := json.Marshal(model.MsgPacket{
-							MessageId:           uuid.NewV4().String(),
-							MessageType:         "升级结果",
-							MessageData:         updatemessage.Msg,
-							MessageAttach:       nil,
-							MessageDateTime:     time.Now().Format("2006-01-02 15:04:05"),
-							MessageUnReadStatus: true,
+							MsgCode: "200",
+							MsgDataPacket: model.MsgDataPacket{
+								MessageId:           uuid.NewV4().String(),
+								MessageType:         "升级结果",
+								MessageData:         updatemessage.Msg,
+								MessageAttach:       nil,
+								MessageDateTime:     time.Now().Format("2006-01-02 15:04:05"),
+								MessageUnReadStatus: true,
+							},
+							MsgCmdType: "Info",
 						})
 						err = ws.WriteMessage(1, msgBytes)
 						if err != nil {

@@ -6,6 +6,8 @@
 import Vue from 'vue';
 import config from '@/config/style';
 import websocket from "@/utils/websocket.js";
+import { DialogPlugin } from 'tdesign-vue';
+
 const env = import.meta.env.MODE || 'development';
 
 export default Vue.extend({
@@ -18,6 +20,8 @@ export default Vue.extend({
     return {
       ws: null, // ws
       disConnectTimer: null, // 断连计时
+      mydialog: null,
+
     }
   },
   mounted() {
@@ -56,13 +60,31 @@ export default Vue.extend({
         this.initWebSocket();
       },
       wsOnMessage(e) {
-        if(e.data == '授权失败'){
-           
+        let wsData = JSON.parse(e.data)
+        if(wsData.msg_code=="200"){
+          console.log('接口返回信息',wsData)
+          if(wsData.msg_cmd_type=="RELOAD_PAGE"){
+            if(this.mydialog){
+              this.mydialog.hide()
+              this.mydialog =null
+            }
+            this.mydialog = this.$dialog({
+                    header: wsData.msg_data.message_type,
+                    body: wsData.msg_data.message_data,
+                    className: 't-dialog-new-class1 t-dialog-new-class2',
+                    style: 'color: rgba(0, 0, 0, 0.6)',
+                    confirmBtn:'确认并刷新',
+                    onConfirm: ({ e }) => {
+                      window.location.reload()
+                      this.mydialog.hide();
+                    },
+                  });
+              return
+          }
+          this.$store.commit('notification/addMsgData', wsData.msg_data);
+        }else if(wsData.msg_code=="-999"){
           localStorage.clear();     //删除用户信息
           console.log("鉴权失败")
-        }else  if(e.data != '连接成功') {
-          console.log(e.data,'接口返回信息')
-           this.$store.commit('notification/addMsgData', JSON.parse(e.data));
         }
       },
       wsOnClose() {

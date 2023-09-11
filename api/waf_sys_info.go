@@ -47,6 +47,7 @@ func (w *WafSysInfoApi) CheckVersionApi(c *gin.Context) {
 			VersionNew:     newVer,
 			VersionDesc:    desc,
 		}, "有新版本", c)
+
 	} else {
 		response.FailWithMessage("没有最新版本", c)
 		return
@@ -66,7 +67,7 @@ func (w *WafSysInfoApi) UpdateApi(c *gin.Context) {
 		//ForceCheck:     true,                     // For this example, always check for an update unless the version is "dev"
 		OnSuccessfulUpdate: func() {
 			zlog.Info("OnSuccessfulUpdate 升级成功")
-			wafDelayMsgService.Add("升级结果", "升级结果", "当前版本为："+global.GWAF_RUNTIME_NEW_VERSION+" 版本说明:"+global.GWAF_RUNTIME_NEW_VERSION_DESC)
+			wafDelayMsgService.Add("升级结果", "升级结果", "升级成功，当前版本为："+global.GWAF_RUNTIME_NEW_VERSION+" 版本说明:"+global.GWAF_RUNTIME_NEW_VERSION_DESC)
 			global.GWAF_CHAN_UPDATE <- 1
 			//发送websocket 推送消息
 			global.GQEQUE_MESSAGE_DB.PushBack(innerbean.UpdateResultMessageInfo{

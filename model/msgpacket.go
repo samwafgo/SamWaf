@@ -1,6 +1,7 @@
 package model
 
 type MsgPacket struct {
+	Code                string      `json:"code"`
 	MessageId           string      `json:"message_id"`
 	MessageType         string      `json:"message_type"`
 	MessageData         string      `json:"message_data"`

@@ -16,7 +16,6 @@ import (
 	"fmt"
 	dlp "github.com/bytedance/godlp"
 	"github.com/go-co-op/gocron"
-	Wssocket "github.com/gorilla/websocket"
 	"github.com/kardianos/service"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
@@ -114,7 +113,7 @@ func (m *wafSystenService) run() {
 	}()
 
 	//启动websocket
-	global.GWebSocket = map[string]*Wssocket.Conn{}
+	global.GWebSocket = model.InitWafWebSocket()
 	//定时取规则并更新（考虑后期定时拉取公共规则 待定，可能会影响实际生产）
 
 	//定时器 （后期考虑是否独立包处理）
@@ -126,7 +125,11 @@ func (m *wafSystenService) run() {
 		zlog.Debug("i am alive")
 		go waftask.TaskCounter()
 	})
+	// 获取延迟信息
+	s.Every(1).Minutes().Do(func() {
+		go waftask.TaskDelayInfo()
 
+	})
 	// 获取参数
 	s.Every(1).Minutes().Do(func() {
 		go waftask.TaskLoadSetting()

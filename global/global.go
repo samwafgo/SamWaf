@@ -68,7 +68,7 @@ var (
 	GCONFIG_RECORD_RESP                int64 = 0        // 是否记录响应记录 record_resp
 
 	//升级相关
-	GUPDATE_VERSION_URL string = "http://127.0.0.1:81/" //https://update.samwaf.com/
+	GUPDATE_VERSION_URL string = "https://update.samwaf.com/" //
 )
 
 func GetCurrentVersionInt() int {

@@ -15,7 +15,7 @@
       </template>
       <menu-content :navData="menu" />
       <template #operations>
-        <span class="version-container"> {{ !collapsed && '网站安全' }} {{ getversion.version_name  }}
+        <span class="version-container"> {{ !collapsed && '' }} {{ getversion.version_name  }}({{ getversion.version  }})
         <span v-if="getversion.version_release=='false'" style="color:red"> 调试</span></span>
       </template>
     </t-menu>

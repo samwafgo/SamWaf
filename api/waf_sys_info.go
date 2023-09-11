@@ -47,7 +47,8 @@ func (w *WafSysInfoApi) CheckVersionApi(c *gin.Context) {
 			VersionNew:     newVer,
 			VersionDesc:    desc,
 		}, "有新版本", c)
-
+		/*wafDelayMsgService.Add("升级结果", "升级结果", "升级成功，当前版本为："+global.GWAF_RUNTIME_NEW_VERSION+" 版本说明:"+global.GWAF_RUNTIME_NEW_VERSION_DESC)
+		waftask.TaskDelayInfo()*/
 	} else {
 		response.FailWithMessage("没有最新版本", c)
 		return
@@ -71,8 +72,8 @@ func (w *WafSysInfoApi) UpdateApi(c *gin.Context) {
 			global.GWAF_CHAN_UPDATE <- 1
 			//发送websocket 推送消息
 			global.GQEQUE_MESSAGE_DB.PushBack(innerbean.UpdateResultMessageInfo{
-				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "升级结果", Server: global.GWAF_CUSTOM_SERVER_NAME},
-				Msg:             "升级成功",
+				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "系统即将重启", Server: global.GWAF_CUSTOM_SERVER_NAME},
+				Msg:             "升级成功，等待重启",
 				Success:         "true",
 			})
 		},

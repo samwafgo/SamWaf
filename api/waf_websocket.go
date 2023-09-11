@@ -2,7 +2,9 @@ package api
 
 import (
 	"SamWaf/global"
+	"SamWaf/model"
 	"SamWaf/utils/zlog"
+	"encoding/json"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"net/http"
@@ -30,8 +32,12 @@ func (w *WafWebSocketApi) WebSocketMessageApi(c *gin.Context) {
 	}
 	if tokenInfo.LoginAccount == "" {
 		//写入ws数据
-		err = ws.WriteMessage(1, []byte("授权失败"))
-		zlog.Info("无鉴权信息，请检查")
+		msgBytes, _ := json.Marshal(model.MsgPacket{
+			MsgCode:    "-999",
+			MsgCmdType: "Info",
+		})
+		err = ws.WriteMessage(1, msgBytes)
+		zlog.Debug("无鉴权信息，请检查")
 		return
 	}
 	global.GWebSocket.SetWebSocket(tokenInfo.TenantId+tokenInfo.UserCode+tokenInfo.LoginAccount, ws)

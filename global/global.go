@@ -6,7 +6,6 @@ import (
 	"SamWaf/model/spec"
 	"github.com/bytedance/godlp/dlpheader"
 	Dequelib "github.com/edwingeng/deque"
-	Wssocket "github.com/gorilla/websocket"
 	"gorm.io/gorm"
 	"strconv"
 	"time"
@@ -61,7 +60,7 @@ var (
 	GQEQUE_MESSAGE_DB Dequelib.Deque //发送消息队列
 
 	/******WebSocket*********/
-	GWebSocket map[string]*Wssocket.Conn
+	GWebSocket *model.WebSocketOnline
 
 	/******记录参数配置****************/
 	GCONFIG_RECORD_MAX_BODY_LENGTH     int64 = 1024 * 2 //限制记录最大请求的body长度 record_max_req_body_length

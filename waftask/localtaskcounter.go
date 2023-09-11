@@ -313,10 +313,11 @@ func TaskDelayInfo() {
 				msg := models[i]
 				sendSuccess := 0
 				//发送websocket
-				for _, ws := range global.GWebSocket {
+				for _, ws := range global.GWebSocket.SocketMap {
 					if ws != nil {
 						//写入ws数据
 						msgBytes, err := json.Marshal(model.MsgPacket{
+							Code:                "成功",
 							MessageId:           uuid.NewV4().String(),
 							MessageType:         msg.DelayType,
 							MessageData:         msg.DelayContent,

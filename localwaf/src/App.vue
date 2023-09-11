@@ -56,7 +56,11 @@ export default Vue.extend({
         this.initWebSocket();
       },
       wsOnMessage(e) {
-        if(e.data != '连接成功') {
+        if(e.data == '授权失败'){
+           
+          localStorage.clear();     //删除用户信息
+          console.log("鉴权失败")
+        }else  if(e.data != '连接成功') {
           console.log(e.data,'接口返回信息')
            this.$store.commit('notification/addMsgData', JSON.parse(e.data));
         }

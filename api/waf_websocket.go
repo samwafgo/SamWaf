@@ -21,26 +21,32 @@ func (w *WafWebSocketApi) WebSocketMessageApi(c *gin.Context) {
 	//获取用户账号：
 	tokenStr := c.GetHeader("Sec-WebSocket-Protocol")
 	tokenInfo := wafTokenInfoService.GetInfoByAccessToken(tokenStr)
-	if tokenInfo.LoginAccount == "" {
-		return
-	}
+
 	//升级get请求为webSocket协议
 	ws, err := upGrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
+		zlog.Error("websocketinit", err)
 		return
 	}
-	if global.GWebSocket[tokenInfo.TenantId+tokenInfo.UserCode+tokenInfo.LoginAccount] == nil {
-		global.GWebSocket[tokenInfo.TenantId+tokenInfo.UserCode+tokenInfo.LoginAccount] = ws
+	if tokenInfo.LoginAccount == "" {
+		//写入ws数据
+		err = ws.WriteMessage(1, []byte("授权失败"))
+		zlog.Info("无鉴权信息，请检查")
+		return
 	}
+	global.GWebSocket.SetWebSocket(tokenInfo.TenantId+tokenInfo.UserCode+tokenInfo.LoginAccount, ws)
 
 	defer func() {
-		global.GWebSocket[tokenInfo.TenantId+tokenInfo.UserCode+tokenInfo.LoginAccount].Close()
-		global.GWebSocket[tokenInfo.TenantId+tokenInfo.UserCode+tokenInfo.LoginAccount] = nil
+		websocket := global.GWebSocket.GetWebSocket(tokenInfo.TenantId + tokenInfo.UserCode + tokenInfo.LoginAccount)
+		if websocket != nil {
+			websocket.Close()
+			global.GWebSocket.DelWebSocket(tokenInfo.TenantId + tokenInfo.UserCode + tokenInfo.LoginAccount)
+		}
 	}()
 
 	for {
 		//读取ws中的数据
-		mt, message, err := global.GWebSocket[tokenInfo.TenantId+tokenInfo.UserCode+tokenInfo.LoginAccount].ReadMessage()
+		mt, message, err := global.GWebSocket.GetWebSocket(tokenInfo.TenantId + tokenInfo.UserCode + tokenInfo.LoginAccount).ReadMessage()
 		if err != nil {
 			break
 		}
@@ -49,7 +55,7 @@ func (w *WafWebSocketApi) WebSocketMessageApi(c *gin.Context) {
 			message = []byte("pong")
 		}
 		//写入ws数据
-		err = global.GWebSocket[tokenInfo.TenantId+tokenInfo.UserCode+tokenInfo.LoginAccount].WriteMessage(mt, message)
+		err = global.GWebSocket.GetWebSocket(tokenInfo.TenantId+tokenInfo.UserCode+tokenInfo.LoginAccount).WriteMessage(mt, message)
 		if err != nil {
 			break
 		}

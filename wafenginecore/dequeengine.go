@@ -72,10 +72,11 @@ func ProcessDequeEngine() {
 				}
 				if rulemessage.BaseMessageInfo.OperaType == "命中保护规则" {
 					//发送websocket
-					for _, ws := range global.GWebSocket {
+					for _, ws := range global.GWebSocket.SocketMap {
 						if ws != nil {
 							//写入ws数据
 							msgBytes, err := json.Marshal(model.MsgPacket{
+								Code:                "成功",
 								MessageId:           uuid.NewV4().String(),
 								MessageType:         "命中保护规则",
 								MessageData:         rulemessage.RuleInfo + rulemessage.Ip,
@@ -99,7 +100,7 @@ func ProcessDequeEngine() {
 				//升级结果
 				updatemessage := messageinfo.(innerbean.UpdateResultMessageInfo)
 				//发送websocket
-				for _, ws := range global.GWebSocket {
+				for _, ws := range global.GWebSocket.SocketMap {
 					if ws != nil {
 						//写入ws数据
 						msgBytes, err := json.Marshal(model.MsgPacket{

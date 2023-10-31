@@ -25,7 +25,8 @@ func (receiver *WafTokenInfoService) AddApi(loginAccount string, AccessToken str
 		LastUpdateTime: time.Now(),
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
-	return bean
+	mod := receiver.GetInfoByLoginAccount(loginAccount)
+	return &mod
 }
 
 func (receiver *WafTokenInfoService) CheckIsExistByLoginAccountApi(loginAccount string) error {

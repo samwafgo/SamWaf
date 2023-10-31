@@ -96,9 +96,16 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		header, _ := json.Marshal(r.Header)
 		region := utils.GetCountry(ipAndPort[0])
 		currentDay, _ := strconv.Atoi(time.Now().Format("20060102"))
+
+		//URL 解码
+		enEscapeUrl, _urlEscapeOk := url.QueryUnescape(r.RequestURI)
+		if _urlEscapeOk != nil {
+			enEscapeUrl = r.RequestURI
+		}
+
 		weblogbean := innerbean.WebLog{
 			HOST:           host,
-			URL:            r.RequestURI,
+			URL:            enEscapeUrl,
 			REFERER:        r.Referer(),
 			USER_AGENT:     r.UserAgent(),
 			METHOD:         r.Method,

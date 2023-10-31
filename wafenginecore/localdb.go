@@ -6,6 +6,8 @@ import (
 	"SamWaf/model"
 	"SamWaf/utils"
 	"SamWaf/utils/zlog"
+	"github.com/kangarooxin/gorm-plugin-crypto"
+	"github.com/kangarooxin/gorm-plugin-crypto/strategy"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -21,6 +23,9 @@ func InitDb(currentDir string) {
 			panic("failed to connect database")
 		}
 		global.GWAF_LOCAL_DB = db
+		db.Use(crypto.NewCryptoPlugin())
+		// 注册默认的AES加解密策略
+		crypto.RegisterCryptoStrategy(strategy.NewAesCryptoStrategy("3Y)(27EtO^tK8Bj~"))
 		// Migrate the schema
 		db.AutoMigrate(&model.Hosts{})
 		db.AutoMigrate(&model.Rules{})
@@ -62,6 +67,9 @@ func InitDb(currentDir string) {
 			panic("failed to connect database")
 		}
 		global.GWAF_LOCAL_LOG_DB = logDB
+		logDB.Use(crypto.NewCryptoPlugin())
+		// 注册默认的AES加解密策略
+		crypto.RegisterCryptoStrategy(strategy.NewAesCryptoStrategy("3Y)(27EtO^tK8Bj~"))
 		// Migrate the schema
 		//统计处理
 		logDB.AutoMigrate(&model.StatsTotal{})

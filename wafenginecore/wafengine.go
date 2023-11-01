@@ -269,7 +269,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				//检测扫描工具
 				var scanFlag = false
 				if libinjection.IsScan(weblogbean) {
-					scanFlag = false
+					scanFlag = true
 				}
 				if scanFlag == true {
 					EchoErrorInfo(w, r, weblogbean, "扫描工具", "请正确访问")

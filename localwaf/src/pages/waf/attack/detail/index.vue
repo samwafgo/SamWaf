@@ -93,7 +93,11 @@
         <t-list-item >
           <t-list-item-meta title="请求BODY" ></t-list-item-meta>
         </t-list-item>
-        <t-textarea v-model="detail_data.body" :autosize="{ minRows: 3, maxRows: 5 }" readonly @blur="handleMouseSelect('body')"/>
+        <t-textarea v-model="detail_data.body" :autosize="{ minRows: 3, maxRows: 5 }" readonly @blur="handleMouseSelect('body')"/> 
+        <t-list-item >
+          <t-list-item-meta title="请求Form" ></t-list-item-meta>
+        </t-list-item>
+        <t-textarea v-model="detail_data.post_form" :autosize="{ minRows: 3, maxRows: 5 }" readonly /> 
       </t-list>
     </t-card>
     <t-card title="响应数据">

@@ -44,7 +44,7 @@
                       placeholder="请选择防御状态" :style="{ width: '100px' }"
                     />
                   </t-form-item>
-                </t-col> 
+                </t-col>
                 <t-col :flex="1">
                   <t-form-item label="响应码" name="status_code">
                     <t-input
@@ -171,13 +171,7 @@ export default Vue.extend({
           width: 60,
           ellipsis: true,
           colKey: 'action',
-        },
-        {
-          title: '响应码',
-          width: 60,
-          ellipsis: false,
-          colKey: 'status_code',
-        },
+        }, 
         {
           title: '触发规则',
           align: 'left',
@@ -194,7 +188,7 @@ export default Vue.extend({
         {
           title: '域名',
           align: 'left',
-          width: 250,
+          width: 150,
           ellipsis: true,
           colKey: 'host',
         },
@@ -213,7 +207,7 @@ export default Vue.extend({
         },
         {
           title: '访问url',
-          width: 200,
+          width: 300,
           ellipsis: true,
           colKey: 'url',
         },

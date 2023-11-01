@@ -899,3 +899,12 @@ func IsSQLi(input string) (bool, string) {
 	}
 	return result, ""
 }
+func IsSQLiNotReturnPrint(input string) bool {
+	state := new(sqliState)
+	sqliInit(state, input, 0)
+	result := state.check()
+	if result {
+		return result
+	}
+	return result
+}

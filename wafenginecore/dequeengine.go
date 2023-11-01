@@ -44,7 +44,24 @@ func ProcessDequeEngine() {
 		for !global.GQEQUE_LOG_DB.Empty() {
 			weblogbean := global.GQEQUE_LOG_DB.PopFront()
 			if weblogbean != nil {
-				global.GWAF_LOCAL_LOG_DB.Create(weblogbean)
+				// 进行类型断言将其转为具体的结构
+				if logValue, ok := weblogbean.(innerbean.WebLog); ok {
+					// 类型断言成功
+					// myValue 现在是具体的 MyStruct 类型
+					if logValue.WafInnerDFlag == "update" {
+						logMap := map[string]interface{}{
+							"STATUS":      logValue.STATUS,
+							"STATUS_CODE": logValue.STATUS_CODE,
+							"RES_BODY":    logValue.RES_BODY,
+							"ACTION":      logValue.ACTION,
+						}
+						global.GWAF_LOCAL_LOG_DB.Model(innerbean.WebLog{}).Where("req_uuid=?", logValue.REQ_UUID).Updates(logMap)
+
+					} else {
+						global.GWAF_LOCAL_LOG_DB.Create(weblogbean)
+					}
+				}
+
 			}
 		}
 

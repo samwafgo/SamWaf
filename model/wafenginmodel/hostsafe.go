@@ -4,14 +4,14 @@ import (
 	"SamWaf/model"
 	"SamWaf/plugin"
 	"SamWaf/utils"
-	"net/http/httputil"
+	"SamWaf/wafproxy"
 	"sync"
 )
 
 // 主机安全配置
 type HostSafe struct {
 	Mux                 sync.Mutex //互斥锁
-	RevProxy            *httputil.ReverseProxy
+	RevProxy            *wafproxy.ReverseProxy
 	Rule                *utils.RuleHelper
 	TargetHost          string
 	RuleData            []model.Rules

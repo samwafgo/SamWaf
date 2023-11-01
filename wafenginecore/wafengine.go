@@ -9,6 +9,7 @@ import (
 	"SamWaf/plugin"
 	"SamWaf/utils"
 	"SamWaf/utils/zlog"
+	"SamWaf/wafproxy"
 	"bufio"
 	"bytes"
 	"compress/flate"
@@ -30,7 +31,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/http/httputil"
 	_ "net/http/pprof"
 	"net/url"
 	"strconv"
@@ -126,8 +126,21 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			RULE:           "",
 			ACTION:         "通过",
 			Day:            currentDay,
+			POST_FORM:      r.PostForm.Encode(),
 		}
 
+		formValues := url.Values{}
+		if strings.Contains(r.Header.Get("Content-Type"), "application/x-www-form-urlencoded") {
+			// 解码 x-www-form-urlencoded 数据
+			formValuest, err := url.ParseQuery(weblogbean.BODY)
+			if err != nil {
+				fmt.Println("解码失败:", err)
+			} else {
+				formValues = formValuest
+			}
+		}
+
+		r.Header.Add("waf_req_uuid", weblogbean.REQ_UUID)
 		if waf.HostTarget[host].Host.GUARD_STATUS == 1 {
 			var jumpGuardFlag = false
 			//ip白名单策略（局部）
@@ -211,15 +224,22 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if jumpGuardFlag == false {
+
 				var sqlFlag = false
 				//检测sql注入
-				sqliResult, _ := libinjection.IsSQLi(weblogbean.URL)
-				if sqliResult {
+				if libinjection.IsSQLiNotReturnPrint(weblogbean.URL) ||
+					libinjection.IsSQLiNotReturnPrint(weblogbean.BODY) ||
+					libinjection.IsSQLiNotReturnPrint(weblogbean.POST_FORM) {
 					sqlFlag = true
 				}
-				sqliResult, _ = libinjection.IsSQLi(weblogbean.BODY)
-				if sqliResult {
-					sqlFlag = true
+				if sqlFlag == false {
+					for _, value := range formValues {
+						for _, v := range value {
+							if libinjection.IsSQLiNotReturnPrint(v) {
+								sqlFlag = true
+							}
+						}
+					}
 				}
 				if sqlFlag == true {
 					EchoErrorInfo(w, r, weblogbean, "SQL注入", "请正确访问")
@@ -227,15 +247,34 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 				//检测xss注入
 				var xssFlag = false
-				sqlixssResult := libinjection.IsXSS(weblogbean.URL)
-				if sqlixssResult == true {
+				if libinjection.IsXSS(weblogbean.URL) ||
+					libinjection.IsXSS(weblogbean.POST_FORM) {
 					xssFlag = true
+				}
+				if xssFlag == false {
+					for _, value := range formValues {
+						for _, v := range value {
+							if libinjection.IsXSS(v) {
+								xssFlag = true
+							}
+						}
+					}
 				}
 				if xssFlag == true {
 					EchoErrorInfo(w, r, weblogbean, "XSS跨站注入", "请正确访问")
 					return
 				}
 				//检测xss
+
+				//检测扫描工具
+				var scanFlag = false
+				if libinjection.IsScan(weblogbean) {
+					scanFlag = false
+				}
+				if scanFlag == true {
+					EchoErrorInfo(w, r, weblogbean, "扫描工具", "请正确访问")
+					return
+				}
 				// cc 防护 (局部检测 )
 				if waf.HostTarget[host].PluginIpRateLimiter != nil {
 					limiter := waf.HostTarget[host].PluginIpRateLimiter.GetLimiter(weblogbean.SRC_IP)
@@ -298,7 +337,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 		}
-
+		global.GQEQUE_LOG_DB.PushBack(weblogbean)
 		remoteUrl, err := url.Parse(target.TargetHost)
 		if err != nil {
 			zlog.Debug("target parse fail:", zap.Any("", err))
@@ -337,7 +376,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					return dialer.DialContext(ctx, network, addr)
 				},
 			}
-			proxy := httputil.NewSingleHostReverseProxy(remoteUrl)
+			proxy := wafproxy.NewSingleHostReverseProxy(remoteUrl)
 			proxy.Transport = transport
 			proxy.ModifyResponse = waf.modifyResponse()
 			proxy.ErrorHandler = errorHandler()
@@ -438,49 +477,14 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 		resp.Header.Set("Server", "SamWAFServer")
 		r := resp.Request
 		//开始准备req数据
-		//获取请求报文的内容长度
-		contentLength := r.ContentLength
+		reqUUid := r.Header.Get("Waf_req_uuid")
 
-		//server_online[8081].Svr.Close()
-		var bodyByte []byte
-
-		// 拷贝一份request的Body ,控制不记录大文件的情况 ，先写死的
-		if r.Body != nil && r.Body != http.NoBody && contentLength < (global.GCONFIG_RECORD_MAX_BODY_LENGTH) {
-			bodyByte, _ = io.ReadAll(r.Body)
-			// 把刚刚读出来的再写进去，不然后面解析表单数据就解析不到了
-			r.Body = io.NopCloser(bytes.NewBuffer(bodyByte))
-		}
-		cookies, _ := json.Marshal(r.Cookies())
-		header, _ := json.Marshal(r.Header)
-		// 取出客户IP
-		ipAndPort := strings.Split(r.RemoteAddr, ":")
-		region := utils.GetCountry(ipAndPort[0])
-		currentDay, _ := strconv.Atoi(time.Now().Format("20060102"))
 		weblogbean := innerbean.WebLog{
-			HOST:           r.Host,
-			URL:            r.RequestURI,
-			REFERER:        r.Referer(),
-			USER_AGENT:     r.UserAgent(),
-			METHOD:         r.Method,
-			HEADER:         string(header),
-			COUNTRY:        region[0],
-			PROVINCE:       region[2],
-			CITY:           region[3],
-			SRC_IP:         ipAndPort[0],
-			SRC_PORT:       ipAndPort[1],
-			CREATE_TIME:    time.Now().Format("2006-01-02 15:04:05"),
-			CONTENT_LENGTH: contentLength,
-			COOKIES:        string(cookies),
-			BODY:           string(bodyByte),
-			REQ_UUID:       uuid.NewV4().String(),
-			USER_CODE:      global.GWAF_USER_CODE,
-			HOST_CODE:      "",
-			TenantId:       global.GWAF_TENANT_ID,
-			RULE:           "",
-			ACTION:         "通过",
-			Day:            currentDay,
-			STATUS:         resp.Status,
-			STATUS_CODE:    resp.StatusCode,
+			REQ_UUID:      reqUUid,
+			ACTION:        "通过",
+			STATUS:        resp.Status,
+			STATUS_CODE:   resp.StatusCode,
+			WafInnerDFlag: "update",
 		}
 
 		host := resp.Request.Host
@@ -490,7 +494,6 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 		if waf.HostTarget[host] != nil {
 			weblogbean.HOST_CODE = waf.HostTarget[host].Host.Code
 		}
-		zlog.Debug("%s %s", resp.Request.Host, resp.Request.RequestURI)
 		ldpFlag := false
 		//隐私保护（局部）
 		for i := 0; i < len(waf.HostTarget[host].LdpUrlLists); i++ {

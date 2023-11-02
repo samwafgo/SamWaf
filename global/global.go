@@ -4,6 +4,7 @@ import (
 	"SamWaf/cache"
 	"SamWaf/model"
 	"SamWaf/model/spec"
+	"SamWaf/wafsnowflake"
 	"github.com/bytedance/godlp/dlpheader"
 	Dequelib "github.com/edwingeng/deque"
 	"gorm.io/gorm"
@@ -69,6 +70,8 @@ var (
 
 	//升级相关
 	GUPDATE_VERSION_URL string = "https://update.samwaf.com/" //
+
+	GWAF_SNOWFLAKE_GEN *wafsnowflake.Snowflake //雪花算法
 )
 
 func GetCurrentVersionInt() int {

@@ -28,12 +28,7 @@ func InitDequeEngine() {
 */
 func ProcessDequeEngine() {
 	for {
-		defer func() {
-			e := recover()
-			if e != nil {
-				zlog.Info("ProcessErrorException", e)
-			}
-		}()
+
 		for !global.GQEQUE_DB.Empty() {
 			weblogbean := global.GQEQUE_DB.PopFront()
 			if weblogbean != nil {

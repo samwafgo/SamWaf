@@ -25,10 +25,12 @@ type WebLog struct {
 	Day            int    `json:"day"`       //日 （主要键）
 	ACTION         string `json:"action"`
 	RULE           string `json:"rule"`
-	STATUS         string `json:"status"`      //状态
-	STATUS_CODE    int    `json:"status_code"` //状态编码
-	RES_BODY       string `json:"res_body"`    //返回信息
-	POST_FORM      string `json:"post_form"`   //提交的表单数据
+	STATUS         string `json:"status"`                      //状态
+	STATUS_CODE    int    `json:"status_code"`                 //状态编码
+	RES_BODY       string `json:"res_body"`                    //返回信息
+	POST_FORM      string `json:"post_form"`                   //提交的表单数据
+	TASK_FLAG      int    `json:"task_flag" gorm:"default:-1"` //任务处理标记 -1 等待处理 ；1 可以进行处理 （定时任务处理），2 处理完毕
+	UNIX_ADD_TIME  int64  `json:"unix_add_time"`               //添加日期unix
 }
 type WAFLog struct {
 	REQ_UUID    string `json:"req_uuid"`

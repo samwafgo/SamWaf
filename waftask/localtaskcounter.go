@@ -66,11 +66,13 @@ func TaskCounter() {
 	currenyDayBak := dateTime*/
 
 	currenyDayBak := time.Now()
+	currentDayBak3Second := currenyDayBak.Add(-3 * time.Second)
+	currenyDayMillisecondsBak := currentDayBak3Second.UnixNano() / 1e6 //倒查3秒
 	//一、 主机聚合统计
 	{
 		var resultHosts []CountHostResult
-		global.GWAF_LOCAL_LOG_DB.Raw("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host FROM \"web_logs\" where create_time>? GROUP BY host_code, user_code,action,tenant_id,day,host",
-			global.GWAF_LAST_UPDATE_TIME.Format("2006-01-02 15:04:05")).Scan(&resultHosts)
+		global.GWAF_LOCAL_LOG_DB.Raw("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host FROM \"web_logs\" where task_flag = ?  and unix_add_time <= ? GROUP BY host_code, user_code,action,tenant_id,day,host",
+			1, currenyDayMillisecondsBak).Scan(&resultHosts)
 		/****
 		1.如果不存在则创建
 		2.如果存在则累加这个周期的统计数
@@ -108,8 +110,8 @@ func TaskCounter() {
 	//二、 IP聚合统计
 	{
 		var resultIP []CountIPResult
-		global.GWAF_LOCAL_LOG_DB.Raw("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host,src_ip as ip FROM \"web_logs\" where create_time>? GROUP BY host_code, user_code,action,tenant_id,day,host,ip",
-			global.GWAF_LAST_UPDATE_TIME.Format("2006-01-02 15:04:05")).Scan(&resultIP)
+		global.GWAF_LOCAL_LOG_DB.Raw("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host,src_ip as ip FROM \"web_logs\" where task_flag = ?  and unix_add_time <= ?  GROUP BY host_code, user_code,action,tenant_id,day,host,ip",
+			1, currenyDayMillisecondsBak).Scan(&resultIP)
 		/****
 		1.如果不存在则创建
 		2.如果存在则累加这个周期的统计数
@@ -148,8 +150,8 @@ func TaskCounter() {
 	//三、 城市信息聚合统计
 	{
 		var resultCitys []CountCityResult
-		global.GWAF_LOCAL_LOG_DB.Raw("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host,country,province,city  FROM \"web_logs\" where create_time>? GROUP BY host_code, user_code,action,tenant_id,day,host,country,province,city",
-			global.GWAF_LAST_UPDATE_TIME.Format("2006-01-02 15:04:05")).Scan(&resultCitys)
+		global.GWAF_LOCAL_LOG_DB.Raw("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host,country,province,city  FROM \"web_logs\" where task_flag = ?  and unix_add_time <= ? GROUP BY host_code, user_code,action,tenant_id,day,host,country,province,city",
+			1, currenyDayMillisecondsBak).Scan(&resultCitys)
 		/****
 		1.如果不存在则创建
 		2.如果存在则累加这个周期的统计数

@@ -11,6 +11,7 @@ import (
 	"SamWaf/utils"
 	"SamWaf/utils/zlog"
 	"SamWaf/wafenginecore"
+	"SamWaf/wafsnowflake"
 	"SamWaf/waftask"
 	"crypto/tls"
 	"fmt"
@@ -50,6 +51,9 @@ func (m *wafSystenService) run() {
 	fmt.Println("Service is running...")
 	//初始化cache
 	global.GCACHE_WAFCACHE = cache.InitWafCache()
+	// 创建 Snowflake 实例
+	global.GWAF_SNOWFLAKE_GEN = wafsnowflake.NewSnowflake(1609459200000, 1, 1) // 设置epoch时间、机器ID和数据中心ID
+
 	rversion := "初始化系统 版本号：" + global.GWAF_RELEASE_VERSION_NAME + "(" + global.GWAF_RELEASE_VERSION + ")"
 	if global.GWAF_RELEASE == "false" {
 		rversion = rversion + " 调试版本"
@@ -90,6 +94,14 @@ func (m *wafSystenService) run() {
 	wafenginecore.InitDequeEngine()
 	//启动队列消费
 	go func() {
+		defer func() {
+			e := recover()
+			if e != nil {
+				zlog.Info("ProcessErrorException", e)
+				time.Sleep(3 * time.Second)
+				wafenginecore.ProcessDequeEngine()
+			}
+		}()
 		wafenginecore.ProcessDequeEngine()
 	}()
 

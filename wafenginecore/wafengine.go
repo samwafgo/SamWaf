@@ -102,7 +102,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if _urlEscapeOk != nil {
 			enEscapeUrl = r.RequestURI
 		}
-
+		datetimeNow := time.Now()
 		weblogbean := innerbean.WebLog{
 			HOST:           host,
 			URL:            enEscapeUrl,
@@ -115,7 +115,8 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			CITY:           region[3],
 			SRC_IP:         ipAndPort[0],
 			SRC_PORT:       ipAndPort[1],
-			CREATE_TIME:    time.Now().Format("2006-01-02 15:04:05"),
+			CREATE_TIME:    datetimeNow.Format("2006-01-02 15:04:05"),
+			UNIX_ADD_TIME:  datetimeNow.UnixNano() / 1e6,
 			CONTENT_LENGTH: contentLength,
 			COOKIES:        string(cookies),
 			BODY:           string(bodyByte),
@@ -127,6 +128,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			ACTION:         "通过",
 			Day:            currentDay,
 			POST_FORM:      r.PostForm.Encode(),
+			TASK_FLAG:      -1,
 		}
 
 		formValues := url.Values{}
@@ -404,7 +406,9 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// 取出客户IP
 		ipAndPort := strings.Split(r.RemoteAddr, ":")
 		region := utils.GetCountry(ipAndPort[0])
-		currentDay, _ := strconv.Atoi(time.Now().Format("20060102"))
+		datetimeNow := time.Now()
+
+		currentDay, _ := strconv.Atoi(datetimeNow.Format("20060102"))
 		weblogbean := innerbean.WebLog{
 			HOST:           r.Host,
 			URL:            r.RequestURI,
@@ -417,7 +421,8 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			CITY:           region[3],
 			SRC_IP:         ipAndPort[0],
 			SRC_PORT:       ipAndPort[1],
-			CREATE_TIME:    time.Now().Format("2006-01-02 15:04:05"),
+			CREATE_TIME:    datetimeNow.Format("2006-01-02 15:04:05"),
+			UNIX_ADD_TIME:  datetimeNow.UnixNano() / 1e6,
 			CONTENT_LENGTH: contentLength,
 			COOKIES:        string(cookies),
 			BODY:           string(bodyByte),
@@ -430,6 +435,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Day:            currentDay,
 			STATUS:         "禁止访问",
 			STATUS_CODE:    403,
+			TASK_FLAG:      1,
 		}
 
 		//记录响应body
@@ -460,6 +466,7 @@ func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean innerbean.
 	weblogbean.ACTION = "阻止"
 	weblogbean.STATUS = "阻止访问"
 	weblogbean.STATUS_CODE = 403
+	weblogbean.TASK_FLAG = 1
 	global.GQEQUE_LOG_DB.PushBack(weblogbean)
 
 	zlog.Debug(ruleName)
@@ -591,6 +598,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 			weblogbean.ACTION = "放行"
 			weblogbean.STATUS = resp.Status
 			weblogbean.STATUS_CODE = resp.StatusCode
+			weblogbean.TASK_FLAG = 1
 			global.GQEQUE_LOG_DB.PushBack(weblogbean)
 		}
 

@@ -27,6 +27,7 @@ func InitDequeEngine() {
 处理队列信息
 */
 func ProcessDequeEngine() {
+	zlog.Info("ProcessDequeEngine start")
 	for {
 
 		for !global.GQEQUE_DB.Empty() {
@@ -41,6 +42,7 @@ func ProcessDequeEngine() {
 			if weblogbean != nil {
 				// 进行类型断言将其转为具体的结构
 				if logValue, ok := weblogbean.(innerbean.WebLog); ok {
+
 					// 类型断言成功
 					// myValue 现在是具体的 MyStruct 类型
 					if logValue.WafInnerDFlag == "update" {
@@ -53,8 +55,11 @@ func ProcessDequeEngine() {
 						global.GWAF_LOCAL_LOG_DB.Model(innerbean.WebLog{}).Where("req_uuid=?", logValue.REQ_UUID).Updates(logMap)
 
 					} else {
-						global.GWAF_LOCAL_LOG_DB.Create(weblogbean)
+						global.GWAF_LOCAL_LOG_DB.Create(logValue)
 					}
+				} else {
+					//插入其他类型内容
+					global.GWAF_LOCAL_LOG_DB.Create(weblogbean)
 				}
 
 			}

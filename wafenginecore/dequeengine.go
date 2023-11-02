@@ -51,6 +51,7 @@ func ProcessDequeEngine() {
 							"STATUS_CODE": logValue.STATUS_CODE,
 							"RES_BODY":    logValue.RES_BODY,
 							"ACTION":      logValue.ACTION,
+							"TASK_FLAG":   logValue.TASK_FLAG,
 						}
 						global.GWAF_LOCAL_LOG_DB.Model(innerbean.WebLog{}).Where("req_uuid=?", logValue.REQ_UUID).Updates(logMap)
 

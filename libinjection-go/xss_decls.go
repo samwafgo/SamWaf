@@ -30,7 +30,7 @@ var blackTags = []string{
 	"NOSCRIPT",
 	"OBJECT",
 	"SCRIPT",
-	"STYLE",
+	//"STYLE",
 	"VMLFRAME",
 	"XML",
 	"XSS",
@@ -56,7 +56,7 @@ var blacks = []stringType{
 	{"LOWSRC", attributeTypeAttrURL}, // Obsolete img attribute
 	{"POSTER", attributeTypeAttrURL}, // Opera 10,11
 	{"SRC", attributeTypeAttrURL},
-	{"STYLE", attributeTypeStyle},
+	//{"STYLE", attributeTypeStyle},
 	{"TO", attributeTypeAttrURL},     // SVG
 	{"VALUES", attributeTypeAttrURL}, // SVG
 	{"XLINK:HREF", attributeTypeAttrURL},

@@ -257,7 +257,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					for _, value := range formValues {
 						for _, v := range value {
 							if libinjection.IsXSS(v) {
-								xssFlag = true
+								//xssFlag = true
 							}
 						}
 					}
@@ -482,6 +482,9 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 	return func(resp *http.Response) error {
 		resp.Header.Set("WAF", "SamWAF")
 		resp.Header.Set("Server", "SamWAFServer")
+		resp.Header.Set("X-Xss-Protection", "1; mode=block")
+
+		//X-Xss-Protection:
 		r := resp.Request
 		//开始准备req数据
 		reqUUid := r.Header.Get("Waf_req_uuid")

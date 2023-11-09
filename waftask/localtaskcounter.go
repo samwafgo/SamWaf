@@ -79,7 +79,7 @@ func TaskCounter() {
 		*/
 		for _, value := range resultHosts {
 			var statDay model.StatsDay
-			global.GWAF_LOCAL_LOG_DB.Where("tenant_id = ? and user_code = ? and host_code=? and type=? and day=?",
+			global.GWAF_LOCAL_STATS_DB.Where("tenant_id = ? and user_code = ? and host_code=? and type=? and day=?",
 				value.TenantId, value.UserCode, value.HostCode, value.ACTION, value.Day).Find(&statDay)
 
 			if statDay.HostCode == "" {
@@ -94,15 +94,19 @@ func TaskCounter() {
 					CreateTime:     time.Now(),
 					LastUpdateTime: time.Now(),
 				}
-				global.GQEQUE_LOG_DB.PushBack(statDay2)
+				global.GQEQUE_STATS_DB.PushBack(statDay2)
 			} else {
 				statDayMap := map[string]interface{}{
 					"Count":            value.Count + statDay.Count,
 					"last_update_time": currenyDayBak,
 				}
-
-				global.GWAF_LOCAL_LOG_DB.Model(model.StatsDay{}).Where("tenant_id = ? and user_code= ? and host_code=? and type=? and day=?",
-					value.TenantId, value.UserCode, value.HostCode, value.ACTION, value.Day).Updates(statDayMap)
+				updateBean := innerbean.UpdateModel{
+					Model:  model.StatsDay{},
+					Query:  `tenant_id = ? and user_code= ? and host_code=? and type=? and day=?`,
+					Update: statDayMap,
+				}
+				updateBean.Args = append(updateBean.Args, value.TenantId, value.UserCode, value.HostCode, value.ACTION, value.Day)
+				global.GQEQUE_STATS_UPDATE_DB.PushBack(updateBean)
 			}
 		}
 	}
@@ -118,7 +122,7 @@ func TaskCounter() {
 		*/
 		for _, value := range resultIP {
 			var statDay model.StatsIPDay
-			global.GWAF_LOCAL_LOG_DB.Where("tenant_id = ? and user_code = ? and host_code=? and ip = ? and type=? and day=?",
+			global.GWAF_LOCAL_STATS_DB.Where("tenant_id = ? and user_code = ? and host_code=? and ip = ? and type=? and day=?",
 				value.TenantId, value.UserCode, value.HostCode, value.Ip, value.ACTION, value.Day).Find(&statDay)
 
 			if statDay.HostCode == "" {
@@ -134,15 +138,21 @@ func TaskCounter() {
 					CreateTime:     time.Now(),
 					LastUpdateTime: time.Now(),
 				}
-				global.GQEQUE_LOG_DB.PushBack(statDay2)
+				global.GQEQUE_STATS_DB.PushBack(statDay2)
 			} else {
 				statDayMap := map[string]interface{}{
 					"Count":            value.Count + statDay.Count,
 					"last_update_time": currenyDayBak,
 				}
 
-				global.GWAF_LOCAL_LOG_DB.Model(model.StatsIPDay{}).Where("tenant_id = ? and user_code= ? and host_code=? and ip=? and type=? and day=?",
-					value.TenantId, value.UserCode, value.HostCode, value.Ip, value.ACTION, value.Day).Updates(statDayMap)
+				updateBean := innerbean.UpdateModel{
+					Model:  model.StatsIPDay{},
+					Query:  "tenant_id = ? and user_code= ? and host_code=? and ip=? and type=? and day=?",
+					Update: statDayMap,
+				}
+				updateBean.Args = append(updateBean.Args, value.TenantId, value.UserCode, value.HostCode, value.Ip, value.ACTION, value.Day)
+				global.GQEQUE_STATS_UPDATE_DB.PushBack(updateBean)
+
 			}
 		}
 	}
@@ -158,7 +168,7 @@ func TaskCounter() {
 		*/
 		for _, value := range resultCitys {
 			var statDay model.StatsIPCityDay
-			global.GWAF_LOCAL_LOG_DB.Where("tenant_id = ? and user_code = ? and host_code=? and country = ? and province = ? and city = ? and type=? and day=?",
+			global.GWAF_LOCAL_STATS_DB.Where("tenant_id = ? and user_code = ? and host_code=? and country = ? and province = ? and city = ? and type=? and day=?",
 				value.TenantId, value.UserCode, value.HostCode, value.Country, value.Province, value.City, value.ACTION, value.Day).Find(&statDay)
 
 			if statDay.HostCode == "" {
@@ -176,15 +186,21 @@ func TaskCounter() {
 					CreateTime:     time.Now(),
 					LastUpdateTime: time.Now(),
 				}
-				global.GQEQUE_LOG_DB.PushBack(statDay2)
+				global.GQEQUE_STATS_DB.PushBack(statDay2)
 			} else {
 				statDayMap := map[string]interface{}{
 					"Count":            value.Count + statDay.Count,
 					"last_update_time": currenyDayBak,
 				}
 
-				global.GWAF_LOCAL_LOG_DB.Model(model.StatsIPDay{}).Where("tenant_id = ? and user_code= ? and host_code=? and country = ? and province = ? and city = ? and type=? and day=?",
-					value.TenantId, value.UserCode, value.HostCode, value.Country, value.Province, value.City, value.ACTION, value.Day).Updates(statDayMap)
+				updateBean := innerbean.UpdateModel{
+					Model:  model.StatsIPCityDay{},
+					Query:  "tenant_id = ? and user_code= ? and host_code=? and country = ? and province = ? and city = ? and type=? and day=?",
+					Update: statDayMap,
+				}
+				updateBean.Args = append(updateBean.Args, value.TenantId, value.UserCode, value.HostCode, value.Country, value.Province, value.City, value.ACTION, value.Day)
+				global.GQEQUE_STATS_UPDATE_DB.PushBack(updateBean)
+
 			}
 		}
 	}

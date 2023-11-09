@@ -31,6 +31,7 @@ var (
 
 	GWAF_LOCAL_DB             *gorm.DB                       //通用本地数据库，尊重用户隐私
 	GWAF_LOCAL_LOG_DB         *gorm.DB                       //通用本地数据库存日志数据，尊重用户隐私
+	GWAF_LOCAL_STATS_DB       *gorm.DB                       //通用本地数据库存放统计数据，尊重用户隐私
 	GWAF_REMOTE_DB            *gorm.DB                       //仅当用户使用云数据库
 	GWAF_LOCAL_SERVER_PORT    int                 = 26666    // 本地local端口
 	GWAF_USER_CODE            string                         // 当前识别号
@@ -56,9 +57,11 @@ var (
 	GDATA_DELETE_INTERVAL = 100 // 删除100天前的数据
 
 	/****队列相关*****/
-	GQEQUE_DB         Dequelib.Deque //正常DB队列
-	GQEQUE_LOG_DB     Dequelib.Deque //日志DB队列
-	GQEQUE_MESSAGE_DB Dequelib.Deque //发送消息队列
+	GQEQUE_DB              Dequelib.Deque //正常DB队列
+	GQEQUE_LOG_DB          Dequelib.Deque //日志DB队列
+	GQEQUE_STATS_DB        Dequelib.Deque //统计DB队列
+	GQEQUE_STATS_UPDATE_DB Dequelib.Deque //统计更新DB队列
+	GQEQUE_MESSAGE_DB      Dequelib.Deque //发送消息队列
 
 	/******WebSocket*********/
 	GWebSocket *model.WebSocketOnline

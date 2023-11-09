@@ -12,7 +12,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func InitDb(currentDir string) {
+func InitCoreDb(currentDir string) {
 	if currentDir == "" {
 		currentDir = utils.GetCurrentDir()
 	}
@@ -61,21 +61,25 @@ func InitDb(currentDir string) {
 		db.Where("user_code = ? and rule_status = 999", global.GWAF_USER_CODE).Delete(model.Rules{})
 
 	}
+}
+
+func InitLogDb(currentDir string) {
+	if currentDir == "" {
+		currentDir = utils.GetCurrentDir()
+	}
 	if global.GWAF_LOCAL_LOG_DB == nil {
 		logDB, err := gorm.Open(sqlite.Open(currentDir+"/data/local_log.db"), &gorm.Config{})
 		if err != nil {
 			panic("failed to connect database")
 		}
+		// 启用 WAL 模式
+		//_ = logDB.Exec("PRAGMA journal_mode=WAL;")
 		global.GWAF_LOCAL_LOG_DB = logDB
 		//logDB.Use(crypto.NewCryptoPlugin())
 		// 注册默认的AES加解密策略
 		//crypto.RegisterCryptoStrategy(strategy.NewAesCryptoStrategy("3Y)(27EtO^tK8Bj~"))
 		// Migrate the schema
 		//统计处理
-		logDB.AutoMigrate(&model.StatsTotal{})
-		logDB.AutoMigrate(&model.StatsDay{})
-		logDB.AutoMigrate(&model.StatsIPDay{})
-		logDB.AutoMigrate(&model.StatsIPCityDay{})
 		logDB.AutoMigrate(&innerbean.WebLog{})
 		logDB.AutoMigrate(&model.AccountLog{})
 		logDB.AutoMigrate(&model.WafSysLog{})
@@ -84,6 +88,34 @@ func InitDb(currentDir string) {
 
 	}
 }
+
+func InitStatsDb(currentDir string) {
+	if currentDir == "" {
+		currentDir = utils.GetCurrentDir()
+	}
+	if global.GWAF_LOCAL_STATS_DB == nil {
+		db, err := gorm.Open(sqlite.Open(currentDir+"/data/local_stats.db"), &gorm.Config{})
+		if err != nil {
+			panic("failed to connect database")
+		}
+		// 启用 WAL 模式
+		//_ = db.Exec("PRAGMA journal_mode=WAL;")
+		global.GWAF_LOCAL_STATS_DB = db
+		//db.Use(crypto.NewCryptoPlugin())
+		// 注册默认的AES加解密策略
+		//crypto.RegisterCryptoStrategy(strategy.NewAesCryptoStrategy("3Y)(27EtO^tK8Bj~"))
+		// Migrate the schema
+		//统计处理
+		db.AutoMigrate(&model.StatsTotal{})
+		db.AutoMigrate(&model.StatsDay{})
+		db.AutoMigrate(&model.StatsIPDay{})
+		db.AutoMigrate(&model.StatsIPCityDay{})
+		global.GWAF_LOCAL_STATS_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
+		global.GWAF_LOCAL_STATS_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
+
+	}
+}
+
 func before_query(db *gorm.DB) {
 	if global.GWAF_RELEASE == "false" {
 		db.Debug()

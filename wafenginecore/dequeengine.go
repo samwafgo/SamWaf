@@ -19,6 +19,8 @@ import (
 func InitDequeEngine() {
 	global.GQEQUE_DB = deque.NewDeque()
 	global.GQEQUE_LOG_DB = deque.NewDeque()
+	global.GQEQUE_STATS_DB = deque.NewDeque()
+	global.GQEQUE_STATS_UPDATE_DB = deque.NewDeque()
 	global.GQEQUE_MESSAGE_DB = deque.NewDeque()
 }
 
@@ -65,7 +67,18 @@ func ProcessDequeEngine() {
 
 			}
 		}
-
+		for !global.GQEQUE_STATS_DB.Empty() {
+			bean := global.GQEQUE_STATS_DB.PopFront()
+			global.GWAF_LOCAL_STATS_DB.Create(bean)
+		}
+		for !global.GQEQUE_STATS_UPDATE_DB.Empty() {
+			bean := global.GQEQUE_STATS_UPDATE_DB.PopFront()
+			// 进行类型断言将其转为具体的结构
+			if UpdateValue, ok := bean.(innerbean.UpdateModel); ok {
+				global.GWAF_LOCAL_STATS_DB.Model(UpdateValue.Model).Where(UpdateValue.Query,
+					UpdateValue.Args...).Updates(UpdateValue.Update)
+			}
+		}
 		for !global.GQEQUE_MESSAGE_DB.Empty() {
 			messageinfo := global.GQEQUE_MESSAGE_DB.PopFront().(interface{})
 			isCanSend := false

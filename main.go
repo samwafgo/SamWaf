@@ -88,8 +88,9 @@ func (m *wafSystenService) run() {
 	}
 
 	//初始化本地数据库
-	wafenginecore.InitDb("")
-
+	wafenginecore.InitCoreDb("")
+	wafenginecore.InitLogDb("")
+	wafenginecore.InitStatsDb("")
 	//初始化队列引擎
 	wafenginecore.InitDequeEngine()
 	//启动队列消费

@@ -31,8 +31,8 @@ func TestIsXSS(t *testing.T) {
 		"<a href=\"JAVASCRIPT:alert(1);\" >",
 	}
 	examples = []string{
-		//"ertwert<xml>asdf",
-		"<p>1123 <img alt=\"\" src=\"http://dhj-1256682915.file.myqcloud.com/uploads/images/20180724/4f98f2e0eefd1f9eaa9c0ed099592d70.jpg?v=677267\"/></p>",
+		"ertwert<xml>asdf",
+		//"<p>1123 <img alt=\"\" src=\"http://dhj-1256682915.file.myqcloud.com/uploads/images/20180724/4f98f2e0eefd1f9eaa9c0ed099592d70.jpg?v=677267\"/></p>",
 	}
 	for _, example := range examples {
 		if !IsXSS(example) {

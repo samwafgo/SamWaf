@@ -1,3 +1,5 @@
 /vue/
 /release/
 /vue/dist/
+/data/local_log.db
+/data/local_stats.db

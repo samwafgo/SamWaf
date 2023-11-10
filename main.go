@@ -68,8 +68,6 @@ func (m *wafSystenService) run() {
 
 	zlog.Info(rversion)
 
-	global.GWAF_LAST_UPDATE_TIME = time.Now()
-
 	syscall.Setenv("ZONEINFO", utils.GetCurrentDir()+"//data//zoneinfo")
 
 	//守护程序开始
@@ -134,10 +132,14 @@ func (m *wafSystenService) run() {
 	timezone, _ := time.LoadLocation("Asia/Shanghai")
 	s := gocron.NewScheduler(timezone)
 
+	global.GWAF_LAST_UPDATE_TIME = time.Now()
 	// 每10秒执行一次
 	s.Every(10).Seconds().Do(func() {
-		zlog.Debug("i am alive")
-		go waftask.TaskCounter()
+		if global.GWAF_SWITCH_TASK_COUNTER == false {
+			go waftask.TaskCounter()
+		} else {
+			zlog.Debug("统计还没完成，调度任务PASS")
+		}
 	})
 	// 获取延迟信息
 	s.Every(1).Minutes().Do(func() {

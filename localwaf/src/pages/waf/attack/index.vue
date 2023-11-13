@@ -171,7 +171,7 @@ export default Vue.extend({
           width: 60,
           ellipsis: true,
           colKey: 'action',
-        }, 
+        },
         {
           title: '触发规则',
           align: 'left',
@@ -257,9 +257,17 @@ export default Vue.extend({
     },
   },
   mounted() {
+    console.log("attack list mounted ");
     if(this.$route.query.action != null){
         console.log(this.$route.query.action)
         this.searchformData.action = this.$route.query.action
+    }
+    // 判断 vuex 中是否有保存的搜索参数
+
+    if (this.$store.state.attacklog.msgData) {
+      const attack = this.$store.state.attacklog;
+      this.pagination.current = attack.msgData.currentpage; 
+      this.searchformData = attack.msgData.searchData;   // 可以直接取出整个对象
     }
 
     this.loadHostList()
@@ -272,7 +280,16 @@ export default Vue.extend({
       this.getList("")
     },
   },
-
+  beforeRouteLeave(to, from, next) {
+    console.log("attack list beforeRouteLeave ");
+    // vuex 存储操作
+    this.$store.dispatch("attacklog/setAttackMsgData", {
+      //query: this.queryParam,
+      currentpage: this.pagination.current,
+      searchData: this.searchformData,
+    })
+    next();   // 继续后续的导航解析过程
+  },
   methods: {
     loadHostList(){
       let that = this;

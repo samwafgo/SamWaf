@@ -2,6 +2,7 @@ import Vue from 'vue';
 import Vuex from 'vuex';
 import user from './modules/user';
 import notification from './modules/notification';
+import attacklog from './modules/attacklog';
 import version from './modules/versioninfo';
 import setting from './modules/setting';
 import permission from './modules/permission';
@@ -15,9 +16,11 @@ const store = new Vuex.Store({
     user,
     setting,
     notification,
+    attacklog,
     version,
     permission,
     tabRouter,
+    
   },
 });
 

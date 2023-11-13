@@ -93,7 +93,13 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			r.Body = io.NopCloser(bytes.NewBuffer(bodyByte))
 		}
 		cookies, _ := json.Marshal(r.Cookies())
-		header, _ := json.Marshal(r.Header)
+		header := ""
+		for key, values := range r.Header {
+			for _, value := range values {
+				header += key + ": " + value + "\r\n"
+			}
+		}
+
 		region := utils.GetCountry(ipAndPort[0])
 		currentDay, _ := strconv.Atoi(time.Now().Format("20060102"))
 

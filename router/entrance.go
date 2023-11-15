@@ -19,6 +19,7 @@ type ApiGroup struct {
 	WebSocketRouter
 	WebSysInfoRouter
 	SystemConfigRouter
+	WafCommonRouter
 }
 type PublicApiGroup struct {
 	LoginRouter

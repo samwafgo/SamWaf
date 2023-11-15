@@ -1,4 +1,5 @@
-
+import proxy from '../config/host';
+const env = import.meta.env.MODE || 'development';
 export function copyObj(obj){
      const newObj =Array.isArray(obj) ? [] : {}
       for (let key in obj) {
@@ -9,4 +10,8 @@ export function copyObj(obj){
           }
       }
       return newObj;
+}
+export function getBaseUrl(){
+  const API_HOST = env === 'mock' ? '/' : proxy[env].API; // 如果是mock模式 就不配置host 会走本地Mock拦截
+  return API_HOST
 }

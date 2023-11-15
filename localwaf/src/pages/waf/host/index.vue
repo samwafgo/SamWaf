@@ -4,7 +4,9 @@
       <t-row justify="space-between">
         <div class="left-operation-container">
           <t-button @click="handleAddHost"> 新建防护 </t-button>
-          <t-button variant="base" theme="default" :disabled="!selectedRowKeys.length"> 导出日志 </t-button>
+          <t-button variant="base" theme="default" @click="HandleExportExcel()"> 导出数据 </t-button>
+          <t-button variant="base" theme="default" @click="HandleImportExcel()"> 导入数据 </t-button>
+
           <p v-if="!!selectedRowKeys.length" class="selected-count">已选{{ selectedRowKeys.length }}项</p>
         </div>
         <t-input v-model="searchValue" class="search-input" placeholder="请输入需要搜索的信息" clearable>
@@ -194,9 +196,23 @@
     <t-dialog header="确认删除当前所选网站?" :body="confirmBody" :visible.sync="confirmVisible" @confirm="onConfirmDelete"
       :onCancel="onCancel">
     </t-dialog>
+
+    <t-dialog :visible.sync="ImportXlsxVisible">
+    <t-upload
+            :action="fileUploadUrl"
+            :tips="tips"
+            :headers="fileHeader"
+            v-model="files"
+            @fail="handleFail"
+            @success="onSuccess"
+            theme="file-input"
+            placeholder="未选择文件"
+          ></t-upload>
+    </t-dialog>
   </div>
 </template>
 <script lang="ts">
+  import { getBaseUrl } from '@/utils/usuallytool';
   import Vue from 'vue';
   import {
     SearchIcon
@@ -208,7 +224,9 @@
   import {
     attacklogList
   } from '@/apis/waflog/attacklog';
-
+  import {
+    export_api
+  } from '@/apis/common';
   import {
     SSL_STATUS,
     GUARD_STATUS,
@@ -238,10 +256,16 @@
     },
     data() {
       return {
+        files: [],
+        tips: '上传文件大小在 5M 以内',
+        baseUrl:"",
+        fileUploadUrl :"",
+        fileHeader:[],
         addFormVisible: false,
         editFormVisible: false,
         guardVisible: false,
         confirmVisible: false,
+        ImportXlsxVisible:false,
         formData: {
           ...INITIAL_DATA
         },
@@ -378,6 +402,10 @@
     },
     mounted() {
       this.getList("")
+      this.baseUrl = getBaseUrl()
+      this.fileUploadUrl = this.baseUrl +"/import"
+      this.fileHeader['X-Token'] = localStorage.getItem("access_token")? localStorage.getItem("access_token"):"" //此处换成自己获取回来的token，通常存在在cookie或者store里面
+      console.log( this.baseUrl)
     },
 
     methods: {
@@ -622,6 +650,40 @@
           })
           .finally(() => {});
       },
+      /**
+       * 导出Excel数据
+       */
+      HandleExportExcel() {
+        let that = this
+        //window.open('https:\\www.baidu.com','_blank')
+        //
+        export_api({table_name:"hosts"}).then((res) => {
+                let resdata = res
+                console.log(resdata)
+                let blob = new Blob([res], {type:"application/force-download"}) // Blob 对象表示一个不可变、原始数据的类文件对象
+                console.log(blob);
+                let fileReader = new FileReader()   // FileReader 对象允许Web应用程序异步读取存储在用户计算机上的文件的内容
+                fileReader.readAsDataURL(blob)
+                //开始读取指定的Blob中的内容。一旦完成，result属性中将包含一个data: URL格式的Base64字符串以表示所读取文件的内容
+                fileReader.onload = (e) => {
+                    let a = document.createElement('a')
+                    a.download = `hosts.xlsx`
+                    a.href = e.target.result
+                    document.body.appendChild(a)
+                    a.click()
+                    document.body.removeChild(a)
+                }
+              })
+              .catch((e: Error) => {
+                console.log(e);
+          })
+      },
+      /**
+       * 导入Excel数据
+       */
+      HandleImportExcel(){
+          this.ImportXlsxVisible = true
+      },
       changeGuardStatus(e,row) {
 
         console.log(e,row)
@@ -692,7 +754,20 @@
         }else if(form=="edit"){
           this.formEditData.remote_host = "http://"+ this.formEditData.host
         }
-      }
+      },
+      handleFail({ file }) {
+      this.$message.error(`文件 ${file.name} 上传失败`);
+      },
+      onSuccess(e) {
+        let data = e.response.data
+        let lastMsg = "成功数量 :" +data.SuccessInt;
+        if(data.FailInt>0){
+          lastMsg += "失败数量 :" +data.FailInt +" 错误原因:"+data.Msg;
+        }
+
+        this.tips = lastMsg;
+        this.getList("")
+      },
       //end method
     },
   });

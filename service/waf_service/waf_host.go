@@ -40,6 +40,10 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 func (receiver *WafHostService) CheckIsExistApi(wafHostAddReq request.WafHostAddReq) error {
 	return global.GWAF_LOCAL_DB.First(&model.Hosts{}, "host = ? and port= ?", wafHostAddReq.Host, wafHostAddReq.Port).Error
 }
+func (receiver *WafHostService) CheckIsExist(host string, port string) error {
+	return global.GWAF_LOCAL_DB.First(&model.Hosts{}, "host = ? and port= ?", host, port).Error
+}
+
 func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq) error {
 	var webHost model.Hosts
 	global.GWAF_LOCAL_DB.Where("host = ? and port= ?", wafHostEditReq.Host, wafHostEditReq.Port).Find(&webHost)
@@ -97,7 +101,7 @@ func (receiver *WafHostService) DelHostApi(req request.WafHostDelReq) error {
 	}
 	err = global.GWAF_LOCAL_DB.Where("CODE = ?", req.CODE).Delete(model.Hosts{}).Error
 	//删除规则
-	err = global.GWAF_LOCAL_DB.Where("HostCode = ?", req.CODE).Delete(model.Rules{}).Error
+	err = global.GWAF_LOCAL_DB.Where("Host_Code = ?", req.CODE).Delete(model.Rules{}).Error
 	//删除Anticc
 	err = global.GWAF_LOCAL_DB.Where("Host_Code = ?", req.CODE).Delete(model.AntiCC{}).Error
 	//删除禁用ip

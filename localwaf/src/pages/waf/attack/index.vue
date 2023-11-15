@@ -105,6 +105,7 @@
             {{row.src_ip }} ({{row.country }}{{row.province }}{{row.city }})
             </template>
           <template #op="slotProps">
+            <a class="t-button-link" @click="handleClickIPDetail(slotProps)">查询IP</a>
             <a class="t-button-link" @click="handleClickDetail(slotProps)">详情</a>
             <a class="t-button-link" @click="handleClickDelete(slotProps)">删除</a>
           </template>
@@ -266,7 +267,7 @@ export default Vue.extend({
 
     if (this.$store.state.attacklog.msgData) {
       const attack = this.$store.state.attacklog;
-      this.pagination.current = attack.msgData.currentpage; 
+      this.pagination.current = attack.msgData.currentpage;
       this.searchformData = attack.msgData.searchData;   // 可以直接取出整个对象
     }
 
@@ -315,7 +316,6 @@ export default Vue.extend({
       }
       this.$request
         .post('/waflog/attack/list', {
-
              pageSize: that.pagination.pageSize,
              pageIndex: that.pagination.current,
              ...that.searchformData
@@ -365,11 +365,6 @@ export default Vue.extend({
       console.log(e)
       const { req_uuid } = e.row
       console.log(req_uuid)
-      /* this.$router.push(
-      {name:'WafAttackLogDetail',params: {
-          req_uuid: req_uuid,
-        },
-      }, */
       this.$router.push(
       {
         path:'/waf/wafattacklogdetail',
@@ -377,10 +372,14 @@ export default Vue.extend({
           req_uuid: req_uuid,
         },
       },
-    );
+      );
     },
-    handleSetupContract() {
-      this.$router.push('/form/base');
+    handleClickIPDetail(e) {
+      console.log(e)
+      const { src_ip } = e.row
+      this.searchformData.src_ip = src_ip
+      this.getList("")
+
     },
     handleClickDelete(row: { rowIndex: any }) {
       this.deleteIdx = row.rowIndex;

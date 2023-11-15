@@ -250,7 +250,7 @@
             .catch((e: Error) => {
               console.log(e);
         })
-        },
+      },
       getList(keyword) {
         let that = this
         wafIPBlockListApi( {

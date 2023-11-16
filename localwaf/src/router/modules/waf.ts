@@ -78,6 +78,21 @@ export default [
       },
     ],
   },
+  
+  {
+     path: '/wafanalysis',
+     name: 'wafanalysis',
+     component: Layout, 
+     meta: { title: '数据分析', icon: SystemLogIcon },
+     children: [
+       {
+         path: 'wafanalysislog',
+         name: 'WafAnalysisLog',
+         component: () => import('@/pages/waf/analysis/index.vue'),
+         meta: { title: '数据分析' },
+       }, 
+     ],
+   },
  {
     path: '/waf',
     name: 'waf',

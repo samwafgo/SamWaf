@@ -111,3 +111,12 @@ func (receiver *WafStatService) StatHomeSumDayTopIPRangeApi(req request.WafStats
 		},
 		nil
 }
+
+// 通过时间获取国家级别的 攻击数 访问数
+func (receiver *WafStatService) StatAnalysisDayCountryRangeApi(req request.WafStatsAnalysisDayRangeCountryReq) []response2.WafAnalysisDayStats {
+	var CountOfRange []response2.WafAnalysisDayStats
+
+	global.GWAF_LOCAL_STATS_DB.Debug().Model(&model.StatsIPCityDay{}).Where("day between ? and ? and type = ? ",
+		req.StartDay, req.EndDay, req.AttackType).Select(" country as Name ,sum(count) as Value").Group("country").Order("sum(count) desc").Scan(&CountOfRange)
+	return CountOfRange
+}

@@ -30,3 +30,12 @@ type WafIPStats struct {
 	AttackIPOfRange []model.StatsIPCount //区间攻击IP数量
 	NormalIPOfRange []model.StatsIPCount //区间正常IP数量
 }
+
+/*
+*
+数据分析：返回国家和对应的访问数量 或者攻击数量
+*/
+type WafAnalysisDayStats struct {
+	Name  string `json:"name"  form:"name"`
+	Value int64  `json:"value"  form:"value"`
+}

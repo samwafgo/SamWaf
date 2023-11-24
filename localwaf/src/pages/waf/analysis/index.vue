@@ -1,12 +1,38 @@
 <template>
-  <div id="countryMap" style="width:73.125rem; height:40.5rem;"></div>
+  <div class="contentarea">
+    <div class="left-column">
+      <!-- 左边列内容 -->
+      日期：<t-space direction="horizontal">
+        <t-date-range-picker v-model="range1" :presets="presets" />
+        <t-select v-model="currentAction" class="form-item-content`" :options="action_options" placeholder="请选择防御状态"
+          :style="{ width: '100px' }" />
+      </t-space>
+
+      <t-button variant="outline" @click="loadCountryData"> 搜索 </t-button>
+      <div id="countryMap" style="width:100%; height:40.5rem;"></div>
+    </div>
+    <div class="right-column">
+      <div class="top-right">
+        <!-- 右边上半部分内容 -->
+        <div id="wordCloudCountry" style="width:100%;height:20.5rem;"></div>
+      </div>
+      <div class="bottom-right">
+        <!-- 右边下半部分内容 -->
+        右边下半部分内容
+      </div>
+    </div>
+  </div>
 </template>
 
 <script lang="ts">
   import {
+    AddIcon, CloudUploadIcon, SearchIcon, DiscountIcon, CloudDownloadIcon,
+  } from 'tdesign-icons-vue';
+  import {
     TooltipComponent,
     LegendComponent,
-    GridComponent
+    GridComponent,
+    VisualMapComponent
   } from 'echarts/components';
   import {
     PieChart,
@@ -34,13 +60,82 @@
   import {
     wafanalysisdaycountryrange
   } from '@/apis/stats';
-  echarts.use([TooltipComponent, LegendComponent, PieChart, GridComponent, LineChart, CanvasRenderer, MapChart]);
-
+  echarts.use([TooltipComponent, LegendComponent, PieChart, GridComponent, LineChart, CanvasRenderer, MapChart, VisualMapComponent]);
+import 'echarts-wordcloud';
 
   export default {
     name: 'Analysis',
     data() {
       return {
+        //词云的相关配置
+        wordCloudChartsInfo:{
+          wordCloudEchart:null,
+          wordCloudOptions:{
+                series: [{
+                type: 'wordCloud',
+                shape: 'circle',
+                keepAspect: false,
+               // maskImage: maskImage,
+                left: 'center',
+                top: 'center',
+                width: '100%',
+                height: '90%',
+                right: null,
+                bottom: null,
+                sizeRange: [12, 60],
+                rotationRange: [-90, 90],
+                rotationStep: 45,
+                gridSize: 8,
+                drawOutOfBound: false,
+                layoutAnimation: true,
+                textStyle: {
+                    fontFamily: 'sans-serif',
+                    fontWeight: 'bold',
+                    color: function () {
+                        return 'rgb(' + [
+                            Math.round(Math.random() * 160),
+                            Math.round(Math.random() * 160),
+                            Math.round(Math.random() * 160)
+                        ].join(',') + ')';
+                    }
+                },
+                emphasis: {
+                    // focus: 'self',
+                    textStyle: {
+                        textShadowBlur: 3,
+                        textShadowColor: '#333'
+                    }
+                },
+                //data属性中的value值却大，权重就却大，展示字体就却大
+                data: [
+                    //{name: 'Farrah',value: 366},
+                    //{name: "汽车",value: 900},
+                    //{name: "视频",value: 606},
+                ]
+            }]
+
+           }
+        },
+        currentAction: "",
+        action_options: [{
+          label: '阻止',
+          value: '阻止'
+        },
+        {
+          label: '放行',
+          value: '放行'
+        },
+        {
+          label: '禁止',
+          value: '禁止'
+        },
+        ],
+        presets: {
+          最近7天: [new Date(+new Date() - 86400000 * 6), new Date()],
+          最近3天: [new Date(+new Date() - 86400000 * 2), new Date()],
+          今天: [new Date(), new Date()],
+        },
+        range1: ['2023-11-01', '2023-11-16'],
         map: null,
         xData: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], //横坐标
         yData: [23, 24, 18, 25, 27, 28, 25], //数据
@@ -50,23 +145,42 @@
           height: "400px"
         },//图表样式
         mapOptions: {
+          visualMap: {
+            min: 0,
+            max: 1000,
+            calculable: true,
+            inRange: {
+              color: ['#50a3ba', '#eac736', '#d94e5d'] // 指定颜色范围
+            },
+            textStyle: {
+              color: '#fff' // 可选，设置文本颜色
+            }
+          },
           // 默认的颜色数组 （如果不明确设置每个数据项的颜色，则会采用默认的数组
           color: ["#ac6767", "#1d953f", "#6950a1", "#918597"],
+          /* label: {
+            show: true, // 设置标签显示
+            formatter: '{b}', // 显示地区名称
+            color: '#000', // 标签颜色
+            fontSize: 12, // 标签字体大小
+            // 其他标签样式配置
+          }, */
           series: [{
             type: 'map',
             map: 'world', // 使用世界地图
             label: {
-              "show": false,
+              "show": true,
               "position": "top",
-              "margin": 8
+              "margin": 8,
+              formatter: function (params) {
+                if (params.data && params.data.value > 0) {
+                  return params.data.name; // 显示地区名称
+                } else {
+                  return ''; // 如果不满足条件，返回空字符串，不显示标签
+                }
+              },
             },
             data: [ //图表数据来源
-              {
-                // ItemStyle 中设置每一个数据项的颜色
-                "name": "美国", "value": 43,
-                'itemStyle': { 'color': "#c23531" }
-              },
-
             ],
             nameMap: worldchsname
           }],
@@ -81,7 +195,14 @@
             "textStyle": {
               "fontSize": 14
             },
-            "borderWidth": 0
+            "borderWidth": 0,
+            formatter: function (params) {
+              if (params.data && params.data.value > 0) {
+                return params.name + ': ' + params.data.value; // 当数据大于0时显示地区名称和数值
+              } else {
+                return ''; // 当数据小于等于0时不显示提示框
+              }
+            },
           },
           "roam": true, //关闭鼠标缩放和平移漫游
           "zoom": 1, //设置地图缩放大小
@@ -98,20 +219,46 @@
     },
 
     methods: {
+      renderIcon() {
+        return "<SearchIcon />";
+      },
       loadCountryData() {
         let that = this
-        let rangeStartDay = 20231101
-        let rangeEndDay = 20231116
+        let rangeStartDay = that.range1[0].replace(/-/g, '')
+        let rangeEndDay = that.range1[1].replace(/-/g, '')
+        console.log(rangeStartDay, rangeEndDay)
         wafanalysisdaycountryrange({
           'start_day': rangeStartDay,
           'end_day': rangeEndDay,
-          'attack_type': '阻止'
+          'attack_type': that.currentAction
         })
           .then((res) => {
-            let resdata = res
-            console.log(resdata.data)
-            that.mapOptions.series[0].data = resdata.data
-            that.map.setOption(that.mapOptions);
+            let resdata = res.data
+            console.log(resdata)
+            if (resdata == null) {
+              that.mapOptions.series[0].data = []
+              that.mapOptions.visualMap.max = 0
+              that.map.setOption(that.mapOptions);
+            } else {
+              let maxValue = 0;
+
+              resdata.forEach(item => {
+                if (item.value > maxValue) {
+                  maxValue = item.value;
+                }
+              });
+              console.log("最大值为: ", maxValue);
+              that.mapOptions.series[0].data = resdata
+              that.mapOptions.visualMap.max = maxValue
+              that.map.setOption(that.mapOptions);
+
+              //赋值词云部分
+              that.wordCloudChartsInfo.wordCloudOptions.series[0].data = resdata
+              that.wordCloudChartsInfo.wordCloudEchart.setOption(that.wordCloudChartsInfo.wordCloudOptions);
+
+            }
+
+
 
           }
 
@@ -121,9 +268,12 @@
           .finally(() => { })
       },
       initEcharts() {
-
-
-
+        this.initWorldMap();
+        this.initWordCloud();
+      },
+      //初始化世界地图
+      initWorldMap(){
+        //
         /*
          融合数据 世界和中国
          let data = this.map_decode(chinaMap) // 打印这个data，得到就是解密之后的中国地图数据了
@@ -161,6 +311,18 @@
             }
             myChart.setOption(options);
         }); */
+      },
+      //初始化词云
+      initWordCloud(){
+           let that = this
+           let echartDom = document.getElementById('wordCloudCountry')
+           that.wordCloudChartsInfo.wordCloudEchart = echarts.init(echartDom)
+           that.wordCloudChartsInfo.wordCloudEchart.setOption(that.wordCloudChartsInfo.wordCloudOptions)
+
+          //随着屏幕大小调节图表
+           window.addEventListener("resize", () => {
+               that.wordCloudChartsInfo.wordCloudEchart.resize();
+           });
       },
       map_decodePolygon(coordinate, encodeOffsets, encodeScale) {
         var result = [];
@@ -231,4 +393,45 @@
 </script>
 
 <style>
+  .contentarea {
+    display: flex;
+    width: 80%;
+    height: 100vh;
+    /* 让布局占据整个视口高度 */
+    height:50rem;
+  }
+
+  .left-column {
+    flex: 2;
+    /* 左边列宽度占比，这里为 1，可以根据需要调整 */
+    background-color: #f0f0f0;
+    /* 左边列背景色 */
+    padding: 20px;
+  }
+
+  .right-column {
+    flex: 1;
+    /* 右边列宽度占比，这里为 2，可以根据需要调整 */
+    display: flex;
+    flex-direction: column;
+    /* 纵向排列子元素 */
+  }
+
+  .top-right {
+    flex: 1;
+    /* 上半部分高度占比，这里为 1，可以根据需要调整 */
+    //background-color: #dcdcdc;
+    /* 上半部分背景色 */
+    padding: 20px;
+    margin-bottom: 10px;
+    /* 上下边距 */
+  }
+
+  .bottom-right {
+    flex: 1;
+    /* 下半部分高度占比，这里为 1，可以根据需要调整 */
+    background-color: #c0c0c0;
+    /* 下半部分背景色 */
+    padding: 20px;
+  }
 </style>

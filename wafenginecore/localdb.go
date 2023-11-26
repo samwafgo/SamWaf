@@ -22,6 +22,8 @@ func InitCoreDb(currentDir string) {
 		if err != nil {
 			panic("failed to connect database")
 		}
+		// 启用 WAL 模式
+		_ = db.Exec("PRAGMA journal_mode=WAL;")
 		global.GWAF_LOCAL_DB = db
 		//db.Use(crypto.NewCryptoPlugin())
 		// 注册默认的AES加解密策略
@@ -73,7 +75,7 @@ func InitLogDb(currentDir string) {
 			panic("failed to connect database")
 		}
 		// 启用 WAL 模式
-		//_ = logDB.Exec("PRAGMA journal_mode=WAL;")
+		_ = logDB.Exec("PRAGMA journal_mode=WAL;")
 		global.GWAF_LOCAL_LOG_DB = logDB
 		//logDB.Use(crypto.NewCryptoPlugin())
 		// 注册默认的AES加解密策略
@@ -99,7 +101,8 @@ func InitStatsDb(currentDir string) {
 			panic("failed to connect database")
 		}
 		// 启用 WAL 模式
-		//_ = db.Exec("PRAGMA journal_mode=WAL;")
+		_ = db.Exec("PRAGMA journal_mode=WAL;")
+
 		global.GWAF_LOCAL_STATS_DB = db
 		//db.Use(crypto.NewCryptoPlugin())
 		// 注册默认的AES加解密策略

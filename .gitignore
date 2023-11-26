@@ -4,3 +4,7 @@
 /data/local_log.db
 /data/local_stats.db
 /data/local.db
+/data/local_log.db-shm
+/data/local_log.db-wal
+/data/local_stats.db-shm
+/data/local_stats.db-wal

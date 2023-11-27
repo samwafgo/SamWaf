@@ -55,7 +55,7 @@ var (
 	GCACHE_WECHAT_ACCESS string          = "" //微信访问密钥
 	GCACHE_IP_CBUFF      []byte               // IP相关缓存
 
-	GDATA_DELETE_INTERVAL = 100 // 删除100天前的数据
+	GDATA_DELETE_INTERVAL = 180 // 删除180天前的数据
 
 	/****队列相关*****/
 	GQEQUE_DB              Dequelib.Deque //正常DB队列

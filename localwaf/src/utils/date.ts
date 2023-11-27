@@ -22,3 +22,7 @@ export function ConvertStringToUnix(timestr: string) :Number{
 export function ConvertDateToString(now: Date) :string{
    return dayjs(now).format('YYYY-MM-DD');
 }
+//时间戳转字符串
+export function ConvertUnixToDate(now: number) :string{
+   return dayjs(now).format('YYYY-MM-DD HH:mm:ss');
+}

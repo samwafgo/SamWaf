@@ -34,14 +34,15 @@ func (receiver *WafLogService) GetListApi(log request.WafAttackLogSearch) ([]inn
 		Action:     log.Action,
 		SrcIp:      log.SrcIp,
 		StatusCode: log.StatusCode,
+		Method:     log.Method,
 		PageInfo: request2.PageInfo{
 			PageIndex: 0,
 			PageSize:  0,
 			Keyword:   "",
 		},
 	}
-	global.GWAF_LOCAL_LOG_DB.Limit(log.PageSize).Where(whereCondition).Offset(log.PageSize * (log.PageIndex - 1)).Order("create_time desc").Find(&weblogs)
-	global.GWAF_LOCAL_LOG_DB.Model(&innerbean.WebLog{}).Where(whereCondition).Count(&total)
+	global.GWAF_LOCAL_LOG_DB.Limit(log.PageSize).Where(whereCondition).Where("unix_add_time>=? and unix_add_time<=?", log.UnixAddTimeBegin, log.UnixAddTimeEnd).Offset(log.PageSize * (log.PageIndex - 1)).Order("create_time desc").Find(&weblogs)
+	global.GWAF_LOCAL_LOG_DB.Model(&innerbean.WebLog{}).Where(whereCondition).Where("unix_add_time>=? and unix_add_time<=?", log.UnixAddTimeBegin, log.UnixAddTimeEnd).Count(&total)
 	return weblogs, total, nil
 }
 func (receiver *WafLogService) GetListByHostCodeApi(log request.WafAttackLogSearch) ([]innerbean.WebLog, int64, error) {

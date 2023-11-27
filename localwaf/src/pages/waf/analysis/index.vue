@@ -61,74 +61,79 @@
     wafanalysisdaycountryrange
   } from '@/apis/stats';
   echarts.use([TooltipComponent, LegendComponent, PieChart, GridComponent, LineChart, CanvasRenderer, MapChart, VisualMapComponent]);
-import 'echarts-wordcloud';
+  import 'echarts-wordcloud';
 
   export default {
     name: 'Analysis',
     data() {
       return {
         //词云的相关配置
-        wordCloudChartsInfo:{
-          wordCloudEchart:null,
-          wordCloudOptions:{
-                series: [{
-                type: 'wordCloud',
-                shape: 'circle',
-                keepAspect: false,
-               // maskImage: maskImage,
-                left: 'center',
-                top: 'center',
-                width: '100%',
-                height: '90%',
-                right: null,
-                bottom: null,
-                sizeRange: [12, 60],
-                rotationRange: [-90, 90],
-                rotationStep: 45,
-                gridSize: 8,
-                drawOutOfBound: false,
-                layoutAnimation: true,
+        wordCloudChartsInfo: {
+          wordCloudEchart: null,
+          wordCloudOptions: {
+            series: [{
+              type: 'wordCloud',
+              shape: 'circle',
+              keepAspect: false,
+              // maskImage: maskImage,
+              left: 'center',
+              top: 'center',
+              width: '100%',
+              height: '90%',
+              right: null,
+              bottom: null,
+              sizeRange: [12, 60],
+              rotationRange: [-90, 90],
+              rotationStep: 45,
+              gridSize: 8,
+              drawOutOfBound: false,
+              layoutAnimation: true,
+              textStyle: {
+                fontFamily: 'sans-serif',
+                fontWeight: 'bold',
+                color: function () {
+                  return 'rgb(' + [
+                    Math.round(Math.random() * 160),
+                    Math.round(Math.random() * 160),
+                    Math.round(Math.random() * 160)
+                  ].join(',') + ')';
+                }
+              },
+              emphasis: {
+                // focus: 'self',
                 textStyle: {
-                    fontFamily: 'sans-serif',
-                    fontWeight: 'bold',
-                    color: function () {
-                        return 'rgb(' + [
-                            Math.round(Math.random() * 160),
-                            Math.round(Math.random() * 160),
-                            Math.round(Math.random() * 160)
-                        ].join(',') + ')';
-                    }
-                },
-                emphasis: {
-                    // focus: 'self',
-                    textStyle: {
-                        textShadowBlur: 3,
-                        textShadowColor: '#333'
-                    }
-                },
-                //data属性中的value值却大，权重就却大，展示字体就却大
-                data: [
-                    //{name: 'Farrah',value: 366},
-                    //{name: "汽车",value: 900},
-                    //{name: "视频",value: 606},
-                ]
+                  textShadowBlur: 3,
+                  textShadowColor: '#333'
+                }
+              },
+              //data属性中的value值却大，权重就却大，展示字体就却大
+              data: [
+                //{name: 'Farrah',value: 366},
+                //{name: "汽车",value: 900},
+                //{name: "视频",value: 606},
+              ]
             }]
 
-           }
+          }
         },
         currentAction: "",
-        action_options: [{
-          label: '阻止',
-          value: '阻止'
-        },
-        {
-          label: '放行',
-          value: '放行'
-        },
-        {
-          label: '禁止',
-          value: '禁止'
-        },
+        action_options: [
+          {
+            label: '全部',
+            value: ''
+          },
+          {
+            label: '阻止',
+            value: '阻止'
+          },
+          {
+            label: '放行',
+            value: '放行'
+          },
+          {
+            label: '禁止',
+            value: '禁止'
+          },
         ],
         presets: {
           最近7天: [new Date(+new Date() - 86400000 * 6), new Date()],
@@ -217,6 +222,11 @@ import 'echarts-wordcloud';
       this.initEcharts();
       this.loadCountryData();
     },
+    created() {
+      this.range1[0] = LAST_7_DAYS[0]
+      this.range1[1] = LAST_7_DAYS[1]
+      console.log(this.range1)
+    },
 
     methods: {
       renderIcon() {
@@ -272,7 +282,7 @@ import 'echarts-wordcloud';
         this.initWordCloud();
       },
       //初始化世界地图
-      initWorldMap(){
+      initWorldMap() {
         //
         /*
          融合数据 世界和中国
@@ -313,16 +323,16 @@ import 'echarts-wordcloud';
         }); */
       },
       //初始化词云
-      initWordCloud(){
-           let that = this
-           let echartDom = document.getElementById('wordCloudCountry')
-           that.wordCloudChartsInfo.wordCloudEchart = echarts.init(echartDom)
-           that.wordCloudChartsInfo.wordCloudEchart.setOption(that.wordCloudChartsInfo.wordCloudOptions)
+      initWordCloud() {
+        let that = this
+        let echartDom = document.getElementById('wordCloudCountry')
+        that.wordCloudChartsInfo.wordCloudEchart = echarts.init(echartDom)
+        that.wordCloudChartsInfo.wordCloudEchart.setOption(that.wordCloudChartsInfo.wordCloudOptions)
 
-          //随着屏幕大小调节图表
-           window.addEventListener("resize", () => {
-               that.wordCloudChartsInfo.wordCloudEchart.resize();
-           });
+        //随着屏幕大小调节图表
+        window.addEventListener("resize", () => {
+          that.wordCloudChartsInfo.wordCloudEchart.resize();
+        });
       },
       map_decodePolygon(coordinate, encodeOffsets, encodeScale) {
         var result = [];
@@ -398,7 +408,7 @@ import 'echarts-wordcloud';
     width: 80%;
     height: 100vh;
     /* 让布局占据整个视口高度 */
-    height:50rem;
+    height: 50rem;
   }
 
   .left-column {

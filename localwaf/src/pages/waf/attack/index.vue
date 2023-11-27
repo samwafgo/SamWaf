@@ -43,7 +43,7 @@
                 </t-col>
                 <t-col :flex="2">
                   <t-form-item label="访问日期" name="unix_add_time">
-                    <t-date-range-picker v-model="range1" :presets="presets" enable-time-picker /></t-form-item>
+                    <t-date-range-picker v-model="dateControl.range1" :presets="dateControl.presets" enable-time-picker valueType="YYYY-MM-DD HH:mm:ss" /></t-form-item>
                 </t-col>
                 <t-col :flex="1">
                   <t-form-item label="访问方法" name="method">
@@ -104,7 +104,7 @@
   import { prefix } from '@/config/global';
   import { attacklogList } from '@/apis/waflog/attacklog';
 
-  import { NowDate, ConvertStringToUnix, ConvertDateToString } from '@/utils/date';
+  import { NowDate, ConvertStringToUnix, ConvertDateToString, ConvertUnixToDate } from '@/utils/date';
   import {
     allhost
   } from '@/apis/host';
@@ -140,13 +140,15 @@
     },
     data() {
       return {
-        presets: {
-          最近300天: [ConvertDateToString(new Date(+new Date() - 86400000 * 299)) + " 00:00:00", ConvertDateToString(new Date()) + " 23:59:59"],
-          最近7天: [ConvertDateToString(new Date(+new Date() - 86400000 * 6)) + " 00:00:00", ConvertDateToString(new Date()) + " 23:59:59"],
-          最近3天: [ConvertDateToString(new Date(+new Date() - 86400000 * 2)) + " 00:00:00", ConvertDateToString(new Date()) + " 23:59:59"],
-          今天: [ConvertDateToString(new Date()) + " 00:00:00", ConvertDateToString(new Date()) + " 23:59:59"],
+        dateControl:{
+          presets: {
+            最近300天: [ConvertDateToString(new Date(+new Date() - 86400000 * 299)) + " 00:00:00", ConvertDateToString(new Date()) + " 23:59:59"],
+            最近7天: [ConvertDateToString(new Date(+new Date() - 86400000 * 6)) + " 00:00:00", ConvertDateToString(new Date()) + " 23:59:59"],
+            最近3天: [ConvertDateToString(new Date(+new Date() - 86400000 * 2)) + " 00:00:00", ConvertDateToString(new Date()) + " 23:59:59"],
+            今天: [ConvertDateToString(new Date()) + " 00:00:00", ConvertDateToString(new Date()) + " 23:59:59"],
+          },
+          range1: ['2023-11-01 00:00:00', '2023-11-16 23:59:59'],
         },
-        range1: ['2023-11-01 00:00:00', '2023-11-16 23:59:59'],
         action_options: [
           {
             label: '全部',
@@ -206,7 +208,7 @@
         selectedRowKeys: [],
         value: 'first',
         customText: false,
-        displayColumns: staticColumn.concat(['create_time','host','method','url','src_ip','country']),
+        displayColumns: staticColumn.concat(['create_time', 'host', 'method', 'url', 'src_ip', 'country']),
         columns: [
           {
             title: '状态',
@@ -258,7 +260,7 @@
             width: 100,
             ellipsis: true,
             colKey: 'province',
-          },{
+          }, {
             title: '城市',
             width: 100,
             ellipsis: true,
@@ -311,6 +313,8 @@
           host_code: "",
           status_code: "",
           method: "",
+          unix_add_time_begin: "",
+          unix_add_time_end: "",
         },
         //主机字典
         host_dic: {}
@@ -330,7 +334,7 @@
       columnControllerConfig() {
         return {
           placement: this.placement,
-          fields: ['action', 'rule', 'create_time', 'host', 'method', 'url', 'header','country','province','city','status'],
+          fields: ['action', 'rule', 'create_time', 'host', 'method', 'url', 'header', 'country', 'province', 'city', 'status'],
           // 弹框组件属性透传
           dialogProps: { preventScrollThrough: true },
           // 列配置按钮属性头像
@@ -342,9 +346,13 @@
     },
     created() {
       console.log(NowDate)
-      this.range1[0] = NowDate + " 00:00:00"
-      this.range1[1] = NowDate + " 23:59:59"
-      console.log(this.range1)
+      this.dateControl.range1[0] = NowDate + " 00:00:00"
+      this.dateControl.range1[1] = NowDate + " 23:59:59"
+      this.searchformData.unix_add_time_begin = ConvertStringToUnix(this.dateControl.range1[0]).toString(),
+        this.searchformData.unix_add_time_end = ConvertStringToUnix(this.dateControl.range1[1]).toString(),
+        // unix_add_time_begin: ConvertStringToUnix(this.range1[0]).toString(),
+        //unix_add_time_end: ConvertStringToUnix(this.range1[1]).toString(),
+        console.log(this.range1)
     },
     mounted() {
       console.log("attack list mounted ");
@@ -358,6 +366,12 @@
         const attack = this.$store.state.attacklog;
         this.pagination.current = attack.msgData.currentpage;
         this.searchformData = attack.msgData.searchData;   // 可以直接取出整个对象
+        console.log('daysrc', attack.msgData.searchData)
+        let newrange =  Array()
+        newrange[0] = ConvertUnixToDate(parseInt(attack.msgData.searchData.unix_add_time_begin))
+        newrange[1] = ConvertUnixToDate(parseInt(attack.msgData.searchData.unix_add_time_end))
+        //console.log(this.dateControl.range1)
+        this.$set(this.dateControl, "range1", newrange) 
       }
 
       this.loadHostList()
@@ -403,12 +417,15 @@
         if (keyword != undefined && keyword == "all") {
           that.pagination.current = 1
         }
+        that.searchformData.unix_add_time_begin = ConvertStringToUnix(this.dateControl.range1[0]).toString()
+        that.searchformData.unix_add_time_end = ConvertStringToUnix(this.dateControl.range1[1]).toString()
+
         this.$request
           .post('/waflog/attack/list', {
             pageSize: that.pagination.pageSize,
             pageIndex: that.pagination.current,
-            unix_add_time_begin: ConvertStringToUnix(this.range1[0]).toString(),
-            unix_add_time_end: ConvertStringToUnix(this.range1[1]).toString(),
+            unix_add_time_begin: ConvertStringToUnix(this.dateControl.range1[0]).toString(),
+            unix_add_time_end: ConvertStringToUnix(this.dateControl.range1[1]).toString(),
             ...that.searchformData
           },
           )

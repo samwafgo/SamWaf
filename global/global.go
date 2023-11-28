@@ -79,6 +79,11 @@ var (
 
 	//任务开关信息
 	GWAF_SWITCH_TASK_COUNTER bool
+
+	//数据密码
+	GWAF_PWD_COREDB = "3Y)(27EtO^tK8Bj~CORE" //加密
+	GWAF_PWD_STATDB = "3Y)(27EtO^tK8Bj~STAT" //加密
+	GWAF_PWD_LOGDB  = "3Y)(27EtO^tK8Bj~LOG"  //加密
 )
 
 func GetCurrentVersionInt() int {

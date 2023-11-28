@@ -6,9 +6,11 @@ import (
 	"SamWaf/model"
 	"SamWaf/utils"
 	"SamWaf/utils/zlog"
+	"fmt"
+	"net/url"
 	//"github.com/kangarooxin/gorm-plugin-crypto"
 	//"github.com/kangarooxin/gorm-plugin-crypto/strategy"
-	"gorm.io/driver/sqlite"
+	"github.com/pengge/sqlitedriver"
 	"gorm.io/gorm"
 )
 
@@ -18,13 +20,16 @@ func InitCoreDb(currentDir string) {
 	}
 	if global.GWAF_LOCAL_DB == nil {
 		path := currentDir + "/data/local.db"
-		db, err := gorm.Open(sqlite.Open(path), &gorm.Config{})
+		key := url.QueryEscape(global.GWAF_PWD_COREDB)
+		dns := fmt.Sprintf("%s?_db_key=%s", path, key)
+		db, err := gorm.Open(sqlite.Open(dns), &gorm.Config{})
 		if err != nil {
 			panic("failed to connect database")
 		}
 		// 启用 WAL 模式
 		_ = db.Exec("PRAGMA journal_mode=WAL;")
 		global.GWAF_LOCAL_DB = db
+		db.DB()
 		//db.Use(crypto.NewCryptoPlugin())
 		// 注册默认的AES加解密策略
 		//crypto.RegisterCryptoStrategy(strategy.NewAesCryptoStrategy("3Y)(27EtO^tK8Bj~"))
@@ -70,21 +75,24 @@ func InitLogDb(currentDir string) {
 		currentDir = utils.GetCurrentDir()
 	}
 	if global.GWAF_LOCAL_LOG_DB == nil {
-		logDB, err := gorm.Open(sqlite.Open(currentDir+"/data/local_log.db"), &gorm.Config{})
+		path := currentDir + "/data/local_log.db"
+		key := url.QueryEscape(global.GWAF_PWD_LOGDB)
+		dns := fmt.Sprintf("%s?_db_key=%s", path, key)
+		db, err := gorm.Open(sqlite.Open(dns), &gorm.Config{})
 		if err != nil {
 			panic("failed to connect database")
 		}
 		// 启用 WAL 模式
-		_ = logDB.Exec("PRAGMA journal_mode=WAL;")
-		global.GWAF_LOCAL_LOG_DB = logDB
+		_ = db.Exec("PRAGMA journal_mode=WAL;")
+		global.GWAF_LOCAL_LOG_DB = db
 		//logDB.Use(crypto.NewCryptoPlugin())
 		// 注册默认的AES加解密策略
 		//crypto.RegisterCryptoStrategy(strategy.NewAesCryptoStrategy("3Y)(27EtO^tK8Bj~"))
 		// Migrate the schema
 		//统计处理
-		logDB.AutoMigrate(&innerbean.WebLog{})
-		logDB.AutoMigrate(&model.AccountLog{})
-		logDB.AutoMigrate(&model.WafSysLog{})
+		db.AutoMigrate(&innerbean.WebLog{})
+		db.AutoMigrate(&model.AccountLog{})
+		db.AutoMigrate(&model.WafSysLog{})
 		global.GWAF_LOCAL_LOG_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 		global.GWAF_LOCAL_LOG_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
 
@@ -96,7 +104,10 @@ func InitStatsDb(currentDir string) {
 		currentDir = utils.GetCurrentDir()
 	}
 	if global.GWAF_LOCAL_STATS_DB == nil {
-		db, err := gorm.Open(sqlite.Open(currentDir+"/data/local_stats.db"), &gorm.Config{})
+		path := currentDir + "/data/local_stats.db"
+		key := url.QueryEscape(global.GWAF_PWD_STATDB)
+		dns := fmt.Sprintf("%s?_db_key=%s", path, key)
+		db, err := gorm.Open(sqlite.Open(dns), &gorm.Config{})
 		if err != nil {
 			panic("failed to connect database")
 		}

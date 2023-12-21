@@ -45,6 +45,17 @@ func (m *wafSystenService) Stop(s service.Service) error {
 	return nil
 }
 
+// 守护协程
+func NeverExit(name string, f func()) {
+	defer func() {
+		if v := recover(); v != nil { // 侦测到一个恐慌
+			zlog.Info("协程%s崩溃了，准备重启一个", name)
+			go NeverExit(name, f) // 重启一个同功能协程
+		}
+	}()
+	f()
+}
+
 // run 是服务的主要逻辑
 func (m *wafSystenService) run() {
 	// 在这里编写你的服务逻辑代码
@@ -92,17 +103,7 @@ func (m *wafSystenService) run() {
 	//初始化队列引擎
 	wafenginecore.InitDequeEngine()
 	//启动队列消费
-	go func() {
-		defer func() {
-			e := recover()
-			if e != nil {
-				zlog.Info("ProcessErrorException", e)
-				time.Sleep(3 * time.Second)
-				wafenginecore.ProcessDequeEngine()
-			}
-		}()
-		wafenginecore.ProcessDequeEngine()
-	}()
+	go NeverExit("ProcessDequeEngine", wafenginecore.ProcessDequeEngine)
 
 	//启动waf
 	wafEngine := wafenginecore.WafEngine{

@@ -13,7 +13,11 @@
           </template>
         </t-input>
       </t-row>
-
+      <t-alert theme="info" message="SamWaf防御规则,可进行脚本(首选)，界面编辑" close>
+        <template #operation>
+          <span @click="handleJumpOnlineUrl">规则编辑在线文档</span>
+        </template>
+      </t-alert>
       <div class="table-container">
         <t-table
           :columns="columns"
@@ -328,6 +332,10 @@ export default Vue.extend({
     },
     resetIdx() {
       this.deleteIdx = -1;
+    },
+    //跳转界面
+    handleJumpOnlineUrl(){
+      window.open(this.samwafglobalconfig.getOnlineUrl()+"/guide/Rule.html");
     },
   },
 });

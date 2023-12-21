@@ -52,6 +52,7 @@ export default {
         },
       );
     },
+    //end method
   },
 };
 </script>

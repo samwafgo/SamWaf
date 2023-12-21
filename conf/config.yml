@@ -1,4 +1,5 @@
-user_code: gps_server
-local_port: 26666
-htmlfilepath: C:\huawei\goproject\SamWaf\localwaf\dist
-custom_server_name: 开发机
+custom_server_name: LAPTOP-TUSTCG76
+notice:
+    isenable: false
+soft_id: SamWafCom
+user_code: 8ad2bca0-4fd0-46aa-afe6-833132a05eee

@@ -1,5 +1,10 @@
 <template>
   <div>
+    <t-alert theme="info" :message="infoMessage" >
+      <template #operation>
+        <span @click="handleCreateWebOperation">马上创建</span>
+      </template>
+    </t-alert>
     <!-- 顶部 card  -->
     <top-panel class="row-container" />
     <!-- 中部图表  -->
@@ -25,7 +30,8 @@ export default {
   data() {
     return {
       center: {lng: 0, lat: 0},
-            zoom: 3
+      zoom: 3,
+      infoMessage:"您当前未创建需要防护的网站，点击进行创建"
     }
   },
   methods: {
@@ -34,7 +40,18 @@ export default {
           this.center.lng = 116.404
           this.center.lat = 39.915
           this.zoom = 15
-        }
+    },
+    //引导创建网站
+    handleCreateWebOperation(){
+      this.$router.push(
+        {
+          path: '/waf-host/wafhost',
+          query: {
+            sourcePage: "HomeFrist",
+          },
+        },
+      );
+    },
   },
 };
 </script>

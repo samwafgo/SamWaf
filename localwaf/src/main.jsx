@@ -7,6 +7,8 @@ import axiosInstance from '@/utils/request';
 import App from './App.vue';
 import router from './router';
 import zhConfig from 'tdesign-vue/es/locale/zh_CN';
+import globalconfig from './utils/globalconfig'
+Vue.prototype.samwafglobalconfig = globalconfig;
 // import enConfig from 'tdesign-vue/es/locale/en_US'; // 英文多语言配置
 import bus from './bus/bus'
 import BaiduMap from 'vue-baidu-map'

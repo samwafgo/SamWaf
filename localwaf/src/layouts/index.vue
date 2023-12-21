@@ -20,7 +20,8 @@
         <t-header><layout-header /></t-header>
         <t-layout>
           <t-aside><layout-sidebar /></t-aside>
-          <t-content><layout-content /></t-content>
+          <t-content><layout-content />
+          </t-content>
         </t-layout>
       </t-layout>
     </template>
@@ -31,6 +32,7 @@
 <script lang="ts">
 import Vue from 'vue';
 import { mapGetters } from 'vuex';
+import { ChatIcon, AddIcon, QrcodeIcon } from 'tdesign-icons-vue';
 
 import LayoutHeader from './components/LayoutHeader.vue';
 import LayoutContent from './components/LayoutContent.vue';
@@ -94,6 +96,12 @@ export default Vue.extend({
     },
     setTabRouterListCache() {
       localStorage.setItem('tabRouterList', JSON.stringify(this.tabRouterList));
+    },
+    handleClick(context) {
+      console.log('click', context);
+    },
+    handleHover(context) {
+      console.log('hover', context);
     },
   },
 });

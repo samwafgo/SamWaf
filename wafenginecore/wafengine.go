@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/denisbrodbeck/machineid"
 	"github.com/lionsoul2014/ip2region/binding/golang/xdb"
 	"github.com/satori/go.uuid"
 	"github.com/spf13/viper"
@@ -29,10 +30,12 @@ import (
 	"golang.org/x/text/transform"
 	"golang.org/x/time/rate"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -716,6 +719,10 @@ func (waf *WafEngine) StartWaf() {
 
 // 加载配置并初始化
 func (waf *WafEngine) LoadAndInitConfig() {
+	/**
+	1.如果user_code存在就使用本地的user_code
+	2.
+	*/
 	config := viper.New()
 	config.AddConfigPath(utils.GetCurrentDir() + "/conf/") // 文件所在目录
 	config.SetConfigName("config")                         // 文件名
@@ -728,11 +735,43 @@ func (waf *WafEngine) LoadAndInitConfig() {
 			zlog.Error("配置文件出错..")
 		}
 	}
+	if config.IsSet("user_code") == false {
+		id, err := machineid.ID()
+		if err != nil {
+			config.Set("user_code", "RAD"+uuid.NewV4().String())
+		} else {
+			config.Set("user_code", id)
+		}
+		config.Set("soft_id", global.GWAF_TENANT_ID)
+	} else {
+		global.GWAF_USER_CODE = config.GetString("user_code")
+		global.GWAF_TENANT_ID = config.GetString("soft_id")
+	}
+	if config.IsSet("local_port") {
+		global.GWAF_LOCAL_SERVER_PORT = config.GetInt("local_port") //读取本地端口
+	}
+	if config.IsSet("custom_server_name") {
+		global.GWAF_CUSTOM_SERVER_NAME = config.GetString("custom_server_name") //本地服务器其定义名称
+	} else {
+		hostname, err := os.Hostname()
+		if err != nil {
+			global.GWAF_CUSTOM_SERVER_NAME = "未定义服务器名称"
+		} else {
+			config.Set("custom_server_name", hostname)
+			global.GWAF_CUSTOM_SERVER_NAME = hostname
+		}
 
-	global.GWAF_USER_CODE = config.GetString("user_code") // 读取配置
-	global.GWAF_TENANT_ID = global.GWAF_USER_CODE
-	global.GWAF_LOCAL_SERVER_PORT = config.GetInt("local_port")             //读取本地端口
-	global.GWAF_CUSTOM_SERVER_NAME = config.GetString("custom_server_name") //本地服务器其定义名称
+	}
+	if config.IsSet("notice.isenable") {
+		global.GWAF_NOTICE_ENABLE = config.GetBool("notice.isenable")
+	} else {
+		config.Set("notice.isenable", false)
+	}
+
+	err := config.WriteConfig()
+	if err != nil {
+		log.Fatal("write config failed: ", err)
+	}
 	zlog.Debug(" load ini: ", global.GWAF_USER_CODE)
 }
 

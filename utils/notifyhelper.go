@@ -13,8 +13,12 @@ type NotifyHelper struct {
 var NotifyHelperApp = new(NotifyHelper)
 
 func (receiver *NotifyHelper) SendRuleInfo(ruleMessageInfo innerbean.RuleMessageInfo) {
+	if global.GWAF_NOTICE_ENABLE == false {
+		zlog.Info("通知关闭")
+		return
+	}
 	if global.GCACHE_WECHAT_ACCESS == "" {
-		zlog.Error("未初始化wechat")
+		zlog.Info("未初始化wechat")
 		return
 	}
 	ruleMessageInfo.Server = global.GWAF_CUSTOM_SERVER_NAME

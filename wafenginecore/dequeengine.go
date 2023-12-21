@@ -99,7 +99,12 @@ func ProcessDequeEngine() {
 				}
 				global.GCACHE_WAFCACHE.SetWithTTl(rulemessage.RuleInfo, 1, 30*time.Minute)
 				if isCanSend {
-					utils.NotifyHelperApp.SendRuleInfo(rulemessage)
+					if global.GWAF_NOTICE_ENABLE == false {
+						zlog.Info("通知关闭状态")
+					} else {
+						utils.NotifyHelperApp.SendRuleInfo(rulemessage)
+					}
+
 				}
 				if rulemessage.BaseMessageInfo.OperaType == "命中保护规则" {
 					//发送websocket

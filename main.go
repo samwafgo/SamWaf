@@ -152,15 +152,18 @@ func (m *wafSystenService) run() {
 
 	})
 
-	// 获取最近token
-	s.Every(1).Hour().Do(func() {
-		//defer func() {
-		//	 zlog.Info("token errr")
-		//}()
-		zlog.Debug("获取最新token")
-		go waftask.TaskWechatAccessToken()
+	if global.GWAF_NOTICE_ENABLE {
+		// 获取最近token
+		s.Every(1).Hour().Do(func() {
+			//defer func() {
+			//	 zlog.Info("token errr")
+			//}()
+			zlog.Debug("获取最新token")
+			go waftask.TaskWechatAccessToken()
 
-	})
+		})
+	}
+
 	// 每天早晚8点进行数据汇总通知
 	s.Every(1).Day().At("08:00;20:00").Do(func() {
 		go waftask.TaskStatusNotify()

@@ -1,6 +1,11 @@
 <template>
   <div class="detail-base">
-
+    <t-alert theme="info" message="推荐从(日志详情)里面一键选择特征值自动编辑防御脚本 " close>
+      <template #operation>
+        <span @click="handleJumpAttackLogOperation">跳转到日志列表  </span>
+        <span @click="handleJumpOnlineUrl"> 防御规则在线文档Online</span>
+      </template>
+    </t-alert>
     <t-form :data="formData"  @submit="onSubmit"> <!--:rules="rules"-->
       <!--基本信息 开始-->
       <t-card title="基本信息">
@@ -721,8 +726,24 @@
         this.$nextTick(() => {
           that.$bus.$emit("showcodeedit",str)
         });
-      }
-      //end method
+      },
+      //跳转界面
+      handleJumpOnlineUrl(){
+        window.open(this.samwafglobalconfig.getOnlineUrl()+"/guide/Rule.html#_1-脚本编辑");
+      },
+      //引导创建网站
+      handleJumpAttackLogOperation(){
+        this.$router.push(
+          {
+            path: '/waf/wafattacklog',
+            query: {
+              sourcePage: "AddRule",
+            },
+          },
+        );
+      },
+    //end method
+
     },
   };
 </script>

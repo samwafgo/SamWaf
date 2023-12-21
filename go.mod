@@ -6,6 +6,7 @@ require (
 	github.com/360EntSecGroup-Skylar/excelize v1.4.1
 	github.com/bytedance/godlp v1.2.15
 	github.com/deatil/go-cryptobin v1.0.2030
+	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/edwingeng/deque v1.0.3
 	github.com/elastic/go-elasticsearch/v7 v7.17.1
 	github.com/elazarl/go-bindata-assetfs v1.0.1

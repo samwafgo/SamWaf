@@ -7,7 +7,7 @@ import "time"
 整体统计
 */
 type StatsTotal struct {
-	Id                 int       `gorm:"primary_key" json:" - "`
+	//Id                 int       `json:" - "`
 	UserCode           string    `json:"user_code"`            //用户码（主要键）
 	TenantId           string    `json:"tenant_id"`            //租户ID
 	AttackCount        int       `json:"attack_count"`         //攻击数量
@@ -22,7 +22,7 @@ type StatsTotal struct {
 按天统计和不同类型统计
 */
 type StatsDay struct {
-	Id             int       `gorm:"primary_key" json:" - "`
+	//Id             int       `json:" - "`
 	UserCode       string    `json:"user_code"`        //用户码（主要键）
 	TenantId       string    `json:"tenant_id"`        //租户ID（主要键）
 	HostCode       string    `json:"host_code"`        //网站唯一码（主要键）
@@ -39,7 +39,7 @@ type StatsDay struct {
 按天统计和不同类型统计IP
 */
 type StatsIPDay struct {
-	Id             int       `gorm:"primary_key" json:" - "`
+	//Id             int       `json:" - "`
 	UserCode       string    `json:"user_code"`        //用户码（主要键）
 	TenantId       string    `json:"tenant_id"`        //租户ID（主要键）
 	HostCode       string    `json:"host_code"`        //网站唯一码（主要键）
@@ -57,7 +57,7 @@ type StatsIPDay struct {
 按天统计和不同类型统计城市
 */
 type StatsIPCityDay struct {
-	Id             int       `gorm:"primary_key" json:" - "`
+	//Id             int       `json:" - "`
 	UserCode       string    `json:"user_code"`        //用户码（主要键）
 	TenantId       string    `json:"tenant_id"`        //租户ID（主要键）
 	HostCode       string    `json:"host_code"`        //网站唯一码（主要键）

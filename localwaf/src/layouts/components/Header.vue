@@ -5,7 +5,7 @@
     <t-dialog :visible.sync="update_visible" @confirm="handleDoUpdate" header="有新版本啦">
       <p>      <icon name="tangerinr" color="orange" />
 {{update_new_ver}}</p>
- <p>      
+ <p>
 {{update_desc}}</p>
     </t-dialog>
     <t-head-menu :class="menuCls" :theme="theme" expandType="popup" :value="active">
@@ -28,14 +28,10 @@
 
           <!-- 全局通知 -->
           <notice />
-          <t-tooltip placement="bottom" content="升级">
-            <t-button :disabled="isUpdateloading" theme="default" shape="square" variant="text" @click="checkVersion">
-              <RotateIcon />
-            </t-button>
-          </t-tooltip>
-          <t-tooltip placement="bottom" content="重启">
-            <t-button :disabled="isResetloading" theme="default" shape="square" variant="text" @click="resetServer">
-              <PoweroffIcon />
+
+          <t-tooltip placement="bottom" content="联系SamWaf">
+            <t-button theme="default" shape="square" variant="text" @click="showMpQr">
+              <LogoWechatStrokeIcon />
             </t-button>
           </t-tooltip>
           <t-tooltip placement="bottom" content="帮助文档">
@@ -48,6 +44,12 @@
               <t-dropdown-menu>
                 <t-dropdown-item class="operations-dropdown-container-item" @click="handleNav('/user/index')">
                   <user-circle-icon />个人中心
+                </t-dropdown-item>
+                <t-dropdown-item class="operations-dropdown-container-item" :disabled="isUpdateloading" @click="checkVersion">
+                  <RotateIcon />升级
+                </t-dropdown-item>
+                <t-dropdown-item class="operations-dropdown-container-item" :disabled="isResetloading" @click="resetServer">
+                  <PoweroffIcon />重启
                 </t-dropdown-item>
                 <t-dropdown-item class="operations-dropdown-container-item" @click="handleLogout">
                   <poweroff-icon />退出登录
@@ -86,13 +88,13 @@
     SettingIcon,
     ChevronDownIcon,
     RotateIcon,
-    Icon
+    Icon,
+    LogoWechatStrokeIcon
   } from 'tdesign-icons-vue';
   import {
     prefix
   } from '@/config/global';
   import LogoFull from '@/assets/assets-logo-full.svg';
-
   import {
     CheckVersionApi,DoUpdateApi
   } from '@/apis/sysinfo';
@@ -115,7 +117,8 @@
       SettingIcon,
       ChevronDownIcon,
       RotateIcon,
-      Icon
+      Icon,
+      LogoWechatStrokeIcon
     },
     props: {
       theme: String,
@@ -211,7 +214,7 @@
         this.$router.push(url);
       },
       navToHelper() {
-        window.open('http://tdesign.tencent.com/starter/docs/get-started');
+        window.open(this.samwafglobalconfig.getOnlineUrl());
       },
       resetServer() {
         let that = this
@@ -236,6 +239,9 @@
           })
           .finally(() => {});
       } ,
+      showMpQr(){
+
+      },
       checkVersion(){
           let that = this;
           CheckVersionApi().then((res) => {

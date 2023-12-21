@@ -33,7 +33,7 @@ func (w *WafSysInfoApi) CheckVersionApi(c *gin.Context) {
 	}
 	available, newVer, desc, err := updater.UpdateAvailable()
 	if err != nil {
-		response.FailWithMessage("发生错误", c)
+		response.FailWithMessage("未发现新文件", c)
 		return
 	}
 	if available {

@@ -1,4 +1,4 @@
-import { UserSafetyIcon,SystemSettingIcon,UsergroupIcon,SystemLogIcon,ApplicationIcon } from 'tdesign-icons-vue';
+import { UserSafetyIcon,SystemSettingIcon,UsergroupIcon,SystemLogIcon,ApplicationIcon,LightingCircleIcon } from 'tdesign-icons-vue';
 import Layout from '@/layouts/index.vue';
 
 export default [
@@ -78,11 +78,11 @@ export default [
       },
     ],
   },
-  
+
   {
      path: '/wafanalysis',
      name: 'wafanalysis',
-     component: Layout, 
+     component: Layout,
      meta: { title: '数据分析', icon: SystemLogIcon },
      children: [
        {
@@ -90,7 +90,7 @@ export default [
          name: 'WafAnalysisLog',
          component: () => import('@/pages/waf/analysis/index.vue'),
          meta: { title: '数据分析' },
-       }, 
+       },
      ],
    },
  {
@@ -98,7 +98,7 @@ export default [
     name: 'waf',
     component: Layout,
     redirect: '/waf-log/visit',
-    meta: { title: '防护日志', icon: SystemLogIcon },
+    meta: { title: '防护日志', icon: LightingCircleIcon },
     children: [
       {
         path: 'wafattacklog',

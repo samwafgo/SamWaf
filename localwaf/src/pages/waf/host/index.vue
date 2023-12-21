@@ -17,6 +17,11 @@
       </t-row>
 
       <div class="table-container">
+        <t-alert theme="info" message="SamWaf核心功能，所有网站信息，防护功能开启等" close>
+          <template #operation>
+            <span @click="handleJumpOnlineUrl">主机在线文档</span>
+          </template>
+        </t-alert>
         <t-table :columns="columns"  size="small" :data="data" :rowKey="rowKey" :verticalAlign="verticalAlign" :hover="hover"
           :pagination="pagination" :selected-row-keys="selectedRowKeys" :loading="dataLoading"
           @page-change="rehandlePageChange" @change="rehandleChange" @select-change="rehandleSelectChange"
@@ -64,56 +69,134 @@
     </t-card>
 
     <!-- 新建网站防御弹窗 -->
-    <t-dialog header="新建网站防御" :visible.sync="addFormVisible" :width="680" :footer="false">
+    <t-dialog  :visible.sync="addFormVisible" :width="680" :footer="false">
+      <div slot="header">
+        新建网站防御
+        <t-link theme="primary"  :href="hostAddUrl" target="_blank">
+          <link-icon slot="prefix-icon"></link-icon>
+          访问SamWaf在线文档
+        </t-link>
+      </div>
       <div slot="body">
+
         <!-- 表单内容 -->
         <t-form :data="formData" ref="form" :rules="rules" @submit="onSubmit" :labelWidth="100">
           <t-form-item label="网站" name="host">
+            <t-tooltip
+              class="placement top center"
+              content="输入您需要防护的网站域名:如 www.samwaf.com"
+              placement="top"
+              :overlay-style="{ width: '200px' }"
+              show-arrow>
             <t-input :style="{ width: '480px' }" v-model="formData.host" placeholder="请输入网站的网址" @change="ChangeHost('add')"></t-input>
+            </t-tooltip>
           </t-form-item>
           <t-form-item label="端口" name="port">
+            <t-tooltip
+              class="placement top center"
+              content="输入您需要防护的网站端口 1. http是80 https 是 443 2.如果已经安装了宝塔，Nginx，IIS等 您需要手工改动端口成非80，或者非443端口"
+              placement="top"
+              :overlay-style="{ width: '200px' }"
+              show-arrow>
             <t-input-number :style="{ width: '150px' }" v-model="formData.port" placeholder="请输入网站的端口一般是80/443">
             </t-input-number>
+            </t-tooltip>
           </t-form-item>
           <t-form-item label="加密证书" name="ssl">
+            <t-tooltip
+              class="placement top center"
+              content="如果是https需要选择加密证书，80端口不需要"
+              placement="top"
+              :overlay-style="{ width: '200px' }"
+              show-arrow>
             <t-radio-group v-model="formData.ssl">
               <t-radio value="0">非加密</t-radio>
               <t-radio value="1">加密证书（需上传证书）</t-radio>
             </t-radio-group>
-          </t-form-item>
-          <t-form-item label="证书串" name="certfile" v-if="formData.ssl=='1'">
-            <t-textarea :style="{ width: '480px' }" v-model="formData.certfile" placeholder="请输入内容" name="certfile">
-            </t-textarea>
+            </t-tooltip>
           </t-form-item>
           <t-form-item label="密钥串" name="keyfile" v-if="formData.ssl=='1'">
+            <t-tooltip
+              class="placement top center"
+              content="通常文件名：*.key 内容格式如下：-----BEGIN RSA PRIVATE KEY----- 全选复制填写进来"
+              placement="top"
+              :overlay-style="{ width: '200px' }"
+              show-arrow>
             <t-textarea :style="{ width: '480px' }" v-model="formData.keyfile" placeholder="请输入内容" name="keyfile">
             </t-textarea>
+            </t-tooltip>
+          </t-form-item>
+          <t-form-item label="证书串" name="certfile" v-if="formData.ssl=='1'">
+            <t-tooltip
+              class="placement top center"
+              content="通常文件名：*.crt 内容格式如下：-----BEGIN CERTIFICATE----- 全选复制填写进来"
+              placement="top"
+              :overlay-style="{ width: '200px' }"
+              show-arrow>
+            <t-textarea :style="{ width: '480px' }" v-model="formData.certfile" placeholder="请输入内容" name="certfile">
+            </t-textarea>
+            </t-tooltip>
           </t-form-item>
           <t-form-item label="后端系统类型" name="remote_system">
+            <t-tooltip
+              class="placement top center"
+              content="非必要，可以选择和实际一样，也可以保持默认"
+              placement="top"
+              :overlay-style="{ width: '200px' }"
+              show-arrow>
             <t-select v-model="formData.remote_system" clearable :style="{ width: '480px' }">
               <t-option v-for="(item, index) in remote_system_options" :value="item.value" :label="item.label"
                 :key="index">
                 {{ item.label }}
               </t-option>
             </t-select>
+            </t-tooltip>
           </t-form-item>
           <t-form-item label="后端应用类型" name="remote_app">
+            <t-tooltip
+              class="placement top center"
+              content="非必要，可以选择和实际一样，也可以保持默认"
+              placement="top"
+              :overlay-style="{ width: '200px' }"
+              show-arrow>
             <t-select v-model="formData.remote_app" clearable :style="{ width: '480px' }">
               <t-option v-for="(item, index) in remote_app_options" :value="item.value" :label="item.label"
                 :key="index">
                 {{ item.label }}
               </t-option>
             </t-select>
+            </t-tooltip>
           </t-form-item>
           <t-form-item label="后端域名" name="remote_host">
+            <t-tooltip
+              class="placement top center"
+              content="后端域名通常同第一项网站域名相同"
+              placement="top"
+              :overlay-style="{ width: '200px' }"
+              show-arrow>
             <t-input :style="{ width: '480px' }" v-model="formData.remote_host" placeholder="请输入后端域名"></t-input>
+            </t-tooltip>
           </t-form-item>
           <t-form-item label="后端IP" name="remote_ip">
+            <t-tooltip
+              class="placement top center"
+              content="如SamWaf同网站在同一台服务器 填写127.0.0.1 如果是不同服务器请填写实际IP"
+              placement="top"
+              :overlay-style="{ width: '200px' }"
+              show-arrow>
             <t-input :style="{ width: '480px' }" v-model="formData.remote_ip" placeholder="请输入后端IP"></t-input>
+            </t-tooltip>
           </t-form-item>
           <t-form-item label="后端端口" name="remote_port">
+            <t-tooltip
+              class="placement top center"
+              content="情况1，在SamWaf和网站在同一台服务器，那么端口需要写成81等其他端口  情况2：如果不在同一台服务器，那么此处可以原来端口"
+              placement="top"
+              :overlay-style="{ width: '200px' }"
+              show-arrow>
             <t-input-number :style="{ width: '150px' }" v-model="formData.remote_port" placeholder="请输入网站的端口一般是80/443">
             </t-input-number>
+            </t-tooltip>
           </t-form-item>
 
           <t-form-item label="备注" name="remarks">
@@ -212,7 +295,7 @@
   </div>
 </template>
 <script lang="ts">
-  import { getBaseUrl } from '@/utils/usuallytool';
+  import { getBaseUrl} from '@/utils/usuallytool';
   import Vue from 'vue';
   import {
     SearchIcon
@@ -237,11 +320,11 @@
   } from '@/constants';
 
   const INITIAL_DATA = {
-    host: 'baidu.com',
+    host: 'www.baidu.com',
     port: 80,
-    remote_host: 'baidu2.com',
+    remote_host: 'www.baidu.com',
     remote_ip: '127.0.0.1',
-    remote_port: 80,
+    remote_port: 81,
     ssl: '0',
     remote_system: "宝塔",
     remote_app: "API业务系统",
@@ -384,6 +467,10 @@
         //索引区域
         deleteIdx: -1,
         guardStatusIdx :-1,
+
+        //来源页面
+        sourcePage:"",
+        hostAddUrl :this.samwafglobalconfig.getOnlineUrl()+'/guide/Host.html#_2-新增可被防火墙保护的网站',
       };
     },
     computed: {
@@ -406,6 +493,12 @@
       this.fileUploadUrl = this.baseUrl +"/import"
       this.fileHeader['X-Token'] = localStorage.getItem("access_token")? localStorage.getItem("access_token"):"" //此处换成自己获取回来的token，通常存在在cookie或者store里面
       console.log( this.baseUrl)
+      if(this.$route.query!=null && this.$route.query.sourcePage!=""){
+        this.sourcePage = this.$route.query.sourcePage;
+        if(this.sourcePage=="HomeFrist"){
+            this.addFormVisible = true
+        }
+      }
     },
 
     methods: {
@@ -767,6 +860,10 @@
 
         this.tips = lastMsg;
         this.getList("")
+      },
+      //跳转界面
+      handleJumpOnlineUrl(){
+        window.open(this.samwafglobalconfig.getOnlineUrl()+"/guide/Host.html");
       },
       //end method
     },

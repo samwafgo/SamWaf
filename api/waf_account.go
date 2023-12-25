@@ -92,3 +92,23 @@ func (w *WafAccountApi) ModifyAccountApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+func (w *WafAccountApi) ResetAccountPwdApi(c *gin.Context) {
+	var req request.WafAccountResetPwdReq
+	err := c.ShouldBind(&req)
+	if err == nil {
+		if req.LoginNewPassword != req.LoginNewPassword2 {
+			response.OkWithMessage("两次输入的密码不同", c)
+			return
+		}
+		err = wafAccountService.ResetPwdApi(req)
+		if err != nil {
+			response.FailWithMessage("重置密码发生错误", c)
+		} else {
+			response.OkWithMessage("重置密码成功", c)
+		}
+
+	} else {
+		response.FailWithMessage("重置密码失败", c)
+	}
+}

@@ -37,7 +37,7 @@ func (receiver *WafRuleService) AddApi(wafRuleAddReq request.WafRuleAddReq, rule
 		IsManualRule:    wafRuleAddReq.IsManualRule,
 		RuleStatus:      1,
 	}
-	global.GWAF_LOCAL_DB.Debug().Create(wafRule)
+	global.GWAF_LOCAL_DB.Create(wafRule)
 	return nil
 }
 

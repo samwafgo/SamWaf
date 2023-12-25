@@ -22,8 +22,8 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 		accountCount, _ := wafAccountService.GetAccountCountApi()
 		if accountCount == 0 {
 			wafAccountService.AddApi(request.WafAccountAddReq{
-				LoginAccount:  "admin",
-				LoginPassword: "admin868",
+				LoginAccount:  global.GWAF_DEFAULT_ACCOUNT,
+				LoginPassword: global.GWAF_DEFAULT_ACCOUNT_PWD,
 				Status:        0,
 				Remarks:       "密码生成",
 			})

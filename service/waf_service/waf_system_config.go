@@ -1,8 +1,10 @@
 package waf_service
 
 import (
+	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/model"
+	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
 	"errors"
 	uuid "github.com/satori/go.uuid"
@@ -15,16 +17,18 @@ var WafSystemConfigServiceApp = new(WafSystemConfigService)
 
 func (receiver *WafSystemConfigService) AddApi(wafSystemConfigAddReq request.WafSystemConfigAddReq) error {
 	var bean = &model.SystemConfig{
-		UserCode:       global.GWAF_USER_CODE,
-		TenantId:       global.GWAF_TENANT_ID,
-		Id:             uuid.NewV4().String(),
-		Item:           wafSystemConfigAddReq.Item,
-		Value:          wafSystemConfigAddReq.Value,
-		IsSystem:       "0",
-		Remarks:        wafSystemConfigAddReq.Remarks,
-		HashInfo:       "",
-		CreateTime:     time.Now(),
-		LastUpdateTime: time.Now(),
+		BaseOrm: baseorm.BaseOrm{
+			Id:          uuid.NewV4().String(),
+			USER_CODE:   global.GWAF_USER_CODE,
+			Tenant_ID:   global.GWAF_TENANT_ID,
+			CREATE_TIME: customtype.JsonTime(time.Now()),
+			UPDATE_TIME: customtype.JsonTime(time.Now()),
+		},
+		Item:     wafSystemConfigAddReq.Item,
+		Value:    wafSystemConfigAddReq.Value,
+		IsSystem: "0",
+		Remarks:  wafSystemConfigAddReq.Remarks,
+		HashInfo: "",
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
 	return nil
@@ -40,10 +44,10 @@ func (receiver *WafSystemConfigService) ModifyApi(req request.WafSystemConfigEdi
 		return errors.New("当前配置已经存在")
 	}
 	editMap := map[string]interface{}{
-		"Item":             req.Item,
-		"Value":            req.Value,
-		"Remarks":          req.Remarks,
-		"last_update_time": time.Now(),
+		"Item":        req.Item,
+		"Value":       req.Value,
+		"Remarks":     req.Remarks,
+		"UPDATE_TIME": customtype.JsonTime(time.Now()),
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.SystemConfig{}).Where("id = ?", req.Id).Updates(editMap).Error
 

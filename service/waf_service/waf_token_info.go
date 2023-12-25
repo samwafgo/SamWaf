@@ -1,8 +1,10 @@
 package waf_service
 
 import (
+	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/model"
+	"SamWaf/model/baseorm"
 	"errors"
 	uuid "github.com/satori/go.uuid"
 	"time"
@@ -15,14 +17,16 @@ var WafTokenInfoServiceApp = new(WafTokenInfoService)
 func (receiver *WafTokenInfoService) AddApi(loginAccount string, AccessToken string, LoginIp string) *model.TokenInfo {
 
 	var bean = &model.TokenInfo{
-		Id:             uuid.NewV4().String(),
-		UserCode:       global.GWAF_USER_CODE,
-		TenantId:       global.GWAF_TENANT_ID,
-		LoginAccount:   loginAccount,
-		AccessToken:    AccessToken,
-		LoginIp:        LoginIp,
-		CreateTime:     time.Now(),
-		LastUpdateTime: time.Now(),
+		BaseOrm: baseorm.BaseOrm{
+			Id:          uuid.NewV4().String(),
+			USER_CODE:   global.GWAF_USER_CODE,
+			Tenant_ID:   global.GWAF_TENANT_ID,
+			CREATE_TIME: customtype.JsonTime(time.Now()),
+			UPDATE_TIME: customtype.JsonTime(time.Now()),
+		},
+		LoginAccount: loginAccount,
+		AccessToken:  AccessToken,
+		LoginIp:      LoginIp,
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
 	mod := receiver.GetInfoByLoginAccount(loginAccount)
@@ -39,8 +43,8 @@ func (receiver *WafTokenInfoService) ModifyApi(loginAccount string, AccessToken 
 		return errors.New("当前数据不存在")
 	}
 	beanMap := map[string]interface{}{
-		"login_ip":         LoginIp,
-		"last_update_time": time.Now(),
+		"login_ip":    LoginIp,
+		"UPDATE_TIME": customtype.JsonTime(time.Now()),
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.Account{}).Where("login_account = ? ,access_token = ? ", loginAccount, AccessToken).Updates(beanMap).Error
 

@@ -1,8 +1,10 @@
 package waf_service
 
 import (
+	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/model"
+	"SamWaf/model/baseorm"
 	uuid "github.com/satori/go.uuid"
 	"time"
 )
@@ -13,13 +15,16 @@ var WafDelayMsgServiceApp = new(WafDelayMsgService)
 
 func (receiver *WafDelayMsgService) Add(DelayType, DelayTile, DelayContent string) error {
 	var bean = &model.DelayMsg{
-		UserCode:     global.GWAF_USER_CODE,
-		TenantId:     global.GWAF_TENANT_ID,
-		Id:           uuid.NewV4().String(),
+		BaseOrm: baseorm.BaseOrm{
+			Id:          uuid.NewV4().String(),
+			USER_CODE:   global.GWAF_USER_CODE,
+			Tenant_ID:   global.GWAF_TENANT_ID,
+			CREATE_TIME: customtype.JsonTime(time.Now()),
+			UPDATE_TIME: customtype.JsonTime(time.Now()),
+		},
 		DelayType:    DelayType,
 		DelayTile:    DelayTile,
 		DelayContent: DelayContent,
-		CreateTime:   time.Now(),
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
 	return nil

@@ -1,9 +1,11 @@
 package waftask
 
 import (
+	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model"
+	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
 	"SamWaf/service/waf_service"
 	"SamWaf/utils/zlog"
@@ -91,21 +93,24 @@ func TaskCounter() {
 
 			if statDay.HostCode == "" {
 				statDay2 := &model.StatsDay{
-					UserCode:       value.UserCode,
-					TenantId:       value.TenantId,
-					HostCode:       value.HostCode,
-					Day:            value.Day,
-					Host:           value.Host,
-					Type:           value.ACTION,
-					Count:          value.Count,
-					CreateTime:     time.Now(),
-					LastUpdateTime: time.Now(),
+					BaseOrm: baseorm.BaseOrm{
+						Id:          uuid.NewV4().String(),
+						USER_CODE:   global.GWAF_USER_CODE,
+						Tenant_ID:   global.GWAF_TENANT_ID,
+						CREATE_TIME: customtype.JsonTime(time.Now()),
+						UPDATE_TIME: customtype.JsonTime(time.Now()),
+					},
+					HostCode: value.HostCode,
+					Day:      value.Day,
+					Host:     value.Host,
+					Type:     value.ACTION,
+					Count:    value.Count,
 				}
 				global.GQEQUE_STATS_DB.PushBack(statDay2)
 			} else {
 				statDayMap := map[string]interface{}{
-					"Count":            value.Count + statDay.Count,
-					"last_update_time": currenyDayBak,
+					"Count":       value.Count + statDay.Count,
+					"UPDATE_TIME": customtype.JsonTime(currenyDayBak),
 				}
 				updateBean := innerbean.UpdateModel{
 					Model:  model.StatsDay{},
@@ -134,22 +139,25 @@ func TaskCounter() {
 
 			if statDay.HostCode == "" {
 				statDay2 := &model.StatsIPDay{
-					UserCode:       value.UserCode,
-					TenantId:       value.TenantId,
-					HostCode:       value.HostCode,
-					Day:            value.Day,
-					Host:           value.Host,
-					Type:           value.ACTION,
-					Count:          value.Count,
-					IP:             value.Ip,
-					CreateTime:     time.Now(),
-					LastUpdateTime: time.Now(),
+					BaseOrm: baseorm.BaseOrm{
+						Id:          uuid.NewV4().String(),
+						USER_CODE:   global.GWAF_USER_CODE,
+						Tenant_ID:   global.GWAF_TENANT_ID,
+						CREATE_TIME: customtype.JsonTime(time.Now()),
+						UPDATE_TIME: customtype.JsonTime(time.Now()),
+					},
+					HostCode: value.HostCode,
+					Day:      value.Day,
+					Host:     value.Host,
+					Type:     value.ACTION,
+					Count:    value.Count,
+					IP:       value.Ip,
 				}
 				global.GQEQUE_STATS_DB.PushBack(statDay2)
 			} else {
 				statDayMap := map[string]interface{}{
-					"Count":            value.Count + statDay.Count,
-					"last_update_time": currenyDayBak,
+					"Count":       value.Count + statDay.Count,
+					"UPDATE_TIME": customtype.JsonTime(currenyDayBak),
 				}
 
 				updateBean := innerbean.UpdateModel{
@@ -180,24 +188,27 @@ func TaskCounter() {
 
 			if statDay.HostCode == "" {
 				statDay2 := &model.StatsIPCityDay{
-					UserCode:       value.UserCode,
-					TenantId:       value.TenantId,
-					HostCode:       value.HostCode,
-					Day:            value.Day,
-					Host:           value.Host,
-					Type:           value.ACTION,
-					Count:          value.Count,
-					Country:        value.Country,
-					Province:       value.Province,
-					City:           value.City,
-					CreateTime:     time.Now(),
-					LastUpdateTime: time.Now(),
+					BaseOrm: baseorm.BaseOrm{
+						Id:          uuid.NewV4().String(),
+						USER_CODE:   global.GWAF_USER_CODE,
+						Tenant_ID:   global.GWAF_TENANT_ID,
+						CREATE_TIME: customtype.JsonTime(time.Now()),
+						UPDATE_TIME: customtype.JsonTime(time.Now()),
+					},
+					HostCode: value.HostCode,
+					Day:      value.Day,
+					Host:     value.Host,
+					Type:     value.ACTION,
+					Count:    value.Count,
+					Country:  value.Country,
+					Province: value.Province,
+					City:     value.City,
 				}
 				global.GQEQUE_STATS_DB.PushBack(statDay2)
 			} else {
 				statDayMap := map[string]interface{}{
-					"Count":            value.Count + statDay.Count,
-					"last_update_time": currenyDayBak,
+					"Count":       value.Count + statDay.Count,
+					"UPDATE_TIME": customtype.JsonTime(currenyDayBak),
 				}
 
 				updateBean := innerbean.UpdateModel{

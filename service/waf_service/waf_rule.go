@@ -1,11 +1,14 @@
 package waf_service
 
 import (
+	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/model"
+	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
 	"SamWaf/utils/zlog"
 	"errors"
+	uuid "github.com/satori/go.uuid"
 	"time"
 )
 
@@ -14,8 +17,15 @@ type WafRuleService struct{}
 var WafRuleServiceApp = new(WafRuleService)
 
 func (receiver *WafRuleService) AddApi(wafRuleAddReq request.WafRuleAddReq, ruleCode string, chsName string, hostCode string, ruleContent string) error {
+
 	var wafRule = &model.Rules{
-		TenantId:        global.GWAF_TENANT_ID,
+		BaseOrm: baseorm.BaseOrm{
+			Id:          uuid.NewV4().String(),
+			USER_CODE:   global.GWAF_USER_CODE,
+			Tenant_ID:   global.GWAF_TENANT_ID,
+			CREATE_TIME: customtype.JsonTime(time.Now()),
+			UPDATE_TIME: customtype.JsonTime(time.Now()),
+		},
 		HostCode:        hostCode, //网站CODE
 		RuleCode:        ruleCode,
 		RuleName:        chsName,
@@ -23,14 +33,11 @@ func (receiver *WafRuleService) AddApi(wafRuleAddReq request.WafRuleAddReq, rule
 		RuleContentJSON: wafRuleAddReq.RuleJson, //TODO 后续考虑是否应该再从结构转一次
 		RuleVersionName: "初版",
 		RuleVersion:     1,
-		UserCode:        global.GWAF_USER_CODE,
 		IsPublicRule:    0,
 		IsManualRule:    wafRuleAddReq.IsManualRule,
 		RuleStatus:      1,
-		CreateTime:      time.Now(),
-		LastUpdateTime:  time.Now(),
 	}
-	global.GWAF_LOCAL_DB.Create(wafRule)
+	global.GWAF_LOCAL_DB.Debug().Create(wafRule)
 	return nil
 }
 
@@ -41,7 +48,7 @@ func (receiver *WafRuleService) AddApi(wafRuleAddReq request.WafRuleAddReq, rule
 */
 func (receiver *WafRuleService) CheckIsExistApi(ruleName string, hostCode string) int64 {
 	var count int64 = 0
-	err := global.GWAF_LOCAL_DB.Model(&model.Rules{}).Where("rule_name = ? and host_code = ? and rule_status<> 999", ruleName, hostCode).Count(&count)
+	err := global.GWAF_LOCAL_DB.Model(&model.Rules{}).Where("rule_name = ? and host_code = ? and rule_status<> 999", ruleName, hostCode).Count(&count).Error
 	if err != nil {
 		zlog.Error("检查是否存在错误", err)
 	}
@@ -54,7 +61,7 @@ func (receiver *WafRuleService) ModifyApi(wafRuleEditReq request.WafRuleEditReq,
 	global.GWAF_LOCAL_DB.Where("rule_name = ? and host_code= ?",
 		chsName, hostCode).Find(&rule)
 
-	if rule.Id != 0 && rule.RuleCode != wafRuleEditReq.CODE {
+	if rule.Id != "" && rule.RuleCode != wafRuleEditReq.CODE {
 
 		return errors.New("当前规则名称已经存在")
 	}
@@ -72,8 +79,7 @@ func (receiver *WafRuleService) ModifyApi(wafRuleEditReq request.WafRuleEditReq,
 		"IsPublicRule":    0,
 		"IsManualRule":    wafRuleEditReq.IsManualRule,
 		"RuleStatus":      "1",
-		"LastUpdateTime":  time.Now(),
-		//"UPDATE_TIME": time.Now(),
+		"UPDATE_TIME":     customtype.JsonTime(time.Now()),
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.Rules{}).Where("rule_code=?", wafRuleEditReq.CODE).Updates(ruleMap).Error
 
@@ -93,10 +99,8 @@ func (receiver *WafRuleService) GetListApi(wafRuleSearchReq request.WafRuleSearc
 	var total int64 = 0
 	var rules []model.Rules
 	global.GWAF_LOCAL_DB.Where("rule_status= 1").Limit(wafRuleSearchReq.PageSize).Offset(wafRuleSearchReq.PageSize * (wafRuleSearchReq.PageIndex - 1)).Find(&rules)
-	err := global.GWAF_LOCAL_DB.Where("rule_status= 1 ").Model(&model.Rules{}).Count(&total)
-	if err != nil {
-		zlog.Debug("列查询", err)
-	}
+	global.GWAF_LOCAL_DB.Where("rule_status= 1 ").Model(&model.Rules{}).Count(&total)
+
 	return rules, total, nil
 }
 

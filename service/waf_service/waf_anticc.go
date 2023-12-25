@@ -1,8 +1,10 @@
 package waf_service
 
 import (
+	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/model"
+	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
 	"errors"
 	uuid "github.com/satori/go.uuid"
@@ -15,16 +17,18 @@ var WafAntiCCServiceApp = new(WafAntiCCService)
 
 func (receiver *WafAntiCCService) AddApi(req request.WafAntiCCAddReq) error {
 	var bean = &model.AntiCC{
-		UserCode:       global.GWAF_USER_CODE,
-		TenantId:       global.GWAF_TENANT_ID,
-		Id:             uuid.NewV4().String(),
-		HostCode:       req.HostCode,
-		Rate:           req.Rate,
-		Limit:          req.Limit,
-		Url:            req.Url,
-		Remarks:        req.Remarks,
-		CreateTime:     time.Now(),
-		LastUpdateTime: time.Now(),
+		BaseOrm: baseorm.BaseOrm{
+			Id:          uuid.NewV4().String(),
+			USER_CODE:   global.GWAF_USER_CODE,
+			Tenant_ID:   global.GWAF_TENANT_ID,
+			CREATE_TIME: customtype.JsonTime(time.Now()),
+			UPDATE_TIME: customtype.JsonTime(time.Now()),
+		},
+		HostCode: req.HostCode,
+		Rate:     req.Rate,
+		Limit:    req.Limit,
+		Url:      req.Url,
+		Remarks:  req.Remarks,
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
 	return nil
@@ -42,12 +46,12 @@ func (receiver *WafAntiCCService) ModifyApi(req request.WafAntiCCEditReq) error 
 		return errors.New("当前网站和url已经存在")
 	}
 	ipWhiteMap := map[string]interface{}{
-		"Host_Code":        req.HostCode,
-		"Url":              req.Url,
-		"Rate":             req.Rate,
-		"Limit":            req.Limit,
-		"Remarks":          req.Remarks,
-		"last_update_time": time.Now(),
+		"Host_Code":   req.HostCode,
+		"Url":         req.Url,
+		"Rate":        req.Rate,
+		"Limit":       req.Limit,
+		"Remarks":     req.Remarks,
+		"UPDATE_TIME": customtype.JsonTime(time.Now()),
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.AntiCC{}).Where("id = ?", req.Id).Updates(ipWhiteMap).Error
 

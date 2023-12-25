@@ -1,8 +1,10 @@
 package waf_service
 
 import (
+	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/model"
+	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
 	"errors"
 	uuid "github.com/satori/go.uuid"
@@ -15,8 +17,13 @@ var WafHostServiceApp = new(WafHostService)
 
 func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (string, error) {
 	var wafHost = &model.Hosts{
-		USER_CODE:     global.GWAF_USER_CODE,
-		Tenant_id:     global.GWAF_TENANT_ID,
+		BaseOrm: baseorm.BaseOrm{
+			Id:          uuid.NewV4().String(),
+			USER_CODE:   global.GWAF_USER_CODE,
+			Tenant_ID:   global.GWAF_TENANT_ID,
+			CREATE_TIME: customtype.JsonTime(time.Now()),
+			UPDATE_TIME: customtype.JsonTime(time.Now()),
+		},
 		Code:          uuid.NewV4().String(),
 		Host:          wafHostAddReq.Host,
 		Port:          wafHostAddReq.Port,
@@ -30,8 +37,6 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 		Certfile:      wafHostAddReq.Certfile,
 		Keyfile:       wafHostAddReq.Keyfile,
 		REMARKS:       wafHostAddReq.REMARKS,
-		CREATE_TIME:   time.Now(),
-		UPDATE_TIME:   time.Now(),
 	}
 	global.GWAF_LOCAL_DB.Create(wafHost)
 	return wafHost.Code, nil
@@ -47,7 +52,7 @@ func (receiver *WafHostService) CheckIsExist(host string, port string) error {
 func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq) error {
 	var webHost model.Hosts
 	global.GWAF_LOCAL_DB.Where("host = ? and port= ?", wafHostEditReq.Host, wafHostEditReq.Port).Find(&webHost)
-	if webHost.Id != 0 && webHost.Code != wafHostEditReq.CODE {
+	if webHost.Id != "" && webHost.Code != wafHostEditReq.CODE {
 		return errors.New("当前网站和端口已经存在")
 	}
 	if webHost.GLOBAL_HOST == 1 {
@@ -67,7 +72,7 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 
 		"Certfile":    wafHostEditReq.Certfile,
 		"Keyfile":     wafHostEditReq.Keyfile,
-		"UPDATE_TIME": time.Now(),
+		"UPDATE_TIME": customtype.JsonTime(time.Now()),
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.Hosts{}).Where("CODE=?", wafHostEditReq.CODE).Updates(hostMap).Error
 
@@ -88,6 +93,7 @@ func (receiver *WafHostService) GetListApi(wafHostSearchReq request.WafHostSearc
 	var total int64 = 0
 	global.GWAF_LOCAL_DB.Limit(wafHostSearchReq.PageSize).Offset(wafHostSearchReq.PageSize * (wafHostSearchReq.PageIndex - 1)).Order("global_host desc").Find(&webHosts)
 	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Count(&total)
+
 	return webHosts, total, nil
 }
 func (receiver *WafHostService) DelHostApi(req request.WafHostDelReq) error {
@@ -119,7 +125,7 @@ func (receiver *WafHostService) DelHostApi(req request.WafHostDelReq) error {
 func (receiver *WafHostService) ModifyGuardStatusApi(req request.WafHostGuardStatusReq) error {
 	hostMap := map[string]interface{}{
 		"GUARD_STATUS": req.GUARD_STATUS,
-		"UPDATE_TIME":  time.Now(),
+		"UPDATE_TIME":  customtype.JsonTime(time.Now()),
 	}
 
 	err := global.GWAF_LOCAL_DB.Model(model.Hosts{}).Where("CODE=?", req.CODE).Updates(hostMap).Error

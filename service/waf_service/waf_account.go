@@ -1,8 +1,10 @@
 package waf_service
 
 import (
+	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/model"
+	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
 	"errors"
 	uuid "github.com/satori/go.uuid"
@@ -15,15 +17,17 @@ var WafAccountServiceApp = new(WafAccountService)
 
 func (receiver *WafAccountService) AddApi(req request.WafAccountAddReq) error {
 	var bean = &model.Account{
-		Id:             uuid.NewV4().String(),
-		UserCode:       global.GWAF_USER_CODE,
-		TenantId:       global.GWAF_TENANT_ID,
-		LoginAccount:   req.LoginAccount,
-		LoginPassword:  req.LoginPassword,
-		Status:         req.Status,
-		Remarks:        req.Remarks,
-		CreateTime:     time.Now(),
-		LastUpdateTime: time.Now(),
+		BaseOrm: baseorm.BaseOrm{
+			Id:          uuid.NewV4().String(),
+			USER_CODE:   global.GWAF_USER_CODE,
+			Tenant_ID:   global.GWAF_TENANT_ID,
+			CREATE_TIME: customtype.JsonTime(time.Now()),
+			UPDATE_TIME: customtype.JsonTime(time.Now()),
+		},
+		LoginAccount:  req.LoginAccount,
+		LoginPassword: req.LoginPassword,
+		Status:        req.Status,
+		Remarks:       req.Remarks,
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
 	return nil
@@ -39,11 +43,11 @@ func (receiver *WafAccountService) ModifyApi(req request.WafAccountEditReq) erro
 		return errors.New("当前数据已经存在")
 	}
 	beanMap := map[string]interface{}{
-		"LoginAccount":     req.LoginAccount,
-		"LoginPassword":    req.LoginPassword,
-		"Status":           req.Status,
-		"Remarks":          req.Remarks,
-		"last_update_time": time.Now(),
+		"LoginAccount":  req.LoginAccount,
+		"LoginPassword": req.LoginPassword,
+		"Status":        req.Status,
+		"Remarks":       req.Remarks,
+		"UPDATE_TIME":   customtype.JsonTime(time.Now()),
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.Account{}).Where("id = ?", req.Id).Updates(beanMap).Error
 

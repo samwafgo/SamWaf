@@ -1,10 +1,12 @@
 package wafenginecore
 
 import (
+	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/libinjection-go"
 	"SamWaf/model"
+	"SamWaf/model/baseorm"
 	"SamWaf/model/wafenginmodel"
 	"SamWaf/plugin"
 	"SamWaf/utils"
@@ -669,8 +671,12 @@ func (waf *WafEngine) StartWaf() {
 	if hosts != nil && len(hosts) == 0 {
 		//初始化全局保护
 		var wafGlobalHost = &model.Hosts{
-			USER_CODE:     global.GWAF_USER_CODE,
-			Tenant_id:     global.GWAF_TENANT_ID,
+			BaseOrm: baseorm.BaseOrm{
+				USER_CODE:   global.GWAF_USER_CODE,
+				Tenant_ID:   global.GWAF_TENANT_ID,
+				CREATE_TIME: customtype.JsonTime(time.Now()),
+				UPDATE_TIME: customtype.JsonTime(time.Now()),
+			},
 			Code:          uuid.NewV4().String(),
 			Host:          "全局网站",
 			Port:          0,
@@ -683,8 +689,6 @@ func (waf *WafEngine) StartWaf() {
 			Certfile:      "",
 			Keyfile:       "",
 			REMARKS:       "",
-			CREATE_TIME:   time.Now(),
-			UPDATE_TIME:   time.Now(),
 			GLOBAL_HOST:   1,
 		}
 		global.GWAF_LOCAL_DB.Create(wafGlobalHost)
@@ -705,12 +709,15 @@ func (waf *WafEngine) StartWaf() {
 	waf.LoadAllHost()
 
 	wafSysLog := &model.WafSysLog{
-		Id:         uuid.NewV4().String(),
-		UserCode:   global.GWAF_USER_CODE,
-		TenantId:   global.GWAF_TENANT_ID,
-		OpType:     "信息",
-		OpContent:  "WAF启动",
-		CreateTime: time.Now(),
+		BaseOrm: baseorm.BaseOrm{
+			Id:          uuid.NewV4().String(),
+			USER_CODE:   global.GWAF_USER_CODE,
+			Tenant_ID:   global.GWAF_TENANT_ID,
+			CREATE_TIME: customtype.JsonTime(time.Now()),
+			UPDATE_TIME: customtype.JsonTime(time.Now()),
+		},
+		OpType:    "信息",
+		OpContent: "WAF启动",
 	}
 	global.GQEQUE_LOG_DB.PushBack(wafSysLog)
 
@@ -784,12 +791,15 @@ func (waf *WafEngine) CloseWaf() {
 		}
 	}()
 	wafSysLog := &model.WafSysLog{
-		Id:         uuid.NewV4().String(),
-		UserCode:   global.GWAF_USER_CODE,
-		TenantId:   global.GWAF_TENANT_ID,
-		OpType:     "信息",
-		OpContent:  "WAF关闭",
-		CreateTime: time.Now(),
+		BaseOrm: baseorm.BaseOrm{
+			Id:          uuid.NewV4().String(),
+			USER_CODE:   global.GWAF_USER_CODE,
+			Tenant_ID:   global.GWAF_TENANT_ID,
+			CREATE_TIME: customtype.JsonTime(time.Now()),
+			UPDATE_TIME: customtype.JsonTime(time.Now()),
+		},
+		OpType:    "信息",
+		OpContent: "WAF关闭",
 	}
 	global.GQEQUE_LOG_DB.PushBack(wafSysLog)
 	waf.EngineCurrentStatus = 0
@@ -954,12 +964,15 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 			} else {
 				//TODO 记录如果https 端口被占用的情况 记录日志 且应该推送websocket
 				wafSysLog := model.WafSysLog{
-					Id:         uuid.NewV4().String(),
-					UserCode:   global.GWAF_USER_CODE,
-					TenantId:   global.GWAF_TENANT_ID,
-					OpType:     "系统运行错误",
-					OpContent:  "HTTPS端口被占用: " + strconv.Itoa(innruntime.Port) + ",请检查",
-					CreateTime: time.Time{},
+					BaseOrm: baseorm.BaseOrm{
+						Id:          uuid.NewV4().String(),
+						USER_CODE:   global.GWAF_USER_CODE,
+						Tenant_ID:   global.GWAF_TENANT_ID,
+						CREATE_TIME: customtype.JsonTime(time.Now()),
+						UPDATE_TIME: customtype.JsonTime(time.Now()),
+					},
+					OpType:    "系统运行错误",
+					OpContent: "HTTPS端口被占用: " + strconv.Itoa(innruntime.Port) + ",请检查",
 				}
 				global.GQEQUE_LOG_DB.PushBack(wafSysLog)
 				zlog.Error("[HTTPServer] https server start fail, cause:[%v]", err)
@@ -989,12 +1002,15 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 			} else {
 				//TODO 记录如果http 端口被占用的情况 记录日志 且应该推送websocket
 				wafSysLog := model.WafSysLog{
-					Id:         uuid.NewV4().String(),
-					UserCode:   global.GWAF_USER_CODE,
-					TenantId:   global.GWAF_TENANT_ID,
-					OpType:     "系统运行错误",
-					OpContent:  "HTTP端口被占用: " + strconv.Itoa(innruntime.Port) + ",请检查",
-					CreateTime: time.Time{},
+					BaseOrm: baseorm.BaseOrm{
+						Id:          uuid.NewV4().String(),
+						USER_CODE:   global.GWAF_USER_CODE,
+						Tenant_ID:   global.GWAF_TENANT_ID,
+						CREATE_TIME: customtype.JsonTime(time.Now()),
+						UPDATE_TIME: customtype.JsonTime(time.Now()),
+					},
+					OpType:    "系统运行错误",
+					OpContent: "HTTP端口被占用: " + strconv.Itoa(innruntime.Port) + ",请检查",
 				}
 				global.GQEQUE_LOG_DB.PushBack(wafSysLog)
 				zlog.Error("[HTTPServer] http server start fail, cause:[%v]", err)

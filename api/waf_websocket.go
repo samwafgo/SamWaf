@@ -40,19 +40,19 @@ func (w *WafWebSocketApi) WebSocketMessageApi(c *gin.Context) {
 		zlog.Debug("无鉴权信息，请检查")
 		return
 	}
-	global.GWebSocket.SetWebSocket(tokenInfo.TenantId+tokenInfo.UserCode+tokenInfo.LoginAccount, ws)
+	global.GWebSocket.SetWebSocket(tokenInfo.BaseOrm.Tenant_ID+tokenInfo.BaseOrm.USER_CODE+tokenInfo.LoginAccount, ws)
 
 	defer func() {
-		websocket := global.GWebSocket.GetWebSocket(tokenInfo.TenantId + tokenInfo.UserCode + tokenInfo.LoginAccount)
+		websocket := global.GWebSocket.GetWebSocket(tokenInfo.BaseOrm.Tenant_ID + tokenInfo.BaseOrm.USER_CODE + tokenInfo.LoginAccount)
 		if websocket != nil {
 			websocket.Close()
-			global.GWebSocket.DelWebSocket(tokenInfo.TenantId + tokenInfo.UserCode + tokenInfo.LoginAccount)
+			global.GWebSocket.DelWebSocket(tokenInfo.BaseOrm.Tenant_ID + tokenInfo.BaseOrm.USER_CODE + tokenInfo.LoginAccount)
 		}
 	}()
 
 	for {
 		//读取ws中的数据
-		mt, message, err := global.GWebSocket.GetWebSocket(tokenInfo.TenantId + tokenInfo.UserCode + tokenInfo.LoginAccount).ReadMessage()
+		mt, message, err := global.GWebSocket.GetWebSocket(tokenInfo.BaseOrm.Tenant_ID + tokenInfo.BaseOrm.USER_CODE + tokenInfo.LoginAccount).ReadMessage()
 		if err != nil {
 			break
 		}
@@ -61,7 +61,7 @@ func (w *WafWebSocketApi) WebSocketMessageApi(c *gin.Context) {
 			message = []byte("pong")
 		}
 		//写入ws数据
-		err = global.GWebSocket.GetWebSocket(tokenInfo.TenantId+tokenInfo.UserCode+tokenInfo.LoginAccount).WriteMessage(mt, message)
+		err = global.GWebSocket.GetWebSocket(tokenInfo.BaseOrm.Tenant_ID+tokenInfo.BaseOrm.USER_CODE+tokenInfo.LoginAccount).WriteMessage(mt, message)
 		if err != nil {
 			break
 		}

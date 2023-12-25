@@ -187,19 +187,19 @@ import {
             align: 'left',
             width: 250,
             ellipsis: true,
-            colKey: 'host_code', 
+            colKey: 'host_code',
           },
           {
-            title: 'Url',
+            title: '速率',
             width: 200,
             ellipsis: true,
-            colKey: 'url',
+            colKey: 'rate',
           },
           {
-            title: '备注',
+            title: '限制次数',
             width: 200,
             ellipsis: true,
-            colKey: 'remarks',
+            colKey: 'limit',
           },
           {
             title: '添加时间',
@@ -209,7 +209,7 @@ import {
           },
 
           {
-            align: 'left', 
+            align: 'left',
             width: 200,
             colKey: 'op',
             title: '操作',

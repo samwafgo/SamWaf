@@ -1,8 +1,10 @@
 package waf_service
 
 import (
+	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/model"
+	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
 	"errors"
 	uuid "github.com/satori/go.uuid"
@@ -15,15 +17,17 @@ var WafLdpUrlServiceApp = new(WafLdpUrlService)
 
 func (receiver *WafLdpUrlService) AddApi(req request.WafLdpUrlAddReq) error {
 	var bean = &model.LDPUrl{
-		UserCode:       global.GWAF_USER_CODE,
-		TenantId:       global.GWAF_TENANT_ID,
-		Id:             uuid.NewV4().String(),
-		HostCode:       req.HostCode,
-		CompareType:    req.CompareType,
-		Url:            req.Url,
-		Remarks:        req.Remarks,
-		CreateTime:     time.Now(),
-		LastUpdateTime: time.Now(),
+		BaseOrm: baseorm.BaseOrm{
+			Id:          uuid.NewV4().String(),
+			USER_CODE:   global.GWAF_USER_CODE,
+			Tenant_ID:   global.GWAF_TENANT_ID,
+			CREATE_TIME: customtype.JsonTime(time.Now()),
+			UPDATE_TIME: customtype.JsonTime(time.Now()),
+		},
+		HostCode:    req.HostCode,
+		CompareType: req.CompareType,
+		Url:         req.Url,
+		Remarks:     req.Remarks,
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
 	return nil
@@ -41,11 +45,11 @@ func (receiver *WafLdpUrlService) ModifyApi(req request.WafLdpUrlEditReq) error 
 		return errors.New("当前网站和url已经存在")
 	}
 	ipWhiteMap := map[string]interface{}{
-		"Host_Code":        req.HostCode,
-		"Url":              req.Url,
-		"Remarks":          req.Remarks,
-		"Compare_Type":     req.CompareType,
-		"last_update_time": time.Now(),
+		"Host_Code":    req.HostCode,
+		"Url":          req.Url,
+		"Remarks":      req.Remarks,
+		"Compare_Type": req.CompareType,
+		"UPDATE_TIME":  customtype.JsonTime(time.Now()),
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.LDPUrl{}).Where("id = ?", req.Id).Updates(ipWhiteMap).Error
 

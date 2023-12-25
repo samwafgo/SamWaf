@@ -1,8 +1,10 @@
 package api
 
 import (
+	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/model"
+	"SamWaf/model/baseorm"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	"errors"
@@ -187,10 +189,14 @@ func saveDataToDatabase(name string, rows [][]string) ReturnImportData {
 			err := wafHostService.CheckIsExist(data["host"], data["port"])
 			if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 				var wafHost = &model.Hosts{
-					USER_CODE: global.GWAF_USER_CODE,
-					Tenant_id: global.GWAF_TENANT_ID,
-					Code:      data["code"],
-					Host:      data["host"],
+					BaseOrm: baseorm.BaseOrm{
+						USER_CODE:   global.GWAF_USER_CODE,
+						Tenant_ID:   global.GWAF_TENANT_ID,
+						CREATE_TIME: customtype.JsonTime(time.Now()),
+						UPDATE_TIME: customtype.JsonTime(time.Now()),
+					},
+					Code: data["code"],
+					Host: data["host"],
 					/*Port:          data["port"],
 					Ssl:           data["ssl"],
 					GUARD_STATUS:  data["guard_status"],*/
@@ -198,12 +204,10 @@ func saveDataToDatabase(name string, rows [][]string) ReturnImportData {
 					REMOTE_APP:    data["remote_app"],
 					Remote_host:   data["remote_host"],
 					/*Remote_port:   data["remote_port"],*/
-					Remote_ip:   data["remote_ip"],
-					Certfile:    data["certfile"],
-					Keyfile:     data["keyfile"],
-					REMARKS:     data["remarks"],
-					CREATE_TIME: time.Now(),
-					UPDATE_TIME: time.Now(),
+					Remote_ip: data["remote_ip"],
+					Certfile:  data["certfile"],
+					Keyfile:   data["keyfile"],
+					REMARKS:   data["remarks"],
 				}
 				port, err := strconv.Atoi(data["port"])
 				if err != nil {

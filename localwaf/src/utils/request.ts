@@ -14,7 +14,7 @@ const CODE = {
 
 const instance = axios.create({
   baseURL: API_HOST,
-  timeout: 1000,
+  timeout: 3000,
   withCredentials: true,
 });
 
@@ -48,7 +48,7 @@ instance.interceptors.response.use(
       if (data.code === CODE.REQUEST_SUCCESS) {
         return data;
       }else if(data.code === CODE.AUTH_FAILURE){
-          localStorage.clear();     //删除用户信息 
+          localStorage.clear();     //删除用户信息
           console.log("鉴权失败")
           router.replace({path: '/login'})
       }

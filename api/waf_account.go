@@ -103,7 +103,7 @@ func (w *WafAccountApi) ResetAccountPwdApi(c *gin.Context) {
 		}
 		err = wafAccountService.ResetPwdApi(req)
 		if err != nil {
-			response.FailWithMessage("重置密码发生错误", c)
+			response.FailWithMessage(err.Error(), c)
 		} else {
 			response.OkWithMessage("重置密码成功", c)
 		}

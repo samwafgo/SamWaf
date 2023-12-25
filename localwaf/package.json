@@ -25,7 +25,7 @@
     "nprogress": "^0.2.0",
     "qrcode.vue": "^1.7.0",
     "tdesign-icons-vue": "^0.2.2",
-    "tdesign-vue": "^1.6.3",
+    "tdesign-vue": "^1.8.3",
     "tvision-color": "~1.4.0",
     "typescript": "^4.2.4",
     "uuid": "^9.0.0",

@@ -22,7 +22,8 @@
 
 
 
-          <template #op="slotProps"> 
+          <template #op="slotProps">
+            <a class="t-button-link" @click="handleClickResetPwd(slotProps)">重置密码</a>
             <a class="t-button-link" @click="handleClickEdit(slotProps)">编辑</a>
             <a class="t-button-link" @click="handleClickDelete(slotProps)">删除</a>
           </template>
@@ -41,8 +42,16 @@
           <t-form-item label="登录账号" name="login_account">
               <t-input :style="{ width: '480px' }" v-model="formData.login_account" placeholder="请输入登录账号"></t-input>
           </t-form-item>
+          <t-form-item label="角色" name="role">
+            <t-select v-model="formData.role" clearable :style="{ width: '480px' }">
+              <t-option v-for="(item, index) in roleType" :value="item.value" :label="item.label"
+                        :key="index">
+                {{ item.label }}
+              </t-option>
+            </t-select>
+          </t-form-item>
           <t-form-item label="登录密码" name="login_password">
-            <t-input :style="{ width: '480px' }" v-model="formData.login_password" placeholder="请输入登录密码"></t-input>
+            <t-input :style="{ width: '480px' }" type="password"  v-model="formData.login_password" placeholder="请输入登录密码"></t-input>
           </t-form-item>
           <t-form-item label="状态" name="rate">
             <t-input-number :style="{ width: '480px' }" v-model="formData.status" placeholder="请输入状态"></t-input-number>
@@ -67,15 +76,36 @@
           <t-form-item label="登录账号" name="login_account">
            <t-input :style="{ width: '480px' }" v-model="formEditData.login_account" placeholder="请输入登录账号"></t-input>
           </t-form-item>
-          <t-form-item label="登录密码" name="login_password">
-           <t-input :style="{ width: '480px' }" v-model="formEditData.login_password" placeholder="请输入登录密码"></t-input>
-          </t-form-item>
           <t-form-item label="状态" name="status">
             <t-input-number :style="{ width: '480px' }" v-model="formEditData.status" placeholder="请输入状态"></t-input-number>
           </t-form-item>
           <t-form-item label="备注" name="remarks">
             <t-textarea :style="{ width: '480px' }" v-model="formEditData.remarks" placeholder="请输入内容" name="remarks">
             </t-textarea>
+          </t-form-item>
+          <t-form-item style="float: right">
+            <t-button variant="outline" @click="onClickCloseEditBtn">取消</t-button>
+            <t-button theme="primary" type="submit">确定</t-button>
+          </t-form-item>
+        </t-form>
+      </div>
+    </t-dialog>
+    <!-- 重置密码弹窗 -->
+    <t-dialog header="重置密码" :visible.sync="resetPwdFormVisible" :width="680" :footer="false">
+      <div slot="body">
+        <!-- 表单内容 -->
+        <t-form :data="formResetPwdData" ref="form" :rules="resetPwdRules" @submit="onSubmitResetPwd" :labelWidth="100">
+          <t-form-item label="登录账号" name="login_account">
+            <t-input :style="{ width: '480px' }" v-model="formResetPwdData.login_account" placeholder="请输入登录账号"></t-input>
+          </t-form-item>
+          <t-form-item label="超级管理员密码" name="login_super_password">
+            <t-input :style="{ width: '480px' }" type="password" v-model="formResetPwdData.login_super_password" placeholder="输入超级管理员密码"></t-input>
+          </t-form-item>
+          <t-form-item label="新密码" name="login_new_password">
+            <t-input :style="{ width: '480px' }" type="password"  v-model="formResetPwdData.login_new_password" placeholder="请输入新密码"></t-input>
+          </t-form-item>
+          <t-form-item label="确认密码" name="login_new_password2">
+            <t-input :style="{ width: '480px' }" type="password"  v-model="formResetPwdData.login_new_password2" placeholder="输入确认密码"></t-input>
           </t-form-item>
           <t-form-item style="float: right">
             <t-button variant="outline" @click="onClickCloseEditBtn">取消</t-button>
@@ -131,11 +161,19 @@
         editFormVisible: false,
         guardVisible: false,
         confirmVisible: false,
+        resetPwdFormVisible:false,
         formData: {
           ...INITIAL_DATA
         },
         formEditData: {
           ...INITIAL_DATA
+        },
+        formResetPwdData: {
+          login_account: '',
+          login_super_password: '',
+          login_new_password: '',
+          login_new_password2: '',
+          id:"",
         },
         rules: {
           login_account: [{
@@ -149,6 +187,38 @@
             type: 'error'
           }],
         },
+        resetPwdRules: {
+          login_account: [{
+            required: true,
+            message: '请输入登录账号',
+            type: 'error'
+          }],
+          login_super_password: [{
+            required: true,
+            message: '请输入超级管理员密码',
+            type: 'error'
+          }],
+          login_new_password: [{
+            required: true,
+            message: '请输入新密码',
+            type: 'error'
+          }],
+          login_new_password2: [{
+            required: true,
+            message: '请输入确认密码',
+            type: 'error'
+          }],
+        },
+        roleType: [
+          {
+          label: '超级管理员',
+          value: 'superAdmin'
+         },
+          {
+            label: '管理员',
+            value: 'admin'
+          }
+        ],
         textareaValue: '',
         prefix,
         dataLoading: false,
@@ -162,7 +232,14 @@
             align: 'left',
             width: 250,
             ellipsis: true,
-            colKey: 'login_account', 
+            colKey: 'login_account',
+          },
+          {
+            title: '角色',
+            align: 'left',
+            width: 250,
+            ellipsis: true,
+            colKey: 'role',
           },
           {
             title: '备注',
@@ -178,7 +255,7 @@
           },
 
           {
-            align: 'left', 
+            align: 'left',
             width: 200,
             colKey: 'op',
             title: '操作',
@@ -316,6 +393,15 @@
           status:1,
         };
       },
+      handleClickResetPwd(e) {
+        console.log(e)
+        const {
+          id
+        } = e.row
+        console.log(id)
+        this.resetPwdFormVisible = true
+        this.getDetailModifyPwd(id)
+      },
       onSubmit({
         result,
         firstError
@@ -386,6 +472,50 @@
           that.$message.warning(firstError);
         }
       },
+      /**
+       * 重置密码
+       * @param result
+       * @param firstError
+       */
+      onSubmitResetPwd({
+                     result,
+                     firstError
+                   }): void {
+        let that = this
+        if (!firstError) {
+
+          if(that.formResetPwdData.login_new_password != that.formResetPwdData.login_new_password2){
+            that.$message.warning("两次输入的密码不相同，请检查")
+            return;
+          }
+          let postdata = {
+            ...that.formResetPwdData
+          }
+          this.$request
+            .post('/account/resetpwd', {
+              ...postdata
+            })
+            .then((res) => {
+              let resdata = res
+              console.log(resdata)
+              if (resdata.code === 0) {
+                that.$message.success(resdata.msg);
+                that.resetPwdFormVisible = false;
+                that.pagination.current = 1
+                that.getList("")
+              } else {
+                that.$message.warning(resdata.msg);
+              }
+            })
+            .catch((e: Error) => {
+              console.log(e);
+            })
+            .finally(() => {});
+        } else {
+          console.log('Errors: ', result);
+          that.$message.warning(firstError);
+        }
+      },
       onClickCloseBtn(): void {
         this.formVisible = false;
         this.formData = {};
@@ -395,6 +525,10 @@
         this.formEditData = {};
       },
       handleClickDelete(row) {
+        if(row.row.login_account=="admin"){
+            alert("默认管理帐号不允许删除")
+            return;
+        }
         console.log(row)
         this.deleteIdx = row.rowIndex;
         this.confirmVisible = true;
@@ -462,6 +596,28 @@
           })
           .finally(() => {});
       },
+      getDetailModifyPwd(id) {
+        let that = this
+        this.$request
+          .get('/account/detail', {
+            params: {
+              id: id,
+            }
+          })
+          .then((res) => {
+            let resdata = res
+            console.log(resdata)
+            if (resdata.code === 0) {
+              that.formResetPwdData.login_account =  resdata.data.login_account
+              that.formResetPwdData.id = id
+            }
+          })
+          .catch((e: Error) => {
+            console.log(e);
+          })
+          .finally(() => {});
+      },
+      //end methods
     },
   });
 </script>

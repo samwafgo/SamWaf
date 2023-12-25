@@ -1,15 +1,21 @@
+
+
+
 <template>
   <div>
-    <t-alert theme="error" :message="defaultAccountMessage" v-if="defaultAccountVisable" >
-      <template #operation>
-        <span @click="handleModifyDefaultPassWebOperation">马上修改</span>
-      </template>
-    </t-alert>
-    <t-alert theme="success" :message="emptyHostMessage"  v-if="emptyHostVisable">
-      <template #operation>
-        <span @click="handleCreateWebOperation">马上创建</span>
-      </template>
-    </t-alert>
+    <t-swiper :duration="300" :interval="5000" :navigation="navigation" v-if="tipsVisable" trigger="click">
+      <t-swiper-item  v-for="(item, index)  in tips" :key="index">
+        <t-alert :theme="item.tipsType" :message="item.message" v-if="item.visable" >
+          <template #operation="row">
+            <span @click="handleCreateWebOperation" v-if="item.name==='emptyHost'" >马上创建</span>
+            <span @click="handleModifyDefaultPassWebOperation" v-if="item.name==='defaultAccount'" >马上修改</span>
+          </template>
+        </t-alert>
+      </t-swiper-item>
+    </t-swiper>
+
+<br>
+
     <!-- 顶部 card  -->
     <top-panel class="row-container" />
     <!-- 中部图表  -->
@@ -38,10 +44,27 @@ export default {
     return {
       center: {lng: 0, lat: 0},
       zoom: 3,
-      emptyHostMessage:"您当前未创建需要防护的网站，点击进行创建",
-      emptyHostVisable: false,
-      defaultAccountMessage:"您当前还是使用默认帐号和密码请尽快修改",
-      defaultAccountVisable:false,
+      navigation:{
+        type: 'bars' ,
+        size:'small',
+        showSlideBtn:'never' ,
+        placement:'inside'
+      },
+      tipsVisable:false,
+      tips:[
+        {
+          name:"emptyHost",
+          visable:false,
+          message:"您当前未创建需要防护的网站，点击进行创建",
+          tipsType:"success"
+        },
+        {
+          name:"defaultAccount",
+          visable:false,
+          message:"您当前还是使用默认帐号和密码请尽快修改",
+          tipsType:"error"
+        },
+      ]
     }
   },
   mounted() {
@@ -78,8 +101,9 @@ export default {
     loadSysInfo(){
       wafStatSysinfoapi({}).then((res)=>{
         console.log("home res",res.data)
-        this.defaultAccountVisable = res.data.is_default_account
-        this.emptyHostVisable =  res.data.is_empty_host
+        this.tips[0].visable = res.data.is_empty_host
+        this.tips[1].visable = res.data.is_default_account
+        this.tipsVisable = this.tips[0].visable || this.tips[1].visable
       } ).catch((e: Error) => {
         console.log(e);
       }).finally(() => {})

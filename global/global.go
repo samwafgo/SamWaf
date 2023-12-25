@@ -87,9 +87,9 @@ var (
 	GWAF_PWD_LOGDB  = "3Y)(27EtO^tK8Bj~LOG"  //加密
 
 	//默认创建的账户和密码
-	GWAF_DEFAULT_ACCOUNT     string = "admin"    //默认创建的账户
-	GWAF_DEFAULT_ACCOUNT_PWD string = "admin868" //默认创建的密码
-
+	GWAF_DEFAULT_ACCOUNT      string = "admin"         //默认创建的账户
+	GWAF_DEFAULT_ACCOUNT_PWD  string = "admin868"      //默认创建的密码
+	GWAF_DEFAULT_ACCOUNT_SALT string = "%@311*abDop#*" //盐值
 )
 
 func GetCurrentVersionInt() int {

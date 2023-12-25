@@ -24,12 +24,19 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 			wafAccountService.AddApi(request.WafAccountAddReq{
 				LoginAccount:  global.GWAF_DEFAULT_ACCOUNT,
 				LoginPassword: global.GWAF_DEFAULT_ACCOUNT_PWD,
+				Role:          "superAdmin",
 				Status:        0,
 				Remarks:       "密码生成",
 			})
 		}
 		bean := wafAccountService.GetInfoByLoginApi(req)
 		if bean.Id != "" {
+
+			//校验密码是否正确
+			if bean.LoginPassword != utils.Md5String(req.LoginPassword+global.GWAF_DEFAULT_ACCOUNT_SALT) {
+				response.FailWithMessage("登录密码错误", c)
+				return
+			}
 			//如果存在旧的状态删除
 			oldTokenInfo := wafTokenInfoService.GetInfoByLoginAccount(req.LoginAccount)
 			if oldTokenInfo.Id != "" {

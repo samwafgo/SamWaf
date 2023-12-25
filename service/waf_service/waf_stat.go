@@ -120,3 +120,8 @@ func (receiver *WafStatService) StatAnalysisDayCountryRangeApi(req request.WafSt
 		req.StartDay, req.EndDay, req.AttackType).Select(" country as Name ,sum(count) as Value").Group("country").Order("sum(count) desc").Scan(&CountOfRange)
 	return CountOfRange
 }
+
+// 获取系统基本信息
+func (receiver *WafStatService) StatHomeSysinfo() response2.WafHomeSysinfoStat {
+	return response2.WafHomeSysinfoStat{IsDefaultAccount: WafAccountServiceApp.IsExistDefaultAccount(), IsEmptyHost: WafHostServiceApp.IsEmptyHost()}
+}

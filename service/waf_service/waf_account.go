@@ -73,6 +73,23 @@ func (receiver *WafAccountService) GetInfoByLoginAccount(loginAccount string) mo
 	global.GWAF_LOCAL_DB.Where("login_account=? ", loginAccount).Find(&bean)
 	return bean
 }
+
+/*
+*
+ */
+func (receiver *WafAccountService) IsExistDefaultAccount() bool {
+	var total int64 = 0
+	err := global.GWAF_LOCAL_DB.Model(&model.Account{}).Where("login_account=? and login_password =?", global.GWAF_DEFAULT_ACCOUNT, global.GWAF_DEFAULT_ACCOUNT_PWD).Count(&total).Error
+	if err == nil {
+		if total > 0 {
+			return true
+		} else {
+			return false
+		}
+	} else {
+		return false
+	}
+}
 func (receiver *WafAccountService) GetDetailByIdApi(id string) model.Account {
 	var bean model.Account
 	global.GWAF_LOCAL_DB.Where("id=?", id).Find(&bean)

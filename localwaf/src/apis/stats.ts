@@ -23,8 +23,14 @@ export function wafstatsumdaytopiprangeapi(params) {
     params: params
   })
 }
-
-
+//首页获取基本信息
+export function wafStatSysinfoapi(params) {
+  return request({
+    url: 'statsysinfo',
+    method: 'get',
+    params: params
+  })
+}
 //【数据分析】查询周期区间国家级别攻击和正常信息
 export function wafanalysisdaycountryrange(params) {
   return request({

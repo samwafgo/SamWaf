@@ -88,7 +88,6 @@ export default {
 
     window.addEventListener('resize', this.updateContainer, false);
 
-
   },
 
   methods: {

@@ -142,3 +142,16 @@ func (receiver *WafHostService) CheckPortExistApi(port int) int64 {
 	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where("port=?", port).Count(&total)
 	return total
 }
+func (receiver *WafHostService) IsEmptyHost() bool {
+	var total int64 = 0
+	err := global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where("global_host=?", 0).Count(&total).Error
+	if err == nil {
+		if total == 0 {
+			return true
+		} else {
+			return false
+		}
+	} else {
+		return false
+	}
+}

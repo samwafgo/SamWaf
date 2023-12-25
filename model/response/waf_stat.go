@@ -39,3 +39,12 @@ type WafAnalysisDayStats struct {
 	Name  string `json:"name"  form:"name"`
 	Value int64  `json:"value"  form:"value"`
 }
+
+/*
+*
+首页 获取系统基本信息
+*/
+type WafHomeSysinfoStat struct {
+	IsDefaultAccount bool `json:"is_default_account"  form:"is_default_account"`
+	IsEmptyHost      bool `json:"is_empty_host"  form:"is_empty_host"`
+}

@@ -68,6 +68,11 @@ func (receiver *WafAccountService) ResetPwdApi(req request.WafAccountResetPwdReq
 	if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 		return errors.New("帐号信息不存在")
 	}
+
+	if bean.LoginPassword == utils.Md5String(req.LoginNewPassword+global.GWAF_DEFAULT_ACCOUNT_SALT) {
+		return errors.New("新旧密码相同")
+	}
+
 	beanMap := map[string]interface{}{
 		"LoginAccount":  req.LoginAccount,
 		"LoginPassword": utils.Md5String(req.LoginNewPassword + global.GWAF_DEFAULT_ACCOUNT_SALT),

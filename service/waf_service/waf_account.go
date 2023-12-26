@@ -137,6 +137,10 @@ func (receiver *WafAccountService) DelApi(req request.WafAccountDelReq) error {
 	err := global.GWAF_LOCAL_DB.Where("id = ?", req.Id).First(&bean).Error
 	if err != nil {
 		return err
+	} else {
+		if bean.LoginAccount == "admin" {
+			return errors.New("管理员帐号不能删除")
+		}
 	}
 	err = global.GWAF_LOCAL_DB.Where("id = ?", req.Id).Delete(model.Account{}).Error
 	return err

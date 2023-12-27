@@ -12,7 +12,11 @@
           </template>
         </t-input>
       </t-row>
-
+      <t-alert theme="info" message="SamWaf防护墙抵御CC攻击" close>
+        <template #operation>
+          <span @click="handleJumpOnlineUrl">在线文档</span>
+        </template>
+      </t-alert>
       <div class="table-container">
         <t-table :columns="columns" :data="data" :rowKey="rowKey" :verticalAlign="verticalAlign" :hover="hover"
           :pagination="pagination" :selected-row-keys="selectedRowKeys" :loading="dataLoading"
@@ -249,8 +253,8 @@ import {
       },
     },
     mounted() {
-      this.getList("")
       this.loadHostList()
+      this.getList("")
     },
 
     methods: {
@@ -477,6 +481,10 @@ import {
             console.log(e);
           })
           .finally(() => {});
+      },
+      //跳转界面
+      handleJumpOnlineUrl(){
+        window.open(this.samwafglobalconfig.getOnlineUrl()+"/guide/CC.html");
       },
     },
   });

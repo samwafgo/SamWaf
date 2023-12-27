@@ -13,7 +13,11 @@
           </template>
         </t-input>
       </t-row>
-
+      <t-alert theme="info" message="SamWaf防护墙会阻止在黑名单内的IP的访问" close>
+        <template #operation>
+          <span @click="handleJumpOnlineUrl">在线文档</span>
+        </template>
+      </t-alert>
       <div class="table-container">
         <t-table :columns="columns" :data="data" :rowKey="rowKey" :verticalAlign="verticalAlign" :hover="hover"
           :pagination="pagination" :selected-row-keys="selectedRowKeys" :loading="dataLoading"
@@ -168,7 +172,7 @@
             align: 'left',
             width: 250,
             ellipsis: true,
-            colKey: 'host_code', 
+            colKey: 'host_code',
           },
           {
             title: 'IP',
@@ -190,7 +194,7 @@
           },
 
           {
-            align: 'left', 
+            align: 'left',
             width: 200,
             colKey: 'op',
             title: '操作',
@@ -230,8 +234,8 @@
       },
     },
     mounted() {
-      this.getList("")
       this.loadHostList()
+      this.getList("")
     },
 
     methods: {
@@ -453,6 +457,10 @@
             console.log(e);
           })
           .finally(() => {});
+      },
+      //跳转界面
+      handleJumpOnlineUrl(){
+        window.open(this.samwafglobalconfig.getOnlineUrl()+"/guide/IPBlack.html");
       },
     },
   });

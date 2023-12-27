@@ -220,7 +220,10 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			//url黑名单策略-(局部) （待优化性能）
 			if waf.HostTarget[host].UrlBlockLists != nil {
 				for i := 0; i < len(waf.HostTarget[host].UrlBlockLists); i++ {
-					if waf.HostTarget[host].UrlBlockLists[i].Url == weblogbean.URL {
+					if (waf.HostTarget[host].UrlBlockLists[i].CompareType == "等于" && waf.HostTarget[host].UrlBlockLists[i].Url == weblogbean.URL) ||
+						(waf.HostTarget[host].UrlBlockLists[i].CompareType == "前缀匹配" && strings.HasPrefix(weblogbean.URL, waf.HostTarget[host].UrlBlockLists[i].Url)) ||
+						(waf.HostTarget[host].UrlBlockLists[i].CompareType == "后缀匹配" && strings.HasSuffix(weblogbean.URL, waf.HostTarget[host].UrlBlockLists[i].Url)) ||
+						(waf.HostTarget[host].UrlBlockLists[i].CompareType == "包含匹配" && strings.Contains(weblogbean.URL, waf.HostTarget[host].UrlBlockLists[i].Url)) {
 						EchoErrorInfo(w, r, weblogbean, "URL黑名单", "您的访问被阻止了URL限制")
 						return
 					}
@@ -229,7 +232,10 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			//url黑名单策略-(全局) （待优化性能）
 			if waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].Host.GUARD_STATUS == 1 && waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists != nil {
 				for i := 0; i < len(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists); i++ {
-					if waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].Url == weblogbean.URL {
+					if (waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].CompareType == "等于" && waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].Url == weblogbean.URL) ||
+						(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].CompareType == "前缀匹配" && strings.HasPrefix(weblogbean.URL, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].Url)) ||
+						(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].CompareType == "后缀匹配" && strings.HasSuffix(weblogbean.URL, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].Url)) ||
+						(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].CompareType == "包含匹配" && strings.Contains(weblogbean.URL, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].Url)) {
 						EchoErrorInfo(w, r, weblogbean, "【全局】URL黑名单", "您的访问被阻止了URL限制")
 						return
 					}

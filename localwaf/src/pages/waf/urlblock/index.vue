@@ -12,7 +12,11 @@
           </template>
         </t-input>
       </t-row>
-
+      <t-alert theme="info" message="SamWaf防护墙会阻止访问在限制访问内的URL" close>
+        <template #operation>
+          <span @click="handleJumpOnlineUrl">在线文档</span>
+        </template>
+      </t-alert>
       <div class="table-container">
         <t-table :columns="columns" :data="data" :rowKey="rowKey" :verticalAlign="verticalAlign" :hover="hover"
           :pagination="pagination" :selected-row-keys="selectedRowKeys" :loading="dataLoading"
@@ -47,6 +51,14 @@
               </t-option>
             </t-select>
           </t-form-item>
+          <t-form-item label="匹配方式" name="compare_type">
+            <t-select v-model="formData.compare_type" clearable :style="{ width: '480px' }">
+              <t-option v-for="(item, index) in compare_type_options" :value="item.value" :label="item.label"
+                        :key="index">
+                {{ item.label }}
+              </t-option>
+            </t-select>
+          </t-form-item>
           <t-form-item label="Url" name="url">
             <t-input :style="{ width: '480px' }" v-model="formData.url" placeholder="请输入限制访问Url"></t-input>
           </t-form-item>
@@ -72,6 +84,14 @@
               <t-option v-for="(item, index) in host_dic" :value="index" :label="item"
                 :key="index">
                 {{ item }}
+              </t-option>
+            </t-select>
+          </t-form-item>
+          <t-form-item label="匹配方式" name="compare_type">
+            <t-select v-model="formEditData.compare_type" clearable :style="{ width: '480px' }">
+              <t-option v-for="(item, index) in compare_type_options" :value="item.value" :label="item.label"
+                        :key="index">
+                {{ item.label }}
               </t-option>
             </t-select>
           </t-form-item>
@@ -123,6 +143,7 @@
     host_code: '',
     url: '',
     remarks: '',
+    compare_type:"等于"
   };
   export default Vue.extend({
     name: 'ListBase',
@@ -154,6 +175,24 @@
             type: 'error'
           }],
         },
+
+        compare_type_options: [{
+          label: '等于',
+          value: '等于'
+        },
+          {
+            label: '前缀匹配',
+            value: '前缀匹配'
+          },
+          {
+            label: '后缀匹配',
+            value: '后缀匹配'
+          },
+          {
+            label: '包含匹配',
+            value: '包含匹配'
+          },
+        ],
         textareaValue: '',
         prefix,
         dataLoading: false,
@@ -161,13 +200,19 @@
         detail_data: [], //加载详情信息用于编辑
         selectedRowKeys: [],
         value: 'first',
-        columns: [ 
+        columns: [
           {
             title: '网站',
             align: 'left',
             width: 250,
             ellipsis: true,
-            colKey: 'host_code', 
+            colKey: 'host_code',
+          },{
+            title: '匹配方式',
+            align: 'left',
+            width: 250,
+            ellipsis: true,
+            colKey: 'compare_type',
           },
           {
             title: 'Url',
@@ -189,7 +234,7 @@
           },
 
           {
-            align: 'left', 
+            align: 'left',
             width: 200,
             colKey: 'op',
             title: '操作',
@@ -229,8 +274,8 @@
       },
     },
     mounted() {
-      this.getList("")
       this.loadHostList()
+      this.getList("")
     },
 
     methods: {
@@ -453,6 +498,10 @@
             console.log(e);
           })
           .finally(() => {});
+      },
+      //跳转界面
+      handleJumpOnlineUrl(){
+        window.open(this.samwafglobalconfig.getOnlineUrl()+"/guide/UrlBlack.html");
       },
     },
   });

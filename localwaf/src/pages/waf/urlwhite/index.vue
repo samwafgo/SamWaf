@@ -12,7 +12,11 @@
           </template>
         </t-input>
       </t-row>
-
+      <t-alert theme="info" message="SamWaf防护墙防护时候会忽略在白名单内的URL" close>
+        <template #operation>
+          <span @click="handleJumpOnlineUrl">在线文档</span>
+        </template>
+      </t-alert>
       <div class="table-container">
         <t-table :columns="columns" :data="data" :rowKey="rowKey" :verticalAlign="verticalAlign" :hover="hover"
           :pagination="pagination" :selected-row-keys="selectedRowKeys" :loading="dataLoading"
@@ -207,7 +211,7 @@
             align: 'left',
             width: 250,
             ellipsis: true,
-            colKey: 'compare_type', 
+            colKey: 'compare_type',
           },
           {
             title: 'Url',
@@ -229,7 +233,7 @@
           },
 
           {
-            align: 'left', 
+            align: 'left',
             width: 200,
             colKey: 'op',
             title: '操作',
@@ -269,8 +273,8 @@
       },
     },
     mounted() {
-      this.getList("")
       this.loadHostList()
+      this.getList("")
     },
 
     methods: {
@@ -493,6 +497,10 @@
             console.log(e);
           })
           .finally(() => {});
+      },
+      //跳转界面
+      handleJumpOnlineUrl(){
+        window.open(this.samwafglobalconfig.getOnlineUrl()+"/guide/UrlWhite.html");
       },
     },
   });

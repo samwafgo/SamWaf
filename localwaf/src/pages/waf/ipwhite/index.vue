@@ -12,7 +12,11 @@
           </template>
         </t-input>
       </t-row>
-
+      <t-alert theme="info" message="SamWaf防护墙会忽略在白名单内的IP" close>
+        <template #operation>
+          <span @click="handleJumpOnlineUrl">在线文档</span>
+        </template>
+      </t-alert>
       <div class="table-container">
         <t-table :columns="columns" :data="data" :rowKey="rowKey" :verticalAlign="verticalAlign" :hover="hover"
           :pagination="pagination" :selected-row-keys="selectedRowKeys" :loading="dataLoading"
@@ -232,8 +236,9 @@
       },
     },
     mounted() {
-      this.getList("")
+
       this.loadHostList()
+      this.getList("")
     },
 
     methods: {
@@ -246,7 +251,7 @@
                   let host_options = resdata.data;
                   for(let i = 0;i<host_options.length;i++){
                       that.host_dic[host_options[i].value] =  host_options[i].label
-                  } 
+                  }
               }
             })
             .catch((e: Error) => {
@@ -452,6 +457,10 @@
             console.log(e);
           })
           .finally(() => {});
+      },
+      //跳转界面
+      handleJumpOnlineUrl(){
+        window.open(this.samwafglobalconfig.getOnlineUrl()+"/guide/IPWhite.html");
       },
     },
   });

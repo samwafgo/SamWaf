@@ -1,6 +1,10 @@
 <template>
   <div>
-
+    <t-alert theme="info" message="防御日志" close>
+      <template #operation>
+        <span @click="handleJumpOnlineUrl">在线文档</span>
+      </template>
+    </t-alert>
     <t-card class="list-card-container">
       <t-row justify="space-between">
         <t-form ref="form" :data="searchformData" :label-width="80" colon :style="{ marginBottom: '8px' }">
@@ -371,7 +375,7 @@
         newrange[0] = ConvertUnixToDate(parseInt(attack.msgData.searchData.unix_add_time_begin))
         newrange[1] = ConvertUnixToDate(parseInt(attack.msgData.searchData.unix_add_time_end))
         //console.log(this.dateControl.range1)
-        this.$set(this.dateControl, "range1", newrange) 
+        this.$set(this.dateControl, "range1", newrange)
       }
 
       this.loadHostList()
@@ -392,7 +396,7 @@
         currentpage: this.pagination.current,
         searchData: this.searchformData,
       })
-      next();   // 继续后续的导航解析过程
+      next(); // 继续后续的导航解析过程
     },
     methods: {
       loadHostList() {
@@ -510,6 +514,10 @@
       },
       resetIdx() {
         this.deleteIdx = -1;
+      },
+      //跳转界面
+      handleJumpOnlineUrl(){
+        window.open(this.samwafglobalconfig.getOnlineUrl()+"/guide/attacklog.html");
       },
     },
   });

@@ -4,8 +4,8 @@
 <template>
   <div>
     <t-swiper :duration="300" :interval="5000" :navigation="navigation" v-if="tipsVisable" trigger="click">
-      <t-swiper-item  v-for="(item, index)  in tips" :key="index">
-        <t-alert :theme="item.tipsType" :message="item.message" v-if="item.visable" >
+      <t-swiper-item  v-for="(item, index)  in tips" :key="index" v-if="item.visable" >
+        <t-alert :theme="item.tipsType" :message="item.message" >
           <template #operation="row">
             <span @click="handleCreateWebOperation" v-if="item.name==='emptyHost'" >马上创建</span>
             <span @click="handleModifyDefaultPassWebOperation" v-if="item.name==='defaultAccount'" >马上修改</span>

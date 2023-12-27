@@ -3,8 +3,8 @@ import request from '@/utils/request'
 export function wafRuleListApi(params) {
   return request({
     url: '/wafhost/rule/list',
-    method: 'get',
-    params: params
+    method: 'post',
+    data: params
   })
 }
 //删除规则

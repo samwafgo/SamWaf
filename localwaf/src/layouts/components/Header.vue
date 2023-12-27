@@ -11,7 +11,7 @@
     <t-head-menu :class="menuCls" :theme="theme" expandType="popup" :value="active">
       <template #logo>
         <span v-if="showLogo" class="header-logo-container" @click="handleNav('/dashboard/base')">
-          <logo-full class="t-logo" />
+          <logo-full class="t-logo"/>
         </span>
         <div v-else class="header-operate-left">
           <t-button theme="default" shape="square" variant="text" @click="changeCollapsed">
@@ -332,12 +332,13 @@
     height: 26px;
     display: flex;
     margin-left: 24px;
+    padding: 0 0px;
     color: var(--td-text-color-primary);
 
     .t-logo {
       width: 100%;
       height: 100%;
-
+      padding: 0 0px;
       &:hover {
         cursor: pointer;
       }
@@ -420,4 +421,9 @@
       }
     }
   }
+</style>
+<style>
+.tdesign-starter-side-nav-logo-tdesign-logo{
+  padding: 0 0px;
+}
 </style>

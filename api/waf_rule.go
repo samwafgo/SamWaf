@@ -84,7 +84,7 @@ func (w *WafRuleAPi) GetDetailApi(c *gin.Context) {
 }
 func (w *WafRuleAPi) GetListApi(c *gin.Context) {
 	var req request.WafRuleSearchReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		wafRules, total, _ := wafRuleService.GetListApi(req)
 		response.OkWithDetailed(response.PageResult{

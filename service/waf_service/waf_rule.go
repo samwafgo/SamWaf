@@ -98,8 +98,34 @@ func (receiver *WafRuleService) GetDetailByCodeApi(ruleCode string) model.Rules 
 func (receiver *WafRuleService) GetListApi(wafRuleSearchReq request.WafRuleSearchReq) ([]model.Rules, int64, error) {
 	var total int64 = 0
 	var rules []model.Rules
-	global.GWAF_LOCAL_DB.Where("rule_status= 1").Limit(wafRuleSearchReq.PageSize).Offset(wafRuleSearchReq.PageSize * (wafRuleSearchReq.PageIndex - 1)).Find(&rules)
-	global.GWAF_LOCAL_DB.Where("rule_status= 1 ").Model(&model.Rules{}).Count(&total)
+	/*where条件*/
+	var whereField = ""
+	var whereValues []interface{}
+	//where字段
+	whereField = "rule_status=? "
+	if len(wafRuleSearchReq.HostCode) > 0 {
+		if len(whereField) > 0 {
+			whereField = whereField + " and "
+		}
+		whereField = whereField + " host_code=? "
+	}
+	if len(wafRuleSearchReq.RuleName) > 0 {
+		if len(whereField) > 0 {
+			whereField = whereField + " and "
+		}
+		whereField = whereField + " rule_name=? "
+	}
+	//where字段赋值
+	whereValues = append(whereValues, 1)
+	if len(wafRuleSearchReq.HostCode) > 0 {
+		whereValues = append(whereValues, wafRuleSearchReq.HostCode)
+	}
+	if len(wafRuleSearchReq.RuleName) > 0 {
+		whereValues = append(whereValues, wafRuleSearchReq.RuleName)
+	}
+
+	global.GWAF_LOCAL_DB.Debug().Model(&model.Rules{}).Where(whereField, whereValues...).Limit(wafRuleSearchReq.PageSize).Offset(wafRuleSearchReq.PageSize * (wafRuleSearchReq.PageIndex - 1)).Find(&rules)
+	global.GWAF_LOCAL_DB.Debug().Model(&model.Rules{}).Where(whereField, whereValues...).Count(&total)
 
 	return rules, total, nil
 }

@@ -90,6 +90,9 @@ var (
 	GWAF_DEFAULT_ACCOUNT      string = "admin"         //默认创建的账户
 	GWAF_DEFAULT_ACCOUNT_PWD  string = "admin868"      //默认创建的密码
 	GWAF_DEFAULT_ACCOUNT_SALT string = "%@311*abDop#*" //盐值
+
+	//通讯加密
+	GWAF_COMMUNICATION_KEY = []byte("7E@u*has$d*@s5YX") //通讯加密密钥
 )
 
 func GetCurrentVersionInt() int {

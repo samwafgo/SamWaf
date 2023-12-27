@@ -17,7 +17,7 @@ type WafLdpUrlApi struct {
 
 func (w *WafLdpUrlApi) AddApi(c *gin.Context) {
 	var req request.WafLdpUrlAddReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		err = wafLdpUrlService.CheckIsExistApi(req)
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
@@ -86,7 +86,7 @@ func (w *WafLdpUrlApi) DelLdpUrlApi(c *gin.Context) {
 
 func (w *WafLdpUrlApi) ModifyLdpUrlApi(c *gin.Context) {
 	var req request.WafLdpUrlEditReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		err = wafLdpUrlService.ModifyApi(req)
 		if err != nil {

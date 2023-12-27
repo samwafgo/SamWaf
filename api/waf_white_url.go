@@ -17,7 +17,7 @@ type WafWhiteUrlApi struct {
 
 func (w *WafWhiteUrlApi) AddApi(c *gin.Context) {
 	var req request.WafWhiteUrlAddReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		err = wafUrlWhiteService.CheckIsExistApi(req)
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
@@ -86,7 +86,7 @@ func (w *WafWhiteUrlApi) DelWhiteUrlApi(c *gin.Context) {
 
 func (w *WafWhiteUrlApi) ModifyWhiteUrlApi(c *gin.Context) {
 	var req request.WafWhiteUrlEditReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		err = wafUrlWhiteService.ModifyApi(req)
 		if err != nil {

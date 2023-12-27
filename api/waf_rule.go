@@ -21,7 +21,7 @@ type WafRuleAPi struct {
 func (w *WafRuleAPi) AddApi(c *gin.Context) {
 	ruleHelper := &utils.RuleHelper{}
 	var req request.WafRuleAddReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		var ruleTool = model.RuleTool{}
 		ruleInfo, err := ruleTool.LoadRule(req.RuleJson)
@@ -138,7 +138,7 @@ func (w *WafRuleAPi) DelRuleApi(c *gin.Context) {
 func (w *WafRuleAPi) ModifyRuleApi(c *gin.Context) {
 	ruleHelper := &utils.RuleHelper{}
 	var req request.WafRuleEditReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		var ruleTool = model.RuleTool{}
 		ruleInfo, err := ruleTool.LoadRule(req.RuleJson)

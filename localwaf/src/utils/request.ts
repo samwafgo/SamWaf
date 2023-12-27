@@ -1,6 +1,8 @@
 import axios from 'axios';
 import proxy from '../config/host';
 import router from '../router/index';
+import  {AesDecrypt,AesEncrypt,isObject} from './usuallytool'
+
 const env = import.meta.env.MODE || 'development';
 
 const API_HOST = env === 'mock' ? '/' : proxy[env].API; // 如果是mock模式 就不配置host 会走本地Mock拦截
@@ -16,6 +18,21 @@ const instance = axios.create({
   baseURL: API_HOST,
   timeout: 3000,
   withCredentials: true,
+  transformRequest: [
+    function (data, headers) {
+      // 这里没有对 Form-Data 格式的报文处理
+      if (isObject(data)) {
+        // 一、请求参数加密
+        //if (process.env.VUE_APP_RUNTIME === 'prod') {
+          data = JSON.stringify(data)
+          //headers["keyCipher"] = rsaEncrypt(aesKey) // 传输 aes key 密文
+          data = AesEncrypt(data) // 加密请求参数
+       // }
+        return data
+      }
+      return data
+    }
+  ],
 });
 
 // eslint-disable-next-line
@@ -32,7 +49,13 @@ instance.interceptors.request.use(
       // 让每个请求携带token-- ['X-Token']为自定义key 请根据实际情况自行修改
       config.headers['X-Token'] = token
       //config.headers.Authorization =  + token
-     }
+    }
+    /*if(config.headers['Content-Type'] !=undefined && config.headers['Content-Type']=="application/json" ){
+      data = JSON.stringify(config.data)
+
+      config.data = AesEncrypt(data) // 加密请求参数
+    }
+    console.log("request",config)*/
     return config
   },
   error => {
@@ -46,6 +69,12 @@ instance.interceptors.response.use(
     if (response.status === 200) {
       const { data } = response;
       if (data.code === CODE.REQUEST_SUCCESS) {
+        //console.log("解密前",data)
+        let tmpSrcContent = AesDecrypt(data.data)
+        data.data = JSON.parse(tmpSrcContent)
+        //console.log("解密后",data)
+
+        //console.log("再加密后",AesEncrypt(tmpSrcContent))
         return data;
       }else if(data.code === CODE.AUTH_FAILURE){
           localStorage.clear();     //删除用户信息

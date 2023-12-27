@@ -13,7 +13,7 @@ type WafSystemConfigApi struct {
 
 func (w *WafSystemConfigApi) AddApi(c *gin.Context) {
 	var req request.WafSystemConfigAddReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		err = wafSystemConfigService.CheckIsExistApi(req)
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
@@ -79,7 +79,7 @@ func (w *WafSystemConfigApi) DelApi(c *gin.Context) {
 
 func (w *WafSystemConfigApi) ModifyApi(c *gin.Context) {
 	var req request.WafSystemConfigEditReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		err = wafSystemConfigService.ModifyApi(req)
 		if err != nil {

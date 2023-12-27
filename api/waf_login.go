@@ -16,9 +16,22 @@ type WafLoginApi struct {
 }
 
 func (w *WafLoginApi) LoginApi(c *gin.Context) {
+	/*bodyBytes, err := ioutil.ReadAll(c.Request.Body)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read request body"})
+		c.Abort()
+		return
+	}
+
+	c.Request.Body = ioutil.NopCloser(bytes.NewBuffer(bodyBytes)) // Reset the request body to original
+	fmt.Println("Raw body:", string(bodyBytes))*/
 	var req request.WafLoginReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		if len(req.LoginAccount) == 0 {
+			response.FailWithMessage("帐号为空", c)
+			return
+		}
 		accountCount, _ := wafAccountService.GetAccountCountApi()
 		if accountCount == 0 {
 			wafAccountService.AddApi(request.WafAccountAddReq{

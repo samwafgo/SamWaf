@@ -1,6 +1,9 @@
 package response
 
 import (
+	"SamWaf/global"
+	"SamWaf/wafsec"
+	"encoding/json"
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
@@ -18,10 +21,11 @@ const (
 )
 
 func Result(code int, data interface{}, msg string, c *gin.Context) {
+	result, _ := json.Marshal(data) //将数据转换为json
 	// 开始时间
 	c.JSON(http.StatusOK, Response{
 		code,
-		data,
+		wafsec.AesEncrypt(result, global.GWAF_COMMUNICATION_KEY),
 		msg,
 	})
 }

@@ -17,7 +17,7 @@ type WafBlockUrlApi struct {
 
 func (w *WafBlockUrlApi) AddApi(c *gin.Context) {
 	var req request.WafBlockUrlAddReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		err = wafUrlBlockService.CheckIsExistApi(req)
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
@@ -86,7 +86,7 @@ func (w *WafBlockUrlApi) DelBlockUrlApi(c *gin.Context) {
 
 func (w *WafBlockUrlApi) ModifyBlockUrlApi(c *gin.Context) {
 	var req request.WafBlockUrlEditReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		err = wafUrlBlockService.ModifyApi(req)
 		if err != nil {

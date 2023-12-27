@@ -13,7 +13,7 @@ type WafAccountApi struct {
 
 func (w *WafAccountApi) AddApi(c *gin.Context) {
 	var req request.WafAccountAddReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		err = wafAccountService.CheckIsExistApi(req)
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
@@ -61,7 +61,7 @@ func (w *WafAccountApi) GetListApi(c *gin.Context) {
 }
 func (w *WafAccountApi) DelAccountApi(c *gin.Context) {
 	var req request.WafAccountDelReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		err = wafAccountService.DelApi(req)
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
@@ -79,7 +79,7 @@ func (w *WafAccountApi) DelAccountApi(c *gin.Context) {
 
 func (w *WafAccountApi) ModifyAccountApi(c *gin.Context) {
 	var req request.WafAccountEditReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		err = wafAccountService.ModifyApi(req)
 		if err != nil {
@@ -95,7 +95,7 @@ func (w *WafAccountApi) ModifyAccountApi(c *gin.Context) {
 
 func (w *WafAccountApi) ResetAccountPwdApi(c *gin.Context) {
 	var req request.WafAccountResetPwdReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		if req.LoginNewPassword != req.LoginNewPassword2 {
 			response.OkWithMessage("两次输入的密码不同", c)

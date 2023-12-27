@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "axios": "^0.27.2",
+    "crypto-js": "^4.2.0",
     "dayjs": "^1.10.8",
     "echarts": "~5.1.2",
     "echarts-wordcloud": "^2.0.0",

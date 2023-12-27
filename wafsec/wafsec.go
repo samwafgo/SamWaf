@@ -1,13 +1,10 @@
 package wafsec
 
-import (
-	"github.com/deatil/go-cryptobin/cryptobin/crypto"
-)
-
 // todo 需要升级go版本: module requires Go 1.20
 type WafSec struct {
 }
 
+/*
 func (wafsec *WafSec) Encrypt(key, plaintext string) string {
 	// 加密数据
 	cypt := crypto.
@@ -25,4 +22,4 @@ func (wafsec *WafSec) Decrypt(key, ciphertext string) string {
 		Decrypt().
 		ToString()
 	return cyptde
-}
+}*/

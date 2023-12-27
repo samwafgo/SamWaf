@@ -19,7 +19,7 @@ type WafHostAPi struct {
 
 func (w *WafHostAPi) AddApi(c *gin.Context) {
 	var req request.WafHostAddReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		//端口从未在本系统加过，检测端口是否被其他应用占用
 		if wafHostService.CheckPortExistApi(req.Port) == 0 && utils.PortCheck(req.Port) == false {
@@ -111,7 +111,7 @@ func (w *WafHostAPi) DelHostApi(c *gin.Context) {
 
 func (w *WafHostAPi) ModifyHostApi(c *gin.Context) {
 	var req request.WafHostEditReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		//端口从未在本系统加过，检测端口是否被其他应用占用
 		if wafHostService.CheckPortExistApi(req.Port) == 0 && utils.PortCheck(req.Port) == false {
@@ -132,7 +132,7 @@ func (w *WafHostAPi) ModifyHostApi(c *gin.Context) {
 }
 func (w *WafHostAPi) ModifyGuardStatusApi(c *gin.Context) {
 	var req request.WafHostGuardStatusReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		err = wafHostService.ModifyGuardStatusApi(req)
 		if err != nil {

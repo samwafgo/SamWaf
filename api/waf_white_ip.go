@@ -17,7 +17,7 @@ type WafWhiteIpApi struct {
 
 func (w *WafWhiteIpApi) AddApi(c *gin.Context) {
 	var req request.WafWhiteIpAddReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		err = wafIpWhiteService.CheckIsExistApi(req)
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
@@ -85,8 +85,16 @@ func (w *WafWhiteIpApi) DelWhiteIpApi(c *gin.Context) {
 }
 
 func (w *WafWhiteIpApi) ModifyWhiteIpApi(c *gin.Context) {
+	/*rawBody, err := c.GetRawData()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read raw body"})
+		c.Abort()
+		return
+	}
+
+	fmt.Println("落地 Raw body:", string(rawBody))*/
 	var req request.WafWhiteIpEditReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		err = wafIpWhiteService.ModifyApi(req)
 		if err != nil {

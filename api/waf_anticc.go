@@ -17,7 +17,7 @@ type WafAntiCCApi struct {
 
 func (w *WafAntiCCApi) AddApi(c *gin.Context) {
 	var req request.WafAntiCCAddReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		err = wafAntiCCService.CheckIsExistApi(req)
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
@@ -86,7 +86,7 @@ func (w *WafAntiCCApi) DelAntiCCApi(c *gin.Context) {
 
 func (w *WafAntiCCApi) ModifyAntiCCApi(c *gin.Context) {
 	var req request.WafAntiCCEditReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		err = wafAntiCCService.ModifyApi(req)
 		if err != nil {

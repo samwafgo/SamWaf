@@ -1,5 +1,6 @@
 import proxy from '../config/host';
 const env = import.meta.env.MODE || 'development';
+import CryptoJS from "crypto-js"; //crypto-js加解密库
 export function copyObj(obj){
      const newObj =Array.isArray(obj) ? [] : {}
       for (let key in obj) {
@@ -22,3 +23,41 @@ export function getBaseUrl(){
 export function getOnlineUrl(){
   return "https://doc.samwaf.com"
 }
+//解密数据
+export function AesDecrypt( text ){
+  let key = CryptoJS.enc.Utf8.parse("7E@u*has$d*@s5YX");
+
+  let decryptedData = CryptoJS.AES.decrypt(text, key, {
+    iv: key,
+    mode: CryptoJS.mode.CBC,
+    padding: CryptoJS.pad.Pkcs7
+  });
+
+  return decryptedData.toString(CryptoJS.enc.Utf8);
+}
+//加密数据
+export function AesEncrypt( text ){
+  let key = CryptoJS.enc.Utf8.parse("7E@u*has$d*@s5YX");
+
+  let encryptedData = CryptoJS.AES.encrypt(text, key, {
+    iv: key, // 使用相同的 IV 和密钥
+    mode: CryptoJS.mode.CBC,
+    padding: CryptoJS.pad.Pkcs7
+  });
+
+  return encryptedData.toString();
+}
+/**
+ * 判断是否是对象
+ */
+export const isObject = (obj, isEffective = false) => {
+  if (Object.prototype.toString.call(obj) === "[object Object]") {
+    if (isEffective) {
+      return !!Object.keys(obj).length;
+    } else {
+      return true;
+    }
+  } else {
+    return false;
+  }
+};

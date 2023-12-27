@@ -14,8 +14,12 @@ import (
 )
 
 func InitRouter(r *gin.Engine) {
+	PublicRouterGroup := r.Group("")
+	PublicRouterGroup.Use(middleware.SecApi())
+	router.PublicApiGroupApp.InitLoginRouter(PublicRouterGroup)
+
 	RouterGroup := r.Group("")
-	RouterGroup.Use(middleware.Auth())
+	RouterGroup.Use(middleware.Auth(), middleware.SecApi())
 	{
 		router.ApiGroupApp.InitHostRouter(RouterGroup)
 		router.ApiGroupApp.InitLogRouter(RouterGroup)
@@ -38,8 +42,6 @@ func InitRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitWafCommonRouter(RouterGroup)
 
 	}
-	PublicRouterGroup := r.Group("")
-	router.PublicApiGroupApp.InitLoginRouter(PublicRouterGroup)
 
 }
 func Cors() gin.HandlerFunc {

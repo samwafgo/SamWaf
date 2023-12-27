@@ -12,7 +12,11 @@
           </template>
         </t-input>
       </t-row>
-
+      <t-alert theme="info" message="SamWaf用户在访问指定的url返回的敏感数据脱敏处理，如手机号会隐藏部分" close>
+        <template #operation>
+          <span @click="handleJumpOnlineUrl">在线文档</span>
+        </template>
+      </t-alert>
       <div class="table-container">
         <t-table :columns="columns" :data="data" :rowKey="rowKey" :verticalAlign="verticalAlign" :hover="hover"
           :pagination="pagination" :selected-row-keys="selectedRowKeys" :loading="dataLoading"
@@ -201,7 +205,7 @@
             align: 'left',
             width: 250,
             ellipsis: true,
-            colKey: 'host_code', 
+            colKey: 'host_code',
           },{
             title: '匹配方式',
             align: 'left',
@@ -269,8 +273,8 @@
       },
     },
     mounted() {
-      this.getList("")
       this.loadHostList()
+      this.getList("")
     },
 
     methods: {
@@ -495,6 +499,11 @@
           })
           .finally(() => {});
       },
+      //跳转界面
+      handleJumpOnlineUrl(){
+        window.open(this.samwafglobalconfig.getOnlineUrl()+"/guide/ldp.html");
+      },
+
     },
   });
 </script>

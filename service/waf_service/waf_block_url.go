@@ -24,9 +24,10 @@ func (receiver *WafBlockUrlService) AddApi(req request.WafBlockUrlAddReq) error 
 			CREATE_TIME: customtype.JsonTime(time.Now()),
 			UPDATE_TIME: customtype.JsonTime(time.Now()),
 		},
-		HostCode: req.HostCode,
-		Url:      req.Url,
-		Remarks:  req.Remarks,
+		HostCode:    req.HostCode,
+		Url:         req.Url,
+		CompareType: req.CompareType,
+		Remarks:     req.Remarks,
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
 	return nil
@@ -47,6 +48,7 @@ func (receiver *WafBlockUrlService) ModifyApi(req request.WafBlockUrlEditReq) er
 		"Host_Code":   req.HostCode,
 		"Url":         req.Url,
 		"Remarks":     req.Remarks,
+		"CompareType": req.CompareType,
 		"UPDATE_TIME": customtype.JsonTime(time.Now()),
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.URLBlockList{}).Where("id = ?", req.Id).Updates(modfiyMap).Error

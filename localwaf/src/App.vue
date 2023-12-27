@@ -121,3 +121,8 @@ ws.onclose = function(evt) {
 
 
 </script>
+<style>
+.tdesign-starter-side-nav-logo-tdesign-logo{
+  padding: 0 0px;
+}
+</style>

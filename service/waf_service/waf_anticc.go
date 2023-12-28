@@ -68,11 +68,38 @@ func (receiver *WafAntiCCService) GetDetailByIdApi(id string) model.AntiCC {
 	return bean
 }
 func (receiver *WafAntiCCService) GetListApi(req request.WafAntiCCSearchReq) ([]model.AntiCC, int64, error) {
-	var ipWhites []model.AntiCC
+	var list []model.AntiCC
 	var total int64 = 0
-	global.GWAF_LOCAL_DB.Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&ipWhites)
-	global.GWAF_LOCAL_DB.Model(&model.AntiCC{}).Count(&total)
-	return ipWhites, total, nil
+
+	/*where条件*/
+	var whereField = ""
+	var whereValues []interface{}
+	//where字段
+	whereField = ""
+	if len(req.HostCode) > 0 {
+		if len(whereField) > 0 {
+			whereField = whereField + " and "
+		}
+		whereField = whereField + " host_code=? "
+	}
+	if len(req.Url) > 0 {
+		if len(whereField) > 0 {
+			whereField = whereField + " and "
+		}
+		whereField = whereField + " url =? "
+	}
+	//where字段赋值
+	if len(req.HostCode) > 0 {
+		whereValues = append(whereValues, req.HostCode)
+	}
+	if len(req.Url) > 0 {
+		whereValues = append(whereValues, req.Url)
+	}
+
+	global.GWAF_LOCAL_DB.Model(&model.AntiCC{}).Where(whereField, whereValues...).Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&list)
+	global.GWAF_LOCAL_DB.Model(&model.AntiCC{}).Where(whereField, whereValues...).Count(&total)
+
+	return list, total, nil
 }
 func (receiver *WafAntiCCService) DelApi(req request.WafAntiCCDelReq) error {
 	var ipWhite model.AntiCC

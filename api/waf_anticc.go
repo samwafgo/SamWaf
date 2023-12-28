@@ -51,7 +51,7 @@ func (w *WafAntiCCApi) GetDetailApi(c *gin.Context) {
 }
 func (w *WafAntiCCApi) GetListApi(c *gin.Context) {
 	var req request.WafAntiCCSearchReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		beans, total, _ := wafAntiCCService.GetListApi(req)
 		response.OkWithDetailed(response.PageResult{

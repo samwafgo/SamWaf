@@ -124,8 +124,8 @@ func (receiver *WafRuleService) GetListApi(wafRuleSearchReq request.WafRuleSearc
 		whereValues = append(whereValues, wafRuleSearchReq.RuleName)
 	}
 
-	global.GWAF_LOCAL_DB.Debug().Model(&model.Rules{}).Where(whereField, whereValues...).Limit(wafRuleSearchReq.PageSize).Offset(wafRuleSearchReq.PageSize * (wafRuleSearchReq.PageIndex - 1)).Find(&rules)
-	global.GWAF_LOCAL_DB.Debug().Model(&model.Rules{}).Where(whereField, whereValues...).Count(&total)
+	global.GWAF_LOCAL_DB.Model(&model.Rules{}).Where(whereField, whereValues...).Limit(wafRuleSearchReq.PageSize).Offset(wafRuleSearchReq.PageSize * (wafRuleSearchReq.PageIndex - 1)).Find(&rules)
+	global.GWAF_LOCAL_DB.Model(&model.Rules{}).Where(whereField, whereValues...).Count(&total)
 
 	return rules, total, nil
 }

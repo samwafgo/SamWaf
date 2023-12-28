@@ -51,7 +51,7 @@ func (w *WafWhiteIpApi) GetDetailApi(c *gin.Context) {
 }
 func (w *WafWhiteIpApi) GetListApi(c *gin.Context) {
 	var req request.WafWhiteIpSearchReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		wafIpWhites, total, _ := wafIpWhiteService.GetListApi(req)
 		response.OkWithDetailed(response.PageResult{

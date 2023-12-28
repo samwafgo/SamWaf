@@ -3,8 +3,8 @@ import request from '@/utils/request'
 export function wafIPWhiteListApi(params) {
   return request({
     url: '/wafhost/ipwhite/list',
-    method: 'get',
-    params: params
+    method: 'post',
+    data: params
   })
 }
 //删除IP白名单

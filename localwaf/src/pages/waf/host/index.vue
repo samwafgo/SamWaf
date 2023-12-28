@@ -9,11 +9,22 @@
 
           <p v-if="!!selectedRowKeys.length" class="selected-count">已选{{ selectedRowKeys.length }}项</p>
         </div>
-        <t-input v-model="searchValue" class="search-input" placeholder="请输入需要搜索的信息" clearable>
-          <template #suffix-icon>
-            <search-icon size="20px" />
-          </template>
-        </t-input>
+        <div class="right-operation-container">
+          <t-form ref="form" :data="searchformData" :label-width="80" colon :style="{ marginBottom: '8px' }">
+
+            <t-row>
+              <span>网站：</span><t-select v-model="searchformData.code" clearable :style="{ width: '150px' }">
+              <t-option v-for="(item, index) in host_dic" :value="index" :label="item" :key="index">
+                {{ item }}
+              </t-option>
+            </t-select>
+              <span>URL：</span>
+              <t-input v-model="searchformData.url" class="search-input" placeholder="请输入" clearable>
+              </t-input>
+              <t-button theme="primary" :style="{ marginLeft: '8px' }" @click="getList('all')"> 查询 </t-button>
+            </t-row>
+          </t-form>
+        </div>
       </t-row>
 
       <div class="table-container">
@@ -200,7 +211,7 @@
           </t-form-item>
 
           <t-form-item label="备注" name="remarks">
-            <t-textarea :style="{ width: '480px' }" v-model="textareaValue" placeholder="请输入内容" name="remarks">
+            <t-textarea :style="{ width: '480px' }" v-model="formData.remarks" placeholder="请输入内容" name="remarks">
             </t-textarea>
           </t-form-item>
           <t-form-item style="float: right">
@@ -265,7 +276,7 @@
           </t-form-item>
 
           <t-form-item label="备注" name="remarks">
-            <t-textarea :style="{ width: '480px' }" v-model="textareaValue" placeholder="请输入内容" name="remarks">
+            <t-textarea :style="{ width: '480px' }" v-model="formEditData.remarks" placeholder="请输入内容" name="remarks">
             </t-textarea>
           </t-form-item>
           <t-form-item style="float: right">
@@ -295,7 +306,7 @@
   </div>
 </template>
 <script lang="ts">
-  import { getBaseUrl} from '@/utils/usuallytool';
+  import { getBaseUrl,AesDecrypt} from '@/utils/usuallytool';
   import Vue from 'vue';
   import {
     SearchIcon
@@ -304,12 +315,13 @@
   import {
     prefix
   } from '@/config/global';
-  import {
-    attacklogList
-  } from '@/apis/waflog/attacklog';
+
   import {
     export_api
   } from '@/apis/common';
+  import {
+    allhost,hostlist
+  } from '@/apis/host';
   import {
     SSL_STATUS,
     GUARD_STATUS,
@@ -335,7 +347,6 @@
     name: 'ListBase',
     components: {
       SearchIcon,
-      Trend,
     },
     data() {
       return {
@@ -362,7 +373,6 @@
             type: 'error'
           }],
         },
-        textareaValue: '',
         remote_system_options: [{
             label: '宝塔',
             value: '1'
@@ -463,7 +473,11 @@
           current: 1,
           pageSize: 10
         },
-        searchValue: '',
+        //顶部搜索
+        searchformData: {
+          remarks:"",
+          code:""
+        },
         //索引区域
         deleteIdx: -1,
         guardStatusIdx :-1,
@@ -471,6 +485,8 @@
         //来源页面
         sourcePage:"",
         hostAddUrl :this.samwafglobalconfig.getOnlineUrl()+'/guide/Host.html#_2-新增可被防火墙保护的网站',
+        //主机字典
+        host_dic:{}
       };
     },
     computed: {
@@ -488,6 +504,7 @@
       },
     },
     mounted() {
+      this.loadHostList()
       this.getList("")
       this.baseUrl = getBaseUrl()
       this.fileUploadUrl = this.baseUrl +"/import"
@@ -502,16 +519,29 @@
     },
 
     methods: {
+      loadHostList(){
+        let that = this;
+        allhost("").then((res) => {
+          let resdata = res
+          console.log(resdata)
+          if (resdata.code === 0) {
+            let host_options = resdata.data;
+            for(let i = 0;i<host_options.length;i++){
+              that.host_dic[host_options[i].value] =  host_options[i].label
+            }
+          }
+        })
+          .catch((e: Error) => {
+            console.log(e);
+          })
+      },
       getList(keyword) {
         let that = this
-        this.$request
-          .get('/wafhost/host/list', {
-            params: {
-              pageSize: that.pagination.pageSize,
-              pageIndex: that.pagination.current,
-            }
-          })
-          .then((res) => {
+        hostlist({
+          pageSize: that.pagination.pageSize,
+          pageIndex: that.pagination.current,
+          ...that.searchformData
+        }).then((res) => {
             let resdata = res
             console.log(resdata)
             if (resdata.code === 0) {
@@ -634,6 +664,7 @@
             ...that.formEditData
           }
           postdata['ssl'] = Number(postdata['ssl'])
+          console.log(postdata)
           this.$request
             .post('/wafhost/host/edit', {
               ...postdata
@@ -852,7 +883,9 @@
       this.$message.error(`文件 ${file.name} 上传失败`);
       },
       onSuccess(e) {
-        let data = e.response.data
+
+        let data = JSON.parse(AesDecrypt(e.response.data))
+        console.log('host upload', data)
         let lastMsg = "成功数量 :" +data.SuccessInt;
         if(data.FailInt>0){
           lastMsg += "失败数量 :" +data.FailInt +" 错误原因:"+data.Msg;
@@ -864,6 +897,16 @@
       //跳转界面
       handleJumpOnlineUrl(){
         window.open(this.samwafglobalconfig.getOnlineUrl()+"/guide/Host.html");
+      },
+      //更改teatarea
+      updateTextareaEdit(event){
+        //this.formEditData = event.target.value;
+
+      },
+      //更改teatarea
+      updateTextareaAdd(event){
+        //this.formAddData = event.target.value;
+
       },
       //end method
     },

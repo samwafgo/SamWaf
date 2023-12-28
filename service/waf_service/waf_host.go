@@ -74,7 +74,7 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 		"Keyfile":     wafHostEditReq.Keyfile,
 		"UPDATE_TIME": customtype.JsonTime(time.Now()),
 	}
-	err := global.GWAF_LOCAL_DB.Model(model.Hosts{}).Where("CODE=?", wafHostEditReq.CODE).Updates(hostMap).Error
+	err := global.GWAF_LOCAL_DB.Debug().Model(model.Hosts{}).Where("CODE=?", wafHostEditReq.CODE).Updates(hostMap).Error
 
 	return err
 }
@@ -88,13 +88,38 @@ func (receiver *WafHostService) GetDetailByCodeApi(code string) model.Hosts {
 	global.GWAF_LOCAL_DB.Where("CODE=?", code).Find(&webHost)
 	return webHost
 }
-func (receiver *WafHostService) GetListApi(wafHostSearchReq request.WafHostSearchReq) ([]model.Hosts, int64, error) {
-	var webHosts []model.Hosts
+func (receiver *WafHostService) GetListApi(req request.WafHostSearchReq) ([]model.Hosts, int64, error) {
+	var list []model.Hosts
 	var total int64 = 0
-	global.GWAF_LOCAL_DB.Limit(wafHostSearchReq.PageSize).Offset(wafHostSearchReq.PageSize * (wafHostSearchReq.PageIndex - 1)).Order("global_host desc").Find(&webHosts)
-	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Count(&total)
+	/*where条件*/
+	var whereField = ""
+	var whereValues []interface{}
+	//where字段
+	whereField = ""
+	if len(req.Code) > 0 {
+		if len(whereField) > 0 {
+			whereField = whereField + " and "
+		}
+		whereField = whereField + " code=? "
+	}
+	if len(req.REMARKS) > 0 {
+		if len(whereField) > 0 {
+			whereField = whereField + " and "
+		}
+		whereField = whereField + " remarks like ? "
+	}
+	//where字段赋值
+	if len(req.Code) > 0 {
+		whereValues = append(whereValues, req.Code)
+	}
+	if len(req.REMARKS) > 0 {
+		whereValues = append(whereValues, req.REMARKS)
+	}
 
-	return webHosts, total, nil
+	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where(whereField, whereValues...).Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&list)
+	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where(whereField, whereValues...).Count(&total)
+
+	return list, total, nil
 }
 func (receiver *WafHostService) DelHostApi(req request.WafHostDelReq) error {
 	var webhost model.Hosts

@@ -58,7 +58,7 @@ func (w *WafHostAPi) GetDetailApi(c *gin.Context) {
 }
 func (w *WafHostAPi) GetListApi(c *gin.Context) {
 	var req request.WafHostSearchReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		wafHosts, total, _ := wafHostService.GetListApi(req)
 		response.OkWithDetailed(response.PageResult{

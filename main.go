@@ -62,6 +62,8 @@ func (m *wafSystenService) run() {
 	fmt.Println("Service is running...")
 	//初始化cache
 	global.GCACHE_WAFCACHE = cache.InitWafCache()
+	//初始化锁写不锁度
+	global.GWAF_MEASURE_PROCESS_DEQUEENGINE = cache.InitWafOnlyLockWrite()
 	// 创建 Snowflake 实例
 	global.GWAF_SNOWFLAKE_GEN = wafsnowflake.NewSnowflake(1609459200000, 1, 1) // 设置epoch时间、机器ID和数据中心ID
 

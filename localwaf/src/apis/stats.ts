@@ -31,6 +31,16 @@ export function wafStatSysinfoapi(params) {
     params: params
   })
 }
+//首页获取运行基本信息
+export function wafStatRuntimeSysinfoapi(params) {
+  return request({
+    url: 'statrumtimesysinfo',
+    method: 'get',
+    params: params
+  })
+}
+
+
 //【数据分析】查询周期区间国家级别攻击和正常信息
 export function wafanalysisdaycountryrange(params) {
   return request({

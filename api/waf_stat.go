@@ -14,6 +14,13 @@ func (w *WafStatApi) StatSysinfoApi(c *gin.Context) {
 
 	response.OkWithDetailed(wafStatService.StatHomeSysinfo(), "获取成功", c)
 }
+
+// 获取运行系统基本信息
+func (w *WafStatApi) StatRumtimeSysinfoApi(c *gin.Context) {
+
+	response.OkWithDetailed(wafStatService.StatHomeRumtimeSysinfo(), "获取成功", c)
+}
+
 func (w *WafStatApi) StatHomeSumDayApi(c *gin.Context) {
 
 	wafStat, _ := wafStatService.StatHomeSumDayApi()

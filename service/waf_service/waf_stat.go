@@ -6,6 +6,12 @@ import (
 	"SamWaf/model/request"
 	response2 "SamWaf/model/response"
 	"SamWaf/utils"
+	"fmt"
+	"github.com/shirou/gopsutil/cpu"
+	"github.com/shirou/gopsutil/disk"
+	"github.com/shirou/gopsutil/host"
+	"github.com/shirou/gopsutil/net"
+	"runtime"
 	"strconv"
 	"time"
 )
@@ -123,5 +129,67 @@ func (receiver *WafStatService) StatAnalysisDayCountryRangeApi(req request.WafSt
 
 // 获取系统基本信息
 func (receiver *WafStatService) StatHomeSysinfo() response2.WafHomeSysinfoStat {
+
 	return response2.WafHomeSysinfoStat{IsDefaultAccount: WafAccountServiceApp.IsExistDefaultAccount(), IsEmptyHost: WafHostServiceApp.IsEmptyHost()}
+}
+
+// 获取运行系统基本信息
+func (receiver *WafStatService) StatHomeRumtimeSysinfo() []response2.WafNameValue {
+	c, _ := cpu.Info()
+	cc, _ := cpu.Percent(time.Second, false) // 1秒
+	d, _ := disk.Usage("/")
+	n, _ := host.Info()
+	nv, _ := net.IOCounters(true)
+	physicalCnt, _ := cpu.Counts(false)
+	logicalCnt, _ := cpu.Counts(true)
+	result := ""
+	if len(c) > 1 {
+		for _, sub_cpu := range c {
+			modelname := sub_cpu.ModelName
+			cores := sub_cpu.Cores
+			result = result + fmt.Sprintf("CPUs: %v   %v cores \n", modelname, cores)
+		}
+	} else {
+		sub_cpu := c[0]
+		modelname := sub_cpu.ModelName
+		cores := sub_cpu.Cores
+		result = result + fmt.Sprintf("CPU: %v   %v cores \n", modelname, cores)
+	}
+	result = result + fmt.Sprintf("physical count:%d logical count:%d\n", physicalCnt, logicalCnt)
+	result = result + fmt.Sprintf("CPU Used: used %f%%\n", cc[0])
+	result = result + fmt.Sprintf("HD: %v GB Free: %v GB Usage:%f%%\n", d.Total/1024/1024/1024, d.Free/1024/1024/1024, d.UsedPercent)
+	result = result + fmt.Sprintf("OS: %v(%v) %v\n", n.Platform, n.PlatformFamily, n.PlatformVersion)
+	result = result + fmt.Sprintf("Hostname: %v\n", n.Hostname)
+	result = result + fmt.Sprintf("Network: %v bytes / %v bytes\n", nv[0].BytesRecv, nv[0].BytesSent)
+
+	var data []response2.WafNameValue
+	data = append(data, response2.WafNameValue{Name: "系统运行环境基本信息", Value: result})
+	data = append(data, response2.WafNameValue{Name: "最后处理log时间",
+		Value: time.Unix(0,
+			global.GWAF_MEASURE_PROCESS_DEQUEENGINE.ReadData()*int64(time.Millisecond)).Format("2006-01-02 15:04:05")})
+	data = append(data, response2.WafNameValue{Name: "Goroutine数量", Value: fmt.Sprintf("%v", runtime.NumGoroutine())})
+	data = append(data, response2.WafNameValue{Name: "系统类型", Value: fmt.Sprintf("%v", runtime.GOOS)})
+	data = append(data, response2.WafNameValue{Name: "系统架构", Value: fmt.Sprintf("%v", runtime.GOARCH)})
+
+	// 获取开机时间
+	boottime, _ := host.BootTime()
+	ntime := time.Now().Unix()
+	btime := time.Unix(int64(boottime), 0).Unix()
+	deltatime := ntime - btime
+	// 将时间间隔转换为天、小时、分钟、秒
+	seconds := int64(deltatime)
+	minutes := seconds / 60
+	seconds -= minutes * 60
+	hours := minutes / 60
+	minutes -= hours * 60
+	days := hours / 24
+	hours -= days * 24
+
+	data = append(data, response2.WafNameValue{
+		Name: "系统已运行时长", Value: fmt.Sprintf("%v 天 %v 时 %v 分 %v 秒", days, hours, minutes, seconds)})
+
+	data = append(data, response2.WafNameValue{Name: "软件版本", Value: fmt.Sprintf("%v", global.GWAF_RELEASE_VERSION_NAME)})
+	data = append(data, response2.WafNameValue{Name: "软件版本Code", Value: fmt.Sprintf("%v", global.GWAF_RELEASE_VERSION)})
+
+	return data
 }

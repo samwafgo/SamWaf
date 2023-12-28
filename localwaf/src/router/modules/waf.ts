@@ -158,7 +158,12 @@ export default [
          component: () => import('@/pages/waf/systemconfig/index.vue'),
          meta: { title: '参数设置' },
        },
-
+      {
+        path: 'RumtimeSysteminfo',
+        name: 'RumtimeSysteminfo',
+        component: () => import('@/pages/waf/sysruntime/index.vue'),
+        meta: { title: '运行参数' },
+      },
     ],
   },
 

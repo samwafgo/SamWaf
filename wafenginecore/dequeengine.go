@@ -31,7 +31,7 @@ func InitDequeEngine() {
 func ProcessDequeEngine() {
 	zlog.Info("ProcessDequeEngine start")
 	for {
-
+		global.GWAF_MEASURE_PROCESS_DEQUEENGINE.WriteData(time.Now().UnixNano() / 1e6)
 		for !global.GQEQUE_DB.Empty() {
 			weblogbean := global.GQEQUE_DB.PopFront()
 			if weblogbean != nil {
@@ -168,5 +168,6 @@ func ProcessDequeEngine() {
 			//zlog.Info("MESSAGE", messageinfo)
 		}
 		time.Sleep((100 * time.Millisecond))
+		global.GWAF_MEASURE_PROCESS_DEQUEENGINE.WriteData(time.Now().UnixNano() / 1e6)
 	}
 }

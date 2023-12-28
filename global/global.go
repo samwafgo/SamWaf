@@ -27,6 +27,11 @@ var (
 	GWAF_RUNTIME_NEW_VERSION      string = "" //最新版本号
 	GWAF_RUNTIME_NEW_VERSION_DESC string = "" //最新版本描述
 
+	/**
+	遥测数据
+	*/
+	GWAF_MEASURE_PROCESS_DEQUEENGINE cache.WafOnlyLockWriteData //遥测数据-队列处理时间
+
 	GWAF_GLOBAL_HOST_NAME string = "全局网站:0" //全局网站
 
 	GWAF_LOCAL_DB             *gorm.DB                //通用本地数据库，尊重用户隐私

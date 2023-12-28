@@ -15,7 +15,6 @@
     </t-swiper>
 
 <br>
-
     <!-- 顶部 card  -->
     <top-panel class="row-container" />
     <!-- 中部图表  -->

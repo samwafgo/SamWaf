@@ -16,6 +16,7 @@ func (receiver *StatRouter) InitStatRouter(group *gin.RouterGroup) {
 	router.GET("/samwaf/wafstatsumdayrange", statApi.StatHomeSumDayRangeApi)
 	router.GET("/samwaf/wafstatsumdaytopiprange", statApi.StatHomeSumDayTopIPRangeApi)
 	router.GET("/samwaf/statsysinfo", statApi.StatSysinfoApi)
+	router.GET("/samwaf/statrumtimesysinfo", statApi.StatRumtimeSysinfoApi)
 
 	//数据分析
 	router.GET("/samwaf/wafanalysisdaycountryrange", statApi.StatAnalysisDayCountryRangeApi)

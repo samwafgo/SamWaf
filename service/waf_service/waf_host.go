@@ -113,7 +113,7 @@ func (receiver *WafHostService) GetListApi(req request.WafHostSearchReq) ([]mode
 		whereValues = append(whereValues, req.Code)
 	}
 	if len(req.REMARKS) > 0 {
-		whereValues = append(whereValues, req.REMARKS)
+		whereValues = append(whereValues, "%"+req.REMARKS+"%")
 	}
 
 	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where(whereField, whereValues...).Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&list)

@@ -69,11 +69,36 @@ func (receiver *WafSystemConfigService) GetDetailByItem(item string) model.Syste
 	return bean
 }
 func (receiver *WafSystemConfigService) GetListApi(req request.WafSystemConfigSearchReq) ([]model.SystemConfig, int64, error) {
-	var beans []model.SystemConfig
+	var list []model.SystemConfig
 	var total int64 = 0
-	global.GWAF_LOCAL_DB.Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&beans)
-	global.GWAF_LOCAL_DB.Model(&model.SystemConfig{}).Count(&total)
-	return beans, total, nil
+	/*where条件*/
+	var whereField = ""
+	var whereValues []interface{}
+	//where字段
+	whereField = ""
+	if len(req.Item) > 0 {
+		if len(whereField) > 0 {
+			whereField = whereField + " and "
+		}
+		whereField = whereField + " item=? "
+	}
+	if len(req.Remarks) > 0 {
+		if len(whereField) > 0 {
+			whereField = whereField + " and "
+		}
+		whereField = whereField + " remarks like ? "
+	}
+	//where字段赋值
+	if len(req.Item) > 0 {
+		whereValues = append(whereValues, req.Item)
+	}
+	if len(req.Remarks) > 0 {
+		whereValues = append(whereValues, "%"+req.Remarks+"%")
+	}
+	global.GWAF_LOCAL_DB.Model(&model.SystemConfig{}).Where(whereField, whereValues...).Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&list)
+	global.GWAF_LOCAL_DB.Model(&model.SystemConfig{}).Where(whereField, whereValues...).Count(&total)
+
+	return list, total, nil
 }
 func (receiver *WafSystemConfigService) DelApi(req request.WafSystemConfigDelReq) error {
 	var bean model.SystemConfig

@@ -1,10 +1,10 @@
 import request from '@/utils/request'
 //查询所有账号列表
-export function account_list_api(params) {
+export function account_list_api(data) {
   return request({
     url: 'account/list',
-    method: 'get',
-    params: params
+    method: 'post',
+    data: data
   })
 }
 

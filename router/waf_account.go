@@ -11,7 +11,7 @@ type AccountRouter struct {
 func (receiver *AccountRouter) InitAccountRouter(group *gin.RouterGroup) {
 	api := api.APIGroupAPP.WafAccountApi
 	router := group.Group("")
-	router.GET("/samwaf/account/list", api.GetListApi)
+	router.POST("/samwaf/account/list", api.GetListApi)
 	router.GET("/samwaf/account/detail", api.GetDetailApi)
 	router.POST("/samwaf/account/add", api.AddApi)
 	router.GET("/samwaf/account/del", api.DelAccountApi)

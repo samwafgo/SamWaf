@@ -66,11 +66,37 @@ func (receiver *WafBlockUrlService) GetDetailByIdApi(id string) model.URLBlockLi
 	return bean
 }
 func (receiver *WafBlockUrlService) GetListApi(req request.WafBlockUrlSearchReq) ([]model.URLBlockList, int64, error) {
-	var ipWhites []model.URLBlockList
+	var list []model.URLBlockList
 	var total int64 = 0
-	global.GWAF_LOCAL_DB.Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&ipWhites)
-	global.GWAF_LOCAL_DB.Model(&model.URLBlockList{}).Count(&total)
-	return ipWhites, total, nil
+	/*where条件*/
+	var whereField = ""
+	var whereValues []interface{}
+	//where字段
+	whereField = ""
+	if len(req.HostCode) > 0 {
+		if len(whereField) > 0 {
+			whereField = whereField + " and "
+		}
+		whereField = whereField + " host_code=? "
+	}
+	if len(req.Url) > 0 {
+		if len(whereField) > 0 {
+			whereField = whereField + " and "
+		}
+		whereField = whereField + " url =? "
+	}
+	//where字段赋值
+	if len(req.HostCode) > 0 {
+		whereValues = append(whereValues, req.HostCode)
+	}
+	if len(req.Url) > 0 {
+		whereValues = append(whereValues, req.Url)
+	}
+
+	global.GWAF_LOCAL_DB.Model(&model.URLBlockList{}).Where(whereField, whereValues...).Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&list)
+	global.GWAF_LOCAL_DB.Model(&model.URLBlockList{}).Where(whereField, whereValues...).Count(&total)
+
+	return list, total, nil
 }
 func (receiver *WafBlockUrlService) DelApi(req request.WafBlockUrlDelReq) error {
 	var bean model.URLBlockList

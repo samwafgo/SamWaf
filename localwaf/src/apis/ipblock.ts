@@ -3,8 +3,8 @@ import request from '@/utils/request'
 export function wafIPBlockListApi(params) {
   return request({
     url: '/wafhost/ipblock/list',
-    method: 'get',
-    params: params
+    method: 'post',
+    data: params
   })
 }
 //删除IP黑名单

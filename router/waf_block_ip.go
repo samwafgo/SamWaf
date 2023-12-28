@@ -11,7 +11,7 @@ type BlockIpRouter struct {
 func (receiver *BlockIpRouter) InitBlockIpRouter(group *gin.RouterGroup) {
 	api := api.APIGroupAPP.WafBlockIpApi
 	router := group.Group("")
-	router.GET("/samwaf/wafhost/ipblock/list", api.GetListApi)
+	router.POST("/samwaf/wafhost/ipblock/list", api.GetListApi)
 	router.GET("/samwaf/wafhost/ipblock/detail", api.GetDetailApi)
 	router.POST("/samwaf/wafhost/ipblock/add", api.AddApi)
 	router.GET("/samwaf/wafhost/ipblock/del", api.DelBlockIpApi)

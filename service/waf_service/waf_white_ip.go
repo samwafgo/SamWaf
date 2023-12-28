@@ -91,8 +91,8 @@ func (receiver *WafWhiteIpService) GetListApi(req request.WafWhiteIpSearchReq) (
 		whereValues = append(whereValues, req.Ip)
 	}
 
-	global.GWAF_LOCAL_DB.Debug().Model(&model.IPWhiteList{}).Where(whereField, whereValues...).Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&ipWhites)
-	global.GWAF_LOCAL_DB.Debug().Model(&model.IPWhiteList{}).Where(whereField, whereValues...).Count(&total)
+	global.GWAF_LOCAL_DB.Model(&model.IPWhiteList{}).Where(whereField, whereValues...).Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&ipWhites)
+	global.GWAF_LOCAL_DB.Model(&model.IPWhiteList{}).Where(whereField, whereValues...).Count(&total)
 
 	return ipWhites, total, nil
 }

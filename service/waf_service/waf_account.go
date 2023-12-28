@@ -126,11 +126,29 @@ func (receiver *WafAccountService) GetDetailByIdApi(id string) model.Account {
 	return bean
 }
 func (receiver *WafAccountService) GetListApi(req request.WafAccountSearchReq) ([]model.Account, int64, error) {
-	var bean []model.Account
+	var list []model.Account
 	var total int64 = 0
-	global.GWAF_LOCAL_DB.Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&bean)
-	global.GWAF_LOCAL_DB.Model(&model.Account{}).Count(&total)
-	return bean, total, nil
+
+	/*where条件*/
+	var whereField = ""
+	var whereValues []interface{}
+	//where字段
+	whereField = ""
+	if len(req.LoginAccount) > 0 {
+		if len(whereField) > 0 {
+			whereField = whereField + " and "
+		}
+		whereField = whereField + " login_account=? "
+	}
+	//where字段赋值
+	if len(req.LoginAccount) > 0 {
+		whereValues = append(whereValues, req.LoginAccount)
+	}
+
+	global.GWAF_LOCAL_DB.Model(&model.Account{}).Where(whereField, whereValues...).Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&list)
+	global.GWAF_LOCAL_DB.Model(&model.Account{}).Where(whereField, whereValues...).Count(&total)
+
+	return list, total, nil
 }
 func (receiver *WafAccountService) DelApi(req request.WafAccountDelReq) error {
 	var bean model.Account

@@ -46,7 +46,7 @@ func (w *WafAccountApi) GetDetailApi(c *gin.Context) {
 }
 func (w *WafAccountApi) GetListApi(c *gin.Context) {
 	var req request.WafAccountSearchReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		beans, total, _ := wafAccountService.GetListApi(req)
 		response.OkWithDetailed(response.PageResult{

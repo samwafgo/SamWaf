@@ -7,3 +7,12 @@ export function allhost(params) {
     params: params
   })
 }
+
+//查询主机列表
+export function hostlist(data) {
+  return request({
+    url: 'wafhost/host/list',
+    method: 'post',
+    data: data
+  })
+}

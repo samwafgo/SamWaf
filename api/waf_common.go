@@ -145,13 +145,13 @@ func saveDataToDatabase(name string, rows [][]string) ReturnImportData {
 					needJumpFristCol = true
 					continue
 				}
-				fmt.Print(colCell, "\t")
+				//fmt.Print(colCell, "\t")
 				header = append(header, colCell)
 			}
 			break
-			fmt.Println()
+			//fmt.Println()
 		}
-		fmt.Println("一下是数据")
+		//fmt.Println("一下是数据")
 		// 获取数据
 		rowNumber := 0
 		for _, row := range rows {
@@ -173,13 +173,13 @@ func saveDataToDatabase(name string, rows [][]string) ReturnImportData {
 					headerNumber = headerNumber - 1
 				}
 				data[header[headerNumber]] = colCell
-				fmt.Println(header[headerNumber], ":", colCell, "\t")
+				//fmt.Println(header[headerNumber], ":", colCell, "\t")
 				colNumber++
 			}
 
 			//准备插入数据
 			if wafHostService.GetDetailByCodeApi(data["code"]).Code != "" {
-				fmt.Println(data["code"], " 数据已存在不进行插入\t")
+				//fmt.Println(data["code"], " 数据已存在不进行插入\t")
 				msg += "行" + strconv.Itoa(rowNumber) + " code:" + data["code"] + " 数据已存在不进行插入 "
 				failInt++
 				rowNumber++
@@ -211,7 +211,7 @@ func saveDataToDatabase(name string, rows [][]string) ReturnImportData {
 				}
 				port, err := strconv.Atoi(data["port"])
 				if err != nil {
-					fmt.Println("转换出错:", err)
+					//fmt.Println("转换出错:", err)
 					msg += "行" + strconv.Itoa(rowNumber) + " port:" + data["port"] + " 转换出错 "
 					failInt++
 					continue
@@ -219,7 +219,7 @@ func saveDataToDatabase(name string, rows [][]string) ReturnImportData {
 				wafHost.Port = port
 				ssl, err := strconv.Atoi(data["ssl"])
 				if err != nil {
-					fmt.Println("转换出错:", err)
+					//fmt.Println("转换出错:", err)
 					msg += "行" + strconv.Itoa(rowNumber) + " ssl:" + data["ssl"] + " 转换出错 "
 					failInt++
 					continue
@@ -228,7 +228,7 @@ func saveDataToDatabase(name string, rows [][]string) ReturnImportData {
 
 				guard_status, err := strconv.Atoi(data["guard_status"])
 				if err != nil {
-					fmt.Println("转换出错:", err)
+					//fmt.Println("转换出错:", err)
 					msg += "行" + strconv.Itoa(rowNumber) + " guard_status:" + data["guard_status"] + " 转换出错 "
 					failInt++
 					continue
@@ -237,7 +237,7 @@ func saveDataToDatabase(name string, rows [][]string) ReturnImportData {
 
 				remote_port, err := strconv.Atoi(data["remote_port"])
 				if err != nil {
-					fmt.Println("转换出错:", err)
+					//fmt.Println("转换出错:", err)
 					msg += "行" + strconv.Itoa(rowNumber) + " remote_port:" + data["remote_port"] + " 转换出错 "
 					failInt++
 					continue
@@ -249,10 +249,10 @@ func saveDataToDatabase(name string, rows [][]string) ReturnImportData {
 			} else {
 				failInt++
 				msg += "行" + strconv.Itoa(rowNumber) + " host:" + data["host"] + " port:" + data["port"] + " 数据已存在不进行插入\t"
-				fmt.Println(data["host"], data["port"], " 数据已存在不进行插入\t")
+				//fmt.Println(data["host"], data["port"], " 数据已存在不进行插入\t")
 			}
 			rowNumber++
-			fmt.Println()
+			//fmt.Println()
 		}
 
 	default:

@@ -66,8 +66,34 @@ func (receiver *WafBlockIpService) GetDetailByIdApi(id string) model.IPBlockList
 func (receiver *WafBlockIpService) GetListApi(req request.WafBlockIpSearchReq) ([]model.IPBlockList, int64, error) {
 	var list []model.IPBlockList
 	var total int64 = 0
-	global.GWAF_LOCAL_DB.Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&list)
-	global.GWAF_LOCAL_DB.Model(&model.IPBlockList{}).Count(&total)
+	/*where条件*/
+	var whereField = ""
+	var whereValues []interface{}
+	//where字段
+	whereField = ""
+	if len(req.HostCode) > 0 {
+		if len(whereField) > 0 {
+			whereField = whereField + " and "
+		}
+		whereField = whereField + " host_code=? "
+	}
+	if len(req.Ip) > 0 {
+		if len(whereField) > 0 {
+			whereField = whereField + " and "
+		}
+		whereField = whereField + " ip =? "
+	}
+	//where字段赋值
+	if len(req.HostCode) > 0 {
+		whereValues = append(whereValues, req.HostCode)
+	}
+	if len(req.Ip) > 0 {
+		whereValues = append(whereValues, req.Ip)
+	}
+
+	global.GWAF_LOCAL_DB.Model(&model.IPBlockList{}).Where(whereField, whereValues...).Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&list)
+	global.GWAF_LOCAL_DB.Model(&model.IPBlockList{}).Where(whereField, whereValues...).Count(&total)
+
 	return list, total, nil
 }
 func (receiver *WafBlockIpService) DelApi(req request.WafBlockIpDelReq) error {

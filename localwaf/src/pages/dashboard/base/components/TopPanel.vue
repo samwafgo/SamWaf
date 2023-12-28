@@ -177,9 +177,15 @@ export default {
               upTrend: '0%',
               leftType: 'echarts-line',
             })
-            that.panelList.push({
+           /* that.panelList.push({
               title: '今天正常IP（个）',
               number: that.wafstat_data.NormalIpCountOfToday,
+              upTrend: '0%',
+              leftType: 'echarts-line',
+            })*/
+            that.panelList.push({
+              title: '当前QPS',
+              number: that.wafstat_data.CurrentQps,
               upTrend: '0%',
               leftType: 'echarts-line',
             })

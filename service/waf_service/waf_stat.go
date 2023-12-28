@@ -13,6 +13,7 @@ import (
 	"github.com/shirou/gopsutil/net"
 	"runtime"
 	"strconv"
+	"sync/atomic"
 	"time"
 )
 
@@ -62,6 +63,7 @@ func (receiver *WafStatService) StatHomeSumDayApi() (response2.WafStat, error) {
 			IllegalProvinceCountOfToday: 0,
 			NormalCityCountOfToday:      0,
 			IllegalCityCountOfToday:     0,
+			CurrentQps:                  atomic.LoadUint64(&global.GWAF_RUNTIME_QPS),
 		},
 		nil
 }
@@ -190,6 +192,7 @@ func (receiver *WafStatService) StatHomeRumtimeSysinfo() []response2.WafNameValu
 
 	data = append(data, response2.WafNameValue{Name: "软件版本", Value: fmt.Sprintf("%v", global.GWAF_RELEASE_VERSION_NAME)})
 	data = append(data, response2.WafNameValue{Name: "软件版本Code", Value: fmt.Sprintf("%v", global.GWAF_RELEASE_VERSION)})
+	data = append(data, response2.WafNameValue{Name: "当前QPS", Value: fmt.Sprintf("%v", atomic.LoadUint64(&global.GWAF_RUNTIME_QPS))})
 
 	return data
 }

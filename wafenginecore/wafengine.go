@@ -40,6 +40,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -62,6 +63,7 @@ func (waf *WafEngine) Error() string {
 	return fmt.Sprintf(fs)
 }
 func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	atomic.AddUint64(&global.GWAF_RUNTIME_QPS, 1) // 原子增加计数器
 	host := r.Host
 	if !strings.Contains(host, ":") {
 		host = host + ":80"

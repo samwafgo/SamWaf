@@ -51,7 +51,7 @@ func (w *WafLdpUrlApi) GetDetailApi(c *gin.Context) {
 }
 func (w *WafLdpUrlApi) GetListApi(c *gin.Context) {
 	var req request.WafLdpUrlSearchReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		beans, total, _ := wafLdpUrlService.GetListApi(req)
 		response.OkWithDetailed(response.PageResult{

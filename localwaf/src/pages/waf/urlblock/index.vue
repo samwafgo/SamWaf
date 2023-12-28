@@ -6,11 +6,22 @@
           <t-button @click="handleAddurlblock"> 新建限制访问Url </t-button>
            <p v-if="!!selectedRowKeys.length" class="selected-count">已选{{ selectedRowKeys.length }}项</p>
         </div>
-        <t-input v-model="searchValue" class="search-input" placeholder="请输入你需要搜索的" clearable>
-          <template #suffix-icon>
-            <search-icon size="20px" />
-          </template>
-        </t-input>
+        <div class="right-operation-container">
+          <t-form ref="form" :data="searchformData" :label-width="80" colon :style="{ marginBottom: '8px' }">
+
+            <t-row>
+              <span>网站：</span><t-select v-model="searchformData.host_code" clearable :style="{ width: '150px' }">
+              <t-option v-for="(item, index) in host_dic" :value="index" :label="item" :key="index">
+                {{ item }}
+              </t-option>
+            </t-select>
+              <span>URL：</span>
+              <t-input v-model="searchformData.url" class="search-input" placeholder="请输入" clearable>
+              </t-input>
+              <t-button theme="primary" :style="{ marginLeft: '8px' }" @click="getList('all')"> 查询 </t-button>
+            </t-row>
+          </t-form>
+        </div>
       </t-row>
       <t-alert theme="info" message="SamWaf防护墙会阻止访问在限制访问内的URL" close>
         <template #operation>
@@ -251,7 +262,11 @@
           current: 1,
           pageSize: 10
         },
-        searchValue: '',
+        //顶部搜索
+        searchformData: {
+          url:"",
+          host_code:""
+        },
         //索引区域
         deleteIdx: -1,
         guardStatusIdx :-1,
@@ -300,8 +315,7 @@
         wafURLBlockListApi({
               pageSize: that.pagination.pageSize,
               pageIndex: that.pagination.current,
-              host_code: '',
-              url:''
+              ...that.searchformData
           })
           .then((res) => {
             let resdata = res

@@ -51,7 +51,7 @@ func (w *WafBlockUrlApi) GetDetailApi(c *gin.Context) {
 }
 func (w *WafBlockUrlApi) GetListApi(c *gin.Context) {
 	var req request.WafBlockUrlSearchReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		beans, total, _ := wafUrlBlockService.GetListApi(req)
 		response.OkWithDetailed(response.PageResult{

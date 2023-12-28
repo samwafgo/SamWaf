@@ -3,8 +3,8 @@ import request from '@/utils/request'
 export function wafLdpURLListApi(params) {
   return request({
     url: '/wafhost/ldpurl/list',
-    method: 'get',
-    params: params
+    method: 'post',
+    data: params
   })
 }
 //删除隐私保护URL

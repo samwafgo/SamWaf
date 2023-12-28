@@ -3,8 +3,8 @@ import request from '@/utils/request'
 export function wafURLBlockListApi(params) {
   return request({
     url: '/wafhost/urlblock/list',
-    method: 'get',
-    params: params
+    method: 'post',
+    data: params
   })
 }
 //删除URL黑名单

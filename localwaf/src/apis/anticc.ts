@@ -3,8 +3,8 @@ import request from '@/utils/request'
 export function wafAntiCCListApi(params) {
   return request({
     url: '/wafhost/anticc/list',
-    method: 'get',
-    params: params
+    method: 'post',
+    data: params
   })
 }
 //删除抵御CC攻击

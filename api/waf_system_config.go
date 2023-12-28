@@ -46,7 +46,7 @@ func (w *WafSystemConfigApi) GetDetailApi(c *gin.Context) {
 }
 func (w *WafSystemConfigApi) GetListApi(c *gin.Context) {
 	var req request.WafSystemConfigSearchReq
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		beans, total, _ := wafSystemConfigService.GetListApi(req)
 		response.OkWithDetailed(response.PageResult{

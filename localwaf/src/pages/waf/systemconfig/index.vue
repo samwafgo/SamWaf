@@ -7,11 +7,20 @@
           <t-button variant="base" theme="default" :disabled="!selectedRowKeys.length"> 导出日志 </t-button>
           <p v-if="!!selectedRowKeys.length" class="selected-count">已选{{ selectedRowKeys.length }}项</p>
         </div>
-        <t-input v-model="searchValue" class="search-input" placeholder="请输入你需要搜索的系统配置" clearable>
-          <template #suffix-icon>
-            <search-icon size="20px" />
-          </template>
-        </t-input>
+        <div class="right-operation-container">
+          <t-form ref="form" :data="searchformData" :label-width="80" colon :style="{ marginBottom: '8px' }">
+
+            <t-row>
+              <span>配置项：</span>
+              <t-input v-model="searchformData.item" class="search-input" style="width:200px" placeholder="请输入" clearable>
+              </t-input>
+              <span>配置备注：</span>
+              <t-input v-model="searchformData.remarks" class="search-input" style="width:200px"  placeholder="请输入" clearable>
+              </t-input>
+              <t-button theme="primary" :style="{ marginLeft: '8px' }" @click="getList('all')"> 查询 </t-button>
+            </t-row>
+          </t-form>
+        </div>
       </t-row>
 
       <div class="table-container">
@@ -98,14 +107,6 @@
   } from '@/apis/systemconfig';
 
 
-  import {
-    SSL_STATUS,
-    GUARD_STATUS,
-    CONTRACT_STATUS,
-    CONTRACT_STATUS_OPTIONS,
-    CONTRACT_TYPES,
-    CONTRACT_PAYMENT_TYPES
-  } from '@/constants';
 
   const INITIAL_DATA = {
     item: '',
@@ -116,7 +117,6 @@
     name: 'ListBase',
     components: {
       SearchIcon,
-      Trend,
     },
     data() {
       return {
@@ -155,7 +155,7 @@
             align: 'left',
             width: 250,
             ellipsis: true,
-            colKey: 'item', 
+            colKey: 'item',
           },
           {
             title: '值',
@@ -177,7 +177,7 @@
           },
 
           {
-            align: 'left', 
+            align: 'left',
             width: 200,
             colKey: 'op',
             title: '操作',
@@ -194,7 +194,11 @@
           current: 1,
           pageSize: 10
         },
-        searchValue: '',
+        //顶部搜索
+        searchformData: {
+          item:"",
+          remarks:"",
+        },
         //索引区域
         deleteIdx: -1,
         guardStatusIdx :-1,
@@ -221,14 +225,11 @@
     methods: {
       getList(keyword) {
         let that = this
-        this.$request
-          .get('/systemconfig/list', {
-            params: {
+        system_config_list_api({
               pageSize: that.pagination.pageSize,
               pageIndex: that.pagination.current,
-              item: '',
-            }
-          })
+              ...that.searchformData
+         })
           .then((res) => {
             let resdata = res
             console.log(resdata)

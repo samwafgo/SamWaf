@@ -47,7 +47,15 @@ export default ({ mode }) => {
     build: {
       cssCodeSplit: false,
       outDir: '../vue/dist',
-      emptyOutDir:true
+      emptyOutDir:true,
+      minify: 'terser',
+      terserOptions: {
+        compress: {
+          //生产环境时移除console.log()
+          drop_console: true,
+          drop_debugger: true,
+        },
+      },
     },
 
     server: {

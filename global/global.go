@@ -27,6 +27,8 @@ var (
 	GWAF_RUNTIME_NEW_VERSION      string = "" //最新版本号
 	GWAF_RUNTIME_NEW_VERSION_DESC string = "" //最新版本描述
 
+	GWAF_RUNTIME_QPS uint64 = 0 //当前qps
+
 	/**
 	遥测数据
 	*/

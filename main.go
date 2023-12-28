@@ -27,6 +27,7 @@ import (
 	"os/signal"
 	"runtime"
 	"strconv"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -136,6 +137,15 @@ func (m *wafSystenService) run() {
 	s := gocron.NewScheduler(timezone)
 
 	global.GWAF_LAST_UPDATE_TIME = time.Now()
+	// 每1秒执行qps清空
+	s.Every(1).Seconds().Do(func() {
+		// 清零计数器
+		atomic.StoreUint64(&global.GWAF_RUNTIME_QPS, 0)
+
+		// 输出清零后的计数
+		//newCount := atomic.LoadUint64(&requestCount)
+	})
+
 	// 每10秒执行一次
 	s.Every(10).Seconds().Do(func() {
 		if global.GWAF_SWITCH_TASK_COUNTER == false {

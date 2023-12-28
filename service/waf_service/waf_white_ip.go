@@ -66,8 +66,34 @@ func (receiver *WafWhiteIpService) GetDetailByIdApi(id string) model.IPWhiteList
 func (receiver *WafWhiteIpService) GetListApi(req request.WafWhiteIpSearchReq) ([]model.IPWhiteList, int64, error) {
 	var ipWhites []model.IPWhiteList
 	var total int64 = 0
-	global.GWAF_LOCAL_DB.Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&ipWhites)
-	global.GWAF_LOCAL_DB.Model(&model.IPWhiteList{}).Count(&total)
+	/*where条件*/
+	var whereField = ""
+	var whereValues []interface{}
+	//where字段
+	whereField = ""
+	if len(req.HostCode) > 0 {
+		if len(whereField) > 0 {
+			whereField = whereField + " and "
+		}
+		whereField = whereField + " host_code=? "
+	}
+	if len(req.Ip) > 0 {
+		if len(whereField) > 0 {
+			whereField = whereField + " and "
+		}
+		whereField = whereField + " ip =? "
+	}
+	//where字段赋值
+	if len(req.HostCode) > 0 {
+		whereValues = append(whereValues, req.HostCode)
+	}
+	if len(req.Ip) > 0 {
+		whereValues = append(whereValues, req.Ip)
+	}
+
+	global.GWAF_LOCAL_DB.Debug().Model(&model.IPWhiteList{}).Where(whereField, whereValues...).Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&ipWhites)
+	global.GWAF_LOCAL_DB.Debug().Model(&model.IPWhiteList{}).Where(whereField, whereValues...).Count(&total)
+
 	return ipWhites, total, nil
 }
 func (receiver *WafWhiteIpService) DelApi(req request.WafWhiteIpDelReq) error {

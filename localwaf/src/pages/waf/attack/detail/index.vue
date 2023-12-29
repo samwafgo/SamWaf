@@ -93,11 +93,11 @@
         <t-list-item >
           <t-list-item-meta title="请求BODY" ></t-list-item-meta>
         </t-list-item>
-        <t-textarea v-model="detail_data.body" :autosize="{ minRows: 3, maxRows: 5 }" readonly @blur="handleMouseSelect('body')"/> 
+        <t-textarea v-model="detail_data.body" :autosize="{ minRows: 3, maxRows: 5 }" readonly @blur="handleMouseSelect('body')"/>
         <t-list-item >
           <t-list-item-meta title="请求Form" ></t-list-item-meta>
         </t-list-item>
-        <t-textarea v-model="detail_data.post_form" :autosize="{ minRows: 3, maxRows: 5 }" readonly /> 
+        <t-textarea v-model="detail_data.post_form" :autosize="{ minRows: 3, maxRows: 5 }" readonly />
       </t-list>
     </t-card>
     <t-card title="响应数据">
@@ -156,19 +156,29 @@
     watch: {
       '$route.query.req_uuid'(newVal, oldVal) {
         console.log('route.query.req_uuid changed', newVal, oldVal)
-        this.getDetail(newVal)
+        if(newVal!=undefined){
+          this.getDetail(newVal)
+        }
+
       },
     },
     methods: {
       backPage(){
         　history.go(-1)
       },
-      getDetail(id) {
+      getDetail(uuid_and_name) {
+        if(uuid_and_name == undefined){
+          return
+        }
+       let arr =  uuid_and_name.split("#");
+        let id = arr[0]
+       let current_db_name = arr[1]
         let that = this
         this.$request
           .get('/waflog/attack/detail', {
             params: {
               REQ_UUID: id,
+              current_db_name:current_db_name
             }
           })
           .then((res) => {

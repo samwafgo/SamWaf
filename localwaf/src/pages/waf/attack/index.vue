@@ -55,6 +55,15 @@
                       placeholder="请输入访问方法" :style="{ width: '100px' }" />
                   </t-form-item>
                 </t-col>
+                <t-col :flex="1">
+                  <t-form-item label="日志归档库" name="sharedb">
+                    <t-select v-model="searchformData.current_db_name" clearable :style="{ width: '150px' }">
+                      <t-option v-for="(item, index) in share_db_dic" :value="index" :label="item" :key="index">
+                        {{ item }}
+                      </t-option>
+                    </t-select>
+                  </t-form-item>
+                </t-col>
               </t-row>
             </t-col>
 
@@ -106,7 +115,7 @@
   import { SearchIcon } from 'tdesign-icons-vue';
   import Trend from '@/components/trend/index.vue';
   import { prefix } from '@/config/global';
-  import { attacklogList } from '@/apis/waflog/attacklog';
+  import { allsharedblist } from '@/apis/waflog/attacklog';
 
   import { NowDate, ConvertStringToUnix, ConvertDateToString, ConvertUnixToDate } from '@/utils/date';
   import {
@@ -319,9 +328,12 @@
           method: "",
           unix_add_time_begin: "",
           unix_add_time_end: "",
+          current_db_name:"local_log.db",
         },
         //主机字典
-        host_dic: {}
+        host_dic: {},
+        //日志存档字典
+        share_db_dic: {}
       };
     },
     computed: {
@@ -379,6 +391,7 @@
       }
 
       this.loadHostList()
+      this.loadShareDbList()
       this.getList("")
     },
     watch: {
@@ -399,6 +412,22 @@
       next(); // 继续后续的导航解析过程
     },
     methods: {
+      loadShareDbList() {
+        let that = this;
+        allsharedblist("").then((res) => {
+          let resdata = res
+          console.log("loadShareDbList",resdata)
+          if (resdata.code === 0) {
+            let share_options = resdata.data;
+            for (let i = 0; i < share_options.length; i++) {
+              that.share_db_dic[share_options[i].file_name] = share_options[i].file_name+"("+share_options[i].cnt+")"
+            }
+          }
+        })
+          .catch((e : Error) => {
+            console.log(e);
+          })
+      },
       loadHostList() {
         let that = this;
         allhost().then((res) => {
@@ -481,7 +510,7 @@
           {
             path: '/waf/wafattacklogdetail',
             query: {
-              req_uuid: req_uuid,
+              req_uuid: req_uuid+"#"+this.searchformData.current_db_name,
             },
           },
         );

@@ -3,7 +3,7 @@ package waftask
 import (
 	"SamWaf/global"
 	"SamWaf/utils/zlog"
-	"SamWaf/wafenginecore"
+	"SamWaf/wafdb"
 	"github.com/spf13/viper"
 	"testing"
 )
@@ -27,8 +27,8 @@ func TestTaskDeleteHistoryInfo(t *testing.T) {
 	global.GWAF_LOCAL_SERVER_PORT = config.GetInt("local_port")             //读取本地端口
 	global.GWAF_CUSTOM_SERVER_NAME = config.GetString("custom_server_name") //本地服务器其定义名称
 	zlog.Debug(" load ini: ", global.GWAF_USER_CODE)
-	wafenginecore.InitCoreDb(currentPath)
-	wafenginecore.InitLogDb(currentPath)
-	wafenginecore.InitStatsDb(currentPath)
+	wafdb.InitCoreDb(currentPath)
+	wafdb.InitLogDb(currentPath)
+	wafdb.InitStatsDb(currentPath)
 	TaskDeleteHistoryInfo()
 }

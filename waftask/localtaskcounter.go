@@ -10,7 +10,7 @@ import (
 	"SamWaf/service/waf_service"
 	"SamWaf/utils"
 	"SamWaf/utils/zlog"
-	"SamWaf/wafenginecore"
+	"SamWaf/wafdb"
 	"SamWaf/wechat"
 	"encoding/json"
 	"fmt"
@@ -504,7 +504,7 @@ func TaskShareDbInfo() {
 		}
 		global.GWAF_LOCAL_DB.Create(sharDbBean)
 		global.GWAF_LOCAL_LOG_DB = nil
-		wafenginecore.InitLogDb("")
+		wafdb.InitLogDb("")
 		global.GDATA_CURRENT_CHANGE = false
 		zlog.Debug("切库完成...")
 	}

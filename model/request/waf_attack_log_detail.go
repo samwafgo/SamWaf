@@ -1,5 +1,6 @@
 package request
 
 type WafAttackLogDetailReq struct {
-	REQ_UUID string `json:"req_uuid"`
+	CurrrentDbName string `json:"current_db_name"`
+	REQ_UUID       string `json:"req_uuid"`
 }

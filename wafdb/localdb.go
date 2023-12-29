@@ -1,4 +1,4 @@
-package wafenginecore
+package wafdb
 
 import (
 	"SamWaf/customtype"
@@ -123,7 +123,7 @@ func InitLogDb(currentDir string) {
 				DbLogicType: "log",
 				StartTime:   customtype.JsonTime(time.Now()),
 				EndTime:     customtype.JsonTime(time.Now()),
-				FileName:    "local_log",
+				FileName:    "local_log.db",
 				Cnt:         logtotal,
 			}
 			global.GWAF_LOCAL_DB.Create(sharDbBean)
@@ -136,7 +136,8 @@ func InitManaulLogDb(currentDir string, custFileName string) {
 	if currentDir == "" {
 		currentDir = utils.GetCurrentDir()
 	}
-	if global.GWAF_LOCAL_CUSTOM_LOG_DB == nil {
+	if global.GDATA_CURRENT_LOG_DB_MAP[custFileName] == nil {
+		zlog.Debug("初始化自定义的库", custFileName)
 		path := currentDir + "/data/" + custFileName
 		key := url.QueryEscape(global.GWAF_PWD_LOGDB)
 		dns := fmt.Sprintf("%s?_db_key=%s", path, key)
@@ -146,7 +147,7 @@ func InitManaulLogDb(currentDir string, custFileName string) {
 		}
 		// 启用 WAL 模式
 		_ = db.Exec("PRAGMA journal_mode=WAL;")
-		global.GWAF_LOCAL_CUSTOM_LOG_DB = db
+		global.GDATA_CURRENT_LOG_DB_MAP[custFileName] = db
 		//logDB.Use(crypto.NewCryptoPlugin())
 		// 注册默认的AES加解密策略
 		//crypto.RegisterCryptoStrategy(strategy.NewAesCryptoStrategy("3Y)(27EtO^tK8Bj~"))
@@ -156,9 +157,11 @@ func InitManaulLogDb(currentDir string, custFileName string) {
 		db.AutoMigrate(&model.AccountLog{})
 		db.AutoMigrate(&model.WafSysLog{})
 
-		global.GWAF_LOCAL_CUSTOM_LOG_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
-		global.GWAF_LOCAL_CUSTOM_LOG_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
+		global.GDATA_CURRENT_LOG_DB_MAP[custFileName].Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
+		global.GDATA_CURRENT_LOG_DB_MAP[custFileName].Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
 
+	} else {
+		zlog.Debug("自定义的库已存在", custFileName)
 	}
 }
 

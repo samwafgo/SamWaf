@@ -32,3 +32,11 @@ func (receiver *WafShareDbService) GetListApi(req request.WafShareDbReq) ([]mode
 
 	return list, total, nil
 }
+
+// 获取所有db
+func (receiver *WafShareDbService) GetAllShareDbApi() ([]model.ShareDb, error) {
+	var list []model.ShareDb
+	global.GWAF_LOCAL_DB.Model(&model.ShareDb{}).Find(&list)
+
+	return list, nil
+}

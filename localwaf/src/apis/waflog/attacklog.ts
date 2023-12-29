@@ -7,3 +7,12 @@ export function attacklogList(params) {
     params: params
   })
 }
+
+//查询存档日志库列表
+export function allsharedblist(params) {
+  return request({
+    url: 'waflog/attack/allsharedb',
+    method: 'get',
+    params: params
+  })
+}

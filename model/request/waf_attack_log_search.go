@@ -3,6 +3,7 @@ package request
 import "SamWaf/model/common/request"
 
 type WafAttackLogSearch struct {
+	CurrrentDbName   string `json:"current_db_name"`
 	HostCode         string `json:"host_code" form:"host_code"`                     //主机码
 	Rule             string `json:"rule" form:"rule"`                               //规则名
 	Action           string `json:"action" form:"action"`                           //状态

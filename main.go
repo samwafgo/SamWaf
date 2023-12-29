@@ -10,7 +10,9 @@ import (
 	"SamWaf/plugin"
 	"SamWaf/utils"
 	"SamWaf/utils/zlog"
+	"SamWaf/wafdb"
 	"SamWaf/wafenginecore"
+	"SamWaf/wafsafeclear"
 	"SamWaf/wafsnowflake"
 	"SamWaf/waftask"
 	"crypto/tls"
@@ -20,6 +22,7 @@ import (
 	"github.com/kardianos/service"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
+	"gorm.io/gorm"
 	"log"
 	"net/http"
 	"os"
@@ -43,6 +46,7 @@ func (m *wafSystenService) Start(s service.Service) error {
 
 // Stop 是服务停止时调用的方法
 func (m *wafSystenService) Stop(s service.Service) error {
+	wafsafeclear.SafeClear()
 	return nil
 }
 
@@ -59,6 +63,29 @@ func NeverExit(name string, f func()) {
 
 // run 是服务的主要逻辑
 func (m *wafSystenService) run() {
+
+	/*// 启动一个 goroutine 来处理信号
+	go func() {
+		// 创建一个通道来接收信号
+		signalCh := make(chan os.Signal, 1)
+
+		// 根据操作系统设置不同的信号监听
+		if runtime.GOOS == "windows" {
+			signal.Notify(signalCh,  syscall.SIGINT,os.Interrupt, syscall.SIGTERM,os.Kill)
+		} else { // Linux 系统
+			signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
+		}
+		for {
+			select {
+			case sig := <-signalCh:
+				fmt.Println("接收到信号:", sig)
+				wafsafeclear.SafeClear()
+				// 在这里执行你的清理操作或退出应用程序的代码
+				os.Exit(0)
+			}
+		}
+	}()*/
+
 	// 在这里编写你的服务逻辑代码
 	fmt.Println("Service is running...")
 	//初始化cache
@@ -67,7 +94,8 @@ func (m *wafSystenService) run() {
 	global.GWAF_MEASURE_PROCESS_DEQUEENGINE = cache.InitWafOnlyLockWrite()
 	// 创建 Snowflake 实例
 	global.GWAF_SNOWFLAKE_GEN = wafsnowflake.NewSnowflake(1609459200000, 1, 1) // 设置epoch时间、机器ID和数据中心ID
-
+	//提前初始化
+	global.GDATA_CURRENT_LOG_DB_MAP = map[string]*gorm.DB{}
 	rversion := "初始化系统 版本号：" + global.GWAF_RELEASE_VERSION_NAME + "(" + global.GWAF_RELEASE_VERSION + ")"
 	if global.GWAF_RELEASE == "false" {
 		rversion = rversion + " 调试版本"
@@ -100,9 +128,9 @@ func (m *wafSystenService) run() {
 	}
 
 	//初始化本地数据库
-	wafenginecore.InitCoreDb("")
-	wafenginecore.InitLogDb("")
-	wafenginecore.InitStatsDb("")
+	wafdb.InitCoreDb("")
+	wafdb.InitLogDb("")
+	wafdb.InitStatsDb("")
 	//初始化队列引擎
 	wafenginecore.InitDequeEngine()
 	//启动队列消费
@@ -198,6 +226,7 @@ func (m *wafSystenService) run() {
 	//脱敏处理初始化
 	global.GWAF_DLP, _ = dlp.NewEngine("wafDlp")
 	global.GWAF_DLP.ApplyConfigDefault()
+
 	for {
 		select {
 		case msg := <-global.GWAF_CHAN_MSG:
@@ -271,7 +300,6 @@ func (m *wafSystenService) run() {
 			}
 			break
 		case host := <-global.GWAF_CHAN_HOST:
-
 			wafEngine.HostTarget[host.Host+":"+strconv.Itoa(host.Port)].Host.GUARD_STATUS = host.GUARD_STATUS
 			zlog.Debug("规则", zap.Any("主机", host))
 			break
@@ -347,6 +375,11 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, os.Kill, syscall.SIGTERM)
 
+	/*_, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()*/
+
+	//doWork(ctx)
+
 	// 以服务方式运行
 	if len(os.Args) > 1 {
 		command := os.Args[1]
@@ -364,7 +397,7 @@ func main() {
 		zlog.Info("main server run false")
 		global.GWAF_RUNTIME_SERVER_TYPE = service.Interactive()
 	}
-
+	//defer wafsafeclear.SafeClear()
 	// 以常规方式运行
 	err = s.Run()
 	if err != nil {

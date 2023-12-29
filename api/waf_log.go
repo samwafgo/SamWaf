@@ -4,6 +4,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
+	response2 "SamWaf/model/response"
 	"github.com/gin-gonic/gin"
 )
 
@@ -29,9 +30,6 @@ func (w *WafLogAPi) GetListApi(c *gin.Context) {
 	var req request.WafAttackLogSearch
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
-		/*//TOOD 模拟意外退出
-
-		os.Exit(-1) //退出进程*/
 		if global.GDATA_CURRENT_CHANGE {
 			//如果正在切换库 跳过
 			response.FailWithMessage("正在切换数据库请等待", c)
@@ -67,4 +65,20 @@ func (w *WafLogAPi) GetListByHostCodeApi(c *gin.Context) {
 	} else {
 		response.FailWithMessage("解析失败", c)
 	}
+}
+
+func (w *WafLogAPi) GetAllShareDbApi(c *gin.Context) {
+	wafShareList, _ := wafShareDbService.GetAllShareDbApi()
+	allShareDbRep := make([]response2.AllShareDbRep, len(wafShareList)) // 创建数组
+	for i, _ := range wafShareList {
+
+		allShareDbRep[i] = response2.AllShareDbRep{
+			StartTime: wafShareList[i].StartTime,
+			EndTime:   wafShareList[i].EndTime,
+			FileName:  wafShareList[i].FileName,
+			Cnt:       wafShareList[i].Cnt,
+		}
+
+	}
+	response.OkWithDetailed(allShareDbRep, "获取成功", c)
 }

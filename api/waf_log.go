@@ -21,7 +21,7 @@ func (w *WafLogAPi) GetDetailApi(c *gin.Context) {
 }
 func (w *WafLogAPi) GetListApi(c *gin.Context) {
 	var req request.WafAttackLogSearch
-	err := c.ShouldBind(&req)
+	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		/*//TOOD 模拟意外退出
 

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"github.com/edwingeng/deque"
 	uuid "github.com/satori/go.uuid"
+	"sync/atomic"
 	"time"
 )
 
@@ -38,34 +39,22 @@ func ProcessDequeEngine() {
 				global.GWAF_LOCAL_DB.Create(weblogbean)
 			}
 		}
-
+		var webLogArray []innerbean.WebLog
 		for !global.GQEQUE_LOG_DB.Empty() {
+			atomic.AddUint64(&global.GWAF_RUNTIME_LOG_PROCESS, 1) // 原子增加计数器
 			weblogbean := global.GQEQUE_LOG_DB.PopFront()
 			if weblogbean != nil {
 				// 进行类型断言将其转为具体的结构
 				if logValue, ok := weblogbean.(innerbean.WebLog); ok {
-
-					// 类型断言成功
-					// myValue 现在是具体的 MyStruct 类型
-					if logValue.WafInnerDFlag == "update" {
-						logMap := map[string]interface{}{
-							"STATUS":      logValue.STATUS,
-							"STATUS_CODE": logValue.STATUS_CODE,
-							"RES_BODY":    logValue.RES_BODY,
-							"ACTION":      logValue.ACTION,
-							"TASK_FLAG":   logValue.TASK_FLAG,
-						}
-						global.GWAF_LOCAL_LOG_DB.Model(innerbean.WebLog{}).Where("req_uuid=?", logValue.REQ_UUID).Updates(logMap)
-
-					} else {
-						global.GWAF_LOCAL_LOG_DB.Create(logValue)
-					}
+					webLogArray = append(webLogArray, logValue)
 				} else {
 					//插入其他类型内容
 					global.GWAF_LOCAL_LOG_DB.Create(weblogbean)
 				}
-
 			}
+		}
+		if len(webLogArray) > 0 {
+			global.GWAF_LOCAL_LOG_DB.CreateInBatches(webLogArray, global.GDATA_BATCH_INSERT)
 		}
 		for !global.GQEQUE_STATS_DB.Empty() {
 			bean := global.GQEQUE_STATS_DB.PopFront()

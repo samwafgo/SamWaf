@@ -156,6 +156,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		r.Header.Add("waf_req_uuid", weblogbean.REQ_UUID)
+
 		if waf.HostTarget[host].Host.GUARD_STATUS == 1 {
 			var jumpGuardFlag = false
 			//ip白名单策略（局部）
@@ -358,16 +359,19 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 		}
-		global.GQEQUE_LOG_DB.PushBack(weblogbean)
+
+		//global.GQEQUE_LOG_DB.PushBack(weblogbean)
 		remoteUrl, err := url.Parse(target.TargetHost)
 		if err != nil {
 			zlog.Debug("target parse fail:", zap.Any("", err))
 			return
 		}
+		// 在请求上下文中存储自定义数据
+		ctx := context.WithValue(r.Context(), "weblog", weblogbean)
 
 		// 直接从缓存取出
 		if waf.HostTarget[host].RevProxy != nil {
-			waf.HostTarget[host].RevProxy.ServeHTTP(w, r)
+			waf.HostTarget[host].RevProxy.ServeHTTP(w, r.WithContext(ctx))
 		} else {
 			transport := &http.Transport{
 				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -402,7 +406,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			proxy.ModifyResponse = waf.modifyResponse()
 			proxy.ErrorHandler = errorHandler()
 			waf.HostTarget[host].RevProxy = proxy // 放入缓存
-			proxy.ServeHTTP(w, r)
+			proxy.ServeHTTP(w, r.WithContext(ctx))
 		}
 		return
 	} else {
@@ -506,122 +510,125 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 		//X-Xss-Protection:
 		r := resp.Request
 		//开始准备req数据
-		reqUUid := r.Header.Get("Waf_req_uuid")
+		//reqUUid := r.Header.Get("Waf_req_uuid")
 
-		weblogbean := innerbean.WebLog{
-			REQ_UUID:      reqUUid,
-			ACTION:        "通过",
-			STATUS:        resp.Status,
-			STATUS_CODE:   resp.StatusCode,
-			WafInnerDFlag: "update",
-		}
+		if weblogfrist, ok := r.Context().Value("weblog").(innerbean.WebLog); ok {
+			fmt.Sprintf("weblogfrist: %v", weblogfrist)
 
-		host := resp.Request.Host
-		if !strings.Contains(host, ":") {
-			host = host + ":80"
-		}
-		if waf.HostTarget[host] != nil {
-			weblogbean.HOST_CODE = waf.HostTarget[host].Host.Code
-		}
-		ldpFlag := false
-		//隐私保护（局部）
-		for i := 0; i < len(waf.HostTarget[host].LdpUrlLists); i++ {
-			if (waf.HostTarget[host].LdpUrlLists[i].CompareType == "等于" && waf.HostTarget[host].LdpUrlLists[i].Url == resp.Request.RequestURI) ||
-				(waf.HostTarget[host].LdpUrlLists[i].CompareType == "前缀匹配" && strings.HasPrefix(resp.Request.RequestURI, waf.HostTarget[host].LdpUrlLists[i].Url)) ||
-				(waf.HostTarget[host].LdpUrlLists[i].CompareType == "后缀匹配" && strings.HasSuffix(resp.Request.RequestURI, waf.HostTarget[host].LdpUrlLists[i].Url)) ||
-				(waf.HostTarget[host].LdpUrlLists[i].CompareType == "包含匹配" && strings.Contains(resp.Request.RequestURI, waf.HostTarget[host].LdpUrlLists[i].Url)) {
+			weblogfrist.ACTION = "通过"
+			weblogfrist.STATUS = resp.Status
+			weblogfrist.STATUS_CODE = resp.StatusCode
 
-				ldpFlag = true
+			host := resp.Request.Host
+			if !strings.Contains(host, ":") {
+				host = host + ":80"
+			}
+			/*if waf.HostTarget[host] != nil {
+				//weblogbean.HOST_CODE = waf.HostTarget[host].Host.Code
+				//TODO 理论上可以集成下来 等回头再看看
+			}*/
+			ldpFlag := false
+			//隐私保护（局部）
+			for i := 0; i < len(waf.HostTarget[host].LdpUrlLists); i++ {
+				if (waf.HostTarget[host].LdpUrlLists[i].CompareType == "等于" && waf.HostTarget[host].LdpUrlLists[i].Url == resp.Request.RequestURI) ||
+					(waf.HostTarget[host].LdpUrlLists[i].CompareType == "前缀匹配" && strings.HasPrefix(resp.Request.RequestURI, waf.HostTarget[host].LdpUrlLists[i].Url)) ||
+					(waf.HostTarget[host].LdpUrlLists[i].CompareType == "后缀匹配" && strings.HasSuffix(resp.Request.RequestURI, waf.HostTarget[host].LdpUrlLists[i].Url)) ||
+					(waf.HostTarget[host].LdpUrlLists[i].CompareType == "包含匹配" && strings.Contains(resp.Request.RequestURI, waf.HostTarget[host].LdpUrlLists[i].Url)) {
+
+					ldpFlag = true
+					break
+				}
+			}
+			//隐私保护（局部）
+			for i := 0; i < len(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists); i++ {
+				if (waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].CompareType == "等于" && waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].Url == resp.Request.RequestURI) ||
+					(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].CompareType == "前缀匹配" && strings.HasPrefix(resp.Request.RequestURI, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].Url)) ||
+					(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].CompareType == "后缀匹配" && strings.HasSuffix(resp.Request.RequestURI, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].Url)) ||
+					(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].CompareType == "包含匹配" && strings.Contains(resp.Request.RequestURI, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].Url)) {
+
+					ldpFlag = true
+					break
+				}
+			}
+			if ldpFlag == true {
+				orgContentBytes, _ := waf.getOrgContent(resp)
+				newPayload := []byte("" + utils.DeSenText(string(orgContentBytes)))
+				finalCompressBytes, _ := waf.compressContent(resp, newPayload)
+
+				resp.Body = io.NopCloser(bytes.NewBuffer(finalCompressBytes))
+				// head 修改追加内容
+				resp.ContentLength = int64(len(finalCompressBytes))
+				resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalCompressBytes)), 10))
+			}
+			//返回内容的类型
+			respContentType := resp.Header.Get("Content-Type")
+			respContentType = strings.Replace(respContentType, "; charset=utf-8", "", -1)
+			contentType := ""
+			//JS情况
+			if respContentType == "application/javascript" {
+				contentType = "js"
+			}
+			//CSS情况
+			if respContentType == "text/css" {
+				contentType = "css"
+			}
+			//图片情况
+			if respContentType == "image/jpeg" || respContentType == "image/png" ||
+				respContentType == "image/gif" || respContentType == "image/x-icon" {
+				contentType = "img"
+			}
+			//文本资源
+			if respContentType == "text/html" || respContentType == "application/html" ||
+				respContentType == "application/json" || respContentType == "application/xml" {
+				contentType = "text"
+			}
+			//记录静态日志
+			isStaticAssist := false
+			isText := false
+			switch contentType {
+			case "js":
+				isStaticAssist = true
 				break
-			}
-		}
-		//隐私保护（局部）
-		for i := 0; i < len(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists); i++ {
-			if (waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].CompareType == "等于" && waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].Url == resp.Request.RequestURI) ||
-				(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].CompareType == "前缀匹配" && strings.HasPrefix(resp.Request.RequestURI, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].Url)) ||
-				(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].CompareType == "后缀匹配" && strings.HasSuffix(resp.Request.RequestURI, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].Url)) ||
-				(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].CompareType == "包含匹配" && strings.Contains(resp.Request.RequestURI, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].Url)) {
-
-				ldpFlag = true
+			case "css":
+				isStaticAssist = true
 				break
+			case "img":
+				isStaticAssist = true
+				break
+			case "text":
+				isText = true
+				break
+			default:
+				/*weblogbean.ACTION = "放行"
+				global.GQEQUE_LOG_DB.PushBack(weblogbean)*/
 			}
-		}
-		if ldpFlag == true {
-			orgContentBytes, _ := waf.getOrgContent(resp)
-			newPayload := []byte("" + utils.DeSenText(string(orgContentBytes)))
-			finalCompressBytes, _ := waf.compressContent(resp, newPayload)
 
-			resp.Body = io.NopCloser(bytes.NewBuffer(finalCompressBytes))
-			// head 修改追加内容
-			resp.ContentLength = int64(len(finalCompressBytes))
-			resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalCompressBytes)), 10))
-		}
-		//返回内容的类型
-		respContentType := resp.Header.Get("Content-Type")
-		respContentType = strings.Replace(respContentType, "; charset=utf-8", "", -1)
-		contentType := ""
-		//JS情况
-		if respContentType == "application/javascript" {
-			contentType = "js"
-		}
-		//CSS情况
-		if respContentType == "text/css" {
-			contentType = "css"
-		}
-		//图片情况
-		if respContentType == "image/jpeg" || respContentType == "image/png" ||
-			respContentType == "image/gif" || respContentType == "image/x-icon" {
-			contentType = "img"
-		}
-		//文本资源
-		if respContentType == "text/html" || respContentType == "application/html" ||
-			respContentType == "application/json" || respContentType == "application/xml" {
-			contentType = "text"
-		}
-		//记录静态日志
-		isStaticAssist := false
-		isText := false
-		switch contentType {
-		case "js":
-			isStaticAssist = true
-			break
-		case "css":
-			isStaticAssist = true
-			break
-		case "img":
-			isStaticAssist = true
-			break
-		case "text":
-			isText = true
-			break
-		default:
-			/*weblogbean.ACTION = "放行"
-			global.GQEQUE_LOG_DB.PushBack(weblogbean)*/
-		}
+			//记录响应body
+			if isText && resp.Body != nil && resp.Body != http.NoBody && global.GCONFIG_RECORD_RESP == 1 {
 
-		//记录响应body
-		if isText && resp.Body != nil && resp.Body != http.NoBody && global.GCONFIG_RECORD_RESP == 1 {
+				//编码转换，自动检测网页编码
+				orgContentBytes, _ := waf.getOrgContent(resp)
+				finalCompressBytes, _ := waf.compressContent(resp, orgContentBytes)
+				resp.Body = io.NopCloser(bytes.NewBuffer(finalCompressBytes))
 
-			//编码转换，自动检测网页编码
-			orgContentBytes, _ := waf.getOrgContent(resp)
-			finalCompressBytes, _ := waf.compressContent(resp, orgContentBytes)
-			resp.Body = io.NopCloser(bytes.NewBuffer(finalCompressBytes))
-
-			// head 修改追加内容
-			resp.ContentLength = int64(len(finalCompressBytes))
-			resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalCompressBytes)), 10))
-			if resp.ContentLength < global.GCONFIG_RECORD_MAX_RES_BODY_LENGTH {
-				weblogbean.RES_BODY = string(orgContentBytes)
+				// head 修改追加内容
+				resp.ContentLength = int64(len(finalCompressBytes))
+				resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalCompressBytes)), 10))
+				if resp.ContentLength < global.GCONFIG_RECORD_MAX_RES_BODY_LENGTH {
+					weblogfrist.RES_BODY = string(orgContentBytes)
+				}
 			}
-		}
 
-		//TODO 如果是指定URL 或者 IP 不记录日志
-		if !isStaticAssist && !strings.Contains(weblogbean.URL, "index.php/lttshop/task_scheduling/") {
-			weblogbean.ACTION = "放行"
-			weblogbean.STATUS = resp.Status
-			weblogbean.STATUS_CODE = resp.StatusCode
-			weblogbean.TASK_FLAG = 1
-			global.GQEQUE_LOG_DB.PushBack(weblogbean)
+			//TODO 如果是指定URL 或者 IP 不记录日志
+			if !isStaticAssist && !strings.Contains(weblogfrist.URL, "index.php/lttshop/task_scheduling/") {
+				weblogfrist.ACTION = "放行"
+				weblogfrist.STATUS = resp.Status
+				weblogfrist.STATUS_CODE = resp.StatusCode
+				weblogfrist.TASK_FLAG = 1
+				global.GQEQUE_LOG_DB.PushBack(weblogfrist)
+			}
+		} else {
+			fmt.Println("weblog not found")
 		}
 
 		return nil

@@ -7,10 +7,7 @@ import (
 	response2 "SamWaf/model/response"
 	"SamWaf/utils"
 	"fmt"
-	"github.com/shirou/gopsutil/cpu"
-	"github.com/shirou/gopsutil/disk"
 	"github.com/shirou/gopsutil/host"
-	"github.com/shirou/gopsutil/net"
 	"runtime"
 	"strconv"
 	"sync/atomic"
@@ -137,7 +134,7 @@ func (receiver *WafStatService) StatHomeSysinfo() response2.WafHomeSysinfoStat {
 
 // 获取运行系统基本信息
 func (receiver *WafStatService) StatHomeRumtimeSysinfo() []response2.WafNameValue {
-	c, _ := cpu.Info()
+	/*c, _ := cpu.Info()
 	cc, _ := cpu.Percent(time.Second, false) // 1秒
 	d, _ := disk.Usage("/")
 	n, _ := host.Info()
@@ -145,13 +142,14 @@ func (receiver *WafStatService) StatHomeRumtimeSysinfo() []response2.WafNameValu
 	physicalCnt, _ := cpu.Counts(false)
 	logicalCnt, _ := cpu.Counts(true)
 	result := ""
+
 	if len(c) > 1 {
 		for _, sub_cpu := range c {
 			modelname := sub_cpu.ModelName
 			cores := sub_cpu.Cores
 			result = result + fmt.Sprintf("CPUs: %v   %v cores \n", modelname, cores)
 		}
-	} else {
+	} else if len(c) ==1{
 		sub_cpu := c[0]
 		modelname := sub_cpu.ModelName
 		cores := sub_cpu.Cores
@@ -163,9 +161,9 @@ func (receiver *WafStatService) StatHomeRumtimeSysinfo() []response2.WafNameValu
 	result = result + fmt.Sprintf("OS: %v(%v) %v\n", n.Platform, n.PlatformFamily, n.PlatformVersion)
 	result = result + fmt.Sprintf("Hostname: %v\n", n.Hostname)
 	result = result + fmt.Sprintf("Network: %v bytes / %v bytes\n", nv[0].BytesRecv, nv[0].BytesSent)
-
+	*/
 	var data []response2.WafNameValue
-	data = append(data, response2.WafNameValue{Name: "系统运行环境基本信息", Value: result})
+	//data = append(data, response2.WafNameValue{Name: "系统运行环境基本信息", Value: result})
 	data = append(data, response2.WafNameValue{Name: "最后处理log时间",
 		Value: time.Unix(0,
 			global.GWAF_MEASURE_PROCESS_DEQUEENGINE.ReadData()*int64(time.Millisecond)).Format("2006-01-02 15:04:05")})
@@ -193,6 +191,9 @@ func (receiver *WafStatService) StatHomeRumtimeSysinfo() []response2.WafNameValu
 	data = append(data, response2.WafNameValue{Name: "软件版本", Value: fmt.Sprintf("%v", global.GWAF_RELEASE_VERSION_NAME)})
 	data = append(data, response2.WafNameValue{Name: "软件版本Code", Value: fmt.Sprintf("%v", global.GWAF_RELEASE_VERSION)})
 	data = append(data, response2.WafNameValue{Name: "当前QPS", Value: fmt.Sprintf("%v", atomic.LoadUint64(&global.GWAF_RUNTIME_QPS))})
+
+	data = append(data, response2.WafNameValue{Name: "当前队列数", Value: fmt.Sprintf("主数据：%v 日志数据：%v  统计数据：%v  消息队列：%v", global.GQEQUE_DB.Len(), global.GQEQUE_LOG_DB.Len(), global.GQEQUE_STATS_DB.Len(), global.GQEQUE_MESSAGE_DB.Len())})
+	data = append(data, response2.WafNameValue{Name: "当前日志队列处理QPS", Value: fmt.Sprintf("%v", atomic.LoadUint64(&global.GWAF_RUNTIME_LOG_PROCESS))})
 
 	return data
 }

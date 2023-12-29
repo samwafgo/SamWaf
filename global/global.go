@@ -27,7 +27,8 @@ var (
 	GWAF_RUNTIME_NEW_VERSION      string = "" //最新版本号
 	GWAF_RUNTIME_NEW_VERSION_DESC string = "" //最新版本描述
 
-	GWAF_RUNTIME_QPS uint64 = 0 //当前qps
+	GWAF_RUNTIME_QPS         uint64 = 0 //当前qps
+	GWAF_RUNTIME_LOG_PROCESS uint64 = 0 //log 处理速度
 
 	/**
 	遥测数据
@@ -71,6 +72,9 @@ var (
 	GQEQUE_STATS_DB        Dequelib.Deque //统计DB队列
 	GQEQUE_STATS_UPDATE_DB Dequelib.Deque //统计更新DB队列
 	GQEQUE_MESSAGE_DB      Dequelib.Deque //发送消息队列
+
+	/******插入数据最大Batch*****/
+	GDATA_BATCH_INSERT int = 1000 //最大批量插入
 
 	/******WebSocket*********/
 	GWebSocket *model.WebSocketOnline

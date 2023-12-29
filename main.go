@@ -141,9 +141,7 @@ func (m *wafSystenService) run() {
 	s.Every(1).Seconds().Do(func() {
 		// 清零计数器
 		atomic.StoreUint64(&global.GWAF_RUNTIME_QPS, 0)
-
-		// 输出清零后的计数
-		//newCount := atomic.LoadUint64(&requestCount)
+		atomic.StoreUint64(&global.GWAF_RUNTIME_LOG_PROCESS, 0)
 	})
 
 	// 每10秒执行一次

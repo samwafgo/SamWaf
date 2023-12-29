@@ -144,6 +144,15 @@ func (m *wafSystenService) run() {
 		atomic.StoreUint64(&global.GWAF_RUNTIME_LOG_PROCESS, 0)
 	})
 
+	// 执行分库操作 （每天凌晨3点进行数据归档操作）
+	s.Every(1).Day().At("03:00").Do(func() {
+		if global.GDATA_CURRENT_CHANGE == false {
+			go waftask.TaskShareDbInfo()
+		} else {
+			zlog.Debug("执行分库操作没完成，调度任务PASS")
+		}
+	})
+
 	// 每10秒执行一次
 	s.Every(10).Seconds().Do(func() {
 		if global.GWAF_SWITCH_TASK_COUNTER == false {

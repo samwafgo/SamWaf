@@ -39,6 +39,7 @@ var (
 
 	GWAF_LOCAL_DB             *gorm.DB                //通用本地数据库，尊重用户隐私
 	GWAF_LOCAL_LOG_DB         *gorm.DB                //通用本地数据库存日志数据，尊重用户隐私
+	GWAF_LOCAL_CUSTOM_LOG_DB  *gorm.DB                //通用本地数据库存历史日志数据， 尊重用户隐私
 	GWAF_LOCAL_STATS_DB       *gorm.DB                //通用本地数据库存放统计数据，尊重用户隐私
 	GWAF_REMOTE_DB            *gorm.DB                //仅当用户使用云数据库
 	GWAF_LOCAL_SERVER_PORT    int       = 26666       // 本地local端口
@@ -73,8 +74,10 @@ var (
 	GQEQUE_STATS_UPDATE_DB Dequelib.Deque //统计更新DB队列
 	GQEQUE_MESSAGE_DB      Dequelib.Deque //发送消息队列
 
-	/******插入数据最大Batch*****/
-	GDATA_BATCH_INSERT int = 1000 //最大批量插入
+	/******数据库处理参数*****/
+	GDATA_BATCH_INSERT   int   = 1000        //最大批量插入
+	GDATA_SHARE_DB_SIZE  int64 = 100 * 10000 //100w 进行分库 100*10000
+	GDATA_CURRENT_CHANGE bool  = false       //当前是否正在切换
 
 	/******WebSocket*********/
 	GWebSocket *model.WebSocketOnline

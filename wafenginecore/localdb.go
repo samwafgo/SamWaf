@@ -1,13 +1,18 @@
 package wafenginecore
 
 import (
+	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model"
+	"SamWaf/model/baseorm"
 	"SamWaf/utils"
 	"SamWaf/utils/zlog"
 	"fmt"
+	uuid "github.com/satori/go.uuid"
 	"net/url"
+	"time"
+
 	//"github.com/kangarooxin/gorm-plugin-crypto"
 	//"github.com/kangarooxin/gorm-plugin-crypto/strategy"
 	"github.com/pengge/sqlitedriver"
@@ -61,6 +66,9 @@ func InitCoreDb(currentDir string) {
 		//延迟信息
 		db.AutoMigrate(&model.DelayMsg{})
 
+		//分库信息表
+		db.AutoMigrate(&model.ShareDb{})
+
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
 
@@ -93,8 +101,63 @@ func InitLogDb(currentDir string) {
 		db.AutoMigrate(&innerbean.WebLog{})
 		db.AutoMigrate(&model.AccountLog{})
 		db.AutoMigrate(&model.WafSysLog{})
+
 		global.GWAF_LOCAL_LOG_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 		global.GWAF_LOCAL_LOG_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
+
+		var total int64 = 0
+		global.GWAF_LOCAL_DB.Model(&model.ShareDb{}).Count(&total)
+		if total == 0 {
+
+			var logtotal int64 = 0
+			global.GWAF_LOCAL_LOG_DB.Model(&innerbean.WebLog{}).Count(&logtotal)
+
+			sharDbBean := model.ShareDb{
+				BaseOrm: baseorm.BaseOrm{
+					Id:          uuid.NewV4().String(),
+					USER_CODE:   global.GWAF_USER_CODE,
+					Tenant_ID:   global.GWAF_TENANT_ID,
+					CREATE_TIME: customtype.JsonTime(time.Now()),
+					UPDATE_TIME: customtype.JsonTime(time.Now()),
+				},
+				DbLogicType: "log",
+				StartTime:   customtype.JsonTime(time.Now()),
+				EndTime:     customtype.JsonTime(time.Now()),
+				FileName:    "local_log",
+				Cnt:         logtotal,
+			}
+			global.GWAF_LOCAL_DB.Create(sharDbBean)
+		}
+	}
+}
+
+// 手工切换日志数据源
+func InitManaulLogDb(currentDir string, custFileName string) {
+	if currentDir == "" {
+		currentDir = utils.GetCurrentDir()
+	}
+	if global.GWAF_LOCAL_CUSTOM_LOG_DB == nil {
+		path := currentDir + "/data/" + custFileName
+		key := url.QueryEscape(global.GWAF_PWD_LOGDB)
+		dns := fmt.Sprintf("%s?_db_key=%s", path, key)
+		db, err := gorm.Open(sqlite.Open(dns), &gorm.Config{})
+		if err != nil {
+			panic("failed to connect database")
+		}
+		// 启用 WAL 模式
+		_ = db.Exec("PRAGMA journal_mode=WAL;")
+		global.GWAF_LOCAL_CUSTOM_LOG_DB = db
+		//logDB.Use(crypto.NewCryptoPlugin())
+		// 注册默认的AES加解密策略
+		//crypto.RegisterCryptoStrategy(strategy.NewAesCryptoStrategy("3Y)(27EtO^tK8Bj~"))
+		// Migrate the schema
+		//统计处理
+		db.AutoMigrate(&innerbean.WebLog{})
+		db.AutoMigrate(&model.AccountLog{})
+		db.AutoMigrate(&model.WafSysLog{})
+
+		global.GWAF_LOCAL_CUSTOM_LOG_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
+		global.GWAF_LOCAL_CUSTOM_LOG_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
 
 	}
 }

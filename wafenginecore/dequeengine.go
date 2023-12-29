@@ -39,23 +39,30 @@ func ProcessDequeEngine() {
 				global.GWAF_LOCAL_DB.Create(weblogbean)
 			}
 		}
-		var webLogArray []innerbean.WebLog
-		for !global.GQEQUE_LOG_DB.Empty() {
-			atomic.AddUint64(&global.GWAF_RUNTIME_LOG_PROCESS, 1) // 原子增加计数器
-			weblogbean := global.GQEQUE_LOG_DB.PopFront()
-			if weblogbean != nil {
-				// 进行类型断言将其转为具体的结构
-				if logValue, ok := weblogbean.(innerbean.WebLog); ok {
-					webLogArray = append(webLogArray, logValue)
-				} else {
-					//插入其他类型内容
-					global.GWAF_LOCAL_LOG_DB.Create(weblogbean)
+		if global.GDATA_CURRENT_CHANGE {
+			//如果正在切换库 跳过
+			zlog.Debug("正在切换数据库等待中队列")
+
+		} else {
+			var webLogArray []innerbean.WebLog
+			for !global.GQEQUE_LOG_DB.Empty() {
+				atomic.AddUint64(&global.GWAF_RUNTIME_LOG_PROCESS, 1) // 原子增加计数器
+				weblogbean := global.GQEQUE_LOG_DB.PopFront()
+				if weblogbean != nil {
+					// 进行类型断言将其转为具体的结构
+					if logValue, ok := weblogbean.(innerbean.WebLog); ok {
+						webLogArray = append(webLogArray, logValue)
+					} else {
+						//插入其他类型内容
+						global.GWAF_LOCAL_LOG_DB.Create(weblogbean)
+					}
 				}
 			}
+			if len(webLogArray) > 0 {
+				global.GWAF_LOCAL_LOG_DB.CreateInBatches(webLogArray, global.GDATA_BATCH_INSERT)
+			}
 		}
-		if len(webLogArray) > 0 {
-			global.GWAF_LOCAL_LOG_DB.CreateInBatches(webLogArray, global.GDATA_BATCH_INSERT)
-		}
+
 		for !global.GQEQUE_STATS_DB.Empty() {
 			bean := global.GQEQUE_STATS_DB.PopFront()
 			global.GWAF_LOCAL_STATS_DB.Create(bean)

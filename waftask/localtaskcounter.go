@@ -420,7 +420,7 @@ func TaskDelayInfo() {
 
 // 检测库是否切换
 func TaskShareDbInfo() {
-	zlog.Debug("检测是否需要进行分库")
+	zlog.Info("检测是否需要进行分库")
 	if global.GDATA_CURRENT_CHANGE {
 		//如果正在切换库 跳过
 		zlog.Debug("切库状态")
@@ -462,7 +462,7 @@ func TaskShareDbInfo() {
 		currentDir := utils.GetCurrentDir()
 		oldDBFilename = currentDir + "/data/" + oldDBFilename
 		newDBFilename = currentDir + "/data/" + newDBFilename
-		zlog.Debug("正在切库中...")
+		zlog.Info("正在切库中...")
 		sqlDB, err := global.GWAF_LOCAL_LOG_DB.DB()
 
 		if err != nil {
@@ -506,7 +506,7 @@ func TaskShareDbInfo() {
 		global.GWAF_LOCAL_LOG_DB = nil
 		wafdb.InitLogDb("")
 		global.GDATA_CURRENT_CHANGE = false
-		zlog.Debug("切库完成...")
+		zlog.Info("切库完成...")
 	}
 
 }

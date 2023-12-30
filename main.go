@@ -171,7 +171,7 @@ func (m *wafSystenService) run() {
 		atomic.StoreUint64(&global.GWAF_RUNTIME_QPS, 0)
 		atomic.StoreUint64(&global.GWAF_RUNTIME_LOG_PROCESS, 0)
 	})
-
+	go waftask.TaskShareDbInfo()
 	// 执行分库操作 （每天凌晨3点进行数据归档操作）
 	s.Every(1).Day().At("03:00").Do(func() {
 		if global.GDATA_CURRENT_CHANGE == false {

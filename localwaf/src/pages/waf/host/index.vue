@@ -181,7 +181,7 @@
           <t-form-item label="后端域名" name="remote_host">
             <t-tooltip
               class="placement top center"
-              content="后端域名通常同第一项网站域名相同"
+              content="后端域名通常同第一项网站域名相同（加上协议 http:// 或 https://）"
               placement="top"
               :overlay-style="{ width: '200px' }"
               show-arrow>
@@ -627,6 +627,13 @@
           let postdata = {
             ...that.formData
           }
+          if(postdata.remote_host.length==0){
+             postdata.remote_host = "http://"+postdata.host
+          }else{
+            if(postdata.remote_host.startsWith("http://")==false || postdata.remote_host.startsWith("http://")==false ){
+              postdata.remote_host = "http://"+postdata.remote_host
+            }
+          }
           postdata['ssl'] = Number(postdata['ssl'])
           this.$request
             .post('/wafhost/host/add', {
@@ -662,6 +669,13 @@
 
           let postdata = {
             ...that.formEditData
+          }
+          if(postdata.remote_host.length==0){
+            postdata.remote_host = "http://"+postdata.host
+          }else{
+            if(postdata.remote_host.startsWith("http://")==false || postdata.remote_host.startsWith("http://")==false ){
+              postdata.remote_host = "http://"+postdata.remote_host
+            }
           }
           postdata['ssl'] = Number(postdata['ssl'])
           console.log(postdata)

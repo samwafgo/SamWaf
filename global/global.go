@@ -30,6 +30,7 @@ var (
 	GWAF_RUNTIME_QPS         uint64 = 0 //当前qps
 	GWAF_RUNTIME_LOG_PROCESS uint64 = 0 //log 处理速度
 
+	GWAF_RUNTIME_DNS_SERVER string = "119.29.29.29" //反向查询DNS的IP
 	/**
 	遥测数据
 	*/
@@ -106,6 +107,9 @@ var (
 
 	//通讯加密
 	GWAF_COMMUNICATION_KEY = []byte("7E@u*has$d*@s5YX") //通讯加密密钥
+
+	//资源下载
+	GWAF_BOT_IP_URL_MAIN string = "https://raw.githubusercontent.com/samwafgo/SamWafBotIPDatabase/main/allowlist/index.json"
 )
 
 func GetCurrentVersionInt() int {

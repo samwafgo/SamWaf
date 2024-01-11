@@ -92,7 +92,7 @@ func TaskCounter() {
 	//一、 主机聚合统计
 	{
 		var resultHosts []CountHostResult
-		global.GWAF_LOCAL_LOG_DB.Raw("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host FROM \"web_logs\" where task_flag = ?  and unix_add_time > ? GROUP BY host_code, user_code,action,tenant_id,day,host",
+		global.GWAF_LOCAL_LOG_DB.Debug().Raw("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host FROM \"web_logs\" where task_flag = ?  and unix_add_time > ? GROUP BY host_code, user_code,action,tenant_id,day,host",
 			1, currenyDayMillisecondsBak).Scan(&resultHosts)
 		/****
 		1.如果不存在则创建
@@ -362,6 +362,20 @@ func TaskLoadSetting() {
 			Remarks: "日志归档最大记录数量",
 		}
 		wafSystemConfigService.AddApi(wafSystemConfigAddReq)
+	}
+
+	//dns查询
+	configItem = wafSystemConfigService.GetDetailByItem("dns_server")
+	if configItem.Id != "" {
+		if global.GWAF_RUNTIME_DNS_SERVER != configItem.Value {
+			global.GWAF_RUNTIME_DNS_SERVER = configItem.Value
+		}
+	} else {
+		wafSystemConfigService.AddApi(request.WafSystemConfigAddReq{
+			Item:    "dns_server",
+			Value:   global.GWAF_RUNTIME_DNS_SERVER,
+			Remarks: "DNS服务器",
+		})
 	}
 }
 

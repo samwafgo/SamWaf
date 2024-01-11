@@ -17,7 +17,7 @@
           <t-button theme="default" shape="square" variant="text" @click="changeCollapsed">
             <view-list-icon class="collapsed-icon" />
           </t-button>
-          <search :layout="layout" />
+          <!--<search :layout="layout" />-->
         </div>
       </template>
       <menu-content v-show="layout !== 'side'" class="header-menu" :navData="menu" />

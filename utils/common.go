@@ -151,3 +151,27 @@ func PortCheck(port int) bool {
 	defer conn.Close()
 	return false // Port is not available
 }
+
+/*
+*
+通过ip段（CIDR）来查询是否在这个段内
+*/
+func CheckIPInRanges(ip string, ipRanges []string) bool {
+	parsedIP := net.ParseIP(ip)
+	if parsedIP == nil {
+		return false // 如果IP地址解析失败，则返回false
+	}
+
+	for _, ipRange := range ipRanges {
+		_, ipNet, err := net.ParseCIDR(ipRange)
+		if err != nil {
+			return false // 如果CIDR格式解析失败，则返回false
+		}
+
+		if ipNet.Contains(parsedIP) {
+			return true // 如果IP地址在指定的CIDR范围内，则返回true
+		}
+	}
+
+	return false // 如果IP地址不在任何一个CIDR范围内，则返回false
+}

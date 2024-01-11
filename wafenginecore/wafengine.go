@@ -11,6 +11,7 @@ import (
 	"SamWaf/plugin"
 	"SamWaf/utils"
 	"SamWaf/utils/zlog"
+	"SamWaf/wafbot"
 	"SamWaf/wafproxy"
 	"bufio"
 	"bytes"
@@ -117,31 +118,33 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		datetimeNow := time.Now()
 		weblogbean := innerbean.WebLog{
-			HOST:           host,
-			URL:            enEscapeUrl,
-			REFERER:        r.Referer(),
-			USER_AGENT:     r.UserAgent(),
-			METHOD:         r.Method,
-			HEADER:         string(header),
-			COUNTRY:        region[0],
-			PROVINCE:       region[2],
-			CITY:           region[3],
-			SRC_IP:         ipAndPort[0],
-			SRC_PORT:       ipAndPort[1],
-			CREATE_TIME:    datetimeNow.Format("2006-01-02 15:04:05"),
-			UNIX_ADD_TIME:  datetimeNow.UnixNano() / 1e6,
-			CONTENT_LENGTH: contentLength,
-			COOKIES:        string(cookies),
-			BODY:           string(bodyByte),
-			REQ_UUID:       uuid.NewV4().String(),
-			USER_CODE:      global.GWAF_USER_CODE,
-			HOST_CODE:      waf.HostTarget[host].Host.Code,
-			TenantId:       global.GWAF_TENANT_ID,
-			RULE:           "",
-			ACTION:         "通过",
-			Day:            currentDay,
-			POST_FORM:      r.PostForm.Encode(),
-			TASK_FLAG:      -1,
+			HOST:                 host,
+			URL:                  enEscapeUrl,
+			REFERER:              r.Referer(),
+			USER_AGENT:           r.UserAgent(),
+			METHOD:               r.Method,
+			HEADER:               string(header),
+			COUNTRY:              region[0],
+			PROVINCE:             region[2],
+			CITY:                 region[3],
+			SRC_IP:               ipAndPort[0],
+			SRC_PORT:             ipAndPort[1],
+			CREATE_TIME:          datetimeNow.Format("2006-01-02 15:04:05"),
+			UNIX_ADD_TIME:        datetimeNow.UnixNano() / 1e6,
+			CONTENT_LENGTH:       contentLength,
+			COOKIES:              string(cookies),
+			BODY:                 string(bodyByte),
+			REQ_UUID:             uuid.NewV4().String(),
+			USER_CODE:            global.GWAF_USER_CODE,
+			HOST_CODE:            waf.HostTarget[host].Host.Code,
+			TenantId:             global.GWAF_TENANT_ID,
+			RULE:                 "",
+			ACTION:               "通过",
+			Day:                  currentDay,
+			POST_FORM:            r.PostForm.Encode(),
+			TASK_FLAG:            -1,
+			RISK_LEVEL:           0,      //危险等级
+			GUEST_IDENTIFICATION: "正常访客", //访客身份识别
 		}
 
 		formValues := url.Values{}
@@ -205,6 +208,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if waf.HostTarget[host].IPBlockLists != nil {
 				for i := 0; i < len(waf.HostTarget[host].IPBlockLists); i++ {
 					if waf.HostTarget[host].IPBlockLists[i].Ip == weblogbean.SRC_IP {
+						weblogbean.RISK_LEVEL = 1
 						EchoErrorInfo(w, r, weblogbean, "IP黑名单", "您的访问被阻止了IP限制")
 						return
 					}
@@ -214,6 +218,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].Host.GUARD_STATUS == 1 && waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPBlockLists != nil {
 				for i := 0; i < len(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPBlockLists); i++ {
 					if waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPBlockLists[i].Ip == weblogbean.SRC_IP {
+						weblogbean.RISK_LEVEL = 1
 						EchoErrorInfo(w, r, weblogbean, "【全局】IP黑名单", "您的访问被阻止了IP限制")
 						return
 					}
@@ -227,6 +232,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						(waf.HostTarget[host].UrlBlockLists[i].CompareType == "前缀匹配" && strings.HasPrefix(weblogbean.URL, waf.HostTarget[host].UrlBlockLists[i].Url)) ||
 						(waf.HostTarget[host].UrlBlockLists[i].CompareType == "后缀匹配" && strings.HasSuffix(weblogbean.URL, waf.HostTarget[host].UrlBlockLists[i].Url)) ||
 						(waf.HostTarget[host].UrlBlockLists[i].CompareType == "包含匹配" && strings.Contains(weblogbean.URL, waf.HostTarget[host].UrlBlockLists[i].Url)) {
+						weblogbean.RISK_LEVEL = 1
 						EchoErrorInfo(w, r, weblogbean, "URL黑名单", "您的访问被阻止了URL限制")
 						return
 					}
@@ -239,6 +245,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].CompareType == "前缀匹配" && strings.HasPrefix(weblogbean.URL, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].Url)) ||
 						(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].CompareType == "后缀匹配" && strings.HasSuffix(weblogbean.URL, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].Url)) ||
 						(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].CompareType == "包含匹配" && strings.Contains(weblogbean.URL, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].Url)) {
+						weblogbean.RISK_LEVEL = 1
 						EchoErrorInfo(w, r, weblogbean, "【全局】URL黑名单", "您的访问被阻止了URL限制")
 						return
 					}
@@ -246,6 +253,19 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if jumpGuardFlag == false {
+
+				//检测爬虫bot
+				isBot, isNormalBot, BotName := wafbot.DetermineNormalSearch(weblogbean.USER_AGENT, weblogbean.SRC_IP)
+				if isBot == true {
+					if isNormalBot {
+						weblogbean.GUEST_IDENTIFICATION = BotName
+					} else {
+						weblogbean.GUEST_IDENTIFICATION = BotName
+						weblogbean.RISK_LEVEL = 1
+						EchoErrorInfo(w, r, weblogbean, BotName, "请正确访问")
+						return
+					}
+				}
 
 				var sqlFlag = false
 				//检测sql注入
@@ -264,6 +284,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 				if sqlFlag == true {
+					weblogbean.RISK_LEVEL = 2
 					EchoErrorInfo(w, r, weblogbean, "SQL注入", "请正确访问")
 					return
 				}
@@ -283,6 +304,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 				if xssFlag == true {
+					weblogbean.RISK_LEVEL = 2
 					EchoErrorInfo(w, r, weblogbean, "XSS跨站注入", "请正确访问")
 					return
 				}
@@ -294,6 +316,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					scanFlag = true
 				}
 				if scanFlag == true {
+					weblogbean.RISK_LEVEL = 1
 					EchoErrorInfo(w, r, weblogbean, "扫描工具", "请正确访问")
 					return
 				}
@@ -301,7 +324,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				if waf.HostTarget[host].PluginIpRateLimiter != nil {
 					limiter := waf.HostTarget[host].PluginIpRateLimiter.GetLimiter(weblogbean.SRC_IP)
 					if !limiter.Allow() {
-						fmt.Println("超量了")
+						weblogbean.RISK_LEVEL = 1
 						EchoErrorInfo(w, r, weblogbean, "触发IP频次访问限制1", "您的访问被阻止超量了1")
 						return
 					}
@@ -310,7 +333,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				if waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].Host.GUARD_STATUS == 1 && waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].PluginIpRateLimiter != nil {
 					limiter := waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].PluginIpRateLimiter.GetLimiter(weblogbean.SRC_IP)
 					if !limiter.Allow() {
-						fmt.Println("超量了")
+						weblogbean.RISK_LEVEL = 1
 						EchoErrorInfo(w, r, weblogbean, "【全局】触发IP频次访问限制", "您的访问被阻止超量了")
 						return
 					}
@@ -327,6 +350,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 									rulestr = rulestr + v.RuleDescription + ","
 								}
 								w.Header().Set("WAF", "SAMWAF DROP")
+								weblogbean.RISK_LEVEL = 1
 								EchoErrorInfo(w, r, weblogbean, rulestr, "您的访问被阻止触发规则")
 								return
 							}
@@ -346,6 +370,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 									rulestr = rulestr + v.RuleDescription + ","
 								}
 								w.Header().Set("WAF", "SAMWAF DROP")
+								weblogbean.RISK_LEVEL = 1
 								EchoErrorInfo(w, r, weblogbean, "【全局】"+rulestr, "您的访问被阻止触发规则")
 								return
 							}
@@ -469,9 +494,9 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean innerbean.WebLog, ruleName string, blockInfo string) {
 	//通知信息
-	noticeStr := fmt.Sprintf("网站域名:%s 访问IP:%s 归属地区：%s  规则：%s 阻止信息：%s", weblogbean.HOST, weblogbean.SRC_IP, utils.GetCountry(weblogbean.SRC_IP), ruleName, blockInfo)
+	/*	noticeStr := fmt.Sprintf("网站域名:%s 访问IP:%s 归属地区：%s  规则：%s 阻止信息：%s", weblogbean.HOST, weblogbean.SRC_IP, utils.GetCountry(weblogbean.SRC_IP), ruleName, blockInfo)
 
-	zlog.Debug(noticeStr)
+		zlog.Debug(noticeStr)*/
 	//发送微信推送消息
 	global.GQEQUE_MESSAGE_DB.PushBack(innerbean.RuleMessageInfo{
 		BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "命中保护规则", Server: global.GWAF_CUSTOM_SERVER_NAME},

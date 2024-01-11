@@ -37,6 +37,7 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 		Certfile:      wafHostAddReq.Certfile,
 		Keyfile:       wafHostAddReq.Keyfile,
 		REMARKS:       wafHostAddReq.REMARKS,
+		GLOBAL_HOST:   0,
 	}
 	global.GWAF_LOCAL_DB.Create(wafHost)
 	return wafHost.Code, nil
@@ -69,10 +70,10 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 		"Remote_ip":     wafHostEditReq.Remote_ip,
 		"Remote_port":   wafHostEditReq.Remote_port,
 		"REMARKS":       wafHostEditReq.REMARKS,
-
-		"Certfile":    wafHostEditReq.Certfile,
-		"Keyfile":     wafHostEditReq.Keyfile,
-		"UPDATE_TIME": customtype.JsonTime(time.Now()),
+		"GLOBAL_HOST":   0,
+		"Certfile":      wafHostEditReq.Certfile,
+		"Keyfile":       wafHostEditReq.Keyfile,
+		"UPDATE_TIME":   customtype.JsonTime(time.Now()),
 	}
 	err := global.GWAF_LOCAL_DB.Debug().Model(model.Hosts{}).Where("CODE=?", wafHostEditReq.CODE).Updates(hostMap).Error
 

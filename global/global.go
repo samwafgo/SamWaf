@@ -31,6 +31,8 @@ var (
 	GWAF_RUNTIME_LOG_PROCESS uint64 = 0 //log 处理速度
 
 	GWAF_RUNTIME_DNS_SERVER string = "119.29.29.29" //反向查询DNS的IP
+
+	GWAF_RUNTIME_RECORD_LOG_TYPE string = "全部" // 记录日志形式： 全部(all),非正常(abnormal)
 	/**
 	遥测数据
 	*/

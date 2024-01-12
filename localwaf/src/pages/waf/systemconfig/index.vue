@@ -111,6 +111,8 @@
   const INITIAL_DATA = {
     item: '',
     value: '',
+    item_type: 'string',
+    options: '',
     remarks : ''
   };
   export default Vue.extend({

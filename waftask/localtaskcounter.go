@@ -291,9 +291,10 @@ func TaskLoadSetting() {
 		}
 	} else {
 		wafSystemConfigAddReq := request.WafSystemConfigAddReq{
-			Item:    "record_max_req_body_length",
-			Value:   strconv.FormatInt(global.GCONFIG_RECORD_MAX_BODY_LENGTH, 10),
-			Remarks: "记录请求最大报文",
+			Item:     "record_max_req_body_length",
+			Value:    strconv.FormatInt(global.GCONFIG_RECORD_MAX_BODY_LENGTH, 10),
+			Remarks:  "记录请求最大报文",
+			ItemType: "int",
 		}
 		wafSystemConfigService.AddApi(wafSystemConfigAddReq)
 	}
@@ -308,9 +309,10 @@ func TaskLoadSetting() {
 		}
 	} else {
 		wafSystemConfigAddReq := request.WafSystemConfigAddReq{
-			Item:    "record_max_rep_body_length",
-			Value:   strconv.FormatInt(global.GCONFIG_RECORD_MAX_RES_BODY_LENGTH, 10),
-			Remarks: "如果可以记录，满足最大响应报文大小才记录",
+			Item:     "record_max_rep_body_length",
+			Value:    strconv.FormatInt(global.GCONFIG_RECORD_MAX_RES_BODY_LENGTH, 10),
+			Remarks:  "如果可以记录，满足最大响应报文大小才记录",
+			ItemType: "int",
 		}
 		wafSystemConfigService.AddApi(wafSystemConfigAddReq)
 	}
@@ -324,9 +326,10 @@ func TaskLoadSetting() {
 		}
 	} else {
 		wafSystemConfigAddReq := request.WafSystemConfigAddReq{
-			Item:    "record_resp",
-			Value:   strconv.FormatInt(global.GCONFIG_RECORD_RESP, 10),
-			Remarks: "是否记录响应报文",
+			Item:     "record_resp",
+			Value:    strconv.FormatInt(global.GCONFIG_RECORD_RESP, 10),
+			Remarks:  "是否记录响应报文",
+			ItemType: "int",
 		}
 		wafSystemConfigService.AddApi(wafSystemConfigAddReq)
 	}
@@ -340,9 +343,10 @@ func TaskLoadSetting() {
 		}
 	} else {
 		wafSystemConfigAddReq := request.WafSystemConfigAddReq{
-			Item:    "delete_history_log_day",
-			Value:   strconv.Itoa(global.GDATA_DELETE_INTERVAL),
-			Remarks: "删除多少天前的日志数据(单位:天)",
+			Item:     "delete_history_log_day",
+			Value:    strconv.Itoa(global.GDATA_DELETE_INTERVAL),
+			Remarks:  "删除多少天前的日志数据(单位:天)",
+			ItemType: "int",
 		}
 		wafSystemConfigService.AddApi(wafSystemConfigAddReq)
 	}
@@ -357,9 +361,10 @@ func TaskLoadSetting() {
 		}
 	} else {
 		wafSystemConfigAddReq := request.WafSystemConfigAddReq{
-			Item:    "log_db_size",
-			Value:   strconv.FormatInt(global.GDATA_SHARE_DB_SIZE, 10),
-			Remarks: "日志归档最大记录数量",
+			Item:     "log_db_size",
+			Value:    strconv.FormatInt(global.GDATA_SHARE_DB_SIZE, 10),
+			Remarks:  "日志归档最大记录数量",
+			ItemType: "int",
 		}
 		wafSystemConfigService.AddApi(wafSystemConfigAddReq)
 	}
@@ -372,9 +377,27 @@ func TaskLoadSetting() {
 		}
 	} else {
 		wafSystemConfigService.AddApi(request.WafSystemConfigAddReq{
-			Item:    "dns_server",
-			Value:   global.GWAF_RUNTIME_DNS_SERVER,
-			Remarks: "DNS服务器",
+			Item:     "dns_server",
+			Value:    global.GWAF_RUNTIME_DNS_SERVER,
+			Remarks:  "DNS服务器",
+			ItemType: "options",
+			Options:  "119.29.29.29|腾讯DNS,8.8.8.8|谷歌DNS",
+		})
+	}
+
+	//日志记录类型
+	configItem = wafSystemConfigService.GetDetailByItem("record_log_type")
+	if configItem.Id != "" {
+		if global.GWAF_RUNTIME_RECORD_LOG_TYPE != configItem.Value {
+			global.GWAF_RUNTIME_RECORD_LOG_TYPE = configItem.Value
+		}
+	} else {
+		wafSystemConfigService.AddApi(request.WafSystemConfigAddReq{
+			Item:     "record_log_type",
+			Value:    global.GWAF_RUNTIME_RECORD_LOG_TYPE,
+			Remarks:  "日志记录类型",
+			ItemType: "options",
+			Options:  "all|全部,abnormal|非正常",
 		})
 	}
 }

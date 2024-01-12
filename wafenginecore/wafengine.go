@@ -540,7 +540,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 		if weblogfrist, ok := r.Context().Value("weblog").(innerbean.WebLog); ok {
 			fmt.Sprintf("weblogfrist: %v", weblogfrist)
 
-			weblogfrist.ACTION = "通过"
+			weblogfrist.ACTION = "放行"
 			weblogfrist.STATUS = resp.Status
 			weblogfrist.STATUS_CODE = resp.StatusCode
 
@@ -650,7 +650,11 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 				weblogfrist.STATUS = resp.Status
 				weblogfrist.STATUS_CODE = resp.StatusCode
 				weblogfrist.TASK_FLAG = 1
-				global.GQEQUE_LOG_DB.PushBack(weblogfrist)
+				if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "abnormal" {
+					//只记录非正常
+					global.GQEQUE_LOG_DB.PushBack(weblogfrist)
+				}
+
 			}
 		} else {
 			fmt.Println("weblog not found")

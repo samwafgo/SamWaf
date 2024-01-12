@@ -30,6 +30,11 @@ func (receiver *WafSystemConfigService) AddApi(wafSystemConfigAddReq request.Waf
 		Remarks:  wafSystemConfigAddReq.Remarks,
 		HashInfo: "",
 	}
+	if wafSystemConfigAddReq.ItemType == nil {
+		if wafSystemConfigAddReq.ItemType == "" {
+			bean.ItemType = "string"
+		}
+	}
 	global.GWAF_LOCAL_DB.Create(bean)
 	return nil
 }
@@ -47,8 +52,11 @@ func (receiver *WafSystemConfigService) ModifyApi(req request.WafSystemConfigEdi
 		"Item":        req.Item,
 		"Value":       req.Value,
 		"Remarks":     req.Remarks,
+		"ItemType":    req.ItemType,
+		"Options":     req.Options,
 		"UPDATE_TIME": customtype.JsonTime(time.Now()),
 	}
+
 	err := global.GWAF_LOCAL_DB.Model(model.SystemConfig{}).Where("id = ?", req.Id).Updates(editMap).Error
 
 	return err

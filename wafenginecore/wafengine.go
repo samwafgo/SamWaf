@@ -520,6 +520,7 @@ func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean innerbean.
 	weblogbean.STATUS = "阻止访问"
 	weblogbean.STATUS_CODE = 403
 	weblogbean.TASK_FLAG = 1
+	weblogbean.GUEST_IDENTIFICATION = "可疑用户"
 	global.GQEQUE_LOG_DB.PushBack(weblogbean)
 
 	zlog.Debug(ruleName)

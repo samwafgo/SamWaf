@@ -165,7 +165,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			//ip白名单策略（局部）
 			if waf.HostTarget[host].IPWhiteLists != nil {
 				for i := 0; i < len(waf.HostTarget[host].IPWhiteLists); i++ {
-					if waf.HostTarget[host].IPWhiteLists[i].Ip == weblogbean.SRC_IP {
+					if utils.CheckIPInCIDR(weblogbean.SRC_IP, waf.HostTarget[host].IPWhiteLists[i].Ip) {
 						jumpGuardFlag = true
 						break
 					}
@@ -174,7 +174,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			//ip白名单策略（全局）
 			if waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].Host.GUARD_STATUS == 1 && waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPWhiteLists != nil {
 				for i := 0; i < len(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPWhiteLists); i++ {
-					if waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPWhiteLists[i].Ip == weblogbean.SRC_IP {
+					if utils.CheckIPInCIDR(weblogbean.SRC_IP, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPWhiteLists[i].Ip) {
 						jumpGuardFlag = true
 						break
 					}
@@ -207,7 +207,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			//ip黑名单策略  （局部）
 			if waf.HostTarget[host].IPBlockLists != nil {
 				for i := 0; i < len(waf.HostTarget[host].IPBlockLists); i++ {
-					if waf.HostTarget[host].IPBlockLists[i].Ip == weblogbean.SRC_IP {
+					if utils.CheckIPInCIDR(weblogbean.SRC_IP, waf.HostTarget[host].IPBlockLists[i].Ip) {
 						weblogbean.RISK_LEVEL = 1
 						EchoErrorInfo(w, r, weblogbean, "IP黑名单", "您的访问被阻止了IP限制")
 						return
@@ -217,7 +217,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			//ip黑名单策略（全局）
 			if waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].Host.GUARD_STATUS == 1 && waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPBlockLists != nil {
 				for i := 0; i < len(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPBlockLists); i++ {
-					if waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPBlockLists[i].Ip == weblogbean.SRC_IP {
+					if utils.CheckIPInCIDR(weblogbean.SRC_IP, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPBlockLists[i].Ip) {
 						weblogbean.RISK_LEVEL = 1
 						EchoErrorInfo(w, r, weblogbean, "【全局】IP黑名单", "您的访问被阻止了IP限制")
 						return

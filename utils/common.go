@@ -154,7 +154,7 @@ func PortCheck(port int) bool {
 
 /*
 *
-通过ip段（CIDR）来查询是否在这个段内
+通过ip段（CIDR）来查询是否在很多CIDR段内
 */
 func CheckIPInRanges(ip string, ipRanges []string) bool {
 	parsedIP := net.ParseIP(ip)
@@ -174,4 +174,35 @@ func CheckIPInRanges(ip string, ipRanges []string) bool {
 	}
 
 	return false // 如果IP地址不在任何一个CIDR范围内，则返回false
+}
+
+/*
+*
+通过ip段（CIDR）来查询是否在这个段内
+*/
+func CheckIPInCIDR(ip string, ipRange string) bool {
+
+	parts := strings.Split(ipRange, "/")
+	if len(parts) != 2 {
+		// 如果是普通ip
+		if ip == ipRange {
+			return true
+		} else {
+			return true
+		}
+	} else {
+		//如果是网段IP
+		parsedIP := net.ParseIP(ip)
+		if parsedIP == nil {
+			return false // 如果IP地址解析失败，则返回false
+		}
+		_, ipNet, err := net.ParseCIDR(ipRange)
+		if err != nil {
+			return false // 如果CIDR格式解析失败，则返回false
+		}
+		if ipNet.Contains(parsedIP) {
+			return true // 如果IP地址在指定的CIDR范围内，则返回true
+		}
+		return false // 如果IP地址不在任何一个CIDR范围内，则返回false
+	}
 }

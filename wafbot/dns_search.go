@@ -2,6 +2,7 @@ package wafbot
 
 import (
 	"SamWaf/global"
+	"SamWaf/utils/zlog"
 	"context"
 	"fmt"
 	"net"
@@ -24,7 +25,7 @@ func ReverseDNSLookup(ipAddress string) ([]string, error) {
 
 	elapsed := time.Since(startTime)
 
-	fmt.Println(elapsed)
+	zlog.Debug("搜索引擎查询耗时", elapsed.String())
 	if err != nil {
 		return nil, fmt.Errorf("逆向 DNS 查询失败: %s", err)
 	}

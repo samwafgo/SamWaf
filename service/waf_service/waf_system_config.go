@@ -30,11 +30,6 @@ func (receiver *WafSystemConfigService) AddApi(wafSystemConfigAddReq request.Waf
 		Remarks:  wafSystemConfigAddReq.Remarks,
 		HashInfo: "",
 	}
-	if wafSystemConfigAddReq.ItemType == nil {
-		if wafSystemConfigAddReq.ItemType == "" {
-			bean.ItemType = "string"
-		}
-	}
 	global.GWAF_LOCAL_DB.Create(bean)
 	return nil
 }

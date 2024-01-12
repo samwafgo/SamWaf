@@ -132,7 +132,7 @@ func (w *WafHostAPi) ModifyHostApi(c *gin.Context) {
 }
 func (w *WafHostAPi) ModifyGuardStatusApi(c *gin.Context) {
 	var req request.WafHostGuardStatusReq
-	err := c.ShouldBindJSON(&req)
+	err := c.ShouldBind(&req)
 	if err == nil {
 		err = wafHostService.ModifyGuardStatusApi(req)
 		if err != nil {

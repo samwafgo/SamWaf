@@ -82,10 +82,13 @@
             <t-checkbox v-model="customText" style="margin-left: 16px">自定义列配置按钮</t-checkbox>
           </t-space>
         </t-space> -->
-        <t-table :columns="columns" :data="data" size="small" :rowKey="rowKey" :verticalAlign="verticalAlign"
+        <t-table :columns="columns" :data="data"  size="small" :rowKey="rowKey" :verticalAlign="verticalAlign"
           :column-controller="columnControllerConfig" :displayColumns.sync="displayColumns" :pagination="pagination"
           :selected-row-keys="selectedRowKeys" :loading="dataLoading" @page-change="rehandlePageChange"
-          @change="rehandleChange" @select-change="rehandleSelectChange"
+          :sort="sorts"
+          @change="rehandleChange"
+                 @select-change="rehandleSelectChange"
+                 @sort-change="onSortChange"
           :headerAffixProps="{ offsetTop: offsetTop, container: getContainer }">
 
           <template #action="{ row }">
@@ -221,8 +224,27 @@
         selectedRowKeys: [],
         value: 'first',
         customText: false,
-        displayColumns: staticColumn.concat(['create_time', 'host', 'method', 'url', 'src_ip', 'country']),
+        displayColumns: staticColumn.concat(['guest_identification','time_spent','create_time', 'host', 'method', 'url', 'src_ip', 'country']),
         columns: [
+          {
+            title: '访客身份',
+            width: 100,
+            ellipsis: true,
+            colKey: 'guest_identification',
+          },
+          {
+            title: '耗时(ms)',
+            width: 100,
+            ellipsis: true,
+            colKey: 'time_spent',
+            sorter: true
+          },
+          {
+            title: '危害程度',
+            width: 60,
+            ellipsis: true,
+            colKey: 'risk_level',
+          },
           {
             title: '状态',
             width: 60,
@@ -241,6 +263,7 @@
             width: 170,
             ellipsis: true,
             colKey: 'create_time',
+            sorter: true
           },
           {
             title: '域名',
@@ -330,6 +353,15 @@
           unix_add_time_end: "",
           current_db_name:"local_log.db",
         },
+        //table 字段
+        table:{
+          multipleSort:true
+        },
+        //排序字段
+        sorts: {
+          sortBy:"create_time",
+          descending:true,
+        },
         //主机字典
         host_dic: {},
         //日志存档字典
@@ -350,7 +382,7 @@
       columnControllerConfig() {
         return {
           placement: this.placement,
-          fields: ['action', 'rule', 'create_time', 'host', 'method', 'url', 'header', 'country', 'province', 'city', 'status'],
+          fields: ['action', 'rule', 'create_time', 'host', 'method', 'url', 'header', 'country', 'province', 'city', 'status','risk_level','guest_identification','time_spent'],
           // 弹框组件属性透传
           dialogProps: { preventScrollThrough: true },
           // 列配置按钮属性头像
@@ -453,10 +485,14 @@
         that.searchformData.unix_add_time_begin = ConvertStringToUnix(this.dateControl.range1[0]).toString()
         that.searchformData.unix_add_time_end = ConvertStringToUnix(this.dateControl.range1[1]).toString()
 
+        let sort_descending =that.sorts.descending?"desc":"asc"
+
         this.$request
           .post('/waflog/attack/list', {
             pageSize: that.pagination.pageSize,
             pageIndex: that.pagination.current,
+            sort_by: that.sorts.sortBy,
+            sort_descending: sort_descending,
             unix_add_time_begin: ConvertStringToUnix(this.dateControl.range1[0]).toString(),
             unix_add_time_end: ConvertStringToUnix(this.dateControl.range1[1]).toString(),
             ...that.searchformData
@@ -548,6 +584,24 @@
       handleJumpOnlineUrl(){
         window.open(this.samwafglobalconfig.getOnlineUrl()+"/guide/attacklog.html");
       },
+      /**
+       * table 排序
+       */
+      onSortChange(sorter){
+        console.log('排序',sorter)
+        let that = this
+
+        if (sorter != undefined){
+          this.sorts.sortBy= sorter.sortBy
+          that.sorts.descending= sorter.descending
+
+        }else{
+          that.sorts.sortBy="create_time"
+          that.sorts.descending= true
+        }
+        this.getList("")
+      }
+      //end meathod
     },
   });
 </script>

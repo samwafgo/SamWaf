@@ -145,6 +145,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			TASK_FLAG:            -1,
 			RISK_LEVEL:           0,      //危险等级
 			GUEST_IDENTIFICATION: "正常访客", //访客身份识别
+			TimeSpent:            0,
 		}
 
 		formValues := url.Values{}
@@ -458,32 +459,35 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		currentDay, _ := strconv.Atoi(datetimeNow.Format("20060102"))
 		weblogbean := innerbean.WebLog{
-			HOST:           r.Host,
-			URL:            r.RequestURI,
-			REFERER:        r.Referer(),
-			USER_AGENT:     r.UserAgent(),
-			METHOD:         r.Method,
-			HEADER:         string(header),
-			COUNTRY:        region[0],
-			PROVINCE:       region[2],
-			CITY:           region[3],
-			SRC_IP:         ipAndPort[0],
-			SRC_PORT:       ipAndPort[1],
-			CREATE_TIME:    datetimeNow.Format("2006-01-02 15:04:05"),
-			UNIX_ADD_TIME:  datetimeNow.UnixNano() / 1e6,
-			CONTENT_LENGTH: contentLength,
-			COOKIES:        string(cookies),
-			BODY:           string(bodyByte),
-			REQ_UUID:       uuid.NewV4().String(),
-			USER_CODE:      global.GWAF_USER_CODE,
-			HOST_CODE:      "",
-			TenantId:       global.GWAF_TENANT_ID,
-			RULE:           "",
-			ACTION:         "通过",
-			Day:            currentDay,
-			STATUS:         "禁止访问",
-			STATUS_CODE:    403,
-			TASK_FLAG:      1,
+			HOST:                 r.Host,
+			URL:                  r.RequestURI,
+			REFERER:              r.Referer(),
+			USER_AGENT:           r.UserAgent(),
+			METHOD:               r.Method,
+			HEADER:               string(header),
+			COUNTRY:              region[0],
+			PROVINCE:             region[2],
+			CITY:                 region[3],
+			SRC_IP:               ipAndPort[0],
+			SRC_PORT:             ipAndPort[1],
+			CREATE_TIME:          datetimeNow.Format("2006-01-02 15:04:05"),
+			UNIX_ADD_TIME:        datetimeNow.UnixNano() / 1e6,
+			CONTENT_LENGTH:       contentLength,
+			COOKIES:              string(cookies),
+			BODY:                 string(bodyByte),
+			REQ_UUID:             uuid.NewV4().String(),
+			USER_CODE:            global.GWAF_USER_CODE,
+			HOST_CODE:            "",
+			TenantId:             global.GWAF_TENANT_ID,
+			RULE:                 "",
+			ACTION:               "通过",
+			Day:                  currentDay,
+			STATUS:               "禁止访问",
+			STATUS_CODE:          403,
+			TASK_FLAG:            1,
+			RISK_LEVEL:           1,       //危险等级
+			GUEST_IDENTIFICATION: "未解析域名", //访客身份识别
+			TimeSpent:            0,
 		}
 
 		//记录响应body
@@ -507,7 +511,8 @@ func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean innerbean.
 
 	resBytes := []byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>" + blockInfo + "</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>")
 	w.Write(resBytes)
-
+	datetimeNow := time.Now()
+	weblogbean.TimeSpent = datetimeNow.UnixNano()/1e6 - weblogbean.UNIX_ADD_TIME
 	//记录响应body
 	weblogbean.RES_BODY = string(resBytes)
 	weblogbean.RULE = ruleName
@@ -646,12 +651,15 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 
 			//TODO 如果是指定URL 或者 IP 不记录日志
 			if !isStaticAssist && !strings.Contains(weblogfrist.URL, "index.php/lttshop/task_scheduling/") {
+				datetimeNow := time.Now()
+				weblogfrist.TimeSpent = datetimeNow.UnixNano()/1e6 - weblogfrist.UNIX_ADD_TIME
 				weblogfrist.ACTION = "放行"
 				weblogfrist.STATUS = resp.Status
 				weblogfrist.STATUS_CODE = resp.StatusCode
 				weblogfrist.TASK_FLAG = 1
-				if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "abnormal" {
-					//只记录非正常
+				if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "all" {
+					global.GQEQUE_LOG_DB.PushBack(weblogfrist)
+				} else if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "abnormal" && weblogfrist.ACTION != "放行" {
 					global.GQEQUE_LOG_DB.PushBack(weblogfrist)
 				}
 

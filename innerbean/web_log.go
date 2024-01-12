@@ -33,6 +33,7 @@ type WebLog struct {
 	UNIX_ADD_TIME        int64  `json:"unix_add_time"`               //添加日期unix
 	RISK_LEVEL           int    `json:"risk_level"`                  //危险等级 0:正常 1: 轻微  2: 有害 3: 严重 4: 特别严重
 	GUEST_IDENTIFICATION string `json:"guest_identification"`        //访客身份识别
+	TimeSpent            int64  `json:"time_spent"`                  //用时
 }
 type WAFLog struct {
 	REQ_UUID    string `json:"req_uuid"`

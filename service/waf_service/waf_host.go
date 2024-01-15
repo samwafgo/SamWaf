@@ -28,7 +28,7 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 		Host:          wafHostAddReq.Host,
 		Port:          wafHostAddReq.Port,
 		Ssl:           wafHostAddReq.Ssl,
-		GUARD_STATUS:  0,
+		GUARD_STATUS:  1,
 		REMOTE_SYSTEM: wafHostAddReq.REMOTE_SYSTEM,
 		REMOTE_APP:    wafHostAddReq.REMOTE_APP,
 		Remote_host:   wafHostAddReq.Remote_host,
@@ -121,14 +121,14 @@ func (receiver *WafHostService) GetListApi(req request.WafHostSearchReq) ([]mode
 
 	return list, total, nil
 }
-func (receiver *WafHostService) DelHostApi(req request.WafHostDelReq) error {
+func (receiver *WafHostService) DelHostApi(req request.WafHostDelReq) (model.Hosts, error) {
 	var webhost model.Hosts
 	err := global.GWAF_LOCAL_DB.Where("CODE = ?", req.CODE).First(&webhost).Error
 	if webhost.GLOBAL_HOST == 1 {
-		return errors.New("全局网站不允许单独删除")
+		return model.Hosts{}, errors.New("全局网站不允许单独删除")
 	}
 	if err != nil {
-		return err
+		return model.Hosts{}, err
 	}
 	err = global.GWAF_LOCAL_DB.Where("CODE = ?", req.CODE).Delete(model.Hosts{}).Error
 	//删除规则
@@ -145,7 +145,7 @@ func (receiver *WafHostService) DelHostApi(req request.WafHostDelReq) error {
 	err = global.GWAF_LOCAL_DB.Where("Host_Code = ?", req.CODE).Delete(model.IPWhiteList{}).Error
 	//删除白名单URL
 	err = global.GWAF_LOCAL_DB.Where("Host_Code = ?", req.CODE).Delete(model.URLWhiteList{}).Error
-	return err
+	return webhost, err
 }
 func (receiver *WafHostService) ModifyGuardStatusApi(req request.WafHostGuardStatusReq) error {
 	hostMap := map[string]interface{}{

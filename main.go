@@ -285,9 +285,28 @@ func (m *wafSystenService) run() {
 						wafEngine.LoadHost(hosts[0])
 						wafEngine.StartAllProxyServer()
 					}
-
 					break
-				} //end switch
+				case enums.ChanTypeDelHost:
+					host := msg.Content.(model.Hosts)
+					if host.Id != "" {
+						wafEngine.RemoveHost(host)
+					}
+					break
+				}
+
+				//end switch
+			} else {
+				//新增
+				switch msg.Type {
+				case enums.ChanTypeHost:
+					hosts := msg.Content.([]model.Hosts)
+					if len(hosts) == 1 {
+						hostRunTimeBean := wafEngine.LoadHost(hosts[0])
+						wafEngine.StartProxyServer(hostRunTimeBean)
+					}
+					break
+				}
+
 			}
 			break
 		case engineStatus := <-global.GWAF_CHAN_ENGINE:
@@ -300,7 +319,10 @@ func (m *wafSystenService) run() {
 			}
 			break
 		case host := <-global.GWAF_CHAN_HOST:
-			wafEngine.HostTarget[host.Host+":"+strconv.Itoa(host.Port)].Host.GUARD_STATUS = host.GUARD_STATUS
+			if wafEngine.HostTarget[host.Host+":"+strconv.Itoa(host.Port)] != nil {
+				wafEngine.HostTarget[host.Host+":"+strconv.Itoa(host.Port)].Host.GUARD_STATUS = host.GUARD_STATUS
+
+			}
 			zlog.Debug("规则", zap.Any("主机", host))
 			break
 		case update := <-global.GWAF_CHAN_UPDATE:

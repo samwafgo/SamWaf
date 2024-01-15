@@ -648,12 +648,12 @@
         this.filters.filter_by = "";
         this.filters.filter_value = "";
         //访客身份
-        if(e.guest_identification != undefined){
+        if(e.guest_identification != undefined && e.guest_identification!=""){
            this.filters.filter_by = "guest_identification";
            this.filters.filter_value = e.guest_identification ;
         }
         //header
-        if(e.header != undefined){
+        if(e.header != undefined && e.header!=""){
           if(this.filters.filter_by==""){
             this.filters.filter_by = "header";
             this.filters.filter_value = e.header ;

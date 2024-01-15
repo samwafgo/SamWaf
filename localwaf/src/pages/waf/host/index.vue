@@ -670,13 +670,7 @@
           let postdata = {
             ...that.formEditData
           }
-          if(postdata.remote_host.length==0){
-            postdata.remote_host = "http://"+postdata.host
-          }else{
-            if(postdata.remote_host.startsWith("http://")==false || postdata.remote_host.startsWith("https://")==false ){
-              postdata.remote_host = "http://"+postdata.remote_host
-            }
-          }
+
           postdata['ssl'] = Number(postdata['ssl'])
           console.log(postdata)
           this.$request

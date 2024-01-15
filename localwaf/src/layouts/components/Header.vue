@@ -30,8 +30,8 @@
           <notice />
 
           <t-tooltip placement="bottom" content="联系SamWaf">
-            <t-button theme="default" shape="square" variant="text" @click="showMpQr">
-              <LogoWechatStrokeIcon />
+            <t-button theme="default" shape="square" variant="text" @click="sendMail">
+              <MailIcon />
             </t-button>
           </t-tooltip>
           <t-tooltip placement="bottom" content="帮助文档">
@@ -89,7 +89,7 @@
     ChevronDownIcon,
     RotateIcon,
     Icon,
-    LogoWechatStrokeIcon
+    MailIcon,
   } from 'tdesign-icons-vue';
   import {
     prefix
@@ -118,7 +118,7 @@
       ChevronDownIcon,
       RotateIcon,
       Icon,
-      LogoWechatStrokeIcon
+      MailIcon
     },
     props: {
       theme: String,
@@ -239,8 +239,9 @@
           })
           .finally(() => {});
       } ,
-      showMpQr(){
-
+      sendMail(){
+        const email = 'samwafgo@gmail.com'; // 设置收件人地址
+        window.location.href = `mailto:${email}`;
       },
       checkVersion(){
           let that = this;

@@ -10,6 +10,7 @@ import (
 	"SamWaf/utils/zlog"
 	"fmt"
 	uuid "github.com/satori/go.uuid"
+	"gorm.io/gorm/logger"
 	"io"
 	"net/url"
 	"os"
@@ -73,8 +74,15 @@ func InitCoreDb(currentDir string) {
 		}
 		// 启用 WAL 模式
 		_ = db.Exec("PRAGMA journal_mode=WAL;")
+
+		if global.GWAF_RELEASE == "false" {
+			// 启用调试模式
+			db = db.Session(&gorm.Session{
+				Logger: logger.Default.LogMode(logger.Info), // 设置为Info表示启用调试模式
+			})
+		}
 		global.GWAF_LOCAL_DB = db
-		db.DB()
+
 		//db.Use(crypto.NewCryptoPlugin())
 		// 注册默认的AES加解密策略
 		//crypto.RegisterCryptoStrategy(strategy.NewAesCryptoStrategy("3Y)(27EtO^tK8Bj~"))
@@ -132,6 +140,12 @@ func InitLogDb(currentDir string) {
 		}
 		// 启用 WAL 模式
 		_ = db.Exec("PRAGMA journal_mode=WAL;")
+		if global.GWAF_RELEASE == "false" {
+			// 启用调试模式
+			db = db.Session(&gorm.Session{
+				Logger: logger.Default.LogMode(logger.Info), // 设置为Info表示启用调试模式
+			})
+		}
 		global.GWAF_LOCAL_LOG_DB = db
 		//logDB.Use(crypto.NewCryptoPlugin())
 		// 注册默认的AES加解密策略
@@ -187,6 +201,12 @@ func InitManaulLogDb(currentDir string, custFileName string) {
 		}
 		// 启用 WAL 模式
 		_ = db.Exec("PRAGMA journal_mode=WAL;")
+		if global.GWAF_RELEASE == "false" {
+			// 启用调试模式
+			db = db.Session(&gorm.Session{
+				Logger: logger.Default.LogMode(logger.Info), // 设置为Info表示启用调试模式
+			})
+		}
 		global.GDATA_CURRENT_LOG_DB_MAP[custFileName] = db
 		//logDB.Use(crypto.NewCryptoPlugin())
 		// 注册默认的AES加解密策略
@@ -219,7 +239,12 @@ func InitStatsDb(currentDir string) {
 		}
 		// 启用 WAL 模式
 		_ = db.Exec("PRAGMA journal_mode=WAL;")
-
+		if global.GWAF_RELEASE == "false" {
+			// 启用调试模式
+			db = db.Session(&gorm.Session{
+				Logger: logger.Default.LogMode(logger.Info), // 设置为Info表示启用调试模式
+			})
+		}
 		global.GWAF_LOCAL_STATS_DB = db
 		//db.Use(crypto.NewCryptoPlugin())
 		// 注册默认的AES加解密策略
@@ -237,14 +262,7 @@ func InitStatsDb(currentDir string) {
 }
 
 func before_query(db *gorm.DB) {
-	if global.GWAF_RELEASE == "false" {
-		db.Debug()
-	}
 	db.Where("tenant_id = ? and user_code=? ", global.GWAF_TENANT_ID, global.GWAF_USER_CODE)
-	zlog.Debug("before_query")
 }
 func before_update(db *gorm.DB) {
-	if global.GWAF_RELEASE == "false" {
-		db.Debug()
-	}
 }

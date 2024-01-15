@@ -92,7 +92,7 @@ func TaskCounter() {
 	//一、 主机聚合统计
 	{
 		var resultHosts []CountHostResult
-		global.GWAF_LOCAL_LOG_DB.Debug().Raw("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host FROM \"web_logs\" where task_flag = ?  and unix_add_time > ? GROUP BY host_code, user_code,action,tenant_id,day,host",
+		global.GWAF_LOCAL_LOG_DB.Raw("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host FROM \"web_logs\" where task_flag = ?  and unix_add_time > ? GROUP BY host_code, user_code,action,tenant_id,day,host",
 			1, currenyDayMillisecondsBak).Scan(&resultHosts)
 		/****
 		1.如果不存在则创建

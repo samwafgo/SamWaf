@@ -23,7 +23,7 @@ func Auth() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		zlog.Debug("有token:" + tokenStr)
+		//zlog.Debug("有token:" + tokenStr)
 		// 将 claims 中的用户信息存储在 context 中
 		//c.Set("userId", claims.UserId)
 

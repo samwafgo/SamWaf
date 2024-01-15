@@ -7,7 +7,7 @@ import Vue from 'vue';
 import config from '@/config/style';
 import websocket from "@/utils/websocket.js";
 import { DialogPlugin } from 'tdesign-vue';
-
+import  {AesDecrypt} from './utils/usuallytool'
 const env = import.meta.env.MODE || 'development';
 
 export default Vue.extend({
@@ -63,6 +63,15 @@ export default Vue.extend({
         let wsData = JSON.parse(e.data)
         if(wsData.msg_code=="200"){
           console.log('接口返回信息',wsData)
+
+          let msgDataEnstr =wsData.msg_data
+
+          console.log('msgDataEnstr',msgDataEnstr)
+          let tmpSrcContent = AesDecrypt(msgDataEnstr)
+          console.log('tmpSrcContent',tmpSrcContent)
+          let msgData = JSON.parse(tmpSrcContent)
+          console.log('msgData',msgData)
+          wsData.msg_data = msgData
           if(wsData.msg_cmd_type=="RELOAD_PAGE"){
             if(this.mydialog){
               this.mydialog.hide()

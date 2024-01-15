@@ -15,5 +15,7 @@ type WafAttackLogSearch struct {
 
 	SortBy         string `json:"sort_by" form:"sort_by"`                 //排序字段
 	SortDescending string `json:"sort_descending" form:"sort_descending"` //排序方式
+	FilterBy       string `json:"filter_by" form:"filter_by"`             //筛选字段
+	FilterValue    string `json:"filter_value" form:"filter_value"`       //筛选值
 	request.PageInfo
 }

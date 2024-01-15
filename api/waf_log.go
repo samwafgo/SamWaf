@@ -35,13 +35,18 @@ func (w *WafLogAPi) GetListApi(c *gin.Context) {
 			response.FailWithMessage("正在切换数据库请等待", c)
 			return
 		}
-		wafLogs, total, _ := wafLogService.GetListApi(req)
-		response.OkWithDetailed(response.PageResult{
-			List:      wafLogs,
-			Total:     total,
-			PageIndex: req.PageIndex,
-			PageSize:  req.PageSize,
-		}, "获取成功", c)
+		wafLogs, total, err2 := wafLogService.GetListApi(req)
+		if err2 != nil {
+			response.FailWithMessage("访问列表失败:"+err2.Error(), c)
+		} else {
+			response.OkWithDetailed(response.PageResult{
+				List:      wafLogs,
+				Total:     total,
+				PageIndex: req.PageIndex,
+				PageSize:  req.PageSize,
+			}, "获取成功", c)
+		}
+
 	} else {
 		response.FailWithMessage("解析失败", c)
 	}

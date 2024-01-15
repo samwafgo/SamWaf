@@ -84,12 +84,14 @@
         </t-space> -->
         <t-table :columns="columns" :data="data"  size="small" :rowKey="rowKey" :verticalAlign="verticalAlign"
           :column-controller="columnControllerConfig" :displayColumns.sync="displayColumns" :pagination="pagination"
-          :selected-row-keys="selectedRowKeys" :loading="dataLoading" @page-change="rehandlePageChange"
+          :selected-row-keys="selectedRowKeys" :loading="dataLoading"
+          @page-change="rehandlePageChange"
           :sort="sorts"
           @change="rehandleChange"
-                 @select-change="rehandleSelectChange"
-                 @sort-change="onSortChange"
-          :headerAffixProps="{ offsetTop: offsetTop, container: getContainer }">
+          @select-change="rehandleSelectChange"
+          @sort-change="onSortChange"
+          @filter-change="onFilterChange"
+                 :headerAffixProps="{ offsetTop: offsetTop, container: getContainer }">
 
           <template #action="{ row }">
             <t-tag v-if="row.action === '放行'" shape="round" theme="success">{{row.action}}</t-tag>
@@ -231,6 +233,17 @@
             width: 100,
             ellipsis: true,
             colKey: 'guest_identification',
+            filter: {
+              type: 'input',
+              resetValue: '',
+              // 按下 Enter 键时也触发确认搜索
+              confirmEvents: ['onEnter'],
+              props: {
+                placeholder: '输入关键词过滤',
+              },
+              // 是否显示重置取消按钮，一般情况不需要显示
+              showConfirmAndReset: true,
+            },
           },
           {
             title: '耗时(ms)',
@@ -313,6 +326,17 @@
             width: 300,
             ellipsis: true,
             colKey: 'header',
+            filter: {
+              type: 'input',
+              resetValue: '',
+              // 按下 Enter 键时也触发确认搜索
+              confirmEvents: ['onEnter'],
+              props: {
+                placeholder: '输入关键词过滤',
+              },
+              // 是否显示重置取消按钮，一般情况不需要显示
+              showConfirmAndReset: true,
+            },
           },
           {
             title: 'status',
@@ -361,6 +385,11 @@
         sorts: {
           sortBy:"create_time",
           descending:true,
+        },
+        //筛选字段
+        filters:{
+          filter_by:"",
+          filter_value:"",
         },
         //主机字典
         host_dic: {},
@@ -493,6 +522,8 @@
             pageIndex: that.pagination.current,
             sort_by: that.sorts.sortBy,
             sort_descending: sort_descending,
+            filter_by:that.filters.filter_by,
+            filter_value:that.filters.filter_value,
             unix_add_time_begin: ConvertStringToUnix(this.dateControl.range1[0]).toString(),
             unix_add_time_end: ConvertStringToUnix(this.dateControl.range1[1]).toString(),
             ...that.searchformData
@@ -510,6 +541,8 @@
                 ...this.pagination,
                 total: resdata.data.total,
               };
+            }else {
+              that.$message.warning(resdata.msg);
             }
           })
           .catch((e : Error) => {
@@ -598,6 +631,36 @@
         }else{
           that.sorts.sortBy="create_time"
           that.sorts.descending= true
+        }
+        this.getList("")
+      },
+      /**
+       * 访客身份筛选
+       */
+      filterGuestChange(e){
+        console.log("访客身份",e)
+      },
+      /**
+       * 筛选结果
+       */
+      onFilterChange(e){
+        console.log("筛选结果",e)
+        this.filters.filter_by = "";
+        this.filters.filter_value = "";
+        //访客身份
+        if(e.guest_identification != undefined){
+           this.filters.filter_by = "guest_identification";
+           this.filters.filter_value = e.guest_identification ;
+        }
+        //header
+        if(e.header != undefined){
+          if(this.filters.filter_by==""){
+            this.filters.filter_by = "header";
+            this.filters.filter_value = e.header ;
+          }else{
+            this.filters.filter_by = this.filters.filter_by +"|header";
+            this.filters.filter_value = this.filters.filter_value +"|"+ e.header ;
+          }
         }
         this.getList("")
       }

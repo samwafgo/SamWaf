@@ -96,7 +96,6 @@ func (receiver *WafHostService) GetListApi(req request.WafHostSearchReq) ([]mode
 	var whereField = ""
 	var whereValues []interface{}
 	//where字段
-	whereField = ""
 	if len(req.Code) > 0 {
 		if len(whereField) > 0 {
 			whereField = whereField + " and "

@@ -630,7 +630,7 @@
           if(postdata.remote_host.length==0){
              postdata.remote_host = "http://"+postdata.host
           }else{
-            if(postdata.remote_host.startsWith("http://")==false || postdata.remote_host.startsWith("https://")==false ){
+            if(postdata.remote_host.indexOf("http://") != 0 && postdata.remote_host.indexOf("https://") != 0){
               postdata.remote_host = "http://"+postdata.remote_host
             }
           }
@@ -882,9 +882,13 @@
       },
       ChangeHost(form){
         if(form=="add"){
-          this.formData.remote_host = "http://"+ this.formData.host
+          if (this.formData.remote_host.indexOf("http://") != 0 && this.formData.remote_host.indexOf("https://") !=  0 ){
+            this.formData.remote_host = "http://"+this.formData.remote_host
+          }
         }else if(form=="edit"){
-          this.formEditData.remote_host = "http://"+ this.formEditData.host
+          if( this.formEditData.remote_host.indexOf("http://") != 0 && this.formEditData.remote_host.indexOf("https://") !=  0 ){
+            this.formEditData.remote_host = "http://"+this.formEditData.remote_host
+          }
         }
       },
       handleFail({ file }) {

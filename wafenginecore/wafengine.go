@@ -9,6 +9,7 @@ import (
 	"SamWaf/model/baseorm"
 	"SamWaf/model/wafenginmodel"
 	"SamWaf/plugin"
+	"SamWaf/service/waf_service"
 	"SamWaf/utils"
 	"SamWaf/utils/zlog"
 	"SamWaf/wafbot"
@@ -46,13 +47,15 @@ import (
 )
 
 type WafEngine struct {
-	//主机情况
+	//主机情况（key:主机名+":"+端口,value : hostsafe信息里面有规则,ip信息等）
 	HostTarget map[string]*wafenginmodel.HostSafe
-	//主机和code的关系
-	HostCode     map[string]string
+	//主机和code的关系（key:主机code,value:主机名+":"+端口）
+	HostCode map[string]string
+	//服务在线情况（key：端口，value :服务情况）
 	ServerOnline map[int]innerbean.ServerRunTime
 
 	//所有证书情况 对应端口 可能多个端口都是https 443，或者其他非标准端口也要实现https证书
+	//嵌套结构 (key：端口 ，再往下是 下面的主机名，value 证书)
 	AllCertificate map[int]map[string]*tls.Certificate
 	EsHelper       utils.EsHelper
 
@@ -877,14 +880,14 @@ func (waf *WafEngine) LoadAllHost() {
 }
 
 // 加载指定host
-func (waf *WafEngine) LoadHost(inHost model.Hosts) {
+func (waf *WafEngine) LoadHost(inHost model.Hosts) innerbean.ServerRunTime {
 
 	//检测https
 	if inHost.Ssl == 1 {
 		cert, err := tls.X509KeyPair([]byte(inHost.Certfile), []byte(inHost.Keyfile))
 		if err != nil {
 			zlog.Warn("Cannot find %s cert & key file. Error is: %s\n", inHost.Host, err)
-			return
+			return innerbean.ServerRunTime{}
 
 		}
 		//all_certificate[hosts[i].Port][hosts[i].Host] = &cert
@@ -968,6 +971,57 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) {
 	waf.HostTarget[inHost.Host+":"+strconv.Itoa(inHost.Port)] = hostsafe
 	//赋值到对照表里面
 	waf.HostCode[inHost.Code] = inHost.Host + ":" + strconv.Itoa(inHost.Port)
+	return waf.ServerOnline[inHost.Port]
+}
+
+/*
+*
+移除主机
+*/
+func (waf *WafEngine) RemoveHost(host model.Hosts) {
+	/*//主机情况
+	HostTarget map[string]*wafenginmodel.HostSafe
+	//主机和code的关系
+	HostCode     map[string]string
+	ServerOnline map[int]innerbean.ServerRunTime
+
+	//所有证书情况 对应端口 可能多个端口都是https 443，或者其他非标准端口也要实现https证书
+	AllCertificate map[int]map[string]*tls.Certificate*/
+	//1.如果这个port里面没有了主机 那可以直接停掉服务
+	//2.除了第一个情况之外的，把所有他的主机信息和关联信息都干掉
+	if waf_service.WafHostServiceApp.CheckPortExistApi(host.Port) == 0 {
+		zlog.Debug("准备移除这个端口下所有信息")
+		// a.移除证书数据
+		_, ok := waf.AllCertificate[host.Port]
+		if ok {
+			delete(waf.AllCertificate, host.Port)
+		}
+		//b.移除对照关系
+		delete(waf.HostCode, host.Code)
+		//c.移除主机保护信息
+		delete(waf.HostTarget, host.Host+":"+strconv.Itoa(host.Port))
+		//d.暂停服务 并 移除服务信息
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		err := waf.ServerOnline[host.Port].Svr.Shutdown(ctx)
+		if err != nil {
+			zlog.Error("shutting down: " + err.Error())
+		} else {
+			zlog.Info("shutdown processed successfully port" + strconv.Itoa(host.Port))
+		}
+		delete(waf.ServerOnline, host.Port)
+	} else {
+		zlog.Debug("准备移除没用的主机信息")
+		// a.移除某个端口下的证书数据
+		_, ok := waf.AllCertificate[host.Port][host.Host]
+		if ok {
+			delete(waf.AllCertificate[host.Port], host.Host)
+		}
+		//b.移除对照关系
+		delete(waf.HostCode, host.Code)
+		//c.移除主机保护信息
+		delete(waf.HostTarget, host.Host+":"+strconv.Itoa(host.Port))
+	}
 }
 
 // 开启所有代理
@@ -979,6 +1033,10 @@ func (waf *WafEngine) StartAllProxyServer() {
 func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 	if innruntime.Status == 0 {
 		//启动完成的就不进这里了
+		return
+	}
+	if innruntime.ServerType == "" {
+		//如果是空的就不进行了
 		return
 	}
 	go func(innruntime innerbean.ServerRunTime) {

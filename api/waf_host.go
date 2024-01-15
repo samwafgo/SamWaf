@@ -95,12 +95,13 @@ func (w *WafHostAPi) DelHostApi(c *gin.Context) {
 	var req request.WafHostDelReq
 	err := c.ShouldBind(&req)
 	if err == nil {
-		err = wafHostService.DelHostApi(req)
+		host, err := wafHostService.DelHostApi(req)
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 			response.FailWithMessage("请检测参数", c)
 		} else if err != nil {
 			response.FailWithMessage("发生错误", c)
 		} else {
+			w.NotifyDelWaf(host)
 			response.OkWithMessage("删除成功", c)
 		}
 
@@ -163,6 +164,18 @@ func (w *WafHostAPi) NotifyWaf(hostCode string) {
 	var chanInfo = spec.ChanCommonHost{
 		HostCode: hostCode,
 		Type:     enums.ChanTypeHost,
+		Content:  hosts,
+	}
+	global.GWAF_CHAN_MSG <- chanInfo
+}
+
+func (w *WafHostAPi) NotifyDelWaf(hosts model.Hosts) {
+	//1.如果这个port里面没有了主机 那可以直接停掉服务
+	//2.除了第一个情况之外的，把所有他的主机信息和关联信息都干掉
+
+	var chanInfo = spec.ChanCommonHost{
+		HostCode: hosts.Code,
+		Type:     enums.ChanTypeDelHost,
 		Content:  hosts,
 	}
 	global.GWAF_CHAN_MSG <- chanInfo

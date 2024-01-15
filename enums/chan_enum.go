@@ -9,4 +9,5 @@ const (
 	ChanTypeWhiteURL
 	ChanTypeBlockIP
 	ChanTypeBlockURL
+	ChanTypeDelHost
 )

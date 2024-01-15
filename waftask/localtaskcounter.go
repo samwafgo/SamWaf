@@ -11,6 +11,7 @@ import (
 	"SamWaf/utils"
 	"SamWaf/utils/zlog"
 	"SamWaf/wafdb"
+	"SamWaf/wafsec"
 	"SamWaf/wechat"
 	"encoding/json"
 	"fmt"
@@ -423,19 +424,21 @@ func TaskDelayInfo() {
 						if msg.DelayType == "升级结果" {
 							cmdType = "RELOAD_PAGE"
 						}
+						msgBody, _ := json.Marshal(model.MsgDataPacket{
+							MessageId:           uuid.NewV4().String(),
+							MessageType:         msg.DelayType,
+							MessageData:         msg.DelayContent,
+							MessageAttach:       nil,
+							MessageDateTime:     time.Now().Format("2006-01-02 15:04:05"),
+							MessageUnReadStatus: true,
+						})
+
 						//写入ws数据
 						msgBytes, err := json.Marshal(
 							model.MsgPacket{
-								MsgCode: "200",
-								MsgDataPacket: model.MsgDataPacket{
-									MessageId:           uuid.NewV4().String(),
-									MessageType:         msg.DelayType,
-									MessageData:         msg.DelayContent,
-									MessageAttach:       nil,
-									MessageDateTime:     time.Now().Format("2006-01-02 15:04:05"),
-									MessageUnReadStatus: true,
-								},
-								MsgCmdType: cmdType,
+								MsgCode:       "200",
+								MsgDataPacket: wafsec.AesEncrypt(msgBody, global.GWAF_COMMUNICATION_KEY),
+								MsgCmdType:    cmdType,
 							})
 						err = ws.WriteMessage(1, msgBytes)
 						if err != nil {

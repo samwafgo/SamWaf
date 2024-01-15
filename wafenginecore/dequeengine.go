@@ -6,6 +6,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/utils"
 	"SamWaf/utils/zlog"
+	"SamWaf/wafsec"
 	"encoding/json"
 	"github.com/edwingeng/deque"
 	uuid "github.com/satori/go.uuid"
@@ -107,18 +108,29 @@ func ProcessDequeEngine() {
 					for _, ws := range global.GWebSocket.SocketMap {
 
 						if ws != nil {
+							//信息包体进行单独处理
+							/*msgBody:=model.MsgDataPacket{
+								MessageId:           uuid.NewV4().String(),
+								MessageType:         "命中保护规则",
+								MessageData:         rulemessage.RuleInfo + rulemessage.Ip,
+								MessageAttach:       nil,
+								MessageDateTime:     time.Now().Format("2006-01-02 15:04:05"),
+								MessageUnReadStatus: true,
+							}*/
+							msgBody, _ := json.Marshal(model.MsgDataPacket{
+								MessageId:           uuid.NewV4().String(),
+								MessageType:         "命中保护规则",
+								MessageData:         rulemessage.RuleInfo + rulemessage.Ip,
+								MessageAttach:       nil,
+								MessageDateTime:     time.Now().Format("2006-01-02 15:04:05"),
+								MessageUnReadStatus: true,
+							})
+
 							//写入ws数据
 							msgBytes, err := json.Marshal(model.MsgPacket{
-								MsgCode: "200",
-								MsgDataPacket: model.MsgDataPacket{
-									MessageId:           uuid.NewV4().String(),
-									MessageType:         "命中保护规则",
-									MessageData:         rulemessage.RuleInfo + rulemessage.Ip,
-									MessageAttach:       nil,
-									MessageDateTime:     time.Now().Format("2006-01-02 15:04:05"),
-									MessageUnReadStatus: true,
-								},
-								MsgCmdType: "Info",
+								MsgCode:       "200",
+								MsgDataPacket: wafsec.AesEncrypt(msgBody, global.GWAF_COMMUNICATION_KEY),
+								MsgCmdType:    "Info",
 							})
 							err = ws.WriteMessage(1, msgBytes)
 							if err != nil {
@@ -138,18 +150,20 @@ func ProcessDequeEngine() {
 				//发送websocket
 				for _, ws := range global.GWebSocket.SocketMap {
 					if ws != nil {
+						//信息包体进行单独处理
+						msgBody, _ := json.Marshal(model.MsgDataPacket{
+							MessageId:           uuid.NewV4().String(),
+							MessageType:         "升级结果",
+							MessageData:         updatemessage.Msg,
+							MessageAttach:       nil,
+							MessageDateTime:     time.Now().Format("2006-01-02 15:04:05"),
+							MessageUnReadStatus: true,
+						})
 						//写入ws数据
 						msgBytes, err := json.Marshal(model.MsgPacket{
-							MsgCode: "200",
-							MsgDataPacket: model.MsgDataPacket{
-								MessageId:           uuid.NewV4().String(),
-								MessageType:         "升级结果",
-								MessageData:         updatemessage.Msg,
-								MessageAttach:       nil,
-								MessageDateTime:     time.Now().Format("2006-01-02 15:04:05"),
-								MessageUnReadStatus: true,
-							},
-							MsgCmdType: "Info",
+							MsgCode:       "200",
+							MsgDataPacket: wafsec.AesEncrypt(msgBody, global.GWAF_COMMUNICATION_KEY),
+							MsgCmdType:    "Info",
 						})
 						err = ws.WriteMessage(1, msgBytes)
 						if err != nil {
@@ -161,9 +175,8 @@ func ProcessDequeEngine() {
 				break
 			}
 
-			//zlog.Info("MESSAGE", messageinfo)
 		}
-		time.Sleep((100 * time.Millisecond))
+		time.Sleep(100 * time.Millisecond)
 		global.GWAF_MEASURE_PROCESS_DEQUEENGINE.WriteData(time.Now().UnixNano() / 1e6)
 	}
 }

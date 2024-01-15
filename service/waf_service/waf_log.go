@@ -6,6 +6,7 @@ import (
 	"SamWaf/model/request"
 	"SamWaf/wafdb"
 	"errors"
+	"strings"
 )
 
 type WafLogService struct{}
@@ -34,14 +35,97 @@ func (receiver *WafLogService) GetListApi(req request.WafAttackLogSearch) ([]inn
 	var total int64 = 0
 	var weblogs []innerbean.WebLog
 
-	whereCondition := &request.WafAttackLogSearch{
-		HostCode:   req.HostCode,
-		Rule:       req.Rule,
-		Action:     req.Action,
-		SrcIp:      req.SrcIp,
-		StatusCode: req.StatusCode,
-		Method:     req.Method,
+	splitFilterBys := strings.Split(req.FilterBy, "|")
+	splitFilterValues := strings.Split(req.FilterValue, "|")
+	/*where条件*/
+	var whereField = ""
+	var whereValues []interface{}
+
+	//where字段
+	{
+		whereField = whereField + " (unix_add_time>=? and unix_add_time<=?)"
+		if len(req.HostCode) > 0 {
+			if len(whereField) > 0 {
+				whereField = whereField + " and "
+			}
+			whereField = whereField + " host_code=? "
+		}
+		if len(req.Rule) > 0 {
+			if len(whereField) > 0 {
+				whereField = whereField + " and "
+			}
+			whereField = whereField + " rule=? "
+		}
+		if len(req.Action) > 0 {
+			if len(whereField) > 0 {
+				whereField = whereField + " and "
+			}
+			whereField = whereField + " action=? "
+		}
+		if len(req.SrcIp) > 0 {
+			if len(whereField) > 0 {
+				whereField = whereField + " and "
+			}
+			whereField = whereField + " src_ip=? "
+		}
+		if len(req.StatusCode) > 0 {
+			if len(whereField) > 0 {
+				whereField = whereField + " and "
+			}
+			whereField = whereField + " status_code=? "
+		}
+		if len(req.Method) > 0 {
+			if len(whereField) > 0 {
+				whereField = whereField + " and "
+			}
+			whereField = whereField + " method=? "
+		}
+		for _, by := range splitFilterBys {
+
+			if len(by) > 0 {
+				if !receiver.isValidFilterField(by) {
+					return nil, 0, errors.New("输入过滤字段不合法")
+				}
+				if len(whereField) > 0 {
+					whereField = whereField + " and "
+				}
+				if by == "guest_identification" {
+					by = "guest_id_entification"
+				}
+				whereField = whereField + " " + by + " like ? "
+			}
+		}
 	}
+
+	//where字段赋值
+	{
+		whereValues = append(whereValues, req.UnixAddTimeBegin)
+		whereValues = append(whereValues, req.UnixAddTimeEnd)
+		if len(req.HostCode) > 0 {
+			whereValues = append(whereValues, req.HostCode)
+		}
+		if len(req.Rule) > 0 {
+			whereValues = append(whereValues, req.Rule)
+		}
+		if len(req.Action) > 0 {
+			whereValues = append(whereValues, req.Action)
+		}
+		if len(req.SrcIp) > 0 {
+			whereValues = append(whereValues, req.SrcIp)
+		}
+		if len(req.StatusCode) > 0 {
+			whereValues = append(whereValues, req.StatusCode)
+		}
+		if len(req.Method) > 0 {
+			whereValues = append(whereValues, req.Method)
+		}
+		for _, val := range splitFilterValues {
+			if len(val) > 0 {
+				whereValues = append(whereValues, "%"+val+"%")
+			}
+		}
+	}
+
 	orderInfo := ""
 
 	/**
@@ -57,13 +141,13 @@ func (receiver *WafLogService) GetListApi(req request.WafAttackLogSearch) ([]inn
 		return nil, 0, errors.New("输入排序字段不合法")
 	}
 	if len(req.CurrrentDbName) == 0 || req.CurrrentDbName == "local_log.db" {
-		global.GWAF_LOCAL_LOG_DB.Debug().Limit(req.PageSize).Where(whereCondition).Where("unix_add_time>=? and unix_add_time<=?", req.UnixAddTimeBegin, req.UnixAddTimeEnd).Offset(req.PageSize * (req.PageIndex - 1)).Order(orderInfo).Find(&weblogs)
-		global.GWAF_LOCAL_LOG_DB.Model(&innerbean.WebLog{}).Where(whereCondition).Where("unix_add_time>=? and unix_add_time<=?", req.UnixAddTimeBegin, req.UnixAddTimeEnd).Count(&total)
+		global.GWAF_LOCAL_LOG_DB.Limit(req.PageSize).Where(whereField, whereValues...).Offset(req.PageSize * (req.PageIndex - 1)).Order(orderInfo).Find(&weblogs)
+		global.GWAF_LOCAL_LOG_DB.Model(&innerbean.WebLog{}).Where(whereField, whereValues...).Count(&total)
 
 	} else {
 		wafdb.InitManaulLogDb("", req.CurrrentDbName)
-		global.GDATA_CURRENT_LOG_DB_MAP[req.CurrrentDbName].Debug().Limit(req.PageSize).Where(whereCondition).Where("unix_add_time>=? and unix_add_time<=?", req.UnixAddTimeBegin, req.UnixAddTimeEnd).Offset(req.PageSize * (req.PageIndex - 1)).Order(orderInfo).Find(&weblogs)
-		global.GDATA_CURRENT_LOG_DB_MAP[req.CurrrentDbName].Model(&innerbean.WebLog{}).Where(whereCondition).Where("unix_add_time>=? and unix_add_time<=?", req.UnixAddTimeBegin, req.UnixAddTimeEnd).Count(&total)
+		global.GDATA_CURRENT_LOG_DB_MAP[req.CurrrentDbName].Debug().Limit(req.PageSize).Where(whereField, whereValues...).Offset(req.PageSize * (req.PageIndex - 1)).Order(orderInfo).Find(&weblogs)
+		global.GDATA_CURRENT_LOG_DB_MAP[req.CurrrentDbName].Model(&innerbean.WebLog{}).Where(whereField, whereValues...).Count(&total)
 
 	}
 	return weblogs, total, nil
@@ -87,6 +171,21 @@ func (receiver *WafLogService) isValidSortField(field string) bool {
 	var allowedSortFields = []string{"time_spent", "create_time"}
 
 	for _, allowedField := range allowedSortFields {
+		if field == allowedField {
+			return true
+		}
+	}
+	return false
+}
+
+/*
+*
+判断where是否合法
+*/
+func (receiver *WafLogService) isValidFilterField(field string) bool {
+	var allowedFilterFields = []string{"header", "guest_identification"}
+
+	for _, allowedField := range allowedFilterFields {
 		if field == allowedField {
 			return true
 		}

@@ -12,16 +12,18 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
-	"github.com/kr/binarydist"
+	"SamWaf/binarydist"
 )
 
 var version, genDir string
 
 type current struct {
-	Version string
-	Sha256  []byte
-	Desc    string
+	Version    string
+	Sha256     []byte
+	Desc       string
+	UpdateTime string
 }
 
 func generateSha256(path string) []byte {
@@ -61,7 +63,7 @@ func newGzReader(r io.ReadCloser) io.ReadCloser {
 }
 
 func createUpdate(path string, platform string, desc string) {
-	c := current{Version: version, Sha256: generateSha256(path), Desc: desc}
+	c := current{Version: version, Sha256: generateSha256(path), Desc: desc, UpdateTime: fmt.Sprintf("%s", time.Now().Format("2006-01-02 15:04:05"))}
 
 	b, err := json.MarshalIndent(c, "", "    ")
 	if err != nil {
@@ -113,23 +115,33 @@ func createUpdate(path string, platform string, desc string) {
 			os.Exit(1)
 		}
 
-		ar := newGzReader(old)
-		defer ar.Close()
-		br := newGzReader(newF)
-		defer br.Close()
-		patch := new(bytes.Buffer)
-		if err := binarydist.Diff(ar, br, patch); err != nil {
-			panic(err)
+		isClose := true
+		if isClose {
+			ar := newGzReader(old)
+			defer ar.Close()
+			br := newGzReader(newF)
+			defer br.Close()
+			patch := new(bytes.Buffer)
+			//fmt.Println(len(patch.Bytes()))
+			if err := binarydist.Diff(ar, br, patch); err != nil {
+				panic(err)
+			}
+			//fmt.Println(len(patch.Bytes()))
+			//fmt.Println(filepath.Join(genDir, file.Name(), version, platform))
+			err2 := ioutil.WriteFile(filepath.Join(genDir, file.Name(), version, platform), patch.Bytes(), 0755)
+			if err2 != nil {
+				fmt.Errorf(err2.Error())
+			}
 		}
-		ioutil.WriteFile(filepath.Join(genDir, file.Name(), version, platform), patch.Bytes(), 0755)
+
 	}
 }
 
 func printUsage() {
 	fmt.Println("")
 	fmt.Println("Positional arguments:")
-	fmt.Println("\tSingle platform: go_gen_updatefile myapp 1.2 fixbug")
-	fmt.Println("\tCross platform: go_gen_updatefile /tmp/mybinares/ 1.2 fixbug")
+	fmt.Println("\tSingle platform: go_gen_updatefile myapp 1.2")
+	fmt.Println("\tCross platform: go_gen_updatefile /tmp/mybinares/ 1.2")
 }
 
 func createBuildDir() {
@@ -138,6 +150,8 @@ func createBuildDir() {
 
 func main() {
 	outputDirFlag := flag.String("o", "public", "Output directory for writing updates")
+
+	descFlag := flag.String("desc", "same update", "Input program update description")
 
 	var defaultPlatform string
 	goos := os.Getenv("GOOS")
@@ -152,17 +166,25 @@ func main() {
 
 	flag.Parse()
 	if flag.NArg() < 2 {
+		fmt.Println(*descFlag)
+		fmt.Println(*outputDirFlag)
 		flag.Usage()
 		printUsage()
 		os.Exit(0)
 	}
+	fmt.Println(os.Args)
 
 	platform := *platformFlag
 	appPath := flag.Arg(0)
 	version = flag.Arg(1)
-	desc := flag.Arg(2)
+	desc := *descFlag
 	genDir = *outputDirFlag
 
+	fmt.Println(platform)
+	fmt.Println(appPath)
+	fmt.Println(version)
+	fmt.Println(desc)
+	fmt.Println(genDir)
 	createBuildDir()
 
 	// If dir is given create update for each file

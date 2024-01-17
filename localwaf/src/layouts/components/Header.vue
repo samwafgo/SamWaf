@@ -28,6 +28,11 @@
 
           <!-- 全局通知 -->
           <notice />
+          <t-tooltip placement="bottom" content="有新版本拉" v-show="hasNewVersion">
+            <t-button theme="default" shape="square" variant="text" @click="checkVersion('manual')">
+              <NotificationErrorIcon />
+            </t-button>
+          </t-tooltip>
 
           <t-tooltip placement="bottom" content="联系SamWaf">
             <t-button theme="default" shape="square" variant="text" @click="sendMail">
@@ -45,7 +50,7 @@
                 <t-dropdown-item class="operations-dropdown-container-item" @click="handleNav('/user/index')">
                   <user-circle-icon />个人中心
                 </t-dropdown-item>
-                <t-dropdown-item class="operations-dropdown-container-item" :disabled="isUpdateloading" @click="checkVersion">
+                <t-dropdown-item class="operations-dropdown-container-item" :disabled="isUpdateloading" @click="checkVersion('manual')">
                   <RotateIcon />升级
                 </t-dropdown-item>
                 <t-dropdown-item class="operations-dropdown-container-item" :disabled="isResetloading" @click="resetServer">
@@ -90,6 +95,7 @@
     RotateIcon,
     Icon,
     MailIcon,
+    NotificationErrorIcon
   } from 'tdesign-icons-vue';
   import {
     prefix
@@ -118,7 +124,8 @@
       ChevronDownIcon,
       RotateIcon,
       Icon,
-      MailIcon
+      MailIcon,
+      NotificationErrorIcon
     },
     props: {
       theme: String,
@@ -153,6 +160,7 @@
         isSearchFocus: false,
         isResetloading:false,
         /**更新内容**/
+        hasNewVersion:false,//是否有新版本
         isUpdateloading:false,
         update_visible:false,
         update_new_ver:"",
@@ -189,6 +197,8 @@
     },
     mounted() {
        this.current_account = localStorage.getItem("current_account")
+      // 首次提示，每隔24小时 进行弹窗 ，其余实际不弹窗
+       this.checkVersion("auto")
     },
     methods: {
       toggleSettingPanel() {
@@ -243,22 +253,39 @@
         const email = 'samwafgo@gmail.com'; // 设置收件人地址
         window.location.href = `mailto:${email}`;
       },
-      checkVersion(){
+      checkVersion(method){
           let that = this;
           CheckVersionApi().then((res) => {
             let resdata = res
             console.log(resdata)
             if (resdata.code === 0) {
-              //that.$message.success(resdata.msg);
-              that.update_visible = true
+              that.hasNewVersion = true
               that.update_new_ver = resdata.data.version_new
               that.update_desc = resdata.data.version_desc
+              if(method =="manual"){
+                that.update_visible = true
+              }else{
+                // 从本地存储获取上次显示弹窗的时间
+                const lastUpdatePopupTime = localStorage.getItem("lastUpdatePopupTime");
+
+                // 如果上次显示时间不存在或距离当前时间超过24小时，则显示弹窗
+                if (!lastUpdatePopupTime || Date.now() - lastUpdatePopupTime > 24 * 60 * 60 * 1000) {
+                  that.update_visible = true
+                  // 更新本地存储的上次显示时间为当前时间
+                  localStorage.setItem("lastUpdatePopupTime", Date.now());
+                }
+              }
+
             }else{
-              that.$message.warning(resdata.msg);
+              if(method =="manual"){
+                that.$message.warning(resdata.msg);
+              }
             }
           })
           .catch((e: Error) => {
+            if(method =="manual"){
              that.$message.warning("检测版本异常，请检测网络");
+            }
           })
       },
       handleDoUpdate(){

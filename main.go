@@ -349,7 +349,8 @@ func (m *wafSystenService) run() {
 						return
 					}
 				} else {
-					zlog.Info("非服务形式重启，请手工打开")
+					zlog.Info("非服务形式升级重启，请在5秒后手工打开")
+					time.Sleep(5 * time.Second)
 					os.Exit(0)
 				}
 			}

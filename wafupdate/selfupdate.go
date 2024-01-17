@@ -1,12 +1,14 @@
 package wafupdate
 
 import (
+	"SamWaf/binarydist"
 	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"golang.org/x/mod/semver"
 	"io"
 	"io/ioutil"
 	"log"
@@ -16,9 +18,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"time"
-
-	"github.com/kr/binarydist"
-	"golang.org/x/mod/semver"
 )
 
 const (
@@ -211,26 +210,15 @@ func (u *Updater) Update() error {
 	}
 	defer old.Close()
 
-	bin, err := u.fetchAndVerifyPatch(old)
+	// if patch failed grab the full new bin
+	bin, err := u.fetchAndVerifyFullBin()
 	if err != nil {
 		if err == ErrHashMismatch {
-			log.Println("update: hash mismatch from patched binary")
+			log.Println("update: hash mismatch from full binary")
 		} else {
-			if u.DiffURL != "" {
-				log.Println("update: patching binary,", err)
-			}
+			log.Println("update: fetching full binary,", err)
 		}
-
-		// if patch failed grab the full new bin
-		bin, err = u.fetchAndVerifyFullBin()
-		if err != nil {
-			if err == ErrHashMismatch {
-				log.Println("update: hash mismatch from full binary")
-			} else {
-				log.Println("update: fetching full binary,", err)
-			}
-			return err
-		}
+		return err
 	}
 
 	// close the old binary before installing because on windows

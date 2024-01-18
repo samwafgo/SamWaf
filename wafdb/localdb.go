@@ -27,6 +27,13 @@ func InitCoreDb(currentDir string) {
 	if currentDir == "" {
 		currentDir = utils.GetCurrentDir()
 	}
+	// 判断备份目录是否存在，不存在则创建
+	if _, err := os.Stat(currentDir + "/data/"); os.IsNotExist(err) {
+		if err := os.MkdirAll(currentDir+"/data/", os.ModePerm); err != nil {
+			zlog.Error("创建data目录失败:", err)
+			return
+		}
+	}
 	if global.GWAF_LOCAL_DB == nil {
 		path := currentDir + "/data/local.db"
 		// 检查文件是否存在

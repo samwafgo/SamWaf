@@ -16,6 +16,7 @@ import (
 	"SamWaf/wafsnowflake"
 	"SamWaf/waftask"
 	"crypto/tls"
+	_ "embed"
 	"fmt"
 	dlp "github.com/bytedance/godlp"
 	"github.com/go-co-op/gocron"
@@ -33,8 +34,11 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+	_ "time/tzdata"
 )
 
+//go:embed exedata/ip2region.xdb
+var Ip2regionBytes []byte // 当前目录，解析为[]byte类型
 // wafSystenService 实现了 service.Service 接口
 type wafSystenService struct{}
 
@@ -64,6 +68,10 @@ func NeverExit(name string, f func()) {
 // run 是服务的主要逻辑
 func (m *wafSystenService) run() {
 
+	//初始化步骤[加载ip数据库]
+	// 从嵌入的文件中读取内容
+
+	global.GCACHE_IP_CBUFF = Ip2regionBytes
 	/*// 启动一个 goroutine 来处理信号
 	go func() {
 		// 创建一个通道来接收信号
@@ -110,7 +118,7 @@ func (m *wafSystenService) run() {
 
 	zlog.Info(rversion)
 
-	syscall.Setenv("ZONEINFO", utils.GetCurrentDir()+"//data//zoneinfo")
+	//syscall.Setenv("ZONEINFO", utils.GetCurrentDir()+"//data//zoneinfo")
 
 	//守护程序开始
 	//xdaemon.DaemonProcess("GoTest.exe","./logs/damon.log")

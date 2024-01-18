@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/denisbrodbeck/machineid"
-	"github.com/lionsoul2014/ip2region/binding/golang/xdb"
 	"github.com/satori/go.uuid"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -751,15 +750,9 @@ func (waf *WafEngine) StartWaf() {
 	}
 
 	//初始化步骤[加载ip数据库]
-	var dbPath = utils.GetCurrentDir() + "/data/ip2region.xdb"
-	// 1、从 dbPath 加载整个 xdb 到内存
-	cBuff, err := xdb.LoadContentFromFile(dbPath)
-	if err != nil {
-		zlog.Info("加载ip库错误")
-		zlog.Debug("failed to load content from `%s`: %s\n", dbPath, err)
-		return
-	}
-	global.GCACHE_IP_CBUFF = cBuff
+	// 从嵌入的文件中读取内容
+
+	//global.GCACHE_IP_CBUFF = main.Ip2regionBytes
 
 	//第一步 检测合法性并加入到全局
 	waf.LoadAllHost()
@@ -786,14 +779,25 @@ func (waf *WafEngine) LoadAndInitConfig() {
 	1.如果user_code存在就使用本地的user_code
 	2.
 	*/
+	// 判断备份目录是否存在，不存在则创建
+	configDir := utils.GetCurrentDir() + "/conf/"
+	if _, err := os.Stat(configDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(configDir, os.ModePerm); err != nil {
+			zlog.Error("创建config目录失败:", err)
+			return
+		}
+	}
 	config := viper.New()
-	config.AddConfigPath(utils.GetCurrentDir() + "/conf/") // 文件所在目录
-	config.SetConfigName("config")                         // 文件名
-	config.SetConfigType("yml")                            // 文件类型
+	config.AddConfigPath(configDir) // 文件所在目录
+	config.SetConfigName("config")  // 文件名
+	config.SetConfigType("yml")     // 文件类型
+
 	waf.EngineCurrentStatus = 1
 	if err := config.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			zlog.Error("找不到配置文件..")
+			config.Set("local_port", global.GWAF_LOCAL_SERVER_PORT)
+			err = config.SafeWriteConfig()
 		} else {
 			zlog.Error("配置文件出错..")
 		}

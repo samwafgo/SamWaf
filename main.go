@@ -86,6 +86,7 @@ func (m *wafSystenService) run() {
 	}
 
 	zlog.Info("执行位置:", executablePath)
+	global.GWAF_RUNTIME_CURRENT_EXEPATH = executablePath
 	//初始化步骤[加载ip数据库]
 	// 从嵌入的文件中读取内容
 
@@ -352,18 +353,12 @@ func (m *wafSystenService) run() {
 				//需要重新启动
 				if global.GWAF_RUNTIME_SERVER_TYPE == true {
 					zlog.Info("服务形式重启")
-					// 获取当前执行文件的路径
-					executablePath, err := os.Executable()
-					if err != nil {
-						fmt.Println("Error:", err)
-						return
-					}
 
 					m.stopSamWaf()
 					// 使用filepath包提取文件名
 					//executableName := filepath.Base(executablePath)
 					var cmd *exec.Cmd
-					cmd = exec.Command(executablePath, "restart")
+					cmd = exec.Command(global.GWAF_RUNTIME_CURRENT_EXEPATH, "restart")
 					err = cmd.Start()
 					if err != nil {
 						zlog.Error("Service Error restarting program:", err)
@@ -375,7 +370,7 @@ func (m *wafSystenService) run() {
 				} else {
 
 					m.stopSamWaf()
-					cmd := exec.Command(executablePath)
+					cmd := exec.Command(global.GWAF_RUNTIME_CURRENT_EXEPATH)
 					cmd.Stdout = os.Stdout
 					cmd.Stderr = os.Stderr
 					err := cmd.Start()

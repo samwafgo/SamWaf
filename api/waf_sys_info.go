@@ -22,6 +22,10 @@ func (w *WafSysInfoApi) SysVersionApi(c *gin.Context) {
 }
 
 func (w *WafSysInfoApi) CheckVersionApi(c *gin.Context) {
+	if global.GWAF_RUNTIME_IS_UPDATETING == true {
+		response.OkWithMessage("正在升级中...请在消息等待结果", c)
+		return
+	}
 	var updater = &wafupdate.Updater{
 		CurrentVersion: global.GWAF_RELEASE_VERSION, // Manually update the const, or set it using `go build -ldflags="-X main.VERSION=<newver>" -o hello-updater src/hello-updater/main.go`
 		ApiURL:         global.GUPDATE_VERSION_URL,  // The server hosting `$CmdName/$GOOS-$ARCH.json` which contains the checksum for the binary
@@ -58,6 +62,12 @@ func (w *WafSysInfoApi) CheckVersionApi(c *gin.Context) {
 
 // 去升级
 func (w *WafSysInfoApi) UpdateApi(c *gin.Context) {
+
+	if global.GWAF_RUNTIME_IS_UPDATETING == true {
+		response.OkWithMessage("正在升级中...请在消息等待结果", c)
+		return
+	}
+	global.GWAF_RUNTIME_IS_UPDATETING = true
 	var updater = &wafupdate.Updater{
 		CurrentVersion: global.GWAF_RELEASE_VERSION, // Manually update the const, or set it using `go build -ldflags="-X main.VERSION=<newver>" -o hello-updater src/hello-updater/main.go`
 		ApiURL:         global.GUPDATE_VERSION_URL,  // The server hosting `$CmdName/$GOOS-$ARCH.json` which contains the checksum for the binary
@@ -67,6 +77,7 @@ func (w *WafSysInfoApi) UpdateApi(c *gin.Context) {
 		CmdName:        "samwaf_update",             // The app name which is appended to the ApiURL to look for an update
 		//ForceCheck:     true,                     // For this example, always check for an update unless the version is "dev"
 		OnSuccessfulUpdate: func() {
+			global.GWAF_RUNTIME_IS_UPDATETING = false
 			zlog.Info("OnSuccessfulUpdate 升级成功")
 			wafDelayMsgService.Add("升级结果", "升级结果", "升级成功，当前版本为："+global.GWAF_RUNTIME_NEW_VERSION+" 版本说明:"+global.GWAF_RUNTIME_NEW_VERSION_DESC)
 			global.GWAF_CHAN_UPDATE <- 1
@@ -83,6 +94,7 @@ func (w *WafSysInfoApi) UpdateApi(c *gin.Context) {
 		err := updater.BackgroundRun()
 		if err != nil {
 
+			global.GWAF_RUNTIME_IS_UPDATETING = false
 			//发送websocket 推送消息
 			global.GQEQUE_MESSAGE_DB.PushBack(innerbean.UpdateResultMessageInfo{
 				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "升级结果", Server: global.GWAF_CUSTOM_SERVER_NAME},

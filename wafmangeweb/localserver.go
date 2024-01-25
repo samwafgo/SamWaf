@@ -1,19 +1,26 @@
-package wafenginecore
+package wafmangeweb
 
 import (
 	"SamWaf/global"
 	"SamWaf/middleware"
 	"SamWaf/router"
 	"SamWaf/vue"
+	"context"
+	"errors"
 	assetfs "github.com/elazarl/go-bindata-assetfs"
 	"github.com/gin-gonic/gin"
 	"log"
-	"net"
 	"net/http"
 	"strconv"
+	"time"
 )
 
-func InitRouter(r *gin.Engine) {
+type WafWebManager struct {
+	HttpServer *http.Server
+	R          *gin.Engine
+}
+
+func (web *WafWebManager) initRouter(r *gin.Engine) {
 	PublicRouterGroup := r.Group("")
 	PublicRouterGroup.Use(middleware.SecApi())
 	router.PublicApiGroupApp.InitLoginRouter(PublicRouterGroup)
@@ -44,7 +51,7 @@ func InitRouter(r *gin.Engine) {
 	}
 
 }
-func Cors() gin.HandlerFunc {
+func (web *WafWebManager) cors() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		method := c.Request.Method
 		origin := c.Request.Header.Get("Origin") //请求头部
@@ -64,28 +71,50 @@ func Cors() gin.HandlerFunc {
 		c.Next()
 	}
 }
-func StartLocalServer() {
+func (web *WafWebManager) StartLocalServer() {
 	if global.GWAF_RELEASE == "true" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	r := gin.Default()
-	r.Use(Cors()) //解决跨域
+	r.Use(web.cors()) //解决跨域
 
 	if global.GWAF_RELEASE == "true" {
-		index(r)
+		web.index(r)
 	}
-	InitRouter(r)
+	web.initRouter(r)
 
-	l, err := net.Listen("tcp4", ":"+strconv.Itoa(global.GWAF_LOCAL_SERVER_PORT))
-	if err != nil {
-		log.Fatal(err)
+	web.R = r
+	web.HttpServer = &http.Server{
+		Addr:    ":" + strconv.Itoa(global.GWAF_LOCAL_SERVER_PORT),
+		Handler: r,
 	}
-	r.RunListener(l)
+	if err := web.HttpServer.ListenAndServe(); err != nil && errors.Is(err, http.ErrServerClosed) {
+		log.Printf("listen: %s\n", err)
+	}
+
 	log.Printf("本地 port:%d\n", global.GWAF_LOCAL_SERVER_PORT)
 }
 
+/*
+*
+关闭管理端web接口
+*/
+func (web *WafWebManager) CloseLocalServer() {
+	log.Println("ready to close local server")
+	// The context is used to inform the server it has 5 seconds to finish
+	// the request it is currently handling
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := web.HttpServer.Shutdown(ctx); err != nil {
+		log.Fatal("Server forced to shutdown:", err)
+	}
+
+	log.Println("local Server exiting")
+}
+
 // vue静态路由
-func index(r *gin.Engine) *gin.Engine {
+func (web *WafWebManager) index(r *gin.Engine) *gin.Engine {
 	//静态文件路径
 	const staticPath = `vue/dist/`
 	var (

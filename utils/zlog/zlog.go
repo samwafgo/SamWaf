@@ -10,6 +10,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"strconv"
 )
 
 // 简单封装一下对 zap 日志库的使用
@@ -73,7 +74,8 @@ func InfoCall(message string, fields ...zap.Field) {
 }
 
 func Info(message string, inter ...interface{}) {
-	logger.Info(message, zap.Any("info", inter))
+	fields := append([]zap.Field{zap.String("pid", strconv.Itoa(os.Getpid()))}, zap.Any("info", inter))
+	logger.Info(message, fields...)
 }
 
 func DebugCall(message string, fields ...zap.Field) {
@@ -82,7 +84,8 @@ func DebugCall(message string, fields ...zap.Field) {
 	logger.Debug(message, fields...)
 }
 func Debug(message string, inter ...interface{}) {
-	logger.Debug(message, zap.Any("debug", inter))
+	fields := append([]zap.Field{zap.String("pid", strconv.Itoa(os.Getpid()))}, zap.Any("debug", inter))
+	logger.Debug(message, fields...)
 }
 
 func ErrorCall(message string, fields ...zap.Field) {
@@ -91,7 +94,9 @@ func ErrorCall(message string, fields ...zap.Field) {
 	logger.Error(message, fields...)
 }
 func Error(message string, inter ...interface{}) {
-	logger.Error(message, zap.Any("err", inter))
+	fields := append([]zap.Field{zap.String("pid", strconv.Itoa(os.Getpid()))}, zap.Any("err", inter))
+
+	logger.Error(message, fields...)
 }
 
 func WarnCall(message string, fields ...zap.Field) {
@@ -100,7 +105,8 @@ func WarnCall(message string, fields ...zap.Field) {
 	logger.Warn(message, fields...)
 }
 func Warn(message string, inter ...interface{}) {
-	logger.Warn(message, zap.Any("warn", inter))
+	fields := append([]zap.Field{zap.String("pid", strconv.Itoa(os.Getpid()))}, zap.Any("warn", inter))
+	logger.Warn(message, fields...)
 }
 
 func getCallerInfoForLog() (callerFields []zap.Field) {

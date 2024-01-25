@@ -4,14 +4,17 @@ import (
 	"SamWaf/cache"
 	"SamWaf/enums"
 	"SamWaf/global"
+	"SamWaf/globalobj"
 	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/model/wafenginmodel"
 	"SamWaf/plugin"
 	"SamWaf/utils"
 	"SamWaf/utils/zlog"
+	"SamWaf/wafconfig"
 	"SamWaf/wafdb"
 	"SamWaf/wafenginecore"
+	"SamWaf/wafmangeweb"
 	"SamWaf/wafsafeclear"
 	"SamWaf/wafsnowflake"
 	"SamWaf/waftask"
@@ -42,15 +45,20 @@ var Ip2regionBytes []byte // 当前目录，解析为[]byte类型
 // wafSystenService 实现了 service.Service 接口
 type wafSystenService struct{}
 
+var webmanager *wafmangeweb.WafWebManager // web管理端
+
 // Start 是服务启动时调用的方法
 func (m *wafSystenService) Start(s service.Service) error {
+	zlog.Info("服务启动形式-----Start")
 	go m.run()
 	return nil
 }
 
 // Stop 是服务停止时调用的方法
 func (m *wafSystenService) Stop(s service.Service) error {
+	zlog.Info("服务形式的 -----stop")
 	wafsafeclear.SafeClear()
+	m.stopSamWaf()
 	return nil
 }
 
@@ -68,6 +76,16 @@ func NeverExit(name string, f func()) {
 // run 是服务的主要逻辑
 func (m *wafSystenService) run() {
 
+	//加载配置
+	wafconfig.LoadAndInitConfig()
+	// 获取当前执行文件的路径
+	executablePath, err := os.Executable()
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	zlog.Info("执行位置:", executablePath)
 	//初始化步骤[加载ip数据库]
 	// 从嵌入的文件中读取内容
 
@@ -95,7 +113,6 @@ func (m *wafSystenService) run() {
 	}()*/
 
 	// 在这里编写你的服务逻辑代码
-	fmt.Println("Service is running...")
 	//初始化cache
 	global.GCACHE_WAFCACHE = cache.InitWafCache()
 	//初始化锁写不锁度
@@ -117,11 +134,7 @@ func (m *wafSystenService) run() {
 	}
 
 	zlog.Info(rversion)
-
-	//syscall.Setenv("ZONEINFO", utils.GetCurrentDir()+"//data//zoneinfo")
-
-	//守护程序开始
-	//xdaemon.DaemonProcess("GoTest.exe","./logs/damon.log")
+	zlog.Info("OutIp", global.GWAF_RUNTIME_IP)
 
 	if global.GWAF_RELEASE == "false" {
 		global.GUPDATE_VERSION_URL = "http://127.0.0.1:81/"
@@ -145,7 +158,7 @@ func (m *wafSystenService) run() {
 	go NeverExit("ProcessDequeEngine", wafenginecore.ProcessDequeEngine)
 
 	//启动waf
-	wafEngine := wafenginecore.WafEngine{
+	globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE = &wafenginecore.WafEngine{
 		HostTarget: map[string]*wafenginmodel.HostSafe{},
 		//主机和code的关系
 		HostCode:     map[string]string{},
@@ -156,12 +169,13 @@ func (m *wafSystenService) run() {
 
 		EngineCurrentStatus: 0, // 当前waf引擎状态
 	}
-	http.Handle("/", &wafEngine)
-	wafEngine.StartWaf()
+	http.Handle("/", globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE)
+	globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartWaf()
 
 	//启动管理界面
+	webmanager = &wafmangeweb.WafWebManager{}
 	go func() {
-		wafenginecore.StartLocalServer()
+		webmanager.StartLocalServer()
 	}()
 
 	//启动websocket
@@ -170,18 +184,18 @@ func (m *wafSystenService) run() {
 
 	//定时器 （后期考虑是否独立包处理）
 	timezone, _ := time.LoadLocation("Asia/Shanghai")
-	s := gocron.NewScheduler(timezone)
+	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON = gocron.NewScheduler(timezone)
 
 	global.GWAF_LAST_UPDATE_TIME = time.Now()
 	// 每1秒执行qps清空
-	s.Every(1).Seconds().Do(func() {
+	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Seconds().Do(func() {
 		// 清零计数器
 		atomic.StoreUint64(&global.GWAF_RUNTIME_QPS, 0)
 		atomic.StoreUint64(&global.GWAF_RUNTIME_LOG_PROCESS, 0)
 	})
 	go waftask.TaskShareDbInfo()
 	// 执行分库操作 （每天凌晨3点进行数据归档操作）
-	s.Every(1).Day().At("03:00").Do(func() {
+	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Day().At("03:00").Do(func() {
 		if global.GDATA_CURRENT_CHANGE == false {
 			go waftask.TaskShareDbInfo()
 		} else {
@@ -190,7 +204,7 @@ func (m *wafSystenService) run() {
 	})
 
 	// 每10秒执行一次
-	s.Every(10).Seconds().Do(func() {
+	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(10).Seconds().Do(func() {
 		if global.GWAF_SWITCH_TASK_COUNTER == false {
 			go waftask.TaskCounter()
 		} else {
@@ -198,19 +212,19 @@ func (m *wafSystenService) run() {
 		}
 	})
 	// 获取延迟信息
-	s.Every(1).Minutes().Do(func() {
+	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Minutes().Do(func() {
 		go waftask.TaskDelayInfo()
 
 	})
 	// 获取参数
-	s.Every(1).Minutes().Do(func() {
+	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Minutes().Do(func() {
 		go waftask.TaskLoadSetting()
 
 	})
 
 	if global.GWAF_NOTICE_ENABLE {
 		// 获取最近token
-		s.Every(1).Hour().Do(func() {
+		globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Hour().Do(func() {
 			//defer func() {
 			//	 zlog.Info("token errr")
 			//}()
@@ -219,17 +233,16 @@ func (m *wafSystenService) run() {
 
 		})
 	}
-
 	// 每天早晚8点进行数据汇总通知
-	s.Every(1).Day().At("08:00;20:00").Do(func() {
+	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Day().At("08:00;20:00").Do(func() {
 		go waftask.TaskStatusNotify()
 	})
 
 	// 每天早5点删除历史信息
-	s.Every(1).Day().At("05:00").Do(func() {
+	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Day().At("05:00").Do(func() {
 		go waftask.TaskDeleteHistoryInfo()
 	})
-	s.StartAsync()
+	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.StartAsync()
 
 	//脱敏处理初始化
 	global.GWAF_DLP, _ = dlp.NewEngine("wafDlp")
@@ -238,66 +251,66 @@ func (m *wafSystenService) run() {
 	for {
 		select {
 		case msg := <-global.GWAF_CHAN_MSG:
-			if wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]] != nil && wafEngine.HostCode[msg.HostCode] != "" {
+			if globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]] != nil && globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode] != "" {
 				switch msg.Type {
 				case enums.ChanTypeWhiteIP:
-					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Lock()
-					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].IPWhiteLists = msg.Content.([]model.IPWhiteList)
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Lock()
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].IPWhiteLists = msg.Content.([]model.IPWhiteList)
 					zlog.Debug("远程配置", zap.Any("IPWhiteLists", msg.Content.([]model.IPWhiteList)))
-					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Unlock()
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Unlock()
 					break
 				case enums.ChanTypeWhiteURL:
-					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Lock()
-					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].UrlWhiteLists = msg.Content.([]model.URLWhiteList)
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Lock()
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].UrlWhiteLists = msg.Content.([]model.URLWhiteList)
 					zlog.Debug("远程配置", zap.Any("UrlWhiteLists", msg.Content.([]model.URLWhiteList)))
-					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Unlock()
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Unlock()
 					break
 				case enums.ChanTypeBlockIP:
-					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Lock()
-					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].IPBlockLists = msg.Content.([]model.IPBlockList)
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Lock()
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].IPBlockLists = msg.Content.([]model.IPBlockList)
 					zlog.Debug("远程配置", zap.Any("IPBlockLists", msg))
-					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Unlock()
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Unlock()
 					break
 				case enums.ChanTypeBlockURL:
-					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Lock()
-					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].UrlBlockLists = msg.Content.([]model.URLBlockList)
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Lock()
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].UrlBlockLists = msg.Content.([]model.URLBlockList)
 					zlog.Debug("远程配置", zap.Any("UrlBlockLists", msg.Content.([]model.URLBlockList)))
-					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Unlock()
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Unlock()
 					break
 				case enums.ChanTypeLdp:
-					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Lock()
-					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].LdpUrlLists = msg.Content.([]model.LDPUrl)
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Lock()
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].LdpUrlLists = msg.Content.([]model.LDPUrl)
 					zlog.Debug("远程配置", zap.Any("LdpUrlLists", msg.Content.([]model.LDPUrl)))
-					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Unlock()
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Unlock()
 					break
 				case enums.ChanTypeRule:
-					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Lock()
-					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].RuleData = msg.Content.([]model.Rules)
-					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Rule.LoadRules(msg.Content.([]model.Rules))
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Lock()
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].RuleData = msg.Content.([]model.Rules)
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Rule.LoadRules(msg.Content.([]model.Rules))
 					zlog.Debug("远程配置", zap.Any("Rule", msg.Content.([]model.Rules)))
-					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Unlock()
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Unlock()
 					break
 				case enums.ChanTypeAnticc:
-					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Lock()
-					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].PluginIpRateLimiter = plugin.NewIPRateLimiter(rate.Limit(msg.Content.(model.AntiCC).Rate), msg.Content.(model.AntiCC).Limit)
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Lock()
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].PluginIpRateLimiter = plugin.NewIPRateLimiter(rate.Limit(msg.Content.(model.AntiCC).Rate), msg.Content.(model.AntiCC).Limit)
 					zlog.Debug("远程配置", zap.Any("Anticc", msg.Content.(model.AntiCC)))
-					wafEngine.HostTarget[wafEngine.HostCode[msg.HostCode]].Mux.Unlock()
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Unlock()
 					break
 				case enums.ChanTypeHost:
 					hosts := msg.Content.([]model.Hosts)
 					if len(hosts) == 1 {
-						if wafEngine.HostTarget[hosts[0].Host+":"+strconv.Itoa(hosts[0].Port)].RevProxy != nil {
-							wafEngine.HostTarget[hosts[0].Host+":"+strconv.Itoa(hosts[0].Port)].RevProxy = nil
+						if globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[hosts[0].Host+":"+strconv.Itoa(hosts[0].Port)].RevProxy != nil {
+							globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[hosts[0].Host+":"+strconv.Itoa(hosts[0].Port)].RevProxy = nil
 							zlog.Debug("主机重新代理", hosts[0].Host+":"+strconv.Itoa(hosts[0].Port))
 						}
-						wafEngine.LoadHost(hosts[0])
-						wafEngine.StartAllProxyServer()
+						globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.LoadHost(hosts[0])
+						globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartAllProxyServer()
 					}
 					break
 				case enums.ChanTypeDelHost:
 					host := msg.Content.(model.Hosts)
 					if host.Id != "" {
-						wafEngine.RemoveHost(host)
+						globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(host)
 					}
 					break
 				}
@@ -309,8 +322,8 @@ func (m *wafSystenService) run() {
 				case enums.ChanTypeHost:
 					hosts := msg.Content.([]model.Hosts)
 					if len(hosts) == 1 {
-						hostRunTimeBean := wafEngine.LoadHost(hosts[0])
-						wafEngine.StartProxyServer(hostRunTimeBean)
+						hostRunTimeBean := globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.LoadHost(hosts[0])
+						globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartProxyServer(hostRunTimeBean)
 					}
 					break
 				}
@@ -320,23 +333,24 @@ func (m *wafSystenService) run() {
 		case engineStatus := <-global.GWAF_CHAN_ENGINE:
 			if engineStatus == 1 {
 				zlog.Info("准备关闭WAF引擎")
-				wafEngine.CloseWaf()
+				globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.CloseWaf()
 				zlog.Info("准备启动WAF引擎")
-				wafEngine.StartWaf()
+				globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartWaf()
 
 			}
 			break
 		case host := <-global.GWAF_CHAN_HOST:
-			if wafEngine.HostTarget[host.Host+":"+strconv.Itoa(host.Port)] != nil {
-				wafEngine.HostTarget[host.Host+":"+strconv.Itoa(host.Port)].Host.GUARD_STATUS = host.GUARD_STATUS
+			if globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[host.Host+":"+strconv.Itoa(host.Port)] != nil {
+				globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[host.Host+":"+strconv.Itoa(host.Port)].Host.GUARD_STATUS = host.GUARD_STATUS
 
 			}
 			zlog.Debug("规则", zap.Any("主机", host))
 			break
 		case update := <-global.GWAF_CHAN_UPDATE:
 			if update == 1 {
+				global.GWAF_RUNTIME_SERVER_TYPE = !service.Interactive()
 				//需要重新启动
-				if global.GWAF_RUNTIME_SERVER_TYPE == false {
+				if global.GWAF_RUNTIME_SERVER_TYPE == true {
 					zlog.Info("服务形式重启")
 					// 获取当前执行文件的路径
 					executablePath, err := os.Executable()
@@ -345,20 +359,32 @@ func (m *wafSystenService) run() {
 						return
 					}
 
+					m.stopSamWaf()
 					// 使用filepath包提取文件名
 					//executableName := filepath.Base(executablePath)
 					var cmd *exec.Cmd
 					cmd = exec.Command(executablePath, "restart")
-					cmd.Run()
-					// 等待新实例完成
-					err = cmd.Wait()
+					err = cmd.Start()
 					if err != nil {
-						fmt.Println("Error:", err)
+						zlog.Error("Service Error restarting program:", err)
 						return
 					}
+					// 等待新版本程序启动
+					time.Sleep(2 * time.Second)
+					os.Exit(0)
 				} else {
-					zlog.Info("非服务形式升级重启，请在5秒后手工打开")
-					time.Sleep(5 * time.Second)
+
+					m.stopSamWaf()
+					cmd := exec.Command(executablePath)
+					cmd.Stdout = os.Stdout
+					cmd.Stderr = os.Stderr
+					err := cmd.Start()
+					if err != nil {
+						zlog.Error("Not Service Error restarting program:", err)
+						return
+					}
+					// 等待新版本程序启动
+					time.Sleep(2 * time.Second)
 					os.Exit(0)
 				}
 			}
@@ -368,13 +394,30 @@ func (m *wafSystenService) run() {
 	zlog.Info("normal program close")
 }
 
+// 停止要提前关闭的 是服务的主要逻辑
+func (m *wafSystenService) stopSamWaf() {
+	zlog.Debug("Shutdown SamWaf Engine...")
+	globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.CloseWaf()
+	zlog.Debug("Shutdown SamWaf Engine finished")
+
+	zlog.Debug("Shutdown SamWaf Cron...")
+	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Stop()
+	zlog.Debug("Shutdown SamWaf Cron finished")
+
+	zlog.Debug("Shutdown SamWaf WebManager...")
+	webmanager.CloseLocalServer()
+	zlog.Debug("Shutdown SamWaf WebManager finished")
+
+}
+
 // 优雅升级
 func (m *wafSystenService) Graceful() {
 	//https://github.com/pengge/uranus/blob/main/main.go 预备参考
 }
 
 func main() {
-
+	pid := os.Getpid()
+	zlog.Debug("SamWaf Current PID:" + strconv.Itoa(pid))
 	//获取外网IP
 	global.GWAF_RUNTIME_IP = utils.GetExternalIp()
 
@@ -422,10 +465,10 @@ func main() {
 	}
 
 	if service.Interactive() {
-		zlog.Info("main general run true")
+		zlog.Info("main server under service manager")
 		global.GWAF_RUNTIME_SERVER_TYPE = service.Interactive()
 	} else {
-		zlog.Info("main server run false")
+		zlog.Info("main server not under service manager")
 		global.GWAF_RUNTIME_SERVER_TYPE = service.Interactive()
 	}
 	//defer wafsafeclear.SafeClear()

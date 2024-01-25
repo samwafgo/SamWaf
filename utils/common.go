@@ -6,7 +6,6 @@ import (
 	"SamWaf/utils/zlog"
 	"fmt"
 	"github.com/lionsoul2014/ip2region/binding/golang/xdb"
-	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -23,27 +22,26 @@ func GetExternalIp() string {
 		return ""
 	}
 	defer resp.Body.Close()
-	io.Copy(os.Stdout, resp.Body)
+	//io.Copy(os.Stdout, resp.Body)
 	body, _ := ioutil.ReadAll(resp.Body)
 	clientIP := fmt.Sprintf("%s", string(body))
 	return clientIP
 }
 
 func GetCurrentDir() string {
-	/*	pwd, err := os.Getwd()
-		if err != nil {
-			fmt.Errorf("currentPath")
-		}
-	    return pwd*/
-	if global.GWAF_RELEASE == "false" {
+	// 检测环境变量是否存在
+	envVar := "SamWafIDE"
+	if value, exists := os.LookupEnv(envVar); exists {
+		zlog.Info("当前在IDE,环境变量", value)
 		return "."
 	}
+
 	exePath, err := os.Executable()
 	if err != nil {
-		fmt.Println("Failed to get executable path:", err)
+		zlog.Error("Failed to get executable path:", err)
 		return ""
 	}
-
+	zlog.Info("当前程序所在文件位置", exePath)
 	exeDir := filepath.Dir(exePath)
 	return exeDir
 }

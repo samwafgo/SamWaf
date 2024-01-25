@@ -409,7 +409,6 @@ func TaskLoadSetting() {
 */
 func TaskDelayInfo() {
 	zlog.Debug("TaskDelayInfo")
-
 	models, count, err := waf_service.WafDelayMsgServiceApp.GetAllList()
 	if err == nil {
 		if count > 0 {

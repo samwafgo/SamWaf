@@ -33,6 +33,8 @@ var (
 	GWAF_RUNTIME_DNS_SERVER string = "119.29.29.29" //反向查询DNS的IP
 
 	GWAF_RUNTIME_RECORD_LOG_TYPE string = "all" // 记录日志形式： 全部(all),非正常(abnormal)
+	GWAF_RUNTIME_IS_UPDATETING   bool   = false //是否正在升级中
+
 	/**
 	遥测数据
 	*/

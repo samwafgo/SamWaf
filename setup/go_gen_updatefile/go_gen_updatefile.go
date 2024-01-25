@@ -115,7 +115,7 @@ func createUpdate(path string, platform string, desc string) {
 			os.Exit(1)
 		}
 
-		isClose := true
+		isClose := false
 		if isClose {
 			ar := newGzReader(old)
 			defer ar.Close()

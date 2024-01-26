@@ -186,7 +186,7 @@ func CheckIPInCIDR(ip string, ipRange string) bool {
 		if ip == ipRange {
 			return true
 		} else {
-			return true
+			return false
 		}
 	} else {
 		//如果是网段IP

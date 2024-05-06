@@ -18,7 +18,7 @@
       </div>
       <div class="bottom-right">
         <!-- 右边下半部分内容 -->
-        右边下半部分内容
+
       </div>
     </div>
   </div>
@@ -440,7 +440,7 @@
   .bottom-right {
     flex: 1;
     /* 下半部分高度占比，这里为 1，可以根据需要调整 */
-    background-color: #c0c0c0;
+    background-color: #f0f0f0;
     /* 下半部分背景色 */
     padding: 20px;
   }

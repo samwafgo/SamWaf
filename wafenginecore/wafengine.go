@@ -13,6 +13,7 @@ import (
 	"SamWaf/utils"
 	"SamWaf/utils/zlog"
 	"SamWaf/wafbot"
+	"SamWaf/wafdefenserce"
 	"SamWaf/wafproxy"
 	"bufio"
 	"bytes"
@@ -253,71 +254,97 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			if jumpGuardFlag == false {
 
+				hostDefense := model.HostsDefense{
+					DEFENSE_BOT:  1,
+					DEFENSE_SQLI: 1,
+					DEFENSE_XSS:  1,
+					DEFENSE_SCAN: 1,
+					DEFENSE_RCE:  1,
+				}
+				err := json.Unmarshal([]byte(waf.HostTarget[host].Host.DEFENSE_JSON), &hostDefense)
+				if err != nil {
+					zlog.Error("解析defense json失败")
+				}
 				//检测爬虫bot
-				isBot, isNormalBot, BotName := wafbot.DetermineNormalSearch(weblogbean.USER_AGENT, weblogbean.SRC_IP)
-				if isBot == true {
-					if isNormalBot {
-						weblogbean.GUEST_IDENTIFICATION = BotName
-					} else {
-						weblogbean.GUEST_IDENTIFICATION = BotName
-						weblogbean.RISK_LEVEL = 1
-						EchoErrorInfo(w, r, weblogbean, BotName, "请正确访问")
+				if hostDefense.DEFENSE_BOT == 1 {
+					isBot, isNormalBot, BotName := wafbot.DetermineNormalSearch(weblogbean.USER_AGENT, weblogbean.SRC_IP)
+					if isBot == true {
+						if isNormalBot {
+							weblogbean.GUEST_IDENTIFICATION = BotName
+						} else {
+							weblogbean.GUEST_IDENTIFICATION = BotName
+							weblogbean.RISK_LEVEL = 1
+							EchoErrorInfo(w, r, weblogbean, BotName, "请正确访问")
+							return
+						}
+					}
+				}
+				if hostDefense.DEFENSE_SQLI == 1 {
+					var sqlFlag = false
+					//检测sql注入
+					if libinjection.IsSQLiNotReturnPrint(weblogbean.URL) ||
+						libinjection.IsSQLiNotReturnPrint(weblogbean.BODY) ||
+						libinjection.IsSQLiNotReturnPrint(weblogbean.POST_FORM) {
+						sqlFlag = true
+					}
+					if sqlFlag == false {
+						for _, value := range formValues {
+							for _, v := range value {
+								if libinjection.IsSQLiNotReturnPrint(v) {
+									sqlFlag = true
+								}
+							}
+						}
+					}
+					if sqlFlag == true {
+						weblogbean.RISK_LEVEL = 2
+						EchoErrorInfo(w, r, weblogbean, "SQL注入", "请正确访问")
 						return
 					}
 				}
 
-				var sqlFlag = false
-				//检测sql注入
-				if libinjection.IsSQLiNotReturnPrint(weblogbean.URL) ||
-					libinjection.IsSQLiNotReturnPrint(weblogbean.BODY) ||
-					libinjection.IsSQLiNotReturnPrint(weblogbean.POST_FORM) {
-					sqlFlag = true
-				}
-				if sqlFlag == false {
-					for _, value := range formValues {
-						for _, v := range value {
-							if libinjection.IsSQLiNotReturnPrint(v) {
-								sqlFlag = true
-							}
-						}
-					}
-				}
-				if sqlFlag == true {
-					weblogbean.RISK_LEVEL = 2
-					EchoErrorInfo(w, r, weblogbean, "SQL注入", "请正确访问")
-					return
-				}
 				//检测xss注入
-				var xssFlag = false
-				if libinjection.IsXSS(weblogbean.URL) ||
-					libinjection.IsXSS(weblogbean.POST_FORM) {
-					xssFlag = true
-				}
-				if xssFlag == false {
-					for _, value := range formValues {
-						for _, v := range value {
-							if libinjection.IsXSS(v) {
-								//xssFlag = true
+				if hostDefense.DEFENSE_XSS == 1 {
+					var xssFlag = false
+					if libinjection.IsXSS(weblogbean.URL) ||
+						libinjection.IsXSS(weblogbean.POST_FORM) {
+						xssFlag = true
+					}
+					if xssFlag == false {
+						for _, value := range formValues {
+							for _, v := range value {
+								if libinjection.IsXSS(v) {
+									//xssFlag = true
+								}
 							}
 						}
 					}
+					if xssFlag == true {
+						weblogbean.RISK_LEVEL = 2
+						EchoErrorInfo(w, r, weblogbean, "XSS跨站注入", "请正确访问")
+						return
+					}
 				}
-				if xssFlag == true {
-					weblogbean.RISK_LEVEL = 2
-					EchoErrorInfo(w, r, weblogbean, "XSS跨站注入", "请正确访问")
-					return
-				}
-				//检测xss
-
 				//检测扫描工具
-				var scanFlag = false
-				if libinjection.IsScan(weblogbean) {
-					scanFlag = true
+				if hostDefense.DEFENSE_SCAN == 1 {
+					var scanFlag = false
+					if libinjection.IsScan(weblogbean) {
+						scanFlag = true
+					}
+					if scanFlag == true {
+						weblogbean.RISK_LEVEL = 1
+						EchoErrorInfo(w, r, weblogbean, "扫描工具", "请正确访问")
+						return
+					}
 				}
-				if scanFlag == true {
-					weblogbean.RISK_LEVEL = 1
-					EchoErrorInfo(w, r, weblogbean, "扫描工具", "请正确访问")
-					return
+				//检测RCE
+				if hostDefense.DEFENSE_RCE == 1 {
+					isRce, RceName := wafdefenserce.DetermineRCE(weblogbean.URL, weblogbean.COOKIES, weblogbean.POST_FORM)
+					if isRce == true {
+						weblogbean.RISK_LEVEL = 3
+						EchoErrorInfo(w, r, weblogbean, "RCE:"+RceName, "请正确访问")
+						return
+					}
 				}
 				// cc 防护 (局部检测 )
 				if waf.HostTarget[host].PluginIpRateLimiter != nil {
@@ -383,7 +410,10 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 		}
-
+		//日志保存时候也是脱敏保存防止，数据库密码被破解，遭到敏感信息遭到泄露
+		if weblogbean.BODY != "" {
+			weblogbean.BODY = utils.DeSenText(weblogbean.BODY)
+		}
 		//global.GQEQUE_LOG_DB.PushBack(weblogbean)
 		remoteUrl, err := url.Parse(target.TargetHost)
 		if err != nil {

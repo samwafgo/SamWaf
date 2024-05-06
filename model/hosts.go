@@ -18,4 +18,13 @@ type Hosts struct {
 	Keyfile       string `json:"keyfile"`       //密钥文件
 	REMARKS       string `json:"remarks"`       //备注
 	GLOBAL_HOST   int    `json:"global_host"`   //默认全局 1 全局 0非全局
+	DEFENSE_JSON  string `json:"defense_json"`  //自身防御 json
+}
+
+type HostsDefense struct {
+	DEFENSE_BOT  int `json:"bot"`  //防御-虚假BOT
+	DEFENSE_SQLI int `json:"sqli"` //防御-Sql注入
+	DEFENSE_XSS  int `json:"xss"`  //防御-xss攻击
+	DEFENSE_SCAN int `json:"scan"` //防御-scan工具扫描
+	DEFENSE_RCE  int `json:"rce"`  //防御-scan工具扫描
 }

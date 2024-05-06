@@ -317,7 +317,7 @@
           },
           {
             title: '访问url',
-            width: 300,
+            width: 160,
             ellipsis: true,
             colKey: 'url',
           },
@@ -346,7 +346,7 @@
           },
           {
             align: 'left',
-            width: 200,
+            width: 120,
             colKey: 'op',
             title: '操作',
           },

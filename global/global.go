@@ -58,7 +58,8 @@ var (
 	GWAF_LAST_UPDATE_TIME     time.Time               // 上次时间
 	GWAF_NOTICE_ENABLE        bool      = false       // 是否开启通知
 
-	GWAF_DLP dlpheader.EngineAPI // 脱敏引擎
+	GWAF_DLP        dlpheader.EngineAPI // 脱敏引擎
+	GWAF_DLP_CONFIG string              // 脱敏引擎配置数据
 
 	/**链聚合**/
 	GWAF_CHAN_HOST   = make(chan model.Hosts, 10)         //主机链

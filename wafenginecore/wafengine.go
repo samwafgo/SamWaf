@@ -2,6 +2,7 @@ package wafenginecore
 
 import (
 	"SamWaf/customtype"
+	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/libinjection-go"
@@ -412,7 +413,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		//日志保存时候也是脱敏保存防止，数据库密码被破解，遭到敏感信息遭到泄露
 		if weblogbean.BODY != "" {
-			weblogbean.BODY = utils.DeSenText(weblogbean.BODY)
+			weblogbean.BODY = utils.DeSenTextByCustomMark(enums.DLP_MARK_RULE_LoginSensitiveInfoMaskRule, weblogbean.BODY)
 		}
 		//global.GQEQUE_LOG_DB.PushBack(weblogbean)
 		remoteUrl, err := url.Parse(target.TargetHost)

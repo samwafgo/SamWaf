@@ -34,6 +34,7 @@ import (
 	"os/signal"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -42,6 +43,9 @@ import (
 
 //go:embed exedata/ip2region.xdb
 var Ip2regionBytes []byte // 当前目录，解析为[]byte类型
+
+//go:embed exedata/ldpconfig.yml
+var ldpConfig string //隐私防护ldp
 // wafSystenService 实现了 service.Service 接口
 type wafSystenService struct{}
 
@@ -91,6 +95,8 @@ func (m *wafSystenService) run() {
 	// 从嵌入的文件中读取内容
 
 	global.GCACHE_IP_CBUFF = Ip2regionBytes
+	global.GWAF_DLP_CONFIG = ldpConfig
+
 	/*// 启动一个 goroutine 来处理信号
 	go func() {
 		// 创建一个通道来接收信号
@@ -247,7 +253,32 @@ func (m *wafSystenService) run() {
 
 	//脱敏处理初始化
 	global.GWAF_DLP, _ = dlp.NewEngine("wafDlp")
-	global.GWAF_DLP.ApplyConfigDefault()
+	err = global.GWAF_DLP.ApplyConfig(ldpConfig)
+	if err != nil {
+		zlog.Info("ldp init error", err)
+	} else {
+		// 注册自定义脱敏规则
+		global.GWAF_DLP.RegisterMasker("LoginSensitiveInfoMaskRule", func(in string) (string, error) {
+
+			// 分割成键值对
+			pairs := strings.Split(in, "&")
+			// 遍历每个键值对，对值进行脱敏处理
+			for i, pair := range pairs {
+				keyValue := strings.SplitN(pair, "=", 2)
+				if len(keyValue) != 2 {
+					continue
+				}
+				value := keyValue[1]
+				if len(value) > 2 {
+					value = value[:1] + strings.Repeat("*", len(value)-2) + value[len(value)-1:]
+				}
+				pairs[i] = keyValue[0] + "=" + value
+			}
+			// 将处理后的键值对重新组合成字符串
+			return "【已脱敏】" + strings.Join(pairs, "&"), nil
+		})
+
+	}
 
 	for {
 		select {

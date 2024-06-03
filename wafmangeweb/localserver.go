@@ -21,6 +21,7 @@ type WafWebManager struct {
 }
 
 func (web *WafWebManager) initRouter(r *gin.Engine) {
+
 	PublicRouterGroup := r.Group("")
 	PublicRouterGroup.Use(middleware.SecApi())
 	router.PublicApiGroupApp.InitLoginRouter(PublicRouterGroup)
@@ -49,6 +50,7 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitWafCommonRouter(RouterGroup)
 
 	}
+	r.Use(middleware.GinGlobalExceptionMiddleWare())
 
 }
 func (web *WafWebManager) cors() gin.HandlerFunc {

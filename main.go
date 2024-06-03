@@ -172,7 +172,6 @@ func (m *wafSystenService) run() {
 		ServerOnline: map[int]innerbean.ServerRunTime{},
 		//所有证书情况 对应端口 可能多个端口都是https 443，或者其他非标准端口也要实现https证书
 		AllCertificate: map[int]map[string]*tls.Certificate{},
-		EsHelper:       utils.EsHelper{},
 
 		EngineCurrentStatus: 0, // 当前waf引擎状态
 	}
@@ -442,6 +441,9 @@ func (m *wafSystenService) Graceful() {
 }
 
 func main() {
+	if v := recover(); v != nil { // 侦测到一个恐慌
+		zlog.Info("主流程上被异常了")
+	}
 	pid := os.Getpid()
 	zlog.Debug("SamWaf Current PID:" + strconv.Itoa(pid))
 	//获取外网IP

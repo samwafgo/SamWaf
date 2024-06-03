@@ -54,7 +54,6 @@ type WafEngine struct {
 	//所有证书情况 对应端口 可能多个端口都是https 443，或者其他非标准端口也要实现https证书
 	//嵌套结构 (key：端口 ，再往下是 下面的主机名，value 证书)
 	AllCertificate map[int]map[string]*tls.Certificate
-	EsHelper       utils.EsHelper
 
 	EngineCurrentStatus int // 当前waf引擎状态
 }

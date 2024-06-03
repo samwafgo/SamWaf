@@ -8,7 +8,6 @@ require (
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/dsnet/compress v0.0.1
 	github.com/edwingeng/deque v1.0.3
-	github.com/elastic/go-elasticsearch/v7 v7.17.1
 	github.com/elazarl/go-bindata-assetfs v1.0.1
 	github.com/gin-gonic/gin v1.8.1
 	github.com/go-co-op/gocron v1.17.1

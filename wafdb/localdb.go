@@ -162,7 +162,7 @@ func InitLogDb(currentDir string) {
 		db.AutoMigrate(&innerbean.WebLog{})
 		db.AutoMigrate(&model.AccountLog{})
 		db.AutoMigrate(&model.WafSysLog{})
-
+		db.AutoMigrate(&model.OneKeyMod{})
 		global.GWAF_LOCAL_LOG_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 		global.GWAF_LOCAL_LOG_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
 
@@ -223,6 +223,7 @@ func InitManaulLogDb(currentDir string, custFileName string) {
 		db.AutoMigrate(&innerbean.WebLog{})
 		db.AutoMigrate(&model.AccountLog{})
 		db.AutoMigrate(&model.WafSysLog{})
+		db.AutoMigrate(&model.OneKeyMod{})
 
 		global.GDATA_CURRENT_LOG_DB_MAP[custFileName].Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 		global.GDATA_CURRENT_LOG_DB_MAP[custFileName].Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)

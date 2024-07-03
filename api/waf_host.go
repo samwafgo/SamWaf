@@ -23,7 +23,7 @@ func (w *WafHostAPi) AddApi(c *gin.Context) {
 	if err == nil {
 		//端口从未在本系统加过，检测端口是否被其他应用占用
 		if wafHostService.CheckPortExistApi(req.Port) == 0 && utils.PortCheck(req.Port) == false {
-			response.FailWithMessage("端口被其他应用占用不能使用", c)
+			response.FailWithMessage("端口被其他应用占用不能使用,如果使用的宝塔请在Samwaf系统管理-一键修改进行操作", c)
 			return
 		}
 		err = wafHostService.CheckIsExistApi(req)

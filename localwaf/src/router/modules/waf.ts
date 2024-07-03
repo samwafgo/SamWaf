@@ -163,6 +163,11 @@ export default [
         name: 'RumtimeSysteminfo',
         component: () => import('@/pages/waf/sysruntime/index.vue'),
         meta: { title: '运行参数' },
+      },{
+        path: 'OneKeyMod',
+        name: 'OneKeyMod',
+        component: () => import('@/pages/waf/onekeymod/index.vue'),
+        meta: { title: '一键修改' },
       },
     ],
   },

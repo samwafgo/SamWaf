@@ -48,6 +48,7 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitSysInfoRouter(RouterGroup)
 		router.ApiGroupApp.InitSystemConfigRouter(RouterGroup)
 		router.ApiGroupApp.InitWafCommonRouter(RouterGroup)
+		router.ApiGroupApp.InitOneKeyModRouter(RouterGroup)
 
 	}
 	r.Use(middleware.GinGlobalExceptionMiddleWare())

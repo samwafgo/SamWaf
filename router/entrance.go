@@ -20,6 +20,7 @@ type ApiGroup struct {
 	WebSysInfoRouter
 	SystemConfigRouter
 	WafCommonRouter
+	OneKeyModRouter
 }
 type PublicApiGroup struct {
 	LoginRouter

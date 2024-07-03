@@ -66,7 +66,14 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	atomic.AddUint64(&global.GWAF_RUNTIME_QPS, 1) // 原子增加计数器
 	host := r.Host
 	if !strings.Contains(host, ":") {
-		host = host + ":80"
+		// 检查请求是否使用了HTTPS
+		if r.TLS != nil {
+			// 请求使用了HTTPS
+			host = host + ":443"
+		} else {
+			// 请求使用了HTTP
+			host = host + ":80"
+		}
 	}
 
 	defer func() {
@@ -580,7 +587,14 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 
 			host := resp.Request.Host
 			if !strings.Contains(host, ":") {
-				host = host + ":80"
+				// 检查请求是否使用了HTTPS
+				if resp.Request.TLS != nil {
+					// 请求使用了HTTPS
+					host = host + ":443"
+				} else {
+					// 请求使用了HTTP
+					host = host + ":80"
+				}
 			}
 			/*if waf.HostTarget[host] != nil {
 				//weblogbean.HOST_CODE = waf.HostTarget[host].Host.Code

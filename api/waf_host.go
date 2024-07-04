@@ -24,8 +24,8 @@ func (w *WafHostAPi) AddApi(c *gin.Context) {
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		//端口从未在本系统加过，检测端口是否被其他应用占用
-		if wafHostService.CheckPortExistApi(req.Port) == 0 && utils.PortCheck(req.Port) == false {
-			response.FailWithMessage("端口被其他应用占用不能使用,如果使用的宝塔请在Samwaf系统管理-一键修改进行操作", c)
+		_, svrOk := globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ServerOnline[req.Port]
+		if !svrOk && utils.PortCheck(req.Port) == false {
 			//发送websocket 推送消息
 			global.GQEQUE_MESSAGE_DB.PushBack(innerbean.OpResultMessageInfo{
 				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "提示信息", Server: global.GWAF_CUSTOM_SERVER_NAME},
@@ -125,14 +125,15 @@ func (w *WafHostAPi) ModifyHostApi(c *gin.Context) {
 	if err == nil {
 		wafHostOld := wafHostService.GetDetailByCodeApi(req.CODE)
 		//端口从未在本系统加过，检测端口是否被其他应用占用
-		if wafHostService.CheckPortExistApi(req.Port) == 0 && utils.PortCheck(req.Port) == false {
+
+		_, svrOk := globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ServerOnline[req.Port]
+		if !svrOk && utils.PortCheck(req.Port) == false {
 			//发送websocket 推送消息
 			global.GQEQUE_MESSAGE_DB.PushBack(innerbean.OpResultMessageInfo{
 				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "提示信息", Server: global.GWAF_CUSTOM_SERVER_NAME},
 				Msg:             "端口被其他应用占用不能使用,如果使用的宝塔请在Samwaf系统管理-一键修改进行操作",
 				Success:         "true",
 			})
-			//return
 			req.START_STATUS = 1 //设置成不能启动
 		}
 		err = wafHostService.ModifyApi(req)

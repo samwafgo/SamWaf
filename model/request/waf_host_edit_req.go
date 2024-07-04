@@ -14,4 +14,5 @@ type WafHostEditReq struct {
 	Certfile      string `json:"certfile"`      // 证书文件
 	Keyfile       string `json:"keyfile"`       // 密钥文件
 	DEFENSE_JSON  string `json:"defense_json"`  //自身防御 json
+	START_STATUS  int    `json:"start_status"`  //启动状态
 }

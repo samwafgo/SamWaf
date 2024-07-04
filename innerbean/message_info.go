@@ -43,6 +43,16 @@ type UpdateResultMessageInfo struct {
 	Success string `json:"success"`
 }
 
+/*
+*
+实时操作反馈
+*/
+type OpResultMessageInfo struct {
+	BaseMessageInfo
+	Msg     string `json:"msg"`
+	Success string `json:"success"`
+}
+
 func (r RuleMessageInfo) ToFormat() map[string]*wechat.DataItem {
 	Data := map[string]*wechat.DataItem{}
 	Data["domain"] = &wechat.DataItem{

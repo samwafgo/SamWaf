@@ -17,5 +17,6 @@ func (receiver *HostRouter) InitHostRouter(group *gin.RouterGroup) {
 	hostRouter.GET("/samwaf/wafhost/host/del", hostApi.DelHostApi)
 	hostRouter.POST("/samwaf/wafhost/host/edit", hostApi.ModifyHostApi)
 	hostRouter.GET("/samwaf/wafhost/host/guardstatus", hostApi.ModifyGuardStatusApi)
+	hostRouter.GET("/samwaf/wafhost/host/startstatus", hostApi.ModifyStartStatusApi)
 	hostRouter.GET("/samwaf/wafhost/host/allhost", hostApi.GetAllListApi)
 }

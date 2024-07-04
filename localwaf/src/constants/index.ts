@@ -17,6 +17,12 @@ export const SSL_STATUS = {
   NOT_SSL: 0,
   SSL: 1,
 };
+
+// 启动状态枚举
+export const START_STATUS = {
+  START: 0,
+  NOT_START: 1,
+};
 // 合同状态枚举
 export const CONTRACT_STATUS = {
   FAIL: 0,

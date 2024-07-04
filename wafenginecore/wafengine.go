@@ -785,6 +785,7 @@ func (waf *WafEngine) StartWaf() {
 			Keyfile:       "",
 			REMARKS:       "",
 			GLOBAL_HOST:   1,
+			START_STATUS:  0,
 		}
 		global.GWAF_LOCAL_DB.Create(wafGlobalHost)
 	}
@@ -865,7 +866,6 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) innerbean.ServerRunTime {
 			return innerbean.ServerRunTime{}
 
 		}
-		//all_certificate[hosts[i].Port][hosts[i].Host] = &cert
 		mm, ok := waf.AllCertificate[inHost.Port] //[hosts[i].Host]
 		if !ok {
 			mm = make(map[string]*tls.Certificate)
@@ -875,11 +875,16 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) innerbean.ServerRunTime {
 	}
 	_, ok := waf.ServerOnline[inHost.Port]
 	if ok == false && inHost.GLOBAL_HOST == 0 {
-		waf.ServerOnline[inHost.Port] = innerbean.ServerRunTime{
-			ServerType: utils.GetServerByHosts(inHost),
-			Port:       inHost.Port,
-			Status:     1,
+		if inHost.START_STATUS == 0 {
+			waf.ServerOnline[inHost.Port] = innerbean.ServerRunTime{
+				ServerType: utils.GetServerByHosts(inHost),
+				Port:       inHost.Port,
+				Status:     1,
+			}
+		} else {
+			delete(waf.ServerOnline, inHost.Port)
 		}
+
 	}
 	//加载主机对于的规则
 	ruleHelper := &utils.RuleHelper{}
@@ -964,7 +969,7 @@ func (waf *WafEngine) RemoveHost(host model.Hosts) {
 	AllCertificate map[int]map[string]*tls.Certificate*/
 	//1.如果这个port里面没有了主机 那可以直接停掉服务
 	//2.除了第一个情况之外的，把所有他的主机信息和关联信息都干掉
-	if waf_service.WafHostServiceApp.CheckPortExistApi(host.Port) == 0 {
+	if waf_service.WafHostServiceApp.CheckAvailablePortExistApi(host.Port) == 0 {
 		zlog.Debug("准备移除这个端口下所有信息")
 		// a.移除证书数据
 		_, ok := waf.AllCertificate[host.Port]
@@ -978,13 +983,18 @@ func (waf *WafEngine) RemoveHost(host model.Hosts) {
 		//d.暂停服务 并 移除服务信息
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		err := waf.ServerOnline[host.Port].Svr.Shutdown(ctx)
-		if err != nil {
-			zlog.Error("shutting down: " + err.Error())
-		} else {
-			zlog.Info("shutdown processed successfully port" + strconv.Itoa(host.Port))
+
+		_, svrOk := waf.ServerOnline[host.Port]
+		if svrOk {
+			err := waf.ServerOnline[host.Port].Svr.Shutdown(ctx)
+			if err != nil {
+				zlog.Error("shutting down: " + err.Error())
+			} else {
+				zlog.Info("shutdown processed successfully port" + strconv.Itoa(host.Port))
+			}
+			delete(waf.ServerOnline, host.Port)
 		}
-		delete(waf.ServerOnline, host.Port)
+
 	} else {
 		zlog.Debug("准备移除没用的主机信息")
 		// a.移除某个端口下的证书数据
@@ -1001,10 +1011,22 @@ func (waf *WafEngine) RemoveHost(host model.Hosts) {
 
 // 开启所有代理
 func (waf *WafEngine) StartAllProxyServer() {
+
 	for _, v := range waf.ServerOnline {
 		waf.StartProxyServer(v)
 	}
+	waf.EnumAllPortProxyServer()
 }
+
+// 罗列端口
+func (waf *WafEngine) EnumAllPortProxyServer() {
+	onlinePorts := ""
+	for _, v := range waf.ServerOnline {
+		onlinePorts = strconv.Itoa(v.Port) + "," + onlinePorts
+	}
+	global.GWAF_RUNTIME_CURRENT_WEBPORT = onlinePorts
+}
+
 func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 	if innruntime.Status == 0 {
 		//启动完成的就不进这里了

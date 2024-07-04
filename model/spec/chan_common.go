@@ -1,7 +1,8 @@
 package spec
 
 type ChanCommonHost struct {
-	HostCode string
-	Type     int
-	Content  interface{}
+	HostCode   string
+	Type       int
+	Content    interface{}
+	OldContent interface{}
 }

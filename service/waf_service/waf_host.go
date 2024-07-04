@@ -39,6 +39,7 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 		REMARKS:       wafHostAddReq.REMARKS,
 		GLOBAL_HOST:   0,
 		DEFENSE_JSON:  wafHostAddReq.DEFENSE_JSON,
+		START_STATUS:  wafHostAddReq.START_STATUS,
 	}
 	global.GWAF_LOCAL_DB.Create(wafHost)
 	return wafHost.Code, nil
@@ -76,6 +77,7 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 		"Keyfile":       wafHostEditReq.Keyfile,
 		"UPDATE_TIME":   customtype.JsonTime(time.Now()),
 		"DEFENSE_JSON":  wafHostEditReq.DEFENSE_JSON,
+		"START_STATUS":  wafHostEditReq.START_STATUS,
 	}
 	err := global.GWAF_LOCAL_DB.Debug().Model(model.Hosts{}).Where("CODE=?", wafHostEditReq.CODE).Updates(hostMap).Error
 
@@ -158,7 +160,15 @@ func (receiver *WafHostService) ModifyGuardStatusApi(req request.WafHostGuardSta
 	err := global.GWAF_LOCAL_DB.Model(model.Hosts{}).Where("CODE=?", req.CODE).Updates(hostMap).Error
 	return err
 }
+func (receiver *WafHostService) ModifyStartStatusApi(req request.WafHostStartStatusReq) error {
+	hostMap := map[string]interface{}{
+		"START_STATUS": req.START_STATUS,
+		"UPDATE_TIME":  customtype.JsonTime(time.Now()),
+	}
 
+	err := global.GWAF_LOCAL_DB.Model(model.Hosts{}).Where("CODE=?", req.CODE).Updates(hostMap).Error
+	return err
+}
 func (receiver *WafHostService) GetAllHostApi() []model.Hosts {
 	var webHosts []model.Hosts
 	global.GWAF_LOCAL_DB.Order("global_host desc").Find(&webHosts)
@@ -169,6 +179,13 @@ func (receiver *WafHostService) CheckPortExistApi(port int) int64 {
 	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where("port=?", port).Count(&total)
 	return total
 }
+
+func (receiver *WafHostService) CheckAvailablePortExistApi(port int) int64 {
+	var total int64 = 0
+	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where(" (start_status = 0 or start_status is null) and port=?", port).Count(&total)
+	return total
+}
+
 func (receiver *WafHostService) IsEmptyHost() bool {
 	var total int64 = 0
 	err := global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where("global_host=?", 0).Count(&total).Error

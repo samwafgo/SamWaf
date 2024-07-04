@@ -3,6 +3,8 @@ package api
 import (
 	"SamWaf/enums"
 	"SamWaf/global"
+	"SamWaf/globalobj"
+	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
@@ -24,13 +26,20 @@ func (w *WafHostAPi) AddApi(c *gin.Context) {
 		//端口从未在本系统加过，检测端口是否被其他应用占用
 		if wafHostService.CheckPortExistApi(req.Port) == 0 && utils.PortCheck(req.Port) == false {
 			response.FailWithMessage("端口被其他应用占用不能使用,如果使用的宝塔请在Samwaf系统管理-一键修改进行操作", c)
-			return
+			//发送websocket 推送消息
+			global.GQEQUE_MESSAGE_DB.PushBack(innerbean.OpResultMessageInfo{
+				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "提示信息", Server: global.GWAF_CUSTOM_SERVER_NAME},
+				Msg:             "端口被其他应用占用不能使用,如果使用的宝塔请在Samwaf系统管理-一键修改进行操作",
+				Success:         "true",
+			})
+			//return
+			req.START_STATUS = 1 //设置成不能启动
 		}
 		err = wafHostService.CheckIsExistApi(req)
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 			hostCode, err := wafHostService.AddApi(req)
 			if err == nil {
-				w.NotifyWaf(hostCode)
+				w.NotifyWaf(hostCode, nil)
 				response.OkWithMessage("添加成功", c)
 			} else {
 
@@ -114,16 +123,23 @@ func (w *WafHostAPi) ModifyHostApi(c *gin.Context) {
 	var req request.WafHostEditReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		wafHostOld := wafHostService.GetDetailByCodeApi(req.CODE)
 		//端口从未在本系统加过，检测端口是否被其他应用占用
 		if wafHostService.CheckPortExistApi(req.Port) == 0 && utils.PortCheck(req.Port) == false {
-			response.FailWithMessage("端口被其他应用占用不能使用", c)
-			return
+			//发送websocket 推送消息
+			global.GQEQUE_MESSAGE_DB.PushBack(innerbean.OpResultMessageInfo{
+				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "提示信息", Server: global.GWAF_CUSTOM_SERVER_NAME},
+				Msg:             "端口被其他应用占用不能使用,如果使用的宝塔请在Samwaf系统管理-一键修改进行操作",
+				Success:         "true",
+			})
+			//return
+			req.START_STATUS = 1 //设置成不能启动
 		}
 		err = wafHostService.ModifyApi(req)
 		if err != nil {
 			response.FailWithMessage("编辑发生错误", c)
 		} else {
-			w.NotifyWaf(req.CODE)
+			w.NotifyWaf(req.CODE, wafHostOld)
 			response.OkWithMessage("编辑成功", c)
 		}
 
@@ -152,19 +168,54 @@ func (w *WafHostAPi) ModifyGuardStatusApi(c *gin.Context) {
 
 /*
 *
+修改启动状态
+*/
+func (w *WafHostAPi) ModifyStartStatusApi(c *gin.Context) {
+	var req request.WafHostStartStatusReq
+	err := c.ShouldBind(&req)
+	if err == nil {
+		wafHostOld := wafHostService.GetDetailByCodeApi(req.CODE)
+
+		_, svrOk := globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ServerOnline[wafHostOld.Port]
+
+		if req.START_STATUS == 0 && !svrOk && utils.PortCheck(wafHostOld.Port) == false {
+			//发送websocket 推送消息
+			global.GQEQUE_MESSAGE_DB.PushBack(innerbean.OpResultMessageInfo{
+				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "提示信息", Server: global.GWAF_CUSTOM_SERVER_NAME},
+				Msg:             "端口被其他应用占用不能使用,如果使用的宝塔请在Samwaf系统管理-一键修改进行操作",
+				Success:         "true",
+			})
+			response.FailWithMessage("端口被其他应用占用不能开启", c)
+			return
+		} else {
+			err = wafHostService.ModifyStartStatusApi(req)
+			if err != nil {
+				response.FailWithMessage("更新状态发生错误", c)
+			} else {
+				//发送状态改变通知
+				w.NotifyWaf(req.CODE, wafHostOld)
+				response.OkWithMessage("状态更新成功", c)
+			}
+		}
+
+	} else {
+		response.FailWithMessage("解析失败", c)
+	}
+}
+
+/*
+*
 通知到waf引擎实时生效
 */
-func (w *WafHostAPi) NotifyWaf(hostCode string) {
-	//情况1，端口是新的，域名也是新的
-	//情况2, 端口不变，就是重新加载数据
-	//情况3，端口从A切换到B了，域名是旧的
-	//情况4，端口更改后，当前这个端口下没有域名了，应该是关闭了，并移除数据
+func (w *WafHostAPi) NotifyWaf(hostCode string, oldHostInterface interface{}) {
+
 	var hosts []model.Hosts
 	global.GWAF_LOCAL_DB.Where("code = ? ", hostCode).Find(&hosts)
 	var chanInfo = spec.ChanCommonHost{
-		HostCode: hostCode,
-		Type:     enums.ChanTypeHost,
-		Content:  hosts,
+		HostCode:   hostCode,
+		Type:       enums.ChanTypeHost,
+		Content:    hosts,
+		OldContent: oldHostInterface,
 	}
 	global.GWAF_CHAN_MSG <- chanInfo
 }

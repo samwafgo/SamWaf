@@ -19,6 +19,7 @@ type Hosts struct {
 	REMARKS       string `json:"remarks"`       //备注
 	GLOBAL_HOST   int    `json:"global_host"`   //默认全局 1 全局 0非全局
 	DEFENSE_JSON  string `json:"defense_json"`  //自身防御 json
+	START_STATUS  int    `json:"start_status"`  //启动状态 如果是0 启动  ; 如果是1 不启动
 }
 
 type HostsDefense struct {

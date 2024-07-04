@@ -39,20 +39,14 @@
                  @page-change="rehandlePageChange" @change="rehandleChange" @select-change="rehandleSelectChange"
                  :headerAffixedTop="true" :headerAffixProps="{ offsetTop: offsetTop, container: getContainer }">
           <template #guard_status="{ row }">
-
-            <t-popconfirm theme="default" :visible="row.guard_status_visiable" @visible-change="onVisibleChange">
-              <template slot="content">
-                <p class="title">防护规则</p>
-                <p class="describe">带描述的气泡确认框在主要说明之外增加了操作相关的详细描述</p>
-              </template>
               <t-switch size="large" v-model="row.guard_status ===1" :label="['已防护', '未防护']"
                         @change="changeGuardStatus($event,row)">
               </t-switch>
-            </t-popconfirm>
-            <!--       <t-tag v-if="row.guard_status === GUARD_STATUS.UN_GUARDDING" theme="warning" variant="light">未防护</t-tag>
-            <t-tag v-if="row.guard_status === GUARD_STATUS.GUARDDING" theme="success" variant="light">已防护</t-tag> -->
-
-
+          </template>
+          <template #start_status="{ row }">
+              <t-switch size="large" v-model="row.start_status===0" :label="['自动启动', '手工启动']"
+                        @change="changeStartStatus($event,row)">
+              </t-switch>
           </template>
           <template #ssl="{ row }">
             <p v-if="row.ssl === SSL_STATUS.NOT_SSL">否</p>
@@ -71,8 +65,9 @@
 
           <template #op="slotProps">
             <!--<a class="t-button-link" @click="handleClickEdit(slotProps)">系统自带防御</a>-->
-            <a class="t-button-link" @click="handleClickEdit(slotProps)">编辑</a>
-            <a class="t-button-link" @click="handleClickDelete(slotProps)">删除</a>
+            <a class="t-button-link" v-if="slotProps.row.global_host!==1" @click="handleClickCopy(slotProps)">复制</a>
+            <a class="t-button-link" v-if="slotProps.row.global_host!==1" @click="handleClickEdit(slotProps)">编辑</a>
+            <a class="t-button-link" v-if="slotProps.row.global_host!==1" @click="handleClickDelete(slotProps)">删除</a>
           </template>
         </t-table>
       </div>
@@ -98,8 +93,7 @@
               <t-form-item label="网站" name="host">
                 <t-tooltip class="placement top center" content="输入您需要防护的网站域名:如 www.samwaf.com" placement="top"
                            :overlay-style="{ width: '200px' }" show-arrow>
-                  <t-input :style="{ width: '480px' }" v-model="formData.host" placeholder="请输入网站的网址"
-                           @change="ChangeHost('add')"></t-input>
+                  <t-input :style="{ width: '480px' }" v-model="formData.host" placeholder="请输入网站的网址"></t-input>
                 </t-tooltip>
               </t-form-item>
               <t-form-item label="端口" name="port">
@@ -116,6 +110,15 @@
                   <t-radio-group v-model="formData.ssl">
                     <t-radio value="0">非加密</t-radio>
                     <t-radio value="1">加密证书（需上传证书）</t-radio>
+                  </t-radio-group>
+                </t-tooltip>
+              </t-form-item>
+              <t-form-item label="启动状态" name="start_status">
+                <t-tooltip class="placement top center" content="该功能是选择是否直接启动。" placement="top"
+                           :overlay-style="{ width: '200px' }" show-arrow>
+                  <t-radio-group v-model="formData.start_status">
+                    <t-radio value="0">直接启动</t-radio>
+                    <t-radio value="1">等待人工启动</t-radio>
                   </t-radio-group>
                 </t-tooltip>
               </t-form-item>
@@ -137,12 +140,12 @@
                 </t-tooltip>
               </t-form-item>
 
-              <t-form-item label="后端域名" name="remote_host">
+              <!--<t-form-item label="后端域名" name="remote_host">
                 <t-tooltip class="placement top center" content="后端域名通常同第一项网站域名相同（加上协议 http:// 或 https://）"
                            placement="top" :overlay-style="{ width: '200px' }" show-arrow>
                   <t-input :style="{ width: '480px' }" v-model="formData.remote_host" placeholder="请输入后端域名"></t-input>
                 </t-tooltip>
-              </t-form-item>
+              </t-form-item>-->
               <t-form-item label="后端IP" name="remote_ip">
                 <t-tooltip class="placement top center" content="如SamWaf同网站在同一台服务器 填写127.0.0.1 如果是不同服务器请填写实际IP"
                            placement="top" :overlay-style="{ width: '200px' }" show-arrow>
@@ -239,8 +242,7 @@
           <t-tabs :defaultValue="1">
             <t-tab-panel :value="1" label="基础内容">
               <t-form-item label="网站" name="host">
-                <t-input :style="{ width: '480px' }" v-model="formEditData.host" placeholder="请输入网站的网址"
-                         @change="ChangeHost('edit')"></t-input>
+                <t-input :style="{ width: '480px' }" v-model="formEditData.host" placeholder="请输入网站的网址" disabled></t-input>
               </t-form-item>
               <t-form-item label="端口" name="port">
                 <t-input-number :style="{ width: '150px' }" v-model="formEditData.port" placeholder="请输入网站的端口一般是80/443">
@@ -252,19 +254,25 @@
                   <t-radio value="1">加密证书（需填写证书）</t-radio>
                 </t-radio-group>
               </t-form-item>
-              <t-form-item label="证书串" name="certfile" v-if="formEditData.ssl=='1'">
-                <t-textarea :style="{ width: '480px' }" v-model="formEditData.certfile" placeholder="请输入内容"
-                            name="certfile">
-                </t-textarea>
-              </t-form-item>
+              <!--<t-form-item label="启动状态" name="start_status">
+                <t-radio-group v-model="formEditData.start_status">
+                  <t-radio value="0">直接启动</t-radio>
+                  <t-radio value="1">等待人工启动</t-radio>
+                </t-radio-group>
+              </t-form-item>-->
               <t-form-item label="密钥串" name="keyfile" v-if="formEditData.ssl=='1'">
                 <t-textarea :style="{ width: '480px' }" v-model="formEditData.keyfile" placeholder="请输入内容"
                             name="keyfile">
                 </t-textarea>
               </t-form-item>
-              <t-form-item label="后端域名" name="remote_host">
-                <t-input :style="{ width: '480px' }" v-model="formEditData.remote_host" placeholder="请输入后端域名"></t-input>
+              <t-form-item label="证书串" name="certfile" v-if="formEditData.ssl=='1'">
+                <t-textarea :style="{ width: '480px' }" v-model="formEditData.certfile" placeholder="请输入内容"
+                            name="certfile">
+                </t-textarea>
               </t-form-item>
+              <!--<t-form-item label="后端域名" name="remote_host">
+                <t-input :style="{ width: '480px' }" v-model="formEditData.remote_host" placeholder="请输入后端域名"></t-input>
+              </t-form-item>-->
               <t-form-item label="后端IP" name="remote_ip">
                 <t-input :style="{ width: '480px' }" v-model="formEditData.remote_ip" placeholder="请输入后端IP"></t-input>
               </t-form-item>
@@ -348,9 +356,21 @@
               :onCancel="onCancel">
     </t-dialog>
 
-    <t-dialog :visible.sync="ImportXlsxVisible">
+    <t-dialog :visible.sync="ImportXlsxVisible" @confirm="ImportXlsxVisible=false">
       <t-upload :action="fileUploadUrl" :tips="tips" :headers="fileHeader" v-model="files" @fail="handleFail"
                 @success="onSuccess" theme="file-input" placeholder="未选择文件"></t-upload>
+    </t-dialog>
+
+    <t-dialog header="防护状态提示" :visible.sync="guardConfirmVisible" @confirm="onGuardStatusConfirm"
+              :onCancel="onGuardStatusCancel">
+      <div slot="body">
+        <div>防护状态【开启】，该网站进行实时防护。防护状态【关闭】，该网站会关闭实时防护。</div>
+      </div>
+    </t-dialog>
+
+    <t-dialog header="启动状态提示" :visible.sync="startConfirmVisible" @confirm="onStartStatusConfirm"
+              :onCancel="onStartStatusCancel">
+      <div>启动状态【开启】会正常接收用户请求。 启动状态【关闭】会停止用户请求</div>
     </t-dialog>
   </div>
 </template>
@@ -361,14 +381,15 @@ import {FileSafetyIcon, LinkIcon, SearchIcon} from 'tdesign-icons-vue';
 import {prefix} from '@/config/global';
 
 import {export_api} from '@/apis/common';
-import {allhost, hostlist} from '@/apis/host';
+import {allhost, changeGuardStatus, changeStartStatus, hostlist,getHostDetail,delHost,addHost,editHost} from '@/apis/host';
 import {
   CONTRACT_PAYMENT_TYPES,
   CONTRACT_STATUS,
   CONTRACT_STATUS_OPTIONS,
   CONTRACT_TYPES,
   GUARD_STATUS,
-  SSL_STATUS
+  SSL_STATUS,
+  START_STATUS
 } from '@/constants';
 
 const INITIAL_DATA = {
@@ -383,6 +404,7 @@ const INITIAL_DATA = {
   guard_status: '',
   remarks: '',
   defense_json: '{"bot":1,"sqli":1,"xss":1,"scan"1,"rce":1}',
+  start_status: '0',
 };
 export default Vue.extend({
   name: 'ListBase',
@@ -423,6 +445,21 @@ export default Vue.extend({
           message: '请输入网站名称',
           type: 'error'
         }],
+        port: [{
+          required: true,
+          message: '请输入网站端口',
+          type: 'error'
+        }],
+        remote_ip: [{
+          required: true,
+          message: '请输入远端IP',
+          type: 'error'
+        }],
+        remote_port: [{
+          required: true,
+          message: '请输入远端端口',
+          type: 'error'
+        }],
       },
       remote_system_options: [{
         label: '宝塔',
@@ -460,6 +497,7 @@ export default Vue.extend({
       ],
       GUARD_STATUS,
       SSL_STATUS,
+      START_STATUS,
       CONTRACT_STATUS,
       CONTRACT_STATUS_OPTIONS,
       CONTRACT_TYPES,
@@ -483,6 +521,14 @@ export default Vue.extend({
           width: 100,
           ellipsis: true,
           colKey: 'port',
+        },
+        {
+          title: '启动状态',
+          colKey: 'start_status',
+          width: 100,
+          cell: {
+            col: 'start_status'
+          }
         },
         {
           title: '防护状态',
@@ -540,12 +586,17 @@ export default Vue.extend({
       //索引区域
       deleteIdx: -1,
       guardStatusIdx: -1,
+      startStatusIdx: -1,
 
       //来源页面
       sourcePage: "",
       hostAddUrl: this.samwafglobalconfig.getOnlineUrl() + '/guide/Host.html#_2-新增可被防火墙保护的网站',
       //主机字典
-      host_dic: {}
+      host_dic: {},
+
+      //弹窗确认
+      guardConfirmVisible: false,//更改防护状态的弹窗控制
+      startConfirmVisible: false,//更改启动状态的弹窗控制
     };
   },
   computed: {
@@ -658,6 +709,47 @@ export default Vue.extend({
         },
       },);
     },
+    handleClickCopy(e) {
+
+      console.log(e)
+      const {
+        code, global_host
+      } = e.row
+      if (global_host === 1) {
+        this.$message.warning("全局网站不能操作");
+        return
+      }
+      console.log(code)
+      this.addFormVisible = true
+      let that = this
+      getHostDetail({
+        CODE: code,
+      })
+        .then((res) => {
+          let resdata = res
+          console.log(resdata)
+          if (resdata.code === 0) {
+            let detail_data_tmp = resdata.data;
+            detail_data_tmp.ssl = detail_data_tmp.ssl.toString()
+            detail_data_tmp.start_status = detail_data_tmp.start_status.toString()
+            that.formData= {
+              ...detail_data_tmp
+            }
+            that.formData.code = null
+            let defenseJson = JSON.parse(detail_data_tmp.defense_json)
+            that.hostDefenseData.bot = defenseJson.bot.toString()
+            that.hostDefenseData.sqli = defenseJson.sqli.toString()
+            that.hostDefenseData.xss = defenseJson.xss.toString()
+            that.hostDefenseData.scan = defenseJson.scan.toString()
+            that.hostDefenseData.rce = defenseJson.rce.toString()
+          }
+        })
+        .catch((e: Error) => {
+          console.log(e);
+        })
+        .finally(() => {
+        });
+    },
     handleClickEdit(e) {
 
       console.log(e)
@@ -686,14 +778,14 @@ export default Vue.extend({
         let postdata = {
           ...that.formData
         }
-        if (postdata.remote_host.length == 0) {
-          postdata.remote_host = "http://" + postdata.host
-        } else {
-          if (postdata.remote_host.indexOf("http://") != 0 && postdata.remote_host.indexOf("https://") != 0) {
-            postdata.remote_host = "http://" + postdata.remote_host
-          }
+        postdata.host = postdata.host.toLowerCase();
+        if (postdata.host.indexOf("http://") >=0 || postdata.host.indexOf("https://") >=0) {
+          that.$message.warning("主机请不要填写http和https 直接写域名即可");
+           return
         }
+        postdata.remote_host = "http://" + postdata.host
         postdata['ssl'] = Number(postdata['ssl'])
+        postdata['start_status'] = Number(postdata['start_status'])
         let defenseData = {
           bot: parseInt(this.hostDefenseData.bot),
           sqli: parseInt(this.hostDefenseData.sqli),
@@ -702,8 +794,7 @@ export default Vue.extend({
           rce: parseInt(this.hostDefenseData.rce),
         }
         postdata['defense_json'] = JSON.stringify(defenseData)
-        this.$request
-          .post('/wafhost/host/add', {
+        addHost( {
             ...postdata
           })
           .then((res) => {
@@ -713,6 +804,21 @@ export default Vue.extend({
               that.$message.success(resdata.msg);
               that.addFormVisible = false;
               that.pagination.current = 1
+
+              that.formData = {
+                host: 'www.baidu.com',
+                port: 80,
+                remote_host: 'http://www.baidu.com',
+                remote_ip: '127.0.0.1',
+                remote_port: 81,
+                ssl: '0',
+                remote_system: "默认",
+                remote_app: "默认",
+                guard_status: '',
+                remarks: '',
+                defense_json: '{"bot":1,"sqli":1,"xss":1,"scan"1,"rce":1}',
+                start_status: '0',
+              };
               that.getList("")
             } else {
               that.$message.warning(resdata.msg);
@@ -740,6 +846,7 @@ export default Vue.extend({
         }
 
         postdata['ssl'] = Number(postdata['ssl'])
+        postdata['start_status'] = Number(postdata['start_status'])
         let defenseData = {
           bot: parseInt(this.hostDefenseData.bot),
           sqli: parseInt(this.hostDefenseData.sqli),
@@ -749,8 +856,7 @@ export default Vue.extend({
         }
         postdata['defense_json'] = JSON.stringify(defenseData)
         console.log(postdata)
-        this.$request
-          .post('/wafhost/host/edit', {
+        editHost( {
             ...postdata
           })
           .then((res) => {
@@ -817,12 +923,9 @@ export default Vue.extend({
         code
       } = this.data[this.deleteIdx]
       let that = this
-      this.$request
-        .get('/wafhost/host/del', {
-          params: {
+      delHost({
             CODE: code,
-          }
-        })
+          })
         .then((res) => {
           let resdata = res
           console.log(resdata)
@@ -852,18 +955,16 @@ export default Vue.extend({
     },
     getDetail(id) {
       let that = this
-      this.$request
-        .get('/wafhost/host/detail', {
-          params: {
+      getHostDetail({
             CODE: id,
-          }
-        })
+          })
         .then((res) => {
           let resdata = res
           console.log(resdata)
           if (resdata.code === 0) {
             that.detail_data = resdata.data;
             that.detail_data.ssl = that.detail_data.ssl.toString()
+            that.detail_data.start_status = that.detail_data.start_status.toString()
             that.formEditData = {
               ...that.detail_data
             }
@@ -916,6 +1017,8 @@ export default Vue.extend({
      */
     HandleImportExcel() {
       this.ImportXlsxVisible = true
+      this.tips = ""
+      this.files= []
     },
     changeGuardStatus(e, row) {
 
@@ -926,72 +1029,22 @@ export default Vue.extend({
         return value['code'] == code
       })
       console.log("rowIndex", rowIndex)
-      this.data[rowIndex].guard_status_visiable = !this.data[rowIndex].guard_status_visiable
       this.guardStatusIdx = rowIndex
       console.log(e)
+      this.guardConfirmVisible = true
     },
-    onVisibleChange(val, context = {}) {
-      let that = this
-      console.log("this.guardStatusIdx", this.guardStatusIdx)
-      if (this.guardStatusIdx == -1) {
-        return
-      }
+    changeStartStatus(e, row) {
 
-      console.log("this.data", this.data[that.guardStatusIdx])
-      let {
-        code, guard_status
-      } = this.data[this.guardStatusIdx]
-      console.log(context, context.trigger)
-      // trigger 表示触发来源，可以根据触发来源自由控制 visible
-      if (context && context.trigger === 'confirm') {
-        console.log('guardStatusIdx', that.guardStatusIdx)
-        const msg = that.$message.info('提交中');
-
-
-        that.$request
-          .get('/wafhost/host/guardstatus', {
-            params: {
-              CODE: code,
-              GUARD_STATUS: guard_status == 1 ? 0 : 1,
-            }
-          })
-          .then((res) => {
-            let resdata = res
-            console.log(resdata)
-            if (resdata.code === 0) {
-              that.getList("")
-              that.$message.close(msg);
-              that.$message.success(resdata.msg)
-              that.data[that.guardStatusIdx].guard_status_visiable = false
-              that.guardStatusIdx = -1;
-            } else {
-              that.$message.warning(resdata.msg);
-
-            }
-          })
-          .catch((e: Error) => {
-            console.log(e);
-          })
-          .finally(() => {
-          });
-      } else if (context && context.trigger === 'cancel') {
-        //TODO 不知此处为何点击无效
-        console.log("this.data", that.data)
-        console.log("that.data[that.guardStatusIdx]", that.data[that.guardStatusIdx])
-        that.data[that.guardStatusIdx].guard_status_visiable = false
-        that.guardStatusIdx = -1;
-      }
-    },
-    ChangeHost(form) {
-      if (form == "add") {
-        if (this.formData.remote_host.indexOf("http://") != 0 && this.formData.remote_host.indexOf("https://") != 0) {
-          this.formData.remote_host = "http://" + this.formData.remote_host
-        }
-      } else if (form == "edit") {
-        if (this.formEditData.remote_host.indexOf("http://") != 0 && this.formEditData.remote_host.indexOf("https://") != 0) {
-          this.formEditData.remote_host = "http://" + this.formEditData.remote_host
-        }
-      }
+      console.log(e, row)
+      let {code} = row
+      let rowIndex = this.data.findIndex(function (value, index, arr) {
+        console.log("findIndex", value, index, arr)
+        return value['code'] == code
+      })
+      console.log("rowIndex", rowIndex)
+      this.startStatusIdx = rowIndex
+      console.log(e)
+      this.startConfirmVisible = true
     },
     handleFail({file}) {
       this.$message.error(`文件 ${file.name} 上传失败`);
@@ -1021,6 +1074,84 @@ export default Vue.extend({
     updateTextareaAdd(event) {
       //this.formAddData = event.target.value;
 
+    },
+
+    //弹窗部分代码
+    onGuardStatusConfirm(){
+
+      let that = this
+      console.log("this.guardStatusIdx", this.guardStatusIdx)
+      if (this.guardStatusIdx == -1) {
+        return
+      }
+
+      console.log("this.data", this.data[that.guardStatusIdx])
+      let {
+        code, guard_status
+      } = this.data[this.guardStatusIdx]
+      changeGuardStatus({
+        CODE: code,
+        GUARD_STATUS: guard_status == 1 ? 0 : 1,
+      })
+        .then((res) => {
+          let resdata = res
+          console.log(resdata)
+          if (resdata.code === 0) {
+            that.getList("")
+            that.$message.success(resdata.msg)
+            that.guardStatusIdx = -1;
+            this.guardConfirmVisible = false
+          } else {
+            that.$message.warning(resdata.msg);
+            this.guardStatusIdx = -1;
+            this.guardConfirmVisible = false
+
+          }
+        })
+        .catch((e: Error) => {
+          console.log(e);
+        })
+        .finally(() => {
+        });
+    },
+    onGuardStatusCancel(){
+      this.guardConfirmVisible = false
+      this.guardStatusIdx = -1;
+    },
+    onStartStatusConfirm() {
+      let that = this
+      this.startConfirmVisible = false
+
+      let {
+        code, start_status
+      } = this.data[this.startStatusIdx]
+      console.log("code,start_status", code, start_status)
+      changeStartStatus({
+          CODE: code,
+          START_STATUS: start_status === 1 ? 0 : 1,
+        }
+      )
+        .then((res) => {
+          let resdata = res
+          console.log(resdata)
+          if (resdata.code === 0) {
+            that.getList("")
+            that.$message.success(resdata.msg)
+            this.startStatusIdx = -1;
+          } else {
+            that.$message.warning(resdata.msg);
+            this.startStatusIdx = -1;
+          }
+        })
+        .catch((e: Error) => {
+          console.log(e);
+        })
+        .finally(() => {
+        });
+    },
+    onStartStatusCancel() {
+      this.startConfirmVisible = false
+      this.startStatusIdx = -1;
     },
     //end method
   },

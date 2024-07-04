@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"github.com/360EntSecGroup-Skylar/excelize"
 	"github.com/gin-gonic/gin"
+	uuid "github.com/satori/go.uuid"
 	"gorm.io/gorm"
 	"log"
 	"net/http"
@@ -48,8 +49,12 @@ func (w *WafCommonApi) ExportExcelApi(c *gin.Context) {
 		// 设置表头
 		for i := 0; i < dataType.NumField(); i++ {
 			field := dataType.Field(i)
-			colName := field.Tag.Get("json") // 获取 excel 标签的值，即表头名称
-			f.SetCellValue(sheetName, fmt.Sprintf("%c%d", 'A'+i, 1), colName)
+			if field.Name == "BaseOrm" {
+				f.SetCellValue(sheetName, fmt.Sprintf("%c%d", 'A'+i, 1), " - ")
+			} else {
+				colName := field.Tag.Get("json") // 获取 excel 标签的值，即表头名称
+				f.SetCellValue(sheetName, fmt.Sprintf("%c%d", 'A'+i, 1), colName)
+			}
 		}
 
 		// 填充数据
@@ -57,8 +62,14 @@ func (w *WafCommonApi) ExportExcelApi(c *gin.Context) {
 			rowNum := i + 2
 			rowValue := dataValue.Index(i)
 			for j := 0; j < dataType.NumField(); j++ {
-				colValue := rowValue.Field(j).Interface()
-				f.SetCellValue(sheetName, fmt.Sprintf("%c%d", 'A'+j, rowNum), colValue)
+				field := dataType.Field(j)
+				if field.Name == "BaseOrm" {
+					f.SetCellValue(sheetName, fmt.Sprintf("%c%d", 'A'+j, rowNum), "")
+				} else {
+					colValue := rowValue.Field(j).Interface()
+					f.SetCellValue(sheetName, fmt.Sprintf("%c%d", 'A'+j, rowNum), colValue)
+				}
+
 			}
 		}
 
@@ -185,11 +196,19 @@ func saveDataToDatabase(name string, rows [][]string) ReturnImportData {
 				rowNumber++
 				continue
 			}
+			if data["host"] == "全局网站" {
+				//fmt.Println(data["code"], " 数据已存在不进行插入\t")
+				msg += "行" + strconv.Itoa(rowNumber) + " 全局网站的跳过"
+				failInt++
+				rowNumber++
+				continue
+			}
 
 			err := wafHostService.CheckIsExist(data["host"], data["port"])
 			if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 				var wafHost = &model.Hosts{
 					BaseOrm: baseorm.BaseOrm{
+						Id:          uuid.NewV4().String(),
 						USER_CODE:   global.GWAF_USER_CODE,
 						Tenant_ID:   global.GWAF_TENANT_ID,
 						CREATE_TIME: customtype.JsonTime(time.Now()),

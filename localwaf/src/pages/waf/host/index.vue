@@ -220,8 +220,19 @@
                   </t-radio-group>
                 </t-tooltip>
               </t-form-item>
-
-
+            </t-tab-panel>
+            <t-tab-panel :value="3">
+              <template #label>
+                其他配置
+              </template>
+              <t-form-item label="日时排除URL" name="exclude_url_log">
+                <t-tooltip class="placement top center" content="记录日志时排除URL开头的数据" placement="top"
+                           :overlay-style="{ width: '200px' }" show-arrow>
+                <t-textarea :style="{ width: '480px' }" v-model="formData.exclude_url_log" placeholder="请输入内容"
+                            name="exclude_url_log">
+                </t-textarea>
+                </t-tooltip>
+              </t-form-item>
             </t-tab-panel>
           </t-tabs>
 
@@ -342,6 +353,20 @@
                 </t-tooltip>
               </t-form-item>
             </t-tab-panel>
+            <t-tab-panel :value="3">
+              <template #label>
+                其他配置
+              </template>
+
+              <t-form-item label="日时排除URL" name="exclude_url_log">
+                <t-tooltip class="placement top center" content="记录日志时排除URL开头的数据" placement="top"
+                           :overlay-style="{ width: '200px' }" show-arrow>
+                  <t-textarea :style="{ width: '480px' }" v-model="formEditData.exclude_url_log" placeholder="请输入内容"
+                              name="exclude_url_log">
+                  </t-textarea>
+                </t-tooltip>
+              </t-form-item>
+            </t-tab-panel>
           </t-tabs>
           <t-form-item style="float: right">
             <t-button variant="outline" @click="onClickCloseEditBtn">取消</t-button>
@@ -405,6 +430,7 @@ const INITIAL_DATA = {
   remarks: '',
   defense_json: '{"bot":1,"sqli":1,"xss":1,"scan"1,"rce":1}',
   start_status: '0',
+  exclude_url_log:'',
 };
 export default Vue.extend({
   name: 'ListBase',

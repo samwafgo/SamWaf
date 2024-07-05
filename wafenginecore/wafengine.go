@@ -692,8 +692,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 				}
 			}
 
-			//TODO 如果是指定URL 或者 IP 不记录日志
-			if !isStaticAssist && !strings.Contains(weblogfrist.URL, "index.php/lttshop/task_scheduling/") {
+			if !isStaticAssist {
 				datetimeNow := time.Now()
 				weblogfrist.TimeSpent = datetimeNow.UnixNano()/1e6 - weblogfrist.UNIX_ADD_TIME
 				weblogfrist.ACTION = "放行"
@@ -701,7 +700,21 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 				weblogfrist.STATUS_CODE = resp.StatusCode
 				weblogfrist.TASK_FLAG = 1
 				if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "all" {
-					global.GQEQUE_LOG_DB.PushBack(weblogfrist)
+					if waf.HostTarget[host].Host.EXCLUDE_URL_LOG == "" {
+						global.GQEQUE_LOG_DB.PushBack(weblogfrist)
+					} else {
+						lines := strings.Split(waf.HostTarget[host].Host.EXCLUDE_URL_LOG, "\n")
+						isRecordLog := true
+						// 检查每一行
+						for _, line := range lines {
+							if strings.HasPrefix(weblogfrist.URL, line) {
+								isRecordLog = false
+							}
+						}
+						if isRecordLog {
+							global.GQEQUE_LOG_DB.PushBack(weblogfrist)
+						}
+					}
 				} else if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "abnormal" && weblogfrist.ACTION != "放行" {
 					global.GQEQUE_LOG_DB.PushBack(weblogfrist)
 				}

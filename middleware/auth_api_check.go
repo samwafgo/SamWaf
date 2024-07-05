@@ -2,8 +2,13 @@ package middleware
 
 import (
 	"SamWaf/model/common/response"
+	"SamWaf/service/waf_service"
 	"SamWaf/utils/zlog"
 	"github.com/gin-gonic/gin"
+)
+
+var (
+	wafTokenInfoService = waf_service.WafTokenInfoServiceApp
 )
 
 // Auth 鉴权中间件
@@ -22,6 +27,13 @@ func Auth() gin.HandlerFunc {
 			response.AuthFailWithMessage("鉴权失败", c)
 			c.Abort()
 			return
+		} else {
+			bean := wafTokenInfoService.GetInfoByAccessToken(tokenStr)
+			if bean.Id == "" {
+				response.AuthFailWithMessage("非法口令", c)
+				c.Abort()
+				return
+			}
 		}
 		//zlog.Debug("有token:" + tokenStr)
 		// 将 claims 中的用户信息存储在 context 中

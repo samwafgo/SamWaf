@@ -236,7 +236,7 @@
             </t-tab-panel>
           </t-tabs>
 
-          <t-form-item style="float: right">
+          <t-form-item style="float: right;margin-top:5px">
             <t-button variant="outline" @click="onClickCloseBtn">取消</t-button>
             <t-button theme="primary" type="submit">确定</t-button>
           </t-form-item>
@@ -368,7 +368,7 @@
               </t-form-item>
             </t-tab-panel>
           </t-tabs>
-          <t-form-item style="float: right">
+          <t-form-item style="float: right;margin-top:5px">
             <t-button variant="outline" @click="onClickCloseEditBtn">取消</t-button>
             <t-button theme="primary" type="submit">确定</t-button>
           </t-form-item>

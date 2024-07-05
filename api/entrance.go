@@ -23,6 +23,7 @@ type APIGroup struct {
 	WafSystemConfigApi
 	WafCommonApi
 	WafOneKeyModApi
+	CenterApi
 }
 
 var APIGroupAPP = new(APIGroup)
@@ -50,4 +51,6 @@ var (
 	wafShareDbService = waf_service.WafShareDbServiceApp
 
 	wafOneKeyModService = waf_service.WafOneKeyModServiceApp
+
+	CenterService = waf_service.CenterServiceApp
 )

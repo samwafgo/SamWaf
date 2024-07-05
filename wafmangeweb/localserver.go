@@ -25,9 +25,10 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 	PublicRouterGroup := r.Group("")
 	PublicRouterGroup.Use(middleware.SecApi())
 	router.PublicApiGroupApp.InitLoginRouter(PublicRouterGroup)
+	router.PublicApiGroupApp.InitCenterRouter(PublicRouterGroup) //注册中心接收接口
 
 	RouterGroup := r.Group("")
-	RouterGroup.Use(middleware.Auth(), middleware.SecApi())
+	RouterGroup.Use(middleware.Auth(), middleware.SecApi(), middleware.CenterApi()) //TODO 中心管控 特定
 	{
 		router.ApiGroupApp.InitHostRouter(RouterGroup)
 		router.ApiGroupApp.InitLogRouter(RouterGroup)
@@ -51,6 +52,8 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitOneKeyModRouter(RouterGroup)
 
 	}
+	//TODO 中心管控 特定
+	//RouterGroup.Use(middleware.CenterApi())
 	r.Use(middleware.GinGlobalExceptionMiddleWare())
 
 }

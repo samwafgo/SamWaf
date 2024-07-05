@@ -24,6 +24,7 @@ type ApiGroup struct {
 }
 type PublicApiGroup struct {
 	LoginRouter
+	CenterRouter
 }
 
 var ApiGroupApp = new(ApiGroup)

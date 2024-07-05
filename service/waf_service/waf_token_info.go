@@ -63,6 +63,16 @@ func (receiver *WafTokenInfoService) GetInfoByLoginAccount(loginAccount string) 
 
 /*
 *
+获取一个可用的token TODO 将来应该是一个
+*/
+func (receiver *WafTokenInfoService) GetOneAvailableInfo() model.TokenInfo {
+	var bean model.TokenInfo
+	global.GWAF_LOCAL_DB.Limit(1).Find(&bean)
+	return bean
+}
+
+/*
+*
 通过登录access_token获取账号信息
 */
 func (receiver *WafTokenInfoService) GetInfoByAccessToken(accessToken string) model.TokenInfo {

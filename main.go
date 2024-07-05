@@ -279,6 +279,11 @@ func (m *wafSystenService) run() {
 
 	}
 
+	// 上传客户端信息到中心节点
+	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Minutes().Do(func() {
+		go waftask.TaskClientToCenter()
+	})
+
 	for {
 		select {
 		case msg := <-global.GWAF_CHAN_MSG:

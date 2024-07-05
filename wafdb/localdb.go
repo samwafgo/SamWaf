@@ -124,6 +124,8 @@ func InitCoreDb(currentDir string) {
 		//分库信息表
 		db.AutoMigrate(&model.ShareDb{})
 
+		//中心管控数据
+		db.AutoMigrate(&model.Center{})
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
 

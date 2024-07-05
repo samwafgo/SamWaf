@@ -118,6 +118,12 @@ var (
 
 	//资源下载
 	GWAF_BOT_IP_URL_MAIN string = "https://raw.githubusercontent.com/samwafgo/SamWafBotIPDatabase/main/allowlist/index.json"
+
+	/**
+	中心管控部分
+	*/
+	GWAF_CENTER_ENABLE string = "false"                  //中心管控激活状态
+	GWAF_CENTER_URL    string = "http://127.0.0.1:26666" //中心管控默认URL
 )
 
 func GetCurrentVersionInt() int {

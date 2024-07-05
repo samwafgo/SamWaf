@@ -401,6 +401,37 @@ func TaskLoadSetting() {
 			Options:  "all|全部,abnormal|非正常",
 		})
 	}
+	//控制中心-开关
+	configItem = wafSystemConfigService.GetDetailByItem("gwaf_center_enable")
+	if configItem.Id != "" {
+		if global.GWAF_CENTER_ENABLE != configItem.Value {
+			global.GWAF_CENTER_ENABLE = configItem.Value
+		}
+	} else {
+		wafSystemConfigService.AddApi(request.WafSystemConfigAddReq{
+			Item:     "gwaf_center_enable",
+			Value:    global.GWAF_CENTER_ENABLE,
+			Remarks:  "中心开关",
+			ItemType: "bool",
+			Options:  "false|关闭,true|开启",
+		})
+	}
+	//控制中心-中心url
+	configItem = wafSystemConfigService.GetDetailByItem("gwaf_center_url")
+	if configItem.Id != "" {
+		if global.GWAF_CENTER_URL != configItem.Value {
+			global.GWAF_CENTER_URL = configItem.Value
+		}
+	} else {
+		wafSystemConfigService.AddApi(request.WafSystemConfigAddReq{
+			Item:     "gwaf_center_url",
+			Value:    global.GWAF_CENTER_URL,
+			Remarks:  "中心URL",
+			ItemType: "string",
+			Options:  "",
+		})
+	}
+
 }
 
 /*

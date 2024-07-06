@@ -1,6 +1,7 @@
 package api
 
 import (
+	"SamWaf/global"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	"errors"
@@ -12,6 +13,10 @@ type CenterApi struct {
 }
 
 func (w *CenterApi) UpdateApi(c *gin.Context) {
+	if global.GWAF_CENTER_ENABLE == "true" {
+		response.FailWithMessage("单台服务器不能同时为客户端和服务端", c)
+		return
+	}
 	var req request.CenterClientUpdateReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {

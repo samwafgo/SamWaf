@@ -44,6 +44,10 @@
               <help-circle-icon />
             </t-button>
           </t-tooltip>
+          <t-button theme="warning" @click="changeServer" v-if="hasClientServer">
+            <template #icon><add-icon /></template>
+            当前 服务器{{ current_server.client_server_name }}
+          </t-button>
           <t-dropdown :min-column-width="125" trigger="click">
             <template #dropdown>
               <t-dropdown-menu>
@@ -166,6 +170,9 @@
         update_new_ver:"",
         update_desc:"",
         current_account:"not login",
+        /**控制中心相关**/
+        hasClientServer:false,
+        current_server:"",
       };
     },
     computed: {
@@ -196,11 +203,28 @@
       },
     },
     mounted() {
-       this.current_account = localStorage.getItem("current_account")
       // 首次提示，每隔24小时 进行弹窗 ，其余实际不弹窗
-       this.checkVersion("auto")
+      this.checkVersion("auto")
+      this.init()
     },
     methods: {
+      //init
+      init(){
+        //帐号初始化
+        this.current_account = localStorage.getItem("current_account")
+        //管控初始化
+        if(localStorage.getItem("current_server")){
+          this.hasClientServer = true
+          this.current_server = JSON.parse(localStorage.getItem("current_server"))
+        }else{
+          this.hasClientServer = false
+        }
+
+      },
+      //切换服务器
+      changeServer(){
+        this.$router.push('/sys/CenterManager');
+      },
       toggleSettingPanel() {
         this.$store.commit('setting/toggleSettingPanel', true);
       },

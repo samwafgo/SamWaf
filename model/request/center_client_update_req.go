@@ -7,6 +7,7 @@ type CenterClientUpdateReq struct {
 	ClientUserCode       string              `json:"client_user_code"`        // 客户端-用户码
 	ClientTenantId       string              `json:"client_tenant_id"`        // 客户端-租户ID
 	ClientToken          string              `json:"client_token"`            // 客户端-访问密钥
+	ClientSsl            string              `json:"client_ssl"`              // 客户端-是否https
 	ClientIP             string              `json:"client_ip"`               //客户端 ip
 	ClientPort           string              `json:"client_port"`             //客户端 port
 	ClientNewVersion     string              `json:"client_new_version"`      //客户端 版本号

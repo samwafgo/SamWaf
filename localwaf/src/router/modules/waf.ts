@@ -168,6 +168,11 @@ export default [
         name: 'OneKeyMod',
         component: () => import('@/pages/waf/onekeymod/index.vue'),
         meta: { title: '一键修改' },
+      },{
+        path: 'CenterManager',
+        name: 'CenterManager',
+        component: () => import('@/pages/waf/center/index.vue'),
+        meta: { title: '管控中心' },
       },
     ],
   },

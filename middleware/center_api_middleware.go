@@ -1,30 +1,57 @@
 package middleware
 
 import (
+	"SamWaf/service/waf_service"
 	"SamWaf/utils/zlog"
 	"bytes"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"io/ioutil"
 	"net/http"
 	"strings"
 )
 
+var (
+	centerService = waf_service.CenterServiceApp
+)
+
 // 中心管控 鉴权中间件
 func CenterApi() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 检查请求的URL是否包含需要代理的路径前缀
-		if strings.HasPrefix(c.Request.URL.Path, "/samwaf/wafhost/host/allhost") && c.RemoteIP() == "127.0.0.1" {
-			zlog.Debug("当前访问人IP" + c.RemoteIP())
-			//1.读取标识，然后提取通信KEY
-			//2.校验别是自己操作自己 可能会循环访问
-			c.Request.Header.Set("X-Token", "f0661bb70075c66a4375ead94a204c67")
-			// 构建远程服务的URL
-			remoteURL := "http://82.156.235.106:26666" + c.Request.URL.Path
-			// 发起代理请求
-			proxyRequest(c, remoteURL)
-			// 停止后续的处理
-			c.Abort()
-			return
+		for key, values := range c.Request.Header {
+			fmt.Printf("Header key: %s\n", key)
+			for _, value := range values {
+				fmt.Printf("  Value: %s\n", value)
+			}
+		}
+
+		remoteWafUserId := c.Request.Header.Get("Remote-Waf-User-Id") //tencent@usercode
+		if remoteWafUserId != "" {
+			//拆分数据 tencent@usercode
+			split := strings.Split(remoteWafUserId, "@")
+			centerBean := centerService.GetDetailByTencentUserCode(split[0], split[1])
+			if centerBean.Id != "" && c.RemoteIP() != centerBean.ClientIP {
+
+				c.Request.Header.Set("X-Token", centerBean.ClientToken) //TODO 调试时候用 到正式的时候 这个用下面的
+				c.Request.Header.Set("OPEN-X-Token", centerBean.ClientToken)
+				// 构建远程服务的URL
+				remoteURL := centerBean.ClientIP + ":" + centerBean.ClientPort + c.Request.URL.Path
+				if c.Request.URL.RawQuery != "" {
+					remoteURL = remoteURL + "?" + c.Request.URL.RawQuery
+				}
+				if centerBean.ClientSsl == "false" {
+					remoteURL = "http://" + remoteURL
+				} else {
+					remoteURL = "https://" + remoteURL
+				}
+				// 发起代理请求
+				proxyRequest(c, remoteURL)
+				// 停止后续的处理
+				c.Abort()
+				return
+				//1.读取标识，然后提取通信KEY
+				//2.校验别是自己操作自己 可能会循环访问
+			}
 		}
 		// 如果不需要代理，继续处理请求
 		c.Next()

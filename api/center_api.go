@@ -42,3 +42,29 @@ func (w *CenterApi) UpdateApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+func (w *CenterApi) GetDetailApi(c *gin.Context) {
+	var req request.CenterClientDetailReq
+	err := c.ShouldBind(&req)
+	if err == nil {
+		bean := CenterService.GetDetailApi(req)
+		response.OkWithDetailed(bean, "获取成功", c)
+	} else {
+		response.FailWithMessage("解析失败", c)
+	}
+}
+func (w *CenterApi) GetListApi(c *gin.Context) {
+	var req request.CenterClientSearchReq
+	err := c.ShouldBindJSON(&req)
+	if err == nil {
+		beans, total, _ := CenterService.GetListApi(req)
+		response.OkWithDetailed(response.PageResult{
+			List:      beans,
+			Total:     total,
+			PageIndex: req.PageIndex,
+			PageSize:  req.PageSize,
+		}, "获取成功", c)
+	} else {
+		response.FailWithMessage("解析失败", c)
+	}
+}

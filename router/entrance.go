@@ -21,10 +21,11 @@ type ApiGroup struct {
 	SystemConfigRouter
 	WafCommonRouter
 	OneKeyModRouter
+	CenterRouter
 }
 type PublicApiGroup struct {
 	LoginRouter
-	CenterRouter
+	CenterPublicRouter
 }
 
 var ApiGroupApp = new(ApiGroup)

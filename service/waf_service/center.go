@@ -27,6 +27,7 @@ func (receiver *CenterService) AddApi(req request.CenterClientUpdateReq) error {
 		ClientUserCode:       req.ClientUserCode,
 		ClientTenantId:       req.ClientTenantId,
 		ClientToken:          req.ClientToken,
+		ClientSsl:            req.ClientSsl,
 		ClientIP:             req.ClientIP,
 		ClientPort:           req.ClientPort,
 		ClientNewVersion:     req.ClientNewVersion,
@@ -49,6 +50,7 @@ func (receiver *CenterService) ModifyApi(req request.CenterClientUpdateReq) erro
 		req.ClientUserCode, req.ClientTenantId).Find(&bean)
 	beanMap := map[string]interface{}{
 		"ClientServerName":     req.ClientServerName,
+		"ClientSsl":            req.ClientSsl,
 		"ClientToken":          req.ClientToken,
 		"ClientIP":             req.ClientIP,
 		"ClientPort":           req.ClientPort,
@@ -72,6 +74,12 @@ func (receiver *CenterService) GetDetailByIdApi(id string) model.Center {
 	global.GWAF_LOCAL_DB.Where("id=?", id).Find(&bean)
 	return bean
 }
+func (receiver *CenterService) GetDetailByTencentUserCode(clientTenantId, clientUserCode string) model.Center {
+	var bean model.Center
+	global.GWAF_LOCAL_DB.Where("client_tenant_id  = ? and client_user_code= ?", clientTenantId, clientUserCode).Find(&bean)
+	return bean
+}
+
 func (receiver *CenterService) GetListApi(req request.CenterClientSearchReq) ([]model.Center, int64, error) {
 	var list []model.Center
 	var total int64 = 0

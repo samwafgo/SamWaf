@@ -37,6 +37,7 @@ func TaskClientToCenter() {
 		ClientUserCode:       global.GWAF_USER_CODE,
 		ClientTenantId:       global.GWAF_TENANT_ID,
 		ClientToken:          tokenInfo.AccessToken,
+		ClientSsl:            "false",
 		ClientPort:           strconv.Itoa(global.GWAF_LOCAL_SERVER_PORT),
 		ClientNewVersion:     global.GWAF_RELEASE_VERSION,
 		ClientNewVersionDesc: global.GWAF_RELEASE_VERSION_NAME,

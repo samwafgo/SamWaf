@@ -61,3 +61,12 @@ export const isObject = (obj, isEffective = false) => {
     return false;
   }
 };
+
+/**
+ * value 是否在list中
+ * @param value
+ * @param list
+ */
+export const isInList=(value=string, list=Array)=> {
+  return list.includes(value);
+}

@@ -28,7 +28,7 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 	router.PublicApiGroupApp.InitCenterRouter(PublicRouterGroup) //注册中心接收接口
 
 	RouterGroup := r.Group("")
-	RouterGroup.Use(middleware.Auth(), middleware.SecApi(), middleware.CenterApi()) //TODO 中心管控 特定
+	RouterGroup.Use(middleware.Auth(), middleware.CenterApi(), middleware.SecApi()) //TODO 中心管控 特定
 	{
 		router.ApiGroupApp.InitHostRouter(RouterGroup)
 		router.ApiGroupApp.InitLogRouter(RouterGroup)
@@ -50,6 +50,7 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitSystemConfigRouter(RouterGroup)
 		router.ApiGroupApp.InitWafCommonRouter(RouterGroup)
 		router.ApiGroupApp.InitOneKeyModRouter(RouterGroup)
+		router.ApiGroupApp.InitCenterRouter(RouterGroup)
 
 	}
 	//TODO 中心管控 特定
@@ -66,7 +67,7 @@ func (web *WafWebManager) cors() gin.HandlerFunc {
 			// 将该域添加到allow-origin中
 			c.Header("Access-Control-Allow-Origin", origin) //
 			c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, UPDATE")
-			c.Header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization,X-Token")
+			c.Header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization,X-Token,Remote-Waf-User-Id,OPEN-X-Token")
 			c.Header("Access-Control-Expose-Headers", "Content-Length, Access-Control-Allow-Origin, Access-Control-Allow-Headers, Cache-Control, Content-Language, Content-Type")
 			//允许客户端传递校验信息比如 cookie
 			c.Header("Access-Control-Allow-Credentials", "true")

@@ -4,7 +4,6 @@ import (
 	"SamWaf/service/waf_service"
 	"SamWaf/utils/zlog"
 	"bytes"
-	"fmt"
 	"github.com/gin-gonic/gin"
 	"io/ioutil"
 	"net/http"
@@ -18,12 +17,12 @@ var (
 // 中心管控 鉴权中间件
 func CenterApi() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		for key, values := range c.Request.Header {
+		/*for key, values := range c.Request.Header {
 			fmt.Printf("Header key: %s\n", key)
 			for _, value := range values {
 				fmt.Printf("  Value: %s\n", value)
 			}
-		}
+		}*/
 
 		remoteWafUserId := c.Request.Header.Get("Remote-Waf-User-Id") //tencent@usercode
 		if remoteWafUserId != "" {

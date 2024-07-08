@@ -125,11 +125,11 @@ func ProcessDequeEngine() {
 								MessageDateTime:     time.Now().Format("2006-01-02 15:04:05"),
 								MessageUnReadStatus: true,
 							})
-
+							encryptStr, _ := wafsec.AesEncrypt(msgBody, global.GWAF_COMMUNICATION_KEY)
 							//写入ws数据
 							msgBytes, err := json.Marshal(model.MsgPacket{
 								MsgCode:       "200",
-								MsgDataPacket: wafsec.AesEncrypt(msgBody, global.GWAF_COMMUNICATION_KEY),
+								MsgDataPacket: encryptStr,
 								MsgCmdType:    "Info",
 							})
 							err = ws.WriteMessage(1, msgBytes)
@@ -159,10 +159,11 @@ func ProcessDequeEngine() {
 							MessageDateTime:     time.Now().Format("2006-01-02 15:04:05"),
 							MessageUnReadStatus: true,
 						})
+						encryptStr, _ := wafsec.AesEncrypt(msgBody, global.GWAF_COMMUNICATION_KEY)
 						//写入ws数据
 						msgBytes, err := json.Marshal(model.MsgPacket{
 							MsgCode:       "200",
-							MsgDataPacket: wafsec.AesEncrypt(msgBody, global.GWAF_COMMUNICATION_KEY),
+							MsgDataPacket: encryptStr,
 							MsgCmdType:    "Info",
 						})
 						err = ws.WriteMessage(1, msgBytes)
@@ -188,10 +189,11 @@ func ProcessDequeEngine() {
 							MessageDateTime:     time.Now().Format("2006-01-02 15:04:05"),
 							MessageUnReadStatus: true,
 						})
+						encryptStr, _ := wafsec.AesEncrypt(msgBody, global.GWAF_COMMUNICATION_KEY)
 						//写入ws数据
 						msgBytes, err := json.Marshal(model.MsgPacket{
 							MsgCode:       "200",
-							MsgDataPacket: wafsec.AesEncrypt(msgBody, global.GWAF_COMMUNICATION_KEY),
+							MsgDataPacket: encryptStr,
 							MsgCmdType:    "Info",
 						})
 						err = ws.WriteMessage(1, msgBytes)

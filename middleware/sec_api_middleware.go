@@ -4,7 +4,6 @@ import (
 	"SamWaf/global"
 	"SamWaf/wafsec"
 	"bytes"
-	"encoding/base64"
 	"github.com/gin-gonic/gin"
 	"io/ioutil"
 	"net/http"
@@ -31,12 +30,11 @@ func SecApi() gin.HandlerFunc {
 		if c.Request.Header.Get("Content-Type") == "application/x-www-form-urlencoded" {
 			// Modify the bodyBytes if necessary
 			// ...
-			base64Bytes, _ := base64.StdEncoding.DecodeString(string(bodyBytes))
-			deBytes := wafsec.AesDecrypt(base64Bytes, global.GWAF_COMMUNICATION_KEY)
+			decryptBytes, _ := wafsec.AesDecrypt(string(bodyBytes), global.GWAF_COMMUNICATION_KEY)
 
 			//fmt.Println("Raw body解密:", string(deBytes))
 			// Store the modified body back in the request
-			c.Request.Body = ioutil.NopCloser(bytes.NewBuffer(deBytes))
+			c.Request.Body = ioutil.NopCloser(bytes.NewBuffer(decryptBytes))
 		}
 		c.Next()
 	}

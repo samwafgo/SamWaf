@@ -51,7 +51,8 @@ func TaskClientToCenter() {
 		return
 	}
 	//加密
-	encryptContent := wafsec.AesEncrypt(jsonData, global.GWAF_COMMUNICATION_KEY)
+	encryptStr, _ := wafsec.AesEncrypt(jsonData, global.GWAF_COMMUNICATION_KEY)
+	encryptContent := encryptStr
 	zlog.Debug("注册加密前" + string(jsonData))
 	zlog.Debug("注册加后" + encryptContent)
 	// 创建请求URL

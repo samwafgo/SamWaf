@@ -22,10 +22,11 @@ const (
 
 func Result(code int, data interface{}, msg string, c *gin.Context) {
 	result, _ := json.Marshal(data) //将数据转换为json
+	encryptStr, _ := wafsec.AesEncrypt(result, global.GWAF_COMMUNICATION_KEY)
 	// 开始时间
 	c.JSON(http.StatusOK, Response{
 		code,
-		wafsec.AesEncrypt(result, global.GWAF_COMMUNICATION_KEY),
+		encryptStr,
 		msg,
 	})
 }

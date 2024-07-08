@@ -23,29 +23,52 @@ export function getBaseUrl(){
 export function getOnlineUrl(){
   return "https://doc.samwaf.com"
 }
-//解密数据
-export function AesDecrypt( text ){
-  let key = CryptoJS.enc.Utf8.parse("7E@u*has$d*@s5YX");
 
-  let decryptedData = CryptoJS.AES.decrypt(text, key, {
-    iv: key,
-    mode: CryptoJS.mode.CBC,
-    padding: CryptoJS.pad.Pkcs7
-  });
-
-  return decryptedData.toString(CryptoJS.enc.Utf8);
+// 生成随机的IV
+function generateRandomIV() {
+  return CryptoJS.lib.WordArray.random(16);
 }
-//加密数据
-export function AesEncrypt( text ){
-  let key = CryptoJS.enc.Utf8.parse("7E@u*has$d*@s5YX");
 
-  let encryptedData = CryptoJS.AES.encrypt(text, key, {
-    iv: key, // 使用相同的 IV 和密钥
+// 解密数据
+export function AesDecrypt(encryptedText: string) {
+  const key = CryptoJS.enc.Utf8.parse("7E@u*has$d*@s5YX");
+
+  // 分离加密数据和IV
+  const encryptedDataWithIV = CryptoJS.enc.Base64.parse(encryptedText);
+  const iv = CryptoJS.lib.WordArray.create(
+    encryptedDataWithIV.words.slice(0, 4)
+  ); // IV为前16字节
+  const encryptedData = CryptoJS.lib.WordArray.create(
+    encryptedDataWithIV.words.slice(4)
+  ); // 剩余为加密数据
+
+  const decrypted = CryptoJS.AES.decrypt(
+    { ciphertext: encryptedData },
+    key,
+    {
+      iv: iv,
+      mode: CryptoJS.mode.CBC,
+      padding: CryptoJS.pad.Pkcs7,
+    }
+  );
+
+  return decrypted.toString(CryptoJS.enc.Utf8);
+}
+
+// 加密数据
+export function AesEncrypt( plainText: string) {
+  const key = CryptoJS.enc.Utf8.parse("7E@u*has$d*@s5YX");
+  const iv = generateRandomIV();
+
+  const encrypted = CryptoJS.AES.encrypt(plainText, key, {
+    iv: iv,
     mode: CryptoJS.mode.CBC,
-    padding: CryptoJS.pad.Pkcs7
+    padding: CryptoJS.pad.Pkcs7,
   });
 
-  return encryptedData.toString();
+  // 将IV和加密数据一起编码为Base64字符串
+  const encryptedDataWithIV = iv.concat(encrypted.ciphertext);
+  return CryptoJS.enc.Base64.stringify(encryptedDataWithIV);
 }
 /**
  * 判断是否是对象

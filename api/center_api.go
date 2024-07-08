@@ -73,3 +73,43 @@ func (w *CenterApi) GetListApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+/*
+*
+TODO 获取授权信息
+*/
+func (w *CenterApi) GetRegInfoApi(c *gin.Context) {
+	var req request.CenterClientSearchReq
+	err := c.ShouldBindJSON(&req)
+	if err == nil {
+		beans, total, _ := CenterService.GetListApi(req)
+		response.OkWithDetailed(response.PageResult{
+			List:      beans,
+			Total:     total,
+			PageIndex: req.PageIndex,
+			PageSize:  req.PageSize,
+		}, "获取成功", c)
+	} else {
+		response.FailWithMessage("解析失败", c)
+	}
+}
+
+/*
+*
+TODO 设置授权信息，此时用户上传注册信息注册文件，并保存在当前目录下
+*/
+func (w *CenterApi) SetRegInfoApi(c *gin.Context) {
+	var req request.CenterClientSearchReq
+	err := c.ShouldBindJSON(&req)
+	if err == nil {
+		beans, total, _ := CenterService.GetListApi(req)
+		response.OkWithDetailed(response.PageResult{
+			List:      beans,
+			Total:     total,
+			PageIndex: req.PageIndex,
+			PageSize:  req.PageSize,
+		}, "获取成功", c)
+	} else {
+		response.FailWithMessage("解析失败", c)
+	}
+}

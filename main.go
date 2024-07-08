@@ -15,6 +15,7 @@ import (
 	"SamWaf/wafdb"
 	"SamWaf/wafenginecore"
 	"SamWaf/wafmangeweb"
+	"SamWaf/wafreg"
 	"SamWaf/wafsafeclear"
 	"SamWaf/wafsnowflake"
 	"SamWaf/waftask"
@@ -46,6 +47,10 @@ var Ip2regionBytes []byte // 当前目录，解析为[]byte类型
 
 //go:embed exedata/ldpconfig.yml
 var ldpConfig string //隐私防护ldp
+
+//go:embed exedata/public_key.pem
+var publicKey string //公钥key
+
 // wafSystenService 实现了 service.Service 接口
 type wafSystenService struct{}
 
@@ -96,6 +101,7 @@ func (m *wafSystenService) run() {
 
 	global.GCACHE_IP_CBUFF = Ip2regionBytes
 	global.GWAF_DLP_CONFIG = ldpConfig
+	global.GWAF_REG_PUBLIC_KEY = publicKey
 
 	/*// 启动一个 goroutine 来处理信号
 	go func() {
@@ -279,6 +285,26 @@ func (m *wafSystenService) run() {
 
 	}
 
+	/*withEncrypt, err :=wafreg.GenClientMachineInfoWithEncrypt()
+	if err != nil {
+		fmt.Println("获取机器码失败")
+	} else {
+		fmt.Println("机器码: ", withEncrypt)
+	}*/
+	//加载授权信息
+	verifyResult, info, err := wafreg.VerifyServerReg()
+	if verifyResult {
+		global.GWAF_REG_INFO = info
+		zlog.Debug("授权信息 调试信息", info)
+		expiryDay, isExpiry := wafreg.CheckExpiry(info.ExpiryDate)
+		if isExpiry {
+			zlog.Info("授权信息已经过期")
+		} else {
+			zlog.Info("授权信息还剩余:" + strconv.Itoa(expiryDay) + "天")
+		}
+	} else {
+		zlog.Info("授权信息无效", err)
+	}
 	// 上传客户端信息到中心节点
 	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Minutes().Do(func() {
 		go waftask.TaskClientToCenter()

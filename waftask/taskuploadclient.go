@@ -53,8 +53,8 @@ func TaskClientToCenter() {
 	//加密
 	encryptStr, _ := wafsec.AesEncrypt(jsonData, global.GWAF_COMMUNICATION_KEY)
 	encryptContent := encryptStr
-	zlog.Debug("注册加密前" + string(jsonData))
-	zlog.Debug("注册加后" + encryptContent)
+	/*zlog.Debug("注册加密前" + string(jsonData))
+	zlog.Debug("注册加后" + encryptContent)*/
 	// 创建请求URL
 	url := global.GWAF_CENTER_URL + "/samwaf/center/update"
 
@@ -81,13 +81,13 @@ func TaskClientToCenter() {
 	defer resp.Body.Close()
 
 	// 读取响应
-	body, err := ioutil.ReadAll(resp.Body)
+	_, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
 		zlog.Debug("Error reading response body:", err)
 		return
 	}
 
 	// 打印响应状态和响应体
-	zlog.Debug("response Status:", resp.Status)
-	zlog.Debug("response Body:", string(body))
+	/*zlog.Debug("response Status:", resp.Status)
+	zlog.Debug("response Body:", string(body))*/
 }

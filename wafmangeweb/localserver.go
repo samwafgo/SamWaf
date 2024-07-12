@@ -51,7 +51,7 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitWafCommonRouter(RouterGroup)
 		router.ApiGroupApp.InitOneKeyModRouter(RouterGroup)
 		router.ApiGroupApp.InitCenterRouter(RouterGroup)
-
+		router.ApiGroupApp.InitLicenseRouter(RouterGroup)
 	}
 	//TODO 中心管控 特定
 	//RouterGroup.Use(middleware.CenterApi())

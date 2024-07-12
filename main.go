@@ -292,18 +292,20 @@ func (m *wafSystenService) run() {
 		fmt.Println("机器码: ", withEncrypt)
 	}*/
 	//加载授权信息
-	verifyResult, info, err := wafreg.VerifyServerReg()
+	verifyResult, info, err := wafreg.VerifyServerRegByDefaultFile()
 	if verifyResult {
 		global.GWAF_REG_INFO = info
 		zlog.Debug("授权信息 调试信息", info)
 		expiryDay, isExpiry := wafreg.CheckExpiry(info.ExpiryDate)
 		if isExpiry {
+			global.GWAF_REG_INFO.IsExpiry = true
 			zlog.Info("授权信息已经过期")
 		} else {
+			global.GWAF_REG_INFO.IsExpiry = false
 			zlog.Info("授权信息还剩余:" + strconv.Itoa(expiryDay) + "天")
 		}
 	} else {
-		zlog.Info("授权信息无效", err)
+		zlog.Info("regInfo", err)
 	}
 	// 上传客户端信息到中心节点
 	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Minutes().Do(func() {

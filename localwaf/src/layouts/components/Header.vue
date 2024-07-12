@@ -223,7 +223,7 @@
       },
       //切换服务器
       changeServer(){
-        this.$router.push('/sys/CenterManager');
+        this.$router.push('/center/CenterManager');
       },
       toggleSettingPanel() {
         this.$store.commit('setting/toggleSettingPanel', true);

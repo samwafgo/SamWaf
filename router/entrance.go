@@ -21,6 +21,7 @@ type ApiGroup struct {
 	SystemConfigRouter
 	WafCommonRouter
 	OneKeyModRouter
+	WafLicenseRouter
 	CenterRouter
 }
 type PublicApiGroup struct {

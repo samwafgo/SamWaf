@@ -24,6 +24,7 @@ type APIGroup struct {
 	WafCommonApi
 	WafOneKeyModApi
 	CenterApi
+	WafLicenseApi
 }
 
 var APIGroupAPP = new(APIGroup)

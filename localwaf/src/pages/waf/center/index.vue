@@ -24,9 +24,9 @@
           </t-form>
         </div>
       </t-row>
-      <t-alert theme="info" message="SamWaf管控中心" close>
+      <t-alert v-if="pagination.total>freeClientCount && isVip==false" theme="warning" message="超出免费台数限额" close>
         <template #operation>
-          <span >在线文档</span>
+          <span @click="handleJumpLicense">跳转授权信息画面</span>
         </template>
       </t-alert>
       <div class="table-container">
@@ -40,7 +40,7 @@
           </template>
 
           <template #op="slotProps">
-            <a class="t-button-link" @click="handleClickChangeServer(slotProps)">切换服务器</a>
+            <a class="t-button-link" v-if="pagination.total<=freeClientCount || isVip" @click="handleClickChangeServer(slotProps)">切换服务器</a>
             <a class="t-button-link" @click="handleClickDelete(slotProps)">删除</a>
           </template>
         </t-table>
@@ -49,80 +49,6 @@
         <router-view></router-view>
       </div>
     </t-card>
-
-    <!-- 新建CC防护弹窗 -->
-    <t-dialog header="新建cc防护" :visible.sync="addFormVisible" :width="680" :footer="false">
-      <div slot="body">
-        <!-- 表单内容 -->
-        <t-form :data="formData" ref="form" :rules="rules" @submit="onSubmit" :labelWidth="100">
-          <t-form-item label="网站" name="host_code">
-            <t-select v-model="formData.host_code" clearable :style="{ width: '480px' }">
-              <t-option v-for="(item, index) in host_dic" :value="index" :label="item"
-                        :key="index">
-                {{ item }}
-              </t-option>
-            </t-select>
-          </t-form-item>
-          <t-form-item label="Url" name="url">
-            <t-input :style="{ width: '480px' }" v-model="formData.url" placeholder="请输入CC防护url（可不填）"></t-input>
-          </t-form-item>
-          <t-form-item label="速率" name="rate">
-            <t-input-number :style="{ width: '480px' }" v-model="formData.rate" placeholder="请输入速率"></t-input-number>
-          </t-form-item>
-          <t-form-item label="限制次数" name="limit">
-            <t-input-number :style="{ width: '480px' }" v-model="formData.limit" placeholder="请输入限制"></t-input-number>
-          </t-form-item>
-          <t-form-item label="备注" name="remarks">
-            <t-textarea :style="{ width: '480px' }" v-model="formData.remarks" placeholder="请输入内容" name="remarks">
-            </t-textarea>
-          </t-form-item>
-          <t-form-item style="float: right">
-            <t-button variant="outline" @click="onClickCloseBtn">取消</t-button>
-            <t-button theme="primary" type="submit">确定</t-button>
-          </t-form-item>
-        </t-form>
-      </div>
-    </t-dialog>
-
-    <!-- 编辑CC防护弹窗 -->
-    <t-dialog header="编辑CC防护" :visible.sync="editFormVisible" :width="680" :footer="false">
-      <div slot="body">
-        <!-- 表单内容 -->
-        <t-form :data="formEditData" ref="form" :rules="rules" @submit="onSubmitEdit" :labelWidth="100">
-          <t-form-item label="网站" name="host_code">
-            <t-select v-model="formEditData.host_code" clearable :style="{ width: '480px' }">
-              <t-option v-for="(item, index) in host_dic" :value="index" :label="item"
-                        :key="index">
-                {{ item }}
-              </t-option>
-            </t-select>
-          </t-form-item>
-          <t-form-item label="速率" name="rate">
-            <t-input-number :style="{ width: '480px' }" v-model="formEditData.rate"
-                            placeholder="请输入速率"></t-input-number>
-          </t-form-item>
-          <t-form-item label="限制次数" name="limit">
-            <t-input-number :style="{ width: '480px' }" v-model="formEditData.limit"
-                            placeholder="请输入限制"></t-input-number>
-          </t-form-item>
-          <t-form-item label="Url" name="url">
-            <t-input :style="{ width: '480px' }" v-model="formEditData.url" placeholder="请输入CC防护"></t-input>
-          </t-form-item>
-          <t-form-item label="备注" name="remarks">
-            <t-textarea :style="{ width: '480px' }" v-model="formEditData.remarks" placeholder="请输入内容" name="remarks">
-            </t-textarea>
-          </t-form-item>
-          <t-form-item style="float: right">
-            <t-button variant="outline" @click="onClickCloseEditBtn">取消</t-button>
-            <t-button theme="primary" type="submit">确定</t-button>
-          </t-form-item>
-        </t-form>
-      </div>
-    </t-dialog>
-
-    <t-dialog header="确认删除当前所选Url?" :body="confirmBody" :visible.sync="confirmVisible" @confirm="onConfirmDelete"
-              :onCancel="onCancel">
-    </t-dialog>
   </div>
 </template>
 <script lang="ts">
@@ -130,9 +56,16 @@ import Vue from 'vue';
 import {SearchIcon} from 'tdesign-icons-vue';
 import Trend from '@/components/trend/index.vue';
 import {prefix, TOKEN_NAME} from '@/config/global';
-import {allhost} from '@/apis/host';
+import {getLicenseDetailApi} from '@/apis/license';
 import {centerListApi} from "../../../apis/center";
-
+const INITIAL_REG_DATA = {
+  version: '',
+  username: '',
+  member_type: '',
+  machine_id: '',
+  expiry_date: '',
+  is_expiry:false,
+};
 const INITIAL_DATA = {
   client_server_name: '',
   client_ip: '',
@@ -150,6 +83,11 @@ export default Vue.extend({
   },
   data() {
     return {
+      regData: {
+        ...INITIAL_REG_DATA
+      },
+      isVip:false,
+      freeClientCount:1,
       addFormVisible: false,
       editFormVisible: false,
       guardVisible: false,
@@ -194,22 +132,22 @@ export default Vue.extend({
         },
         {
           title: '操作系统类型',
-          width: 200,
+          width: 100,
           ellipsis: true,
           colKey: 'client_system_type',
         }, {
           title: 'IP',
-          width: 200,
+          width: 150,
           ellipsis: true,
           colKey: 'client_ip',
         }, {
           title: '端口',
-          width: 200,
+          width: 100,
           ellipsis: true,
           colKey: 'client_port',
         },{
           title: '版本号',
-          width: 200,
+          width: 100,
           ellipsis: true,
           colKey: 'client_new_version',
         }, {
@@ -217,6 +155,12 @@ export default Vue.extend({
           width: 200,
           ellipsis: true,
           colKey: 'client_new_version_desc',
+        },
+        {
+          align: 'left',
+          width: 200,
+          colKey: 'op',
+          title: '操作',
         },
         {
           title: '最近访问时间',
@@ -231,12 +175,6 @@ export default Vue.extend({
           colKey: 'create_time',
         },
 
-        {
-          align: 'left',
-          width: 200,
-          colKey: 'op',
-          title: '操作',
-        },
       ],
       rowKey: 'id',
       tableLayout: 'auto',
@@ -278,6 +216,31 @@ export default Vue.extend({
   },
 
   methods: {
+    /**
+     * 跳转授权信息*/
+    handleJumpLicense(){
+      this.$router.push('/center/License');
+    },
+    /**加载当前授权信息**/
+    loadCurrentLicense() {
+      let that = this
+      getLicenseDetailApi({})
+        .then((res) => {
+          let resdata = res
+          console.log(resdata)
+          if (resdata.code === 0) {
+            that.regData = resdata.data.license;
+            if(that.regData.username!="" && that.regData.is_expiry == true){
+              that.isVip = true
+            }
+          }
+        })
+        .catch((e: Error) => {
+          console.log(e);
+        })
+        .finally(() => {
+        });
+    },
     /**
      * 切换本机不进行数据处理
      */

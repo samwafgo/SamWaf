@@ -12,6 +12,7 @@ type RegistrationInfo struct {
 	MemberType string    `json:"member_type"`
 	MachineID  string    `json:"machine_id"`
 	ExpiryDate time.Time `json:"expiry_date"`
+	IsExpiry   bool      `json:"is_expiry"`
 }
 
 /*

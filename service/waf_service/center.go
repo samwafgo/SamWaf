@@ -114,3 +114,17 @@ func (receiver *CenterService) GetListApi(req request.CenterClientSearchReq) ([]
 
 	return list, total, nil
 }
+
+func (receiver *CenterService) CountApi() (int64, error) {
+
+	var total int64 = 0
+
+	/*where条件*/
+	var whereField = ""
+	var whereValues []interface{}
+	//where字段
+	whereField = ""
+	global.GWAF_LOCAL_DB.Model(&model.Center{}).Where(whereField, whereValues...).Count(&total)
+
+	return total, nil
+}

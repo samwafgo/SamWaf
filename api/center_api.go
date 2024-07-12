@@ -17,6 +17,18 @@ func (w *CenterApi) UpdateApi(c *gin.Context) {
 		response.FailWithMessage("单台服务器不能同时为客户端和服务端", c)
 		return
 	}
+	clientCount, err2 := CenterService.CountApi()
+	if err2 != nil {
+		response.FailWithMessage("异常1", c)
+		return
+	}
+
+	if clientCount > global.GWAF_REG_FREE_COUNT {
+		response.FailWithMessage("授权数量超额", c)
+		return
+	}
+	global.GWAF_REG_CUR_CLIENT_COUNT = clientCount
+
 	var req request.CenterClientUpdateReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
@@ -59,46 +71,6 @@ func (w *CenterApi) GetDetailApi(c *gin.Context) {
 	}
 }
 func (w *CenterApi) GetListApi(c *gin.Context) {
-	var req request.CenterClientSearchReq
-	err := c.ShouldBindJSON(&req)
-	if err == nil {
-		beans, total, _ := CenterService.GetListApi(req)
-		response.OkWithDetailed(response.PageResult{
-			List:      beans,
-			Total:     total,
-			PageIndex: req.PageIndex,
-			PageSize:  req.PageSize,
-		}, "获取成功", c)
-	} else {
-		response.FailWithMessage("解析失败", c)
-	}
-}
-
-/*
-*
-TODO 获取授权信息
-*/
-func (w *CenterApi) GetRegInfoApi(c *gin.Context) {
-	var req request.CenterClientSearchReq
-	err := c.ShouldBindJSON(&req)
-	if err == nil {
-		beans, total, _ := CenterService.GetListApi(req)
-		response.OkWithDetailed(response.PageResult{
-			List:      beans,
-			Total:     total,
-			PageIndex: req.PageIndex,
-			PageSize:  req.PageSize,
-		}, "获取成功", c)
-	} else {
-		response.FailWithMessage("解析失败", c)
-	}
-}
-
-/*
-*
-TODO 设置授权信息，此时用户上传注册信息注册文件，并保存在当前目录下
-*/
-func (w *CenterApi) SetRegInfoApi(c *gin.Context) {
 	var req request.CenterClientSearchReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {

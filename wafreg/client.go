@@ -3,6 +3,7 @@ package wafreg
 import (
 	"SamWaf/global"
 	"SamWaf/model"
+	"SamWaf/utils/zlog"
 	"SamWaf/wafsec"
 	"bytes"
 	"crypto/sha256"
@@ -19,7 +20,7 @@ import (
 *
 生成客户端机器信息
 */
-func genClientMachineInfo() model.MachineInfo {
+func GenClientMachineInfo() model.MachineInfo {
 	machineInfo := model.MachineInfo{
 		Version:          "v1",
 		ClientServerName: global.GWAF_CUSTOM_SERVER_NAME,
@@ -40,7 +41,7 @@ func genClientMachineInfo() model.MachineInfo {
 func GenClientMachineInfoWithEncrypt() (string, error) {
 	cryptoUtil := &wafsec.CryptoUtil{}
 	publicKey := []byte(global.GWAF_REG_PUBLIC_KEY)
-	machineInfo, err := json.Marshal(genClientMachineInfo())
+	machineInfo, err := json.Marshal(GenClientMachineInfo())
 	if err != nil {
 		return "转换json异常", err
 	}
@@ -58,19 +59,21 @@ func GenClientMachineInfoWithEncrypt() (string, error) {
 
 	校验注册服务信息
 */
-func VerifyServerReg() (bool, model.RegistrationInfo, error) {
+func VerifyServerReg(binData []byte) (success bool, info model.RegistrationInfo, err error) {
+	defer func() {
+		if err := recover(); err != nil {
+			zlog.Error("数据异常")
+			success = false
+			info = model.RegistrationInfo{}
+			err = errors.New("数据异常")
+		}
+	}()
 	//根据用户传来得数据信息
 	cryptoUtil := &wafsec.CryptoUtil{}
 	publicKey := []byte(global.GWAF_REG_PUBLIC_KEY)
 
 	// 假设读取当前机器的机器码
-	currentMachineInfo := genClientMachineInfo()
-
-	// 从文件中读取二进制数据
-	binData, err := ioutil.ReadFile("./registration_data.bin")
-	if err != nil {
-		return false, model.RegistrationInfo{}, errors.New("验签失败-加载注册信息")
-	}
+	currentMachineInfo := GenClientMachineInfo()
 
 	buffer := bytes.NewBuffer(binData)
 
@@ -123,6 +126,20 @@ func VerifyServerReg() (bool, model.RegistrationInfo, error) {
 			return true, regInfo, nil
 		}
 	}
+}
+
+/*
+*
+
+	校验注册服务信息
+*/
+func VerifyServerRegByDefaultFile() (bool, model.RegistrationInfo, error) {
+	// 从文件中读取二进制数据
+	binData, err := ioutil.ReadFile("./registration_data.bin")
+	if err != nil {
+		return false, model.RegistrationInfo{}, errors.New("not find reginfo")
+	}
+	return VerifyServerReg(binData)
 }
 
 // CheckExpiry 计算给定日期与当前日期的天数差，并返回是否到期

@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"SamWaf/global"
 	"SamWaf/service/waf_service"
 	"SamWaf/utils/zlog"
 	"bytes"
@@ -31,6 +32,12 @@ func CenterApi() gin.HandlerFunc {
 			centerBean := centerService.GetDetailByTencentUserCode(split[0], split[1])
 			if centerBean.Id != "" && c.RemoteIP() != centerBean.ClientIP {
 
+				if global.GWAF_REG_CUR_CLIENT_COUNT > global.GWAF_REG_FREE_COUNT {
+
+					// 停止后续的处理
+					c.Abort()
+					return
+				}
 				c.Request.Header.Set("X-Token", centerBean.ClientToken) //TODO 调试时候用 到正式的时候 这个用下面的
 				c.Request.Header.Set("OPEN-X-Token", centerBean.ClientToken)
 				// 构建远程服务的URL

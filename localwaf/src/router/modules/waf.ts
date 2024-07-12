@@ -1,4 +1,4 @@
-import { UserSafetyIcon,SystemSettingIcon,UsergroupIcon,SystemLogIcon,ApplicationIcon,LightingCircleIcon } from 'tdesign-icons-vue';
+import { UserSafetyIcon,SystemSettingIcon,UsergroupIcon,SystemLogIcon,ApplicationIcon,LightingCircleIcon ,ServerIcon} from 'tdesign-icons-vue';
 import Layout from '@/layouts/index.vue';
 
 export default [
@@ -168,13 +168,29 @@ export default [
         name: 'OneKeyMod',
         component: () => import('@/pages/waf/onekeymod/index.vue'),
         meta: { title: '一键修改' },
-      },{
-        path: 'CenterManager',
-        name: 'CenterManager',
-        component: () => import('@/pages/waf/center/index.vue'),
-        meta: { title: '管控中心' },
-      },
+      }
     ],
   },
 
+  {
+    path: '/center',
+    name: 'center',
+    component: Layout,
+    redirect: '/center',
+    meta: { title: '集中管理', icon: ServerIcon },
+    children: [
+     {
+        path: 'CenterManager',
+        name: 'CenterManager',
+        component: () => import('@/pages/waf/center/index.vue'),
+        meta: { title: '设备列表' },
+      },
+      {
+        path: 'License',
+        name: 'License',
+        component: () => import('@/pages/waf/license/index.vue'),
+        meta: { title: '授权信息' },
+      },
+    ],
+  },
 ];

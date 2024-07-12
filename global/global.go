@@ -122,12 +122,15 @@ var (
 	/**
 	中心管控部分
 	*/
-	GWAF_CENTER_ENABLE  string                 = "false"                    //中心管控激活状态
-	GWAF_CENTER_URL     string                 = "http://127.0.0.1:26666"   //中心管控默认URL
-	GWAF_REG_INFO       model.RegistrationInfo                              //当前注册信息
-	GWAF_REG_VERSION                           = "v1"                       //注册信息版本
-	GWAF_REG_KEY                               = []byte("5F!vion$k@a7QZ&)") //注册信息加密密钥
-	GWAF_REG_PUBLIC_KEY string                 = ""                         //注册信息加密公钥
+	GWAF_CENTER_ENABLE        string                 = "false"                    //中心管控激活状态
+	GWAF_CENTER_URL           string                 = "http://127.0.0.1:26666"   //中心管控默认URL
+	GWAF_REG_INFO             model.RegistrationInfo                              //当前注册信息
+	GWAF_REG_VERSION                                 = "v1"                       //注册信息版本
+	GWAF_REG_KEY                                     = []byte("5F!vion$k@a7QZ&)") //注册信息加密密钥
+	GWAF_REG_PUBLIC_KEY       string                 = ""                         //注册信息加密公钥
+	GWAF_REG_TMP_REG          []byte                                              //用户传来的信息
+	GWAF_REG_FREE_COUNT       int64                  = 3                          //免费版授权用户数
+	GWAF_REG_CUR_CLIENT_COUNT int64                  = 3                          //当前客户端用户数
 )
 
 func GetCurrentVersionInt() int {

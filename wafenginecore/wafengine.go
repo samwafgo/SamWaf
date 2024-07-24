@@ -434,40 +434,106 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if waf.HostTarget[host].RevProxy != nil {
 			waf.HostTarget[host].RevProxy.ServeHTTP(w, r.WithContext(ctx))
 		} else {
-			transport := &http.Transport{
-				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-					// 在这里可以自定义 DNS 解析过程
-					//priv_dns_host, priv_dns_port, err := net.SplitHostPort(addr)
-					if err != nil {
-						return nil, err
+			if r.TLS != nil {
+				hostParts := strings.Split(host, ":")
+				var port string
+				if len(hostParts) == 2 {
+					port = hostParts[1]
+				} else {
+					// 默认端口处理，根据协议类型
+					if r.TLS != nil {
+						port = "443"
+					} else {
+						port = "80"
 					}
-					// 使用解析后的 IP 地址进行连接
-					dialer := net.Dialer{
-						Timeout:   30 * time.Second,
-						KeepAlive: 30 * time.Second,
-					}
-					//通过自定义nameserver获取域名解析的IP
-					//ips, _ := dialer.Resolver.LookupHost(ctx, host)
-					//for _, s := range ips {
-					// log.Println(s)
-					//}
-
-					// 创建链接
-					if waf.HostTarget[host].Host.Remote_ip != "" {
-						conn, err := dialer.DialContext(ctx, network, waf.HostTarget[host].Host.Remote_ip+":"+strconv.Itoa(waf.HostTarget[host].Host.Remote_port))
-						if err == nil {
-							return conn, nil
+				}
+				transport := &http.Transport{
+					TLSClientConfig: &tls.Config{
+						NameToCertificate:  make(map[string]*tls.Certificate, 0),
+						InsecureSkipVerify: false,
+					},
+					DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+						// 在这里可以自定义 DNS 解析过程
+						//priv_dns_host, priv_dns_port, err := net.SplitHostPort(addr)
+						if err != nil {
+							return nil, err
 						}
+						// 使用解析后的 IP 地址进行连接
+						dialer := net.Dialer{
+							Timeout:   30 * time.Second,
+							KeepAlive: 30 * time.Second,
+						}
+						//通过自定义nameserver获取域名解析的IP
+						//ips, _ := dialer.Resolver.LookupHost(ctx, host)
+						//for _, s := range ips {
+						// log.Println(s)
+						//}
+
+						// 创建链接
+						if waf.HostTarget[host].Host.Remote_ip != "" {
+							conn, err := dialer.DialContext(ctx, network, waf.HostTarget[host].Host.Remote_ip+":"+strconv.Itoa(waf.HostTarget[host].Host.Remote_port))
+							if err == nil {
+								return conn, nil
+							}
+						}
+						return dialer.DialContext(ctx, network, addr)
+					},
+				}
+
+				portInt, _ := strconv.Atoi(port)
+
+				transport.TLSClientConfig.NameToCertificate = waf.AllCertificate[portInt]
+				transport.TLSClientConfig.GetCertificate = func(clientInfo *tls.ClientHelloInfo) (*tls.Certificate, error) {
+					if x509Cert, ok := transport.TLSClientConfig.NameToCertificate[clientInfo.ServerName]; ok {
+						return x509Cert, nil
 					}
-					return dialer.DialContext(ctx, network, addr)
-				},
+					return nil, errors.New("config error")
+				}
+				proxy := wafproxy.NewSingleHostReverseProxy(remoteUrl)
+
+				proxy.Transport = transport
+				proxy.ModifyResponse = waf.modifyResponse()
+				proxy.ErrorHandler = errorHandler()
+				waf.HostTarget[host].RevProxy = proxy // 放入缓存
+				proxy.ServeHTTP(w, r.WithContext(ctx))
+			} else {
+				transport := &http.Transport{
+					DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+						// 在这里可以自定义 DNS 解析过程
+						//priv_dns_host, priv_dns_port, err := net.SplitHostPort(addr)
+						if err != nil {
+							return nil, err
+						}
+						// 使用解析后的 IP 地址进行连接
+						dialer := net.Dialer{
+							Timeout:   30 * time.Second,
+							KeepAlive: 30 * time.Second,
+						}
+						//通过自定义nameserver获取域名解析的IP
+						//ips, _ := dialer.Resolver.LookupHost(ctx, host)
+						//for _, s := range ips {
+						// log.Println(s)
+						//}
+
+						// 创建链接
+						if waf.HostTarget[host].Host.Remote_ip != "" {
+							conn, err := dialer.DialContext(ctx, network, waf.HostTarget[host].Host.Remote_ip+":"+strconv.Itoa(waf.HostTarget[host].Host.Remote_port))
+							if err == nil {
+								return conn, nil
+							}
+						}
+						return dialer.DialContext(ctx, network, addr)
+					},
+				}
+				proxy := wafproxy.NewSingleHostReverseProxy(remoteUrl)
+
+				proxy.Transport = transport
+				proxy.ModifyResponse = waf.modifyResponse()
+				proxy.ErrorHandler = errorHandler()
+				waf.HostTarget[host].RevProxy = proxy // 放入缓存
+				proxy.ServeHTTP(w, r.WithContext(ctx))
 			}
-			proxy := wafproxy.NewSingleHostReverseProxy(remoteUrl)
-			proxy.Transport = transport
-			proxy.ModifyResponse = waf.modifyResponse()
-			proxy.ErrorHandler = errorHandler()
-			waf.HostTarget[host].RevProxy = proxy // 放入缓存
-			proxy.ServeHTTP(w, r.WithContext(ctx))
+
 		}
 		return
 	} else {

@@ -1,0 +1,47 @@
+name: '🐛 反馈缺陷'
+description: '反馈一个缺陷'
+title: '[Bug] '
+labels: ['🐛 Bug']
+assignees: 
+  - samwafgo
+body:
+  - type: input
+    attributes:
+      label: '产品版本'
+      description: 产品版本。
+    validations:
+      required: true
+
+  - type: checkboxes
+    attributes:
+      label: '版本类型'
+      options:
+        - label: '社区版' 
+    validations:
+      required: true 
+
+  - type: textarea
+    attributes:
+      label: '环境信息'
+      description: 请提供一个清晰且简洁的描述，说明你的环境信息。
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: '🐛 缺陷描述'
+      description: |
+        请提供一个清晰且简洁的缺陷描述，如果问题比较复杂，也请详细说明。<br/> 
+        针对不清晰的描述信息将不予处理。请确保提供足够的细节和信息，以支持对缺陷进行复现和修复。
+    validations:
+      required: true
+ 
+  - type: textarea
+    attributes:
+      label: '期望结果'
+      description: 请提供一个清晰且简洁的描述，说明你期望发生什么。
+
+  - type: textarea
+    attributes:
+      label: '补充信息'
+      description: 在这里添加关于问题的任何其他背景信息。 

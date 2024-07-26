@@ -102,7 +102,7 @@ http://127.0.0.1:26666
 
 ## compile 编译
 
-[编译说明](/docs/compile.md)
+[编译说明](./docs/compile.md)
 
 ## 问题反馈
 - [github issues访问](https://github.com/samwafgo/SamWaf/issues)

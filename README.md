@@ -11,7 +11,62 @@ SamWaf网站防火墙是一款适用于小公司、工作室和个人网站的�
 ## 界面
 ![SamWaf网站防火墙概览](/docs/images/overview.png)
 
+<table>
+    <tr>
+        <td align="center">添加主机</td>
+        <td align="center">攻击日志</td>
+    </tr>
+    <tr>
+        <td><img src="./docs/images/add_host.png" alt="添加主机"/></td>
+        <td><img src="./docs/images/attacklog.png" alt="攻击日志"/></td>
+    </tr>
+    <tr>
+        <td align="center">CC</td>
+        <td align="center">IP黑名单</td>
+    </tr>
+    <tr>
+        <td><img src="./docs/images/cc.png" alt="CC"/></td>
+        <td><img src="./docs/images/ipblack.png" alt="IP黑名单"/></td>
+    </tr>
+    <tr>
+        <td align="center">IP白名单</td>
+        <td align="center">LDP</td>
+    </tr>
+    <tr>
+        <td><img src="./docs/images/ipwhite.png" alt="IP白名单"/></td>
+        <td><img src="./docs/images/ldp.png" alt="LDP"/></td>
+    </tr>
+    <tr>
+        <td align="center">添加规则脚本日志</td>
+        <td align="center">选择日志</td>
+    </tr>
+    <tr>
+        <td><img src="./docs/images/log_add_rule_script.png" alt="添加规则脚本日志"/></td>
+        <td><img src="./docs/images/log_select.png" alt="选择日志"/></td>
+    </tr>
+    <tr>
+        <td align="center">日志详情</td>
+        <td align="center">手动规则</td>
+    </tr>
+    <tr>
+        <td><img src="./docs/images/logdetail.png" alt="日志详情"/></td>
+        <td><img src="./docs/images/manual_rule.png" alt="手动规则"/></td>
+    </tr>
+    <tr>
+        <td align="center">URL黑名单</td>
+        <td align="center">URL白名单</td>
+    </tr>
+    <tr>
+        <td><img src="./docs/images/urlblack.png" alt="URL黑名单"/></td>
+        <td><img src="./docs/images/urlwhite.png" alt="URL白名单"/></td>
+    </tr>
+</table>
+
+
 ## 主要功能：
+- 代码完全开源
+- 支持私有化部署
+- 轻量化不依赖三方服务
 - 完全独立引擎，防护功能不依赖IIS,Nginx
 - 自定义防护规则，支持脚本和界面编辑
 - 支持白名单访问
@@ -22,76 +77,59 @@ SamWaf网站防火墙是一款适用于小公司、工作室和个人网站的�
 - 支持CC频率访问
 - 支持全局一键配置
 - 支持分网站单独防护策略
+- 日志加密保存
+- 通讯日志加密
+- 信息脱敏保存
 
-## 已测试支持的平台
-- Centos 64位
-- Ubuntu 64
-- Windows 2008r2 64位
-- Windows10 64位
+
 
 ## 下载最新版本
 gitee:  [https://gitee.com/samwaf/SamWaf/releases](https://gitee.com/samwaf/SamWaf/releases)
 
 github: [https://github.com/samwafgo/SamWaf/releases](https://github.com/samwafgo/SamWaf/releases)
-
-
-- Windows 
-
-SamWaf64.exe
-
-- Linux
-
-SamWafLinux64
-
+ 
 ## 快速启动
-启动方式分为后台服务形式启动和非后台服务启动
-### 服务形式
-服务方式可以自动注册重启自动启动
-
-1.安装
-
-如果是windows环境
-```shell script
-SamWaf64.exe install
+### Windows
+- 直接启动
 ```
-
-如果是linux环境
-```shell script
-SamWafLinux64 install
+SamWaf64.exe
 ```
-2.启动
+- 服务形式
+```
+//安装
+SamWaf64.exe install 
 
-如果是windows环境
-```shell script
+//启动
 SamWaf64.exe start
-```
 
-如果是linux环境
-```shell script
-SamWafLinux64 start
-```
-
-3.停止
-
-如果是windows环境
-```shell script
+//停止
 SamWaf64.exe stop
-```
-如果是linux环境
-```shell script
-SamWafLinux64 stop
-```
-### 非服务形式
 
-如果是windows环境 双击启动
-```shell script
- SamWaf64.exe
-```
-如果是linux环境 执行
-```shell script
-./SamWafLinux64 
+//卸载
+SamWaf64.exe uninstall
 ```
 
+### Linux
+
+- 直接启动
+```
+./SamWafLinux64
+```
+- 服务形式
+```
+//安装
+./SamWafLinux64 install 
+
+//启动
+./SamWafLinux64 start
+
+//停止
+./SamWafLinux64 stop
+
+//卸载
+./SamWafLinux64 uninstall
+```
+ 
 
 ## 启动访问
 
@@ -100,10 +138,14 @@ http://127.0.0.1:26666
 默认帐号：admin  默认密码：admin868 (注意首次进入请把默认密码改掉)
 
 
-## compile 编译
-
+## 编译
+How to compile
 [编译说明](./docs/compile.md)
+
+## 已测试支持的平台
+[已测试支持的平台](./docs/Tested_supported_systems.md)
 
 ## 问题反馈
 - [github issues访问](https://github.com/samwafgo/SamWaf/issues)
 - 邮件反馈 samwafgo@gmail.com
+

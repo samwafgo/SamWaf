@@ -100,19 +100,9 @@ http://127.0.0.1:26666
 默认帐号：admin  默认密码：admin868 (注意首次进入请把默认密码改掉)
 
 
-## 编译
-代码为go语言开发。建议golang:1.22.3
+## compile 编译
 
-windows
-```
-build-releases-win-upx.bat
-
-```
-linux
-```
-./build_docker_release_linux.bat
-
-```
+[编译说明](/docs/compile.md)
 
 ## 问题反馈
 - [github issues访问](https://github.com/samwafgo/SamWaf/issues)

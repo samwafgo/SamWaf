@@ -154,6 +154,7 @@ How to compile
 [已测试支持的平台](./docs/Tested_supported_systems.md)
 
 ## 问题反馈
-- [github issues访问](./issues)
+- [gitee issues](https://gitee.com/samwaf/SamWaf/issues)
+- [github issues](https://github.com/samwafgo/SamWaf/issues)
 - 邮件反馈 samwafgo@gmail.com
 

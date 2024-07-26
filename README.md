@@ -90,7 +90,7 @@ SamWaf网站防火墙是一款适用于小公司、工作室和个人网站的�
 - 信息脱敏保存
 
 
-
+# 使用说明
 ## 下载最新版本
 gitee:  [https://gitee.com/samwaf/SamWaf/releases](https://gitee.com/samwaf/SamWaf/releases)
 
@@ -146,15 +146,25 @@ http://127.0.0.1:26666
 默认帐号：admin  默认密码：admin868 (注意首次进入请把默认密码改掉)
 
 
-## 编译
+## 在线文档
+
+[在线文档](https://doc.samwaf.com/)
+
+# 代码相关
+## 介绍和编译
 How to compile
 [编译说明](./docs/compile.md)
 
 ## 已测试支持的平台
 [已测试支持的平台](./docs/Tested_supported_systems.md)
 
-## 问题反馈
+# 安全策略
+[安全策略](./SECURITY.md)
+
+# 问题反馈
+当前 SamWaf 还正在不停迭代,欢迎大家反馈问题、提出意见
+
 - [gitee issues](https://gitee.com/samwaf/SamWaf/issues)
 - [github issues](https://github.com/samwafgo/SamWaf/issues)
-- 邮件反馈 samwafgo@gmail.com
+- 邮件反馈:samwafgo@gmail.com
 

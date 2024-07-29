@@ -285,12 +285,12 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	//打印处理前的header
 	// 打印处理前的请求头
-	fmt.Println("Request Before Headers:")
+	/*fmt.Println("Request Before Headers:")
 	for name, values := range req.Header {
 		for _, value := range values {
 			fmt.Printf("%s: %s\n", name, value)
 		}
-	}
+	}*/
 	p.Director(outreq)
 	outreq.Close = false
 
@@ -339,12 +339,12 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	//打印处理后的header
 	// 打印处理前的请求头
-	fmt.Println("Request After Headers:")
+	/*fmt.Println("Request After Headers:")
 	for name, values := range req.Header {
 		for _, value := range values {
 			fmt.Printf("%s: %s\n", name, value)
 		}
-	}
+	}*/
 	res, err := transport.RoundTrip(outreq)
 	if err != nil {
 		p.getErrorHandler()(rw, outreq, err)

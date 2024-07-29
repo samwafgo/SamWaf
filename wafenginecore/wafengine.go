@@ -489,7 +489,10 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					}
 					return nil, errors.New("config error")
 				}
-				proxy := wafproxy.NewSingleHostReverseProxy(remoteUrl)
+				customHeaders := map[string]string{
+					"X-FORWARDED-PROTO": "https",
+				}
+				proxy := wafproxy.NewSingleHostReverseProxyCustomHeader(remoteUrl, customHeaders)
 
 				proxy.Transport = transport
 				proxy.ModifyResponse = waf.modifyResponse()

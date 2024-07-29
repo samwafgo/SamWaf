@@ -160,6 +160,29 @@ func NewSingleHostReverseProxy(target *url.URL) *ReverseProxy {
 	return &ReverseProxy{Director: director}
 }
 
+// NewSingleHostReverseProxy 自定义header
+func NewSingleHostReverseProxyCustomHeader(target *url.URL, customHeaders map[string]string) *ReverseProxy {
+	targetQuery := target.RawQuery
+	director := func(req *http.Request) {
+		req.URL.Scheme = target.Scheme
+		req.URL.Host = target.Host
+		req.URL.Path, req.URL.RawPath = joinURLPath(target, req.URL)
+		if targetQuery == "" || req.URL.RawQuery == "" {
+			req.URL.RawQuery = targetQuery + req.URL.RawQuery
+		} else {
+			req.URL.RawQuery = targetQuery + "&" + req.URL.RawQuery
+		}
+		if _, ok := req.Header["User-Agent"]; !ok {
+			// explicitly disable User-Agent so it's not set to default value
+			req.Header.Set("User-Agent", "")
+		}
+		// 添加自定义 header
+		for key, value := range customHeaders {
+			req.Header.Set(key, value)
+		}
+	}
+	return &ReverseProxy{Director: director}
+}
 func copyHeader(dst, src http.Header) {
 	for k, vv := range src {
 		for _, v := range vv {
@@ -260,6 +283,14 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		outreq.Header = make(http.Header) // Issue 33142: historical behavior was to always allocate
 	}
 
+	//打印处理前的header
+	// 打印处理前的请求头
+	fmt.Println("Request Before Headers:")
+	for name, values := range req.Header {
+		for _, value := range values {
+			fmt.Printf("%s: %s\n", name, value)
+		}
+	}
 	p.Director(outreq)
 	outreq.Close = false
 
@@ -306,7 +337,14 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			outreq.Header.Set("X-Forwarded-For", clientIP)
 		}
 	}
-
+	//打印处理后的header
+	// 打印处理前的请求头
+	fmt.Println("Request After Headers:")
+	for name, values := range req.Header {
+		for _, value := range values {
+			fmt.Printf("%s: %s\n", name, value)
+		}
+	}
 	res, err := transport.RoundTrip(outreq)
 	if err != nil {
 		p.getErrorHandler()(rw, outreq, err)

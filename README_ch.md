@@ -1,6 +1,6 @@
 [English](README.md) | 简体中文
 
-SamWaf网站防火墙
+# SamWaf开源网站防火墙
 [![Release](https://img.shields.io/github/release/samwafgo/SamWaf.svg)](https://github.com/samwafgo/SamWaf/releases)
 
 ## 开发初衷:
@@ -178,4 +178,5 @@ How to compile
 
 # 许可证书
 SamWaf 受<a href="LICENSE">Apache 2.0 license</a>许可认证
+
 第三方软件使用声明，见[ThridLicense](./ThridLicense)

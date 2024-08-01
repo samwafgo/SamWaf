@@ -1,6 +1,6 @@
 English | [简体中文](README_ch.md) 
 
-SamWaf Web Application Firewall
+# SamWaf Open Source Web Application Firewall
 [![Release](https://img.shields.io/github/release/samwafgo/SamWaf.svg)](https://github.com/samwafgo/SamWaf/releases)
 
 ## Development Motivation:
@@ -178,4 +178,5 @@ SamWaf is continuously iterating. We welcome feedback and suggestions.
 
 #  License
 SamWaf is released under <a href="LICENSE">Apache 2.0 license</a>
+
 For third-party software usage notice, see [ThridLicense](./ThridLicense)

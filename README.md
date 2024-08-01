@@ -177,6 +177,6 @@ SamWaf is continuously iterating. We welcome feedback and suggestions.
 - Email feedback: samwafgo@gmail.com
 
 #  License
-SamWaf is released under <a href="LICENSE">Apache 2.0 license</a>
+SamWaf is licensed under the Apache License 2.0. Refer to [LICENSE](./LICENSE) for more details.
 
-For third-party software usage notice, see [ThridLicense](./ThridLicense)
+For third-party software usage notice, see [ThirdLicense](./ThirdLicense)

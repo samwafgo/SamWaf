@@ -177,6 +177,6 @@ How to compile
 - 邮件反馈:samwafgo@gmail.com
 
 # 许可证书
-SamWaf 受<a href="LICENSE">Apache 2.0 license</a>许可认证
+SamWaf 采用 Apache 2.0 license. 详细见 [LICENSE](./LICENSE) .
 
-第三方软件使用声明，见[ThridLicense](./ThridLicense)
+第三方软件使用声明，见[ThirdLicense](./ThirdLicense)

@@ -4,7 +4,7 @@ English | [简体中文](README_ch.md)
 [![Release](https://img.shields.io/github/release/samwafgo/SamWaf.svg)](https://github.com/samwafgo/SamWaf/releases)
 
 ## Development Motivation:
-- **Lightweight**: Initially, I used security products like Safe Dog and Yunsuo based on nginx, apache, and iis plugins for protection, but the plugin form had a high coupling degree.
+- **Lightweight**: Initially, I used security products like Safe * and Yun* based on nginx, apache, and iis plugins for protection, but the plugin form had a high coupling degree.
 - **Privatization**: Later, most cloud protection services were adopted, but private deployment is affordable only for medium and large enterprises, while small companies and studios find it costly.
 - **Privacy Encryption**: During web protection, it is preferable to process local data without sending it to the cloud. The goal was to create a tool that encrypts local information and network communications for the management end.
 - **DIY**: Over the years of website maintenance and development, there were specific functions I wanted to add but couldn't achieve.

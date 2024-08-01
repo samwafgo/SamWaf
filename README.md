@@ -151,6 +151,12 @@ http://127.0.0.1:26666
 [在线文档](https://doc.samwaf.com/)
 
 # 代码相关
+## 代码托管
+- gitee
+[https://gitee.com/samwaf/SamWaf](https://gitee.com/samwaf/SamWaf)
+- github
+[https://github.com/samwafgo/SamWaf](https://github.com/samwafgo/SamWaf)
+
 ## 介绍和编译
 How to compile
 [编译说明](./docs/compile.md)

@@ -77,4 +77,8 @@ linux
 前端: 使用TDesign Vue Starter
 后端: gorm,excelize(360EntSecGroup-Skylar),godlp(bytedance),gin,gocron,
      grule-rule-engine,ip2region,sqlitedriver,viper,libinjection-go
-     
+
+## TODO List
+
+- 二进制版本文件从github action 进行编译和发布    
+ 

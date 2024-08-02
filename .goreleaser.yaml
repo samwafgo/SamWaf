@@ -1,0 +1,89 @@
+# This is an example .goreleaser.yml file with some sensible defaults.
+# Make sure to check the documentation at https://goreleaser.com
+
+# The lines below are called `modelines`. See `:help modeline`
+# Feel free to remove those if you don't want/need to use them.
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
+
+version: 2
+
+before:
+  hooks:
+    # You may remove this if you don't use go modules.
+    - go mod tidy
+    # you may remove this if you don't need go generate
+    - go generate ./...
+
+builds:
+  - id: "samwaf"
+    env:
+      - CGO_ENABLED=1
+      - GOPROXY=https://goproxy.cn,direct
+    goos:
+      - windows
+    goarch:
+      - amd64
+    ldflags:
+      - -X SamWaf/global.GWAF_RELEASE=true
+      - -X SamWaf/global.GWAF_RELEASE_VERSION_NAME={{ time "20060102" }}
+      - -X SamWaf/global.GWAF_RELEASE_VERSION={{.Tag}}
+      - -s -w
+      - -extldflags "-static"
+upx:
+  - # Whether to enable it or not.
+    #
+    # Templates: allowed.
+    enabled: false
+
+    # Filter by build ID.
+    ids: [samwaf]
+
+    # Filter by GOOS.
+    goos: [windows]
+
+    # Filter by GOARCH.
+    goarch: [amd64]
+
+    # Filter by GOAMD64.
+    goamd64: [v1]
+
+    # Compress argument.
+    # Valid options are from '1' (faster) to '9' (better), and 'best'.
+    compress: best
+
+    # Whether to try LZMA (slower).
+    lzma: true
+
+    # Whether to try all methods and filters (slow).
+    brute: true
+archives:
+  - format: tar.gz
+    # this name template makes the OS and Arch compatible with the results of `uname`.
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}_
+      {{.Tag}}
+    # use zip for windows archives
+    format_overrides:
+      - goos: windows
+        format: zip
+changelog:
+  sort: asc
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: "Bug fixes"
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: Others
+      order: 999
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"

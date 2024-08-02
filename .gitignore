@@ -10,3 +10,4 @@
 /data/local_stats.db-shm
 /data/local_stats.db-wal
 registration_data.bin
+dist/

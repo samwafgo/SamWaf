@@ -11,3 +11,4 @@
 /data/local_stats.db-wal
 registration_data.bin
 dist/
+.idea/

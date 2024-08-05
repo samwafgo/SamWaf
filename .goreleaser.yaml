@@ -20,8 +20,10 @@ builds:
     env:
       - CGO_ENABLED=1
       - GOPROXY=https://goproxy.cn,direct
+      - CC=x86_64-w64-mingw32-gcc
     goos:
       - windows
+      - linux
     goarch:
       - amd64
     ldflags:
@@ -66,7 +68,7 @@ archives:
       {{- if eq .Arch "amd64" }}x86_64
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
-      {{- if .Arm }}v{{ .Arm }}{{ end }}_
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
       {{.Tag}}
     # use zip for windows archives
     format_overrides:

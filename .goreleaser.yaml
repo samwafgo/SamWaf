@@ -20,7 +20,10 @@ builds:
     env:
       - CGO_ENABLED=1
       - GOPROXY=https://goproxy.cn,direct
-      - CC=x86_64-w64-mingw32-gcc
+      - CGO_CFLAGS=-Wno-unused-variable
+      - CGO_CFLAGS=-Wno-unused-function
+      - CGO_CFLAGS=-Werror=implicit-function-declaration
+      - CGO_CFLAGS=-Werror=unused-variable
     goos:
       - windows
       - linux

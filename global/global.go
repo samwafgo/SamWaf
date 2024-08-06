@@ -129,7 +129,7 @@ var (
 	GWAF_REG_KEY                                     = []byte("5F!vion$k@a7QZ&)") //注册信息加密密钥
 	GWAF_REG_PUBLIC_KEY       string                 = ""                         //注册信息加密公钥
 	GWAF_REG_TMP_REG          []byte                                              //用户传来的信息
-	GWAF_REG_FREE_COUNT       int64                  = 3                          //免费版授权用户数
+	GWAF_REG_FREE_COUNT       int64                  = 99999                      //免费版授权用户数
 	GWAF_REG_CUR_CLIENT_COUNT int64                  = 3                          //当前客户端用户数
 )
 

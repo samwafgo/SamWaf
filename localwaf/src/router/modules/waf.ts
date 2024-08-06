@@ -177,20 +177,14 @@ export default [
     name: 'center',
     component: Layout,
     redirect: '/center',
-    meta: { title: '集中管理', icon: ServerIcon },
+    meta: { title: '设备管理', icon: ServerIcon },
     children: [
      {
         path: 'CenterManager',
         name: 'CenterManager',
         component: () => import('@/pages/waf/center/index.vue'),
         meta: { title: '设备列表' },
-      },
-      {
-        path: 'License',
-        name: 'License',
-        component: () => import('@/pages/waf/license/index.vue'),
-        meta: { title: '授权信息' },
-      },
+      }
     ],
   },
 ];

@@ -24,7 +24,7 @@
           <t-row v-if="regData.username ==''">
             <t-col :span="6">授权类型：</t-col> <t-col :span="6">免费版</t-col>
             <t-col :span="6">授权机器码：</t-col> <t-col :span="6">{{ clientData.machine_id }}</t-col>
-            <t-col :span="6">授权数量：</t-col> <t-col :span="6">3台 <t-link theme="warning" underline> （需要升级请联系samwafgo@gmail.com我们进行商业授权） </t-link> </t-col>
+            <t-col :span="6">授权数量：</t-col> <t-col :span="6">3台   </t-col>
             <t-col>  <t-button variant="outline" @click="HandleImportLicense">
               <cloud-upload-icon slot="icon"  />
               上传文件

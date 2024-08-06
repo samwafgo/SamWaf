@@ -3,12 +3,9 @@ package wafreg
 import (
 	"SamWaf/global"
 	"SamWaf/model"
-	"SamWaf/utils/zlog"
 	"SamWaf/wafsec"
-	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -60,72 +57,17 @@ func GenClientMachineInfoWithEncrypt() (string, error) {
 	校验注册服务信息
 */
 func VerifyServerReg(binData []byte) (success bool, info model.RegistrationInfo, err error) {
-	defer func() {
-		if err := recover(); err != nil {
-			zlog.Error("数据异常")
-			success = false
-			info = model.RegistrationInfo{}
-			err = errors.New("数据异常")
-		}
-	}()
-	//根据用户传来得数据信息
-	cryptoUtil := &wafsec.CryptoUtil{}
-	publicKey := []byte(global.GWAF_REG_PUBLIC_KEY)
 
-	// 假设读取当前机器的机器码
-	currentMachineInfo := GenClientMachineInfo()
-
-	buffer := bytes.NewBuffer(binData)
-
-	// 读取注册信息长度
-	var dataLen int32
-	err = binary.Read(buffer, binary.LittleEndian, &dataLen)
-	if err != nil {
-		return false, model.RegistrationInfo{}, errors.New("验签失败-读取注册信息长度失败")
+	//社区信息处理
+	var regInfo = model.RegistrationInfo{
+		Version:    "v1",
+		Username:   "user",
+		MemberType: "社区版",
+		MachineID:  "",
+		ExpiryDate: time.Now().AddDate(1, 0, 0),
+		IsExpiry:   false,
 	}
-
-	// 读取注册信息
-	data := make([]byte, dataLen)
-	_, err = buffer.Read(data)
-	if err != nil {
-		return false, model.RegistrationInfo{}, errors.New("验签失败-读取注册信息失败")
-	}
-
-	// 读取签名长度
-	var sigLen int32
-	err = binary.Read(buffer, binary.LittleEndian, &sigLen)
-	if err != nil {
-		return false, model.RegistrationInfo{}, errors.New("验签失败-读取签名长度失败")
-	}
-
-	// 读取签名
-	signature := make([]byte, sigLen)
-	_, err = buffer.Read(signature)
-	if err != nil {
-		return false, model.RegistrationInfo{}, errors.New("验签失败-读取签名失败")
-	}
-
-	// 客户端验证签名
-	signWithSha256Result := cryptoUtil.RsaVerySignWithSha256(data, signature, publicKey)
-	if !signWithSha256Result {
-		return false, model.RegistrationInfo{}, errors.New("验签失败")
-	} else {
-		decrypt, err := wafsec.AesDecrypt(string(data), global.GWAF_REG_KEY)
-		data = decrypt
-		// 解析数据
-		var regInfo model.RegistrationInfo
-		err = json.Unmarshal(data, &regInfo)
-		if err != nil {
-			return false, model.RegistrationInfo{}, errors.New("验签成功-转换json失败")
-		}
-
-		// 验证机器码
-		if regInfo.MachineID != currentMachineInfo.MachineID {
-			return false, model.RegistrationInfo{}, errors.New("验签成功-机器码不正确")
-		} else {
-			return true, regInfo, nil
-		}
-	}
+	return true, regInfo, nil
 }
 
 /*

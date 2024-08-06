@@ -213,6 +213,7 @@ export default Vue.extend({
   },
   mounted() {
     this.getList("")
+    this.loadCurrentLicense()
   },
 
   methods: {
@@ -230,7 +231,7 @@ export default Vue.extend({
           console.log(resdata)
           if (resdata.code === 0) {
             that.regData = resdata.data.license;
-            if(that.regData.username!="" && that.regData.is_expiry == true){
+            if(that.regData.username!="" && that.regData.is_expiry == false){
               that.isVip = true
             }
           }

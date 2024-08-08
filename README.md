@@ -180,3 +180,10 @@ SamWaf is continuously iterating. We welcome feedback and suggestions.
 SamWaf is licensed under the Apache License 2.0. Refer to [LICENSE](./LICENSE) for more details.
 
 For third-party software usage notice, see [ThirdLicense](./ThirdLicense)
+
+# Contribution
+ Thanks for the following contributors!
+
+<a href="https://github.com/samwafgo/SamWaf/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=samwafgo/SamWaf" />
+</a>

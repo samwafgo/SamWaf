@@ -181,3 +181,10 @@ How to compile
 SamWaf 采用 Apache 2.0 license. 详细见 [LICENSE](./LICENSE) .
 
 第三方软件使用声明，见[ThirdLicense](./ThirdLicense)
+ 
+# 贡献代码
+ 感谢以下小伙伴对本仓库的贡献!
+
+<a href="https://github.com/samwafgo/SamWaf/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=samwafgo/SamWaf" />
+</a>

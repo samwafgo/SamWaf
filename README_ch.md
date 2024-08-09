@@ -93,7 +93,7 @@ SamWaf网站防火墙是一款适用于小公司、工作室和个人网站的�
 
 
 # 使用说明
-请在测试环境测试充分在
+**强烈建议您在测试环境测试充分在上生产，如遇到问题请及时反馈**
 ## 下载最新版本
 gitee:  [https://gitee.com/samwaf/SamWaf/releases](https://gitee.com/samwaf/SamWaf/releases)
 

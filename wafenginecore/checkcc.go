@@ -11,7 +11,7 @@ import (
 *
 检测xss
 */
-func (waf *WafEngine) CheckCC(weblogbean innerbean.WebLog, formValue url.Values) detection.Result {
+func (waf *WafEngine) CheckCC(weblogbean *innerbean.WebLog, formValue url.Values) detection.Result {
 	result := detection.Result{
 		JumpGuardResult: false,
 		IsBlock:         false,

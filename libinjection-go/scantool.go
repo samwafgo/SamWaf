@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-func IsScan(log innerbean.WebLog) bool {
+func IsScan(log *innerbean.WebLog) bool {
 	url_keywords := []string{"sqlmap", "Appscan", "nessus", "Nessus", "nessus",
 		"acunetix-wvs-test-for-some-inexistent-file", "acunetix_wvs_security_test",
 		"acunetix", "acunetix_wvs"}

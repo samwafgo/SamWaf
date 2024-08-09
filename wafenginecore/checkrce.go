@@ -11,7 +11,7 @@ import (
 *
 检测Rce
 */
-func (waf *WafEngine) CheckRce(weblogbean innerbean.WebLog, formValue url.Values) detection.Result {
+func (waf *WafEngine) CheckRce(weblogbean *innerbean.WebLog, formValue url.Values) detection.Result {
 	result := detection.Result{
 		JumpGuardResult: false,
 		IsBlock:         false,

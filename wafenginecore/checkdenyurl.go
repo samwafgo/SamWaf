@@ -13,7 +13,7 @@ import (
 检测不允许访问的 url
 返回是否满足条件
 */
-func (waf *WafEngine) CheckDenyURL(weblogbean innerbean.WebLog, formValue url.Values) detection.Result {
+func (waf *WafEngine) CheckDenyURL(weblogbean *innerbean.WebLog, formValue url.Values) detection.Result {
 	result := detection.Result{
 		JumpGuardResult: false,
 		IsBlock:         false,

@@ -12,7 +12,7 @@ import (
 *
 检测白名单 ip
 */
-func (waf *WafEngine) CheckAllowIP(weblogbean innerbean.WebLog, formValue url.Values) detection.Result {
+func (waf *WafEngine) CheckAllowIP(weblogbean *innerbean.WebLog, formValue url.Values) detection.Result {
 	result := detection.Result{
 		JumpGuardResult: false,
 		IsBlock:         false,

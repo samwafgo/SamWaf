@@ -165,15 +165,15 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		if waf.HostTarget[host].Host.GUARD_STATUS == 1 {
 			//一系列检测逻辑
-			handleBlock := func(checkFunc func(innerbean.WebLog, url.Values) detection.Result) bool {
-				detectionResult := checkFunc(weblogbean, formValues)
+			handleBlock := func(checkFunc func(*innerbean.WebLog, url.Values) detection.Result) bool {
+				detectionResult := checkFunc(&weblogbean, formValues)
 				if detectionResult.IsBlock {
 					EchoErrorInfo(w, r, weblogbean, detectionResult.Title, detectionResult.Content)
 					return true
 				}
 				return false
 			}
-			detectionResult := waf.CheckAllowIP(weblogbean, formValues)
+			detectionResult := waf.CheckAllowIP(&weblogbean, formValues)
 			detectionResult = waf.CheckAllowURL(weblogbean, formValues)
 
 			if detectionResult.JumpGuardResult == false {

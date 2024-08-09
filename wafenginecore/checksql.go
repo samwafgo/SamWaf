@@ -11,7 +11,7 @@ import (
 *
 检测sqli
 */
-func (waf *WafEngine) CheckSql(weblogbean innerbean.WebLog, formValue url.Values) detection.Result {
+func (waf *WafEngine) CheckSql(weblogbean *innerbean.WebLog, formValue url.Values) detection.Result {
 	result := detection.Result{
 		JumpGuardResult: false,
 		IsBlock:         false,

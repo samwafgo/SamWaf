@@ -5,16 +5,14 @@ import (
 	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/innerbean"
-	"SamWaf/libinjection-go"
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
+	"SamWaf/model/detection"
 	"SamWaf/model/wafenginmodel"
 	"SamWaf/plugin"
 	"SamWaf/service/waf_service"
 	"SamWaf/utils"
 	"SamWaf/utils/zlog"
-	"SamWaf/wafbot"
-	"SamWaf/wafdefenserce"
 	"SamWaf/wafproxy"
 	"bufio"
 	"bytes"
@@ -166,98 +164,26 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		r.Header.Add("waf_req_uuid", weblogbean.REQ_UUID)
 
 		if waf.HostTarget[host].Host.GUARD_STATUS == 1 {
-			var jumpGuardFlag = false
-			//ip白名单策略（局部）
-			if waf.HostTarget[host].IPWhiteLists != nil {
-				for i := 0; i < len(waf.HostTarget[host].IPWhiteLists); i++ {
-					if utils.CheckIPInCIDR(weblogbean.SRC_IP, waf.HostTarget[host].IPWhiteLists[i].Ip) {
-						jumpGuardFlag = true
-						break
-					}
+			//一系列检测逻辑
+			handleBlock := func(checkFunc func(innerbean.WebLog, url.Values) detection.Result) bool {
+				detectionResult := checkFunc(weblogbean, formValues)
+				if detectionResult.IsBlock {
+					EchoErrorInfo(w, r, weblogbean, detectionResult.Title, detectionResult.Content)
+					return true
 				}
+				return false
 			}
-			//ip白名单策略（全局）
-			if waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].Host.GUARD_STATUS == 1 && waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPWhiteLists != nil {
-				for i := 0; i < len(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPWhiteLists); i++ {
-					if utils.CheckIPInCIDR(weblogbean.SRC_IP, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPWhiteLists[i].Ip) {
-						jumpGuardFlag = true
-						break
-					}
-				}
-			}
-			//url白名单策略（局部）
-			if waf.HostTarget[host].UrlWhiteLists != nil {
-				for i := 0; i < len(waf.HostTarget[host].UrlWhiteLists); i++ {
-					if (waf.HostTarget[host].UrlWhiteLists[i].CompareType == "等于" && waf.HostTarget[host].UrlWhiteLists[i].Url == weblogbean.URL) ||
-						(waf.HostTarget[host].UrlWhiteLists[i].CompareType == "前缀匹配" && strings.HasPrefix(weblogbean.URL, waf.HostTarget[host].UrlWhiteLists[i].Url)) ||
-						(waf.HostTarget[host].UrlWhiteLists[i].CompareType == "后缀匹配" && strings.HasSuffix(weblogbean.URL, waf.HostTarget[host].UrlWhiteLists[i].Url)) ||
-						(waf.HostTarget[host].UrlWhiteLists[i].CompareType == "包含匹配" && strings.Contains(weblogbean.URL, waf.HostTarget[host].UrlWhiteLists[i].Url)) {
-						jumpGuardFlag = true
-						break
-					}
-				}
-			}
-			//url白名单策略（全局）
-			if waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].Host.GUARD_STATUS == 1 && waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlWhiteLists != nil {
-				for i := 0; i < len(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlWhiteLists); i++ {
-					if (waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlWhiteLists[i].CompareType == "等于" && waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlWhiteLists[i].Url == weblogbean.URL) ||
-						(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlWhiteLists[i].CompareType == "前缀匹配" && strings.HasPrefix(weblogbean.URL, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlWhiteLists[i].Url)) ||
-						(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlWhiteLists[i].CompareType == "后缀匹配" && strings.HasSuffix(weblogbean.URL, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlWhiteLists[i].Url)) ||
-						(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlWhiteLists[i].CompareType == "包含匹配" && strings.Contains(weblogbean.URL, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlWhiteLists[i].Url)) {
-						jumpGuardFlag = true
-						break
-					}
-				}
-			}
-			//ip黑名单策略  （局部）
-			if waf.HostTarget[host].IPBlockLists != nil {
-				for i := 0; i < len(waf.HostTarget[host].IPBlockLists); i++ {
-					if utils.CheckIPInCIDR(weblogbean.SRC_IP, waf.HostTarget[host].IPBlockLists[i].Ip) {
-						weblogbean.RISK_LEVEL = 1
-						EchoErrorInfo(w, r, weblogbean, "IP黑名单", "您的访问被阻止了IP限制")
-						return
-					}
-				}
-			}
-			//ip黑名单策略（全局）
-			if waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].Host.GUARD_STATUS == 1 && waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPBlockLists != nil {
-				for i := 0; i < len(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPBlockLists); i++ {
-					if utils.CheckIPInCIDR(weblogbean.SRC_IP, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPBlockLists[i].Ip) {
-						weblogbean.RISK_LEVEL = 1
-						EchoErrorInfo(w, r, weblogbean, "【全局】IP黑名单", "您的访问被阻止了IP限制")
-						return
-					}
-				}
-			}
+			detectionResult := waf.CheckAllowIP(weblogbean, formValues)
+			detectionResult = waf.CheckAllowURL(weblogbean, formValues)
 
-			//url黑名单策略-(局部) （待优化性能）
-			if waf.HostTarget[host].UrlBlockLists != nil {
-				for i := 0; i < len(waf.HostTarget[host].UrlBlockLists); i++ {
-					if (waf.HostTarget[host].UrlBlockLists[i].CompareType == "等于" && waf.HostTarget[host].UrlBlockLists[i].Url == weblogbean.URL) ||
-						(waf.HostTarget[host].UrlBlockLists[i].CompareType == "前缀匹配" && strings.HasPrefix(weblogbean.URL, waf.HostTarget[host].UrlBlockLists[i].Url)) ||
-						(waf.HostTarget[host].UrlBlockLists[i].CompareType == "后缀匹配" && strings.HasSuffix(weblogbean.URL, waf.HostTarget[host].UrlBlockLists[i].Url)) ||
-						(waf.HostTarget[host].UrlBlockLists[i].CompareType == "包含匹配" && strings.Contains(weblogbean.URL, waf.HostTarget[host].UrlBlockLists[i].Url)) {
-						weblogbean.RISK_LEVEL = 1
-						EchoErrorInfo(w, r, weblogbean, "URL黑名单", "您的访问被阻止了URL限制")
-						return
-					}
-				}
-			}
-			//url黑名单策略-(全局) （待优化性能）
-			if waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].Host.GUARD_STATUS == 1 && waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists != nil {
-				for i := 0; i < len(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists); i++ {
-					if (waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].CompareType == "等于" && waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].Url == weblogbean.URL) ||
-						(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].CompareType == "前缀匹配" && strings.HasPrefix(weblogbean.URL, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].Url)) ||
-						(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].CompareType == "后缀匹配" && strings.HasSuffix(weblogbean.URL, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].Url)) ||
-						(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].CompareType == "包含匹配" && strings.Contains(weblogbean.URL, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].Url)) {
-						weblogbean.RISK_LEVEL = 1
-						EchoErrorInfo(w, r, weblogbean, "【全局】URL黑名单", "您的访问被阻止了URL限制")
-						return
-					}
-				}
-			}
+			if detectionResult.JumpGuardResult == false {
 
-			if jumpGuardFlag == false {
+				if handleBlock(waf.CheckDenyIP) {
+					return
+				}
+				if handleBlock(waf.CheckDenyURL) {
+					return
+				}
 
 				hostDefense := model.HostsDefense{
 					DEFENSE_BOT:  1,
@@ -272,146 +198,42 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 				//检测爬虫bot
 				if hostDefense.DEFENSE_BOT == 1 {
-					isBot, isNormalBot, BotName := wafbot.DetermineNormalSearch(weblogbean.USER_AGENT, weblogbean.SRC_IP)
-					if isBot == true {
-						if isNormalBot {
-							weblogbean.GUEST_IDENTIFICATION = BotName
-						} else {
-							weblogbean.GUEST_IDENTIFICATION = BotName
-							weblogbean.RISK_LEVEL = 1
-							EchoErrorInfo(w, r, weblogbean, BotName, "请正确访问")
-							return
-						}
-					}
-				}
-				if hostDefense.DEFENSE_SQLI == 1 {
-					var sqlFlag = false
-					//检测sql注入
-					if libinjection.IsSQLiNotReturnPrint(weblogbean.URL) ||
-						libinjection.IsSQLiNotReturnPrint(weblogbean.BODY) ||
-						libinjection.IsSQLiNotReturnPrint(weblogbean.POST_FORM) {
-						sqlFlag = true
-					}
-					if sqlFlag == false {
-						for _, value := range formValues {
-							for _, v := range value {
-								if libinjection.IsSQLiNotReturnPrint(v) {
-									sqlFlag = true
-								}
-							}
-						}
-					}
-					if sqlFlag == true {
-						weblogbean.RISK_LEVEL = 2
-						EchoErrorInfo(w, r, weblogbean, "SQL注入", "请正确访问")
+					if handleBlock(waf.CheckBot) {
 						return
 					}
 				}
-
-				//检测xss注入
+				//检测sqli
+				if hostDefense.DEFENSE_SQLI == 1 {
+					if handleBlock(waf.CheckSql) {
+						return
+					}
+				}
+				//检测xss
 				if hostDefense.DEFENSE_XSS == 1 {
-					var xssFlag = false
-					if libinjection.IsXSS(weblogbean.URL) ||
-						libinjection.IsXSS(weblogbean.POST_FORM) {
-						xssFlag = true
-					}
-					if xssFlag == false {
-						for _, value := range formValues {
-							for _, v := range value {
-								if libinjection.IsXSS(v) {
-									//xssFlag = true
-								}
-							}
-						}
-					}
-					if xssFlag == true {
-						weblogbean.RISK_LEVEL = 2
-						EchoErrorInfo(w, r, weblogbean, "XSS跨站注入", "请正确访问")
+					if handleBlock(waf.CheckXss) {
 						return
 					}
 				}
 				//检测扫描工具
 				if hostDefense.DEFENSE_SCAN == 1 {
-					var scanFlag = false
-					if libinjection.IsScan(weblogbean) {
-						scanFlag = true
-					}
-					if scanFlag == true {
-						weblogbean.RISK_LEVEL = 1
-						EchoErrorInfo(w, r, weblogbean, "扫描工具", "请正确访问")
+					if handleBlock(waf.CheckSan) {
 						return
 					}
 				}
 				//检测RCE
 				if hostDefense.DEFENSE_RCE == 1 {
-					isRce, RceName := wafdefenserce.DetermineRCE(weblogbean.URL, weblogbean.COOKIES, weblogbean.POST_FORM)
-					if isRce == true {
-						weblogbean.RISK_LEVEL = 3
-						EchoErrorInfo(w, r, weblogbean, "RCE:"+RceName, "请正确访问")
+					if handleBlock(waf.CheckRce) {
 						return
 					}
 				}
-				// cc 防护 (局部检测 )
-				if waf.HostTarget[host].PluginIpRateLimiter != nil {
-					limiter := waf.HostTarget[host].PluginIpRateLimiter.GetLimiter(weblogbean.SRC_IP)
-					if !limiter.Allow() {
-						weblogbean.RISK_LEVEL = 1
-						EchoErrorInfo(w, r, weblogbean, "触发IP频次访问限制1", "您的访问被阻止超量了1")
-						return
-					}
+				//检测CC
+				if handleBlock(waf.CheckCC) {
+					return
 				}
-				// cc 防护 （全局检测 ）
-				if waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].Host.GUARD_STATUS == 1 && waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].PluginIpRateLimiter != nil {
-					limiter := waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].PluginIpRateLimiter.GetLimiter(weblogbean.SRC_IP)
-					if !limiter.Allow() {
-						weblogbean.RISK_LEVEL = 1
-						EchoErrorInfo(w, r, weblogbean, "【全局】触发IP频次访问限制", "您的访问被阻止超量了")
-						return
-					}
+				//规则判断
+				if handleBlock(waf.CheckRule) {
+					return
 				}
-
-				//规则判断 （局部）
-				if waf.HostTarget[host].Rule != nil {
-					if waf.HostTarget[host].Rule.KnowledgeBase != nil {
-						ruleMatchs, err := waf.HostTarget[host].Rule.Match("MF", &weblogbean)
-						if err == nil {
-							if len(ruleMatchs) > 0 {
-								rulestr := ""
-								for _, v := range ruleMatchs {
-									rulestr = rulestr + v.RuleDescription + ","
-								}
-								w.Header().Set("WAF", "SAMWAF DROP")
-								weblogbean.RISK_LEVEL = 1
-								EchoErrorInfo(w, r, weblogbean, rulestr, "您的访问被阻止触发规则")
-								return
-							}
-						} else {
-							zlog.Debug("规则 ", err)
-						}
-					}
-				}
-				//规则判断 （全局网站）
-				if waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].Host.GUARD_STATUS == 1 && waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].Rule != nil {
-					if waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].Rule.KnowledgeBase != nil {
-						ruleMatchs, err := waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].Rule.Match("MF", &weblogbean)
-						if err == nil {
-							if len(ruleMatchs) > 0 {
-								rulestr := ""
-								for _, v := range ruleMatchs {
-									rulestr = rulestr + v.RuleDescription + ","
-								}
-								w.Header().Set("WAF", "SAMWAF DROP")
-								weblogbean.RISK_LEVEL = 1
-								EchoErrorInfo(w, r, weblogbean, "【全局】"+rulestr, "您的访问被阻止触发规则")
-								return
-							}
-						} else {
-							zlog.Debug("规则 ", err)
-						}
-					}
-
-				}
-
 			}
 
 		}

@@ -378,14 +378,18 @@ func (m *wafSystenService) run() {
 								//情况2
 								zlog.Debug("主机处理情况2 端口不变,域名也不变，就是重新加载数据")
 								if globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[hosts[0].Host+":"+strconv.Itoa(hosts[0].Port)] != nil &&
-									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[hosts[0].Host+":"+strconv.Itoa(hosts[0].Port)].RevProxy != nil {
+									len(globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[hosts[0].Host+":"+strconv.Itoa(hosts[0].Port)].LoadBalance.RevProxies) > 0 {
 									//设置空代理
-									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[hosts[0].Host+":"+strconv.Itoa(hosts[0].Port)].RevProxy = nil
+									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[hosts[0].Host+":"+strconv.Itoa(hosts[0].Port)].LoadBalance.RevProxies = nil
 									zlog.Debug("主机重新代理", hosts[0].Host+":"+strconv.Itoa(hosts[0].Port))
 								}
 								//如果本次是关闭，那么应该关闭主机
 								if hosts[0].START_STATUS == 1 {
-									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hosts[0])
+									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hosts[0], false)
+								}
+								//如果本次ssl和上次ssl不同
+								if hosts[0].Ssl != hostsOld.Ssl {
+									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hosts[0], true)
 								}
 								globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.LoadHost(hosts[0])
 								globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartAllProxyServer()
@@ -393,10 +397,10 @@ func (m *wafSystenService) run() {
 								//情况3
 								zlog.Debug("主机处理情况3 端口从A切换到B了，域名是旧的 ；端口更改后当前这个端口下没有域名了，应该是关闭了，并移除数据")
 								if globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[hostsOld.Host+":"+strconv.Itoa(hostsOld.Port)] != nil &&
-									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[hostsOld.Host+":"+strconv.Itoa(hostsOld.Port)].RevProxy != nil {
-									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[hostsOld.Host+":"+strconv.Itoa(hostsOld.Port)].RevProxy = nil
+									len(globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[hostsOld.Host+":"+strconv.Itoa(hostsOld.Port)].LoadBalance.RevProxies) > 0 {
+									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[hostsOld.Host+":"+strconv.Itoa(hostsOld.Port)].LoadBalance.RevProxies = nil
 								}
-								globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hostsOld)
+								globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hostsOld, false)
 								globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.LoadHost(hosts[0])
 								globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartAllProxyServer()
 							}
@@ -407,7 +411,7 @@ func (m *wafSystenService) run() {
 				case enums.ChanTypeDelHost:
 					host := msg.Content.(model.Hosts)
 					if host.Id != "" {
-						globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(host)
+						globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(host, false)
 						globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.EnumAllPortProxyServer()
 					}
 					break

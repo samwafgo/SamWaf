@@ -31,7 +31,6 @@ import (
 	"golang.org/x/text/transform"
 	"golang.org/x/time/rate"
 	"io"
-	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"net/url"
@@ -237,7 +236,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 		}
-		//日志保存时候也是脱敏保存防止，数据库密码被破解，遭到敏感信息遭到泄露
+		// 日志保存时候也是脱敏保存防止，数据库密码被破解，遭到敏感信息遭到泄露
 		if weblogbean.BODY != "" {
 			weblogbean.BODY = utils.DeSenTextByCustomMark(enums.DLP_MARK_RULE_LoginSensitiveInfoMaskRule, weblogbean.BODY)
 		}
@@ -248,9 +247,8 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		// 在请求上下文中存储自定义数据
 		ctx := context.WithValue(r.Context(), "weblog", weblogbean)
-
 		// 代理请求
-		waf.ProxyHTTP(w, r, host, remoteUrl, ctx)
+		waf.ProxyHTTP(w, r, host, remoteUrl, ctx, weblogbean)
 		return
 	} else {
 		resBytes := []byte("403: Host forbidden " + host)
@@ -311,96 +309,6 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		weblogbean.RES_BODY = string(resBytes)
 		weblogbean.ACTION = "禁止"
 		global.GQEQUE_LOG_DB.PushBack(weblogbean)
-	}
-}
-func (waf *WafEngine) ProxyHTTP(w http.ResponseWriter, r *http.Request, host string, remoteUrl *url.URL, ctx context.Context) {
-	if waf.HostTarget[host].RevProxy != nil {
-		waf.HostTarget[host].RevProxy.ServeHTTP(w, r.WithContext(ctx))
-	} else {
-		if r.TLS != nil {
-			hostParts := strings.Split(host, ":")
-			var port string
-			if len(hostParts) == 2 {
-				port = hostParts[1]
-			} else {
-				// 默认端口处理，根据协议类型
-				if r.TLS != nil {
-					port = "443"
-				} else {
-					port = "80"
-				}
-			}
-			transport := &http.Transport{
-				TLSClientConfig: &tls.Config{
-					NameToCertificate:  make(map[string]*tls.Certificate, 0),
-					InsecureSkipVerify: false,
-				},
-				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-
-					// 使用解析后的 IP 地址进行连接
-					dialer := net.Dialer{
-						Timeout:   30 * time.Second,
-						KeepAlive: 30 * time.Second,
-					}
-
-					// 创建链接
-					if waf.HostTarget[host].Host.Remote_ip != "" {
-						conn, err := dialer.DialContext(ctx, network, waf.HostTarget[host].Host.Remote_ip+":"+strconv.Itoa(waf.HostTarget[host].Host.Remote_port))
-						if err == nil {
-							return conn, nil
-						}
-					}
-					return dialer.DialContext(ctx, network, addr)
-				},
-			}
-
-			portInt, _ := strconv.Atoi(port)
-
-			transport.TLSClientConfig.NameToCertificate = waf.AllCertificate[portInt]
-			transport.TLSClientConfig.GetCertificate = func(clientInfo *tls.ClientHelloInfo) (*tls.Certificate, error) {
-				if x509Cert, ok := transport.TLSClientConfig.NameToCertificate[clientInfo.ServerName]; ok {
-					return x509Cert, nil
-				}
-				return nil, errors.New("config error")
-			}
-			customHeaders := map[string]string{
-				"X-FORWARDED-PROTO": "https",
-			}
-			proxy := wafproxy.NewSingleHostReverseProxyCustomHeader(remoteUrl, customHeaders)
-
-			proxy.Transport = transport
-			proxy.ModifyResponse = waf.modifyResponse()
-			proxy.ErrorHandler = errorHandler()
-			waf.HostTarget[host].RevProxy = proxy // 放入缓存
-			proxy.ServeHTTP(w, r.WithContext(ctx))
-		} else {
-			transport := &http.Transport{
-				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-
-					// 使用解析后的 IP 地址进行连接
-					dialer := net.Dialer{
-						Timeout:   30 * time.Second,
-						KeepAlive: 30 * time.Second,
-					}
-					// 创建链接
-					if waf.HostTarget[host].Host.Remote_ip != "" {
-						conn, err := dialer.DialContext(ctx, network, waf.HostTarget[host].Host.Remote_ip+":"+strconv.Itoa(waf.HostTarget[host].Host.Remote_port))
-						if err == nil {
-							return conn, nil
-						}
-					}
-					return dialer.DialContext(ctx, network, addr)
-				},
-			}
-			proxy := wafproxy.NewSingleHostReverseProxy(remoteUrl)
-
-			proxy.Transport = transport
-			proxy.ModifyResponse = waf.modifyResponse()
-			proxy.ErrorHandler = errorHandler()
-			waf.HostTarget[host].RevProxy = proxy // 放入缓存
-			proxy.ServeHTTP(w, r.WithContext(ctx))
-		}
-
 	}
 }
 func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean innerbean.WebLog, ruleName string, blockInfo string) {
@@ -807,7 +715,12 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) innerbean.ServerRunTime {
 
 	//初始化主机host
 	hostsafe := &wafenginmodel.HostSafe{
-		RevProxy:            nil,
+		LoadBalance: &wafenginmodel.LoadBalance{
+			IsEnable:          false,
+			LoadBalanceStage:  0,
+			CurrentProxyIndex: 0,
+			RevProxies:        []*wafproxy.ReverseProxy{},
+		},
 		Rule:                ruleHelper,
 		TargetHost:          inHost.Remote_host + ":" + strconv.Itoa(inHost.Remote_port),
 		RuleData:            ruleconfigs,
@@ -833,7 +746,7 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) innerbean.ServerRunTime {
 *
 移除主机
 */
-func (waf *WafEngine) RemoveHost(host model.Hosts) {
+func (waf *WafEngine) RemoveHost(host model.Hosts, isSslChange bool) {
 	/*//主机情况
 	HostTarget map[string]*wafenginmodel.HostSafe
 	//主机和code的关系
@@ -844,7 +757,8 @@ func (waf *WafEngine) RemoveHost(host model.Hosts) {
 	AllCertificate map[int]map[string]*tls.Certificate*/
 	//1.如果这个port里面没有了主机 那可以直接停掉服务
 	//2.除了第一个情况之外的，把所有他的主机信息和关联信息都干掉
-	if waf_service.WafHostServiceApp.CheckAvailablePortExistApi(host.Port) == 0 {
+
+	if waf_service.WafHostServiceApp.CheckAvailablePortExistApi(host.Port) == 0 || isSslChange {
 		zlog.Debug("准备移除这个端口下所有信息")
 		// a.移除证书数据
 		_, ok := waf.AllCertificate[host.Port]

@@ -10,8 +10,8 @@ import (
 
 // 主机安全配置
 type HostSafe struct {
-	Mux                 sync.Mutex //互斥锁
-	RevProxy            *wafproxy.ReverseProxy
+	Mux                 sync.Mutex   //互斥锁
+	LoadBalance         *LoadBalance //负载
 	Rule                *utils.RuleHelper
 	TargetHost          string
 	RuleData            []model.Rules
@@ -24,4 +24,12 @@ type HostSafe struct {
 
 	IPBlockLists  []model.IPBlockList  //ip 黑名单
 	UrlBlockLists []model.URLBlockList //url 黑名单
+}
+
+// 负载处理
+type LoadBalance struct {
+	IsEnable          bool                     //是否激活负载
+	LoadBalanceStage  int                      //负载策略
+	CurrentProxyIndex int                      //当前Proxy索引
+	RevProxies        []*wafproxy.ReverseProxy //负载均衡里面的数据
 }

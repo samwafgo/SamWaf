@@ -167,6 +167,9 @@ How to compile
 ## 已测试支持的平台
 [已测试支持的平台](./docs/Tested_supported_systems.md)
 
+## 测试效果
+[测试效果](./test/attackTest.md)
+
 # 安全策略
 [安全策略](./SECURITY.md)
 

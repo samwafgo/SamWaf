@@ -553,12 +553,23 @@ func main() {
 
 	//doWork(ctx)
 
-	// 以服务方式运行
 	if len(os.Args) > 1 {
 		command := os.Args[1]
-		err := service.Control(s, command)
-		if err != nil {
-			log.Fatal(err)
+		switch command {
+
+		case "install", "start", "stop", "uninstall": // 以服务方式运行
+			err := service.Control(s, command)
+			if err != nil {
+				log.Fatal(err)
+			}
+			break
+		case "resetpwd": //重制密码
+			//加载配置
+			wafconfig.LoadAndInitConfig()
+			wafdb.InitCoreDb("")
+			wafdb.ResetAdminPwd()
+		default:
+			fmt.Printf("Command '%s' is not recognized.\n", command)
 		}
 		return
 	}

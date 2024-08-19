@@ -87,7 +87,11 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		//检测如果访问IP和远程IP是同一个IP，且远程端口在本地Server已存在则显示配置错误
 		if ipAndPort[0] == waf.HostTarget[host].Host.Remote_ip && ok == true {
 			resBytes := []byte("500: 配置有误" + host + " 当前IP和访问远端IP一样，且端口也一样，会造成循环问题")
-			w.Write(resBytes)
+			_, err := w.Write(resBytes)
+			if err != nil {
+				zlog.Debug("write fail:", zap.Any("", err))
+				return
+			}
 			return
 		}
 
@@ -252,7 +256,11 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	} else {
 		resBytes := []byte("403: Host forbidden " + host)
-		w.Write(resBytes)
+		_, err := w.Write(resBytes)
+		if err != nil {
+			zlog.Debug("write fail:", zap.Any("", err))
+			return
+		}
 		// 获取请求报文的内容长度
 		contentLength := r.ContentLength
 
@@ -322,7 +330,11 @@ func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean innerbean.
 
 	resBytes := []byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>" + blockInfo + "</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>")
 	w.WriteHeader(403)
-	w.Write(resBytes)
+	_, err := w.Write(resBytes)
+	if err != nil {
+		zlog.Debug("write fail:", zap.Any("", err))
+		return
+	}
 	datetimeNow := time.Now()
 	weblogbean.TimeSpent = datetimeNow.UnixNano()/1e6 - weblogbean.UNIX_ADD_TIME
 	//记录响应body

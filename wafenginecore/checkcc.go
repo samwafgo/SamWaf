@@ -9,7 +9,7 @@ import (
 
 /*
 *
-检测xss
+检测cc
 */
 func (waf *WafEngine) CheckCC(weblogbean *innerbean.WebLog, formValue url.Values) detection.Result {
 	result := detection.Result{

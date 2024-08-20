@@ -28,7 +28,7 @@ func (waf *WafEngine) ProxyHTTP(w http.ResponseWriter, r *http.Request, host str
 	proxy := wafproxy.NewSingleHostReverseProxyCustomHeader(remoteUrl, customHeaders)
 	proxy.Transport = transport
 	proxy.ModifyResponse = waf.modifyResponse()
-	proxy.ErrorHandler = errorHandler()
+	proxy.ErrorHandler = waf.errorResponse()
 
 	lb.RevProxies = append(lb.RevProxies, proxy)
 	proxy.ServeHTTP(w, r.WithContext(ctx))

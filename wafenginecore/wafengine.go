@@ -346,16 +346,21 @@ func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean innerbean.
 	weblogbean.TASK_FLAG = 1
 	weblogbean.GUEST_IDENTIFICATION = "可疑用户"
 	global.GQEQUE_LOG_DB.PushBack(weblogbean)
-
-	zlog.Debug(ruleName)
 }
-func errorHandler() func(http.ResponseWriter, *http.Request, error) {
+func (waf *WafEngine) errorResponse() func(http.ResponseWriter, *http.Request, error) {
 	return func(w http.ResponseWriter, req *http.Request, err error) {
-		zlog.Debug("Got error  response:", zap.Any("err", err))
+		zlog.Error("服务不可用 response:", zap.Any("err", err))
+		resBytes := []byte("<html><head><title>服务不可用</title></head><body><center><h1>服务不可用</h1> <br><h3></h3></center></body> </html>")
+
+		w.WriteHeader(http.StatusServiceUnavailable)
+		if _, writeErr := w.Write(resBytes); writeErr != nil {
+			zlog.Debug("write fail:", zap.Any("err", writeErr))
+			return
+		}
+
 		return
 	}
 }
-
 func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 	return func(resp *http.Response) error {
 		resp.Header.Set("WAF", "SamWAF")

@@ -99,6 +99,7 @@ Gitee:  [https://gitee.com/samwaf/SamWaf/releases](https://gitee.com/samwaf/SamW
 GitHub: [https://github.com/samwafgo/SamWaf/releases](https://github.com/samwafgo/SamWaf/releases)
 
 ## Quick Start
+
 ### Windows
 - Start directly
 ```
@@ -139,8 +140,22 @@ SamWaf64.exe uninstall
 //Uninstall
 ./SamWafLinux64 uninstall
 ```
- 
 
+
+### Docker
+```
+docker run -d --name=samwaf-instance \
+           -p 26666:26666 \
+           -p 80:80 \
+           -p 443:443 \
+           -v /path/to/your/conf:/app/conf \
+           -v /path/to/your/data:/app/data \
+           -v /path/to/your/logs:/app/logs \
+           samwaf/samwaf
+
+
+```
+More Detail Docker https://hub.docker.com/r/samwaf/samwaf
 
 
 ## Start Access

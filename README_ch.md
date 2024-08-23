@@ -140,7 +140,23 @@ SamWaf64.exe uninstall
 //卸载
 ./SamWafLinux64 uninstall
 ```
- 
+
+
+### Docker
+```
+docker run -d --name=samwaf-instance \
+           -p 26666:26666 \
+           -p 80:80 \
+           -p 443:443 \
+           -v /path/to/your/conf:/app/conf \
+           -v /path/to/your/data:/app/data \
+           -v /path/to/your/logs:/app/logs \
+           samwaf/samwaf
+
+
+```
+更多docker启动上面的解释  https://hub.docker.com/r/samwaf/samwaf
+
 
 ## 启动访问
 

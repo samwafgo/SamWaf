@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  samwaf-instance:
+    image: samwaf/samwaf
+    container_name: samwaf-instance
+    ports:
+      - "26666:26666"
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./conf:/app/conf
+      - ./data:/app/data
+      - ./logs:/app/logs
+    networks:
+      - samwafnet
+    restart: always
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    ports:
+      - "8080:80"
+    networks:
+      - samwafnet
+    restart: always
+
+networks:
+  samwafnet:
+    external: false

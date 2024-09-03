@@ -180,7 +180,7 @@ export default {
       access_date: "Access Date",
       access_method: "Access Method",
       log_archive_db: "Log Archive Database",
-      guest_identity: "Guest Identity",
+      guest_identity: "Identity",
       time_spent: "Time Spent (ms)",
       risk_level: "Risk Level",
       trigger_rule: "Trigger Rule",

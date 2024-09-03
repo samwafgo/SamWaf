@@ -9,7 +9,7 @@
           <span>{{ $t('page.one_key_mod.baota_placeholder') }}:</span>
           <t-input v-model="defaultFilePath" class="search-input" :placeholder="$t('page.one_key_mod.baota_placeholder')" clearable>
           </t-input>
-          <t-button @click="handleOneKeyModify"> {{ $t('page.on_key_mod.button_one_key_modify') }} </t-button>
+          <t-button @click="handleOneKeyModify"> {{ $t('page.one_key_mod.button_one_key_modify') }} </t-button>
         </div>
         <div class="right-operation-container">
           <t-form ref="form" :data="searchformData" :label-width="80" colon :style="{ marginBottom: '8px' }">

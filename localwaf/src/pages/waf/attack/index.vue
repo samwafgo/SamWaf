@@ -7,7 +7,7 @@
     </t-alert>
     <t-card class="list-card-container">
       <t-row justify="space-between">
-        <t-form ref="form" :data="searchformData" :label-width="80" colon :style="{ marginBottom: '8px' }">
+        <t-form ref="form" :data="searchformData" :label-width="150" colon :style="{ marginBottom: '8px' }">
           <t-row>
             <t-col :span="10">
               <t-row :gutter="[16, 24]">
@@ -56,7 +56,7 @@
                   </t-form-item>
                 </t-col>
                 <t-col :flex="1">
-                  <t-form-item :label="$t('common.log_archive_db')" name="sharedb">
+                  <t-form-item :label="$t('page.visit_log.log_archive_db')" name="sharedb">
                     <t-select v-model="searchformData.current_db_name" clearable :style="{ width: '150px' }">
                       <t-option v-for="(item, index) in share_db_dic" :value="index" :label="item" :key="index">
                         {{ item }}

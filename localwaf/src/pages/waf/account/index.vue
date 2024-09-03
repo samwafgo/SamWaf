@@ -24,7 +24,7 @@
           @page-change="rehandlePageChange" @change="rehandleChange" @select-change="rehandleSelectChange"
           :headerAffixedTop="true" :headerAffixProps="{ offsetTop: offsetTop, container: getContainer }">
           <template #op="slotProps">
-            <a class="t-button-link" @click="handleClickResetPwd(slotProps)">{{$t('common.reset_password')}}</a>
+            <a class="t-button-link" @click="handleClickResetPwd(slotProps)">{{$t('page.account.reset_password')}}</a>
             <a class="t-button-link" @click="handleClickEdit(slotProps)">{{$t('common.edit')}}</a>
             <a class="t-button-link" @click="handleClickDelete(slotProps)">{{$t('common.delete')}}</a>
           </template>

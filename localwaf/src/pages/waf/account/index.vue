@@ -3,18 +3,16 @@
     <t-card class="list-card-container">
       <t-row justify="space-between">
         <div class="left-operation-container">
-          <t-button @click="handleAddAccount"> 新建账号 </t-button>
-          <t-button variant="base" theme="default" :disabled="!selectedRowKeys.length"> 导出日志 </t-button>
-          <p v-if="!!selectedRowKeys.length" class="selected-count">已选{{ selectedRowKeys.length }}项</p>
+          <t-button @click="handleAddAccount"> {{$t('page.account.create_account')}} </t-button>
         </div>
         <div class="right-operation-container">
           <t-form ref="form" :data="searchformData" :label-width="80" colon :style="{ marginBottom: '8px' }">
 
             <t-row>
-              <span>登录帐号：</span>
-              <t-input v-model="searchformData.login_account" class="search-input" placeholder="请输入" clearable>
+              <span>{{$t('page.account.login_account_label')}}</span>
+              <t-input v-model="searchformData.login_account" class="search-input" :placeholder="$t('common.placeholder_content')" clearable>
               </t-input>
-              <t-button theme="primary" :style="{ marginLeft: '8px' }" @click="getList('all')"> 查询 </t-button>
+              <t-button theme="primary" :style="{ marginLeft: '8px' }" @click="getList('all')"> {{$t('common.search')}} </t-button>
             </t-row>
           </t-form>
         </div>
@@ -25,13 +23,10 @@
           :pagination="pagination" :selected-row-keys="selectedRowKeys" :loading="dataLoading"
           @page-change="rehandlePageChange" @change="rehandleChange" @select-change="rehandleSelectChange"
           :headerAffixedTop="true" :headerAffixProps="{ offsetTop: offsetTop, container: getContainer }">
-
-
-
           <template #op="slotProps">
-            <a class="t-button-link" @click="handleClickResetPwd(slotProps)">重置密码</a>
-            <a class="t-button-link" @click="handleClickEdit(slotProps)">编辑</a>
-            <a class="t-button-link" @click="handleClickDelete(slotProps)">删除</a>
+            <a class="t-button-link" @click="handleClickResetPwd(slotProps)">{{$t('common.reset_password')}}</a>
+            <a class="t-button-link" @click="handleClickEdit(slotProps)">{{$t('common.edit')}}</a>
+            <a class="t-button-link" @click="handleClickDelete(slotProps)">{{$t('common.delete')}}</a>
           </template>
         </t-table>
       </div>
@@ -41,14 +36,14 @@
     </t-card>
 
     <!-- 新建账号弹窗 -->
-    <t-dialog header="新建账号" :visible.sync="addFormVisible" :width="680" :footer="false">
+    <t-dialog :header="$t('page.account.create_account')" :visible.sync="addFormVisible" :width="680" :footer="false">
       <div slot="body">
         <!-- 表单内容 -->
         <t-form :data="formData" ref="form" :rules="rules" @submit="onSubmit" :labelWidth="100">
-          <t-form-item label="登录账号" name="login_account">
-              <t-input :style="{ width: '480px' }" v-model="formData.login_account" placeholder="请输入登录账号"></t-input>
+          <t-form-item :label="$t('page.account.login_account_label')" name="login_account">
+              <t-input :style="{ width: '480px' }" v-model="formData.login_account" :placeholder="$t('common.placeholder')+$t('page.account.login_account_label')"></t-input>
           </t-form-item>
-          <t-form-item label="角色" name="role">
+          <t-form-item :label="$t('page.account.role')" name="role">
             <t-select v-model="formData.role" clearable :style="{ width: '480px' }">
               <t-option v-for="(item, index) in roleType" :value="item.value" :label="item.label"
                         :key="index">
@@ -56,72 +51,72 @@
               </t-option>
             </t-select>
           </t-form-item>
-          <t-form-item label="登录密码" name="login_password">
-            <t-input :style="{ width: '480px' }" type="password"  v-model="formData.login_password" placeholder="请输入登录密码"></t-input>
+          <t-form-item :label="$t('page.account.login_password')" name="login_password">
+            <t-input :style="{ width: '480px' }" type="password"  v-model="formData.login_password" :placeholder="$t('common.placeholder')+$t('page.account.login_password')"></t-input>
           </t-form-item>
-          <t-form-item label="状态" name="rate">
-            <t-input-number :style="{ width: '480px' }" v-model="formData.status" placeholder="请输入状态"></t-input-number>
+          <t-form-item :label="$t('common.status')" name="rate">
+            <t-input-number :style="{ width: '480px' }" v-model="formData.status" :placeholder="$t('common.placeholder')+$t('common.status')"></t-input-number>
           </t-form-item>
-          <t-form-item label="备注" name="remarks">
-            <t-textarea :style="{ width: '480px' }" v-model="formData.remarks" placeholder="请输入备注内容" name="remarks">
+          <t-form-item :label="$t('common.remarks')" name="remarks">
+            <t-textarea :style="{ width: '480px' }" v-model="formData.remarks" :placeholder="$t('common.placeholder')+$t('common.remarks')" name="remarks">
             </t-textarea>
           </t-form-item>
           <t-form-item style="float: right">
-            <t-button variant="outline" @click="onClickCloseBtn">取消</t-button>
-            <t-button theme="primary" type="submit">确定</t-button>
+            <t-button variant="outline" @click="onClickCloseBtn">{{ $t('common.cancel') }}</t-button>
+            <t-button theme="primary" type="submit">{{ $t('common.confirm') }}</t-button>
           </t-form-item>
         </t-form>
       </div>
     </t-dialog>
 
     <!-- 编辑账号弹窗 -->
-    <t-dialog header="编辑账号" :visible.sync="editFormVisible" :width="680" :footer="false">
+    <t-dialog :header="$t('common.edit')" :visible.sync="editFormVisible" :width="680" :footer="false">
       <div slot="body">
         <!-- 表单内容 -->
         <t-form :data="formEditData" ref="form" :rules="rules" @submit="onSubmitEdit" :labelWidth="100">
-          <t-form-item label="登录账号" name="login_account">
-           <t-input :style="{ width: '480px' }" v-model="formEditData.login_account" placeholder="请输入登录账号"></t-input>
+          <t-form-item :label="$t('page.account.login_account_label')" name="login_account">
+           <t-input :style="{ width: '480px' }" v-model="formEditData.login_account" :placeholder="$t('common.placeholder')+$t('page.account.login_account_label')"></t-input>
           </t-form-item>
-          <t-form-item label="状态" name="status">
-            <t-input-number :style="{ width: '480px' }" v-model="formEditData.status" placeholder="请输入状态"></t-input-number>
+          <t-form-item :label="$t('common.status')" name="status">
+            <t-input-number :style="{ width: '480px' }" v-model="formEditData.status" :placeholder="$t('common.placeholder')+$t('common.status')"></t-input-number>
           </t-form-item>
-          <t-form-item label="备注" name="remarks">
-            <t-textarea :style="{ width: '480px' }" v-model="formEditData.remarks" placeholder="请输入内容" name="remarks">
+          <t-form-item :label="$t('common.remarks')" name="remarks">
+            <t-textarea :style="{ width: '480px' }" v-model="formEditData.remarks" :placeholder="$t('common.placeholder')+$t('common.remarks')" name="remarks">
             </t-textarea>
           </t-form-item>
           <t-form-item style="float: right">
-            <t-button variant="outline" @click="onClickCloseEditBtn">取消</t-button>
-            <t-button theme="primary" type="submit">确定</t-button>
+            <t-button variant="outline" @click="onClickCloseEditBtn">{{ $t('common.cancel') }}</t-button>
+            <t-button theme="primary" type="submit">{{ $t('common.confirm') }}</t-button>
           </t-form-item>
         </t-form>
       </div>
     </t-dialog>
     <!-- 重置密码弹窗 -->
-    <t-dialog header="重置密码" :visible.sync="resetPwdFormVisible" :width="680" :footer="false">
+    <t-dialog :header="$t('page.account.reset_password')" :visible.sync="resetPwdFormVisible" :width="680" :footer="false">
       <div slot="body">
         <!-- 表单内容 -->
         <t-form :data="formResetPwdData" ref="form" :rules="resetPwdRules" @submit="onSubmitResetPwd" :labelWidth="100">
-          <t-form-item label="登录账号" name="login_account">
-            <t-input :style="{ width: '480px' }" v-model="formResetPwdData.login_account" placeholder="请输入登录账号"></t-input>
+          <t-form-item :label="$t('page.account.login_account_label')" name="login_account">
+            <t-input :style="{ width: '480px' }" v-model="formResetPwdData.login_account" :placeholder="$t('common.placeholder')+$t('page.account.login_account_label')"></t-input>
           </t-form-item>
-          <t-form-item label="超级管理员密码" name="login_super_password">
-            <t-input :style="{ width: '480px' }" type="password" v-model="formResetPwdData.login_super_password" placeholder="输入超级管理员密码"></t-input>
+          <t-form-item :label="$t('page.account.super_admin_password')" name="login_super_password">
+            <t-input :style="{ width: '480px' }" type="password" v-model="formResetPwdData.login_super_password" :placeholder="$t('common.placeholder')+$t('page.account.super_admin_password')"></t-input>
           </t-form-item>
-          <t-form-item label="新密码" name="login_new_password">
-            <t-input :style="{ width: '480px' }" type="password"  v-model="formResetPwdData.login_new_password" placeholder="请输入新密码"></t-input>
+          <t-form-item :label="$t('page.account.new_password')" name="login_new_password">
+            <t-input :style="{ width: '480px' }" type="password"  v-model="formResetPwdData.login_new_password" :placeholder="$t('common.placeholder')+$t('page.account.new_password')"></t-input>
           </t-form-item>
-          <t-form-item label="确认密码" name="login_new_password2">
-            <t-input :style="{ width: '480px' }" type="password"  v-model="formResetPwdData.login_new_password2" placeholder="输入确认密码"></t-input>
+          <t-form-item :label="$t('page.account.confirm_password')" name="login_new_password2">
+            <t-input :style="{ width: '480px' }" type="password"  v-model="formResetPwdData.login_new_password2" :placeholder="$t('common.placeholder')+$t('page.account.confirm_password')"></t-input>
           </t-form-item>
           <t-form-item style="float: right">
-            <t-button variant="outline" @click="onClickCloseEditBtn">取消</t-button>
-            <t-button theme="primary" type="submit">确定</t-button>
+            <t-button variant="outline" @click="onClickCloseEditBtn">{{ $t('common.cancel') }}</t-button>
+            <t-button theme="primary" type="submit">{{ $t('common.confirm') }}</t-button>
           </t-form-item>
         </t-form>
       </div>
     </t-dialog>
 
-    <t-dialog header="确认删除当前所选数据?" :body="confirmBody" :visible.sync="confirmVisible" @confirm="onConfirmDelete"
+    <t-dialog :header="$t('common.confirm_delete')" :body="confirmBody" :visible.sync="confirmVisible" @confirm="onConfirmDelete"
       :onCancel="onCancel">
     </t-dialog>
   </div>
@@ -138,16 +133,6 @@
   import {
     account_list_api
   } from '@/apis/account';
-
-
-  import {
-    SSL_STATUS,
-    GUARD_STATUS,
-    CONTRACT_STATUS,
-    CONTRACT_STATUS_OPTIONS,
-    CONTRACT_TYPES,
-    CONTRACT_PAYMENT_TYPES
-  } from '@/constants';
 
   const INITIAL_DATA = {
     login_account: '',
@@ -184,44 +169,44 @@
         rules: {
           login_account: [{
             required: true,
-            message: '请输入登录账号',
+            message: this.$t('common.placeholder')+this.$t('page.account.login_account_label'),
             type: 'error'
           }],
           login_password: [{
             required: true,
-            message: '请输入登录密码',
+            message: this.$t('common.placeholder')+this.$t('page.account.login_password'),
             type: 'error'
           }],
         },
         resetPwdRules: {
           login_account: [{
             required: true,
-            message: '请输入登录账号',
+            message: this.$t('common.placeholder')+this.$t('page.account.login_account_label'),
             type: 'error'
           }],
           login_super_password: [{
             required: true,
-            message: '请输入超级管理员密码',
+            message: this.$t('common.placeholder')+this.$t('page.account.super_admin_password'),
             type: 'error'
           }],
           login_new_password: [{
             required: true,
-            message: '请输入新密码',
+            message: this.$t('common.placeholder')+this.$t('page.account.new_password'),
             type: 'error'
           }],
           login_new_password2: [{
             required: true,
-            message: '请输入确认密码',
+            message: this.$t('common.placeholder')+this.$t('page.account.confirm_password'),
             type: 'error'
           }],
         },
         roleType: [
           {
-          label: '超级管理员',
+          label: this.$t('page.account.role_super_admin'),
           value: 'superAdmin'
          },
           {
-            label: '管理员',
+            label: this.$t('page.account.role_admin'),
             value: 'admin'
           }
         ],
@@ -234,27 +219,27 @@
         value: 'first',
         columns: [
           {
-            title: '登录账号',
+            title: this.$t('page.account.login_account_label'),
             align: 'left',
             width: 250,
             ellipsis: true,
             colKey: 'login_account',
           },
           {
-            title: '角色',
+            title: this.$t('page.account.role'),
             align: 'left',
             width: 250,
             ellipsis: true,
             colKey: 'role',
           },
           {
-            title: '备注',
+            title: this.$t('common.remarks'),
             width: 200,
             ellipsis: true,
             colKey: 'remarks',
           },
           {
-            title: '添加时间',
+            title: this.$t('common.create_time'),
             width: 200,
             ellipsis: true,
             colKey: 'create_time',
@@ -264,7 +249,7 @@
             align: 'left',
             width: 200,
             colKey: 'op',
-            title: '操作',
+            title: this.$t('common.op'),
           },
         ],
         rowKey: 'code',
@@ -293,7 +278,7 @@
           const {
             url
           } = this.data?. [this.deleteIdx];
-          return `删除后，数据将被删除，且无法恢复`;
+          return this.$t('common.data_delete_warning');
         }
         return '';
       },
@@ -353,7 +338,6 @@
         return document.querySelector('.tdesign-starter-layout');
       },
       rehandlePageChange(curr, pageInfo) {
-        console.log('分页变化', curr, pageInfo);
         this.pagination.current = curr.current
         if (this.pagination.pageSize != curr.pageSize) {
           this.pagination.current = 1
@@ -365,7 +349,6 @@
         this.selectedRowKeys = selectedRowKeys;
       },
       rehandleChange(changeParams, triggerAndData) {
-        console.log('统一Change', changeParams, triggerAndData);
       },
       handleClickDetail(e) {
         console.log(e)
@@ -491,7 +474,7 @@
         if (!firstError) {
 
           if(that.formResetPwdData.login_new_password != that.formResetPwdData.login_new_password2){
-            that.$message.warning("两次输入的密码不相同，请检查")
+            that.$message.warning(this.$t('page.account.password_mismatch_warning'))
             return;
           }
           let postdata = {
@@ -532,7 +515,7 @@
       },
       handleClickDelete(row) {
         if(row.row.login_account=="admin"){
-            alert("默认管理帐号不允许删除")
+            alert(this.$t('page.account.admin_delete_warning'))
             return;
         }
         console.log(row)
@@ -630,17 +613,6 @@
 
 <style lang="less" scoped>
   @import '@/style/variables';
-
-  .payment-col {
-    display: flex;
-
-    .trend-container {
-      display: flex;
-      align-items: center;
-      margin-left: 8px;
-    }
-  }
-
   .left-operation-container {
     padding: 0 0 6px 0;
     margin-bottom: 16px;

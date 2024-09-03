@@ -5,7 +5,7 @@
         :title="item.title"
         :style="{ height: '168px' }"
         :class="{ 'dashboard-item': true, 'dashboard-item--main-color': index == 0 }"
-        @click.native="jumpLog(item.title)"
+        @click.native="jumpLog(index)"
       >
         <div class="dashboard-item-top">
           <span :style="{ fontSize: `${resizeTime * 36}px` }">{{ item.number }}</span>
@@ -110,7 +110,7 @@ export default {
     jumpLog(title){
       console.log(title)
       switch (title){
-        case '今日攻击数':
+        case 0: //今日攻击数量
           this.$router.push({
         		path: '/waf/wafattacklog',
         		query: {
@@ -118,30 +118,21 @@ export default {
         		}
         	});
           break;
-        case '今天总访问量':
+        case 1: //今天总访问量
         this.$router.push({
         	path: '/waf/wafattacklog',
         	query: {
 
         	}
-        });
-            break;
-        case '今天异常IP（个）':
+        });break;
+        case 2: //今天异常IP（个）
         this.$router.push({
         	path: '/waf/wafattacklog',
         	query: {
         		action: "禁止"
         	}
         });
-              break;
-        case '今天正常IP（个）':
-        this.$router.push({
-        	path: '/waf/wafattacklog',
-        	query: {
-        			action: "放行"
-        	}
-        });
-            break;
+        break;
         default:
           break;
       }
@@ -160,19 +151,19 @@ export default {
 
             that.wafstat_data = resdata.data;
             that.panelList.push({
-              title: '今日攻击数',
+              title:  this.$t('dashboard.counter.today_of_attack_count') ,
               number: that.wafstat_data.AttackCountOfToday,
               upTrend: '0%',
               leftType: 'echarts-line',
             })
             that.panelList.push({
-              title: '今天总访问量',
+              title: this.$t('dashboard.counter.all_visit_count') ,
               number: that.wafstat_data.VisitCountOfToday,
               upTrend: '0%',
               leftType: 'echarts-line',
             })
             that.panelList.push({
-              title: '今天异常IP（个）',
+              title:this.$t('dashboard.counter.not_normal_visit_count'),
               number: that.wafstat_data.IllegalIpCountOfToday,
               upTrend: '0%',
               leftType: 'echarts-line',
@@ -184,7 +175,7 @@ export default {
               leftType: 'echarts-line',
             })*/
             that.panelList.push({
-              title: '当前QPS',
+              title: this.$t('dashboard.counter.qps'),
               number: that.wafstat_data.CurrentQps,
               upTrend: '0%',
               leftType: 'echarts-line',
@@ -204,30 +195,10 @@ export default {
       } else {
         this.resizeTime = 1;
       }
-      /* this.moneyCharts.resize({
-        // 根据父容器的大小设置大小
-        width: `${this.resizeTime * 120}px`,
-        height: `${this.resizeTime * 66}px`,
-      });
-
-      this.refundChart.resize({
-        // 根据父容器的大小设置大小
-        width: `${this.resizeTime * 120}px`,
-        height: `${this.resizeTime * 42}px`,
-      }); */
     },
 
     renderCharts() {
       const { chartColors } = this.$store.state.setting;
-      // 收入汇总图
-    /*  if (!this.moneyContainer) this.moneyContainer = document.getElementById('moneyContainer');
-      this.moneyCharts = echarts.init(this.moneyContainer);
-      this.moneyCharts.setOption(constructInitDashboardDataset('line'));
-
-      // 退款图
-      if (!this.refundContainer) this.refundContainer = document.getElementById('refundContainer');
-      this.refundChart = echarts.init(this.refundContainer);
-      this.refundChart.setOption(constructInitDashboardDataset('bar', chartColors)); */
     },
   },
 };

@@ -8,7 +8,7 @@ export default [
     redirect: '/dashboard/base',
     name: 'dashboard',
     meta: {
-      title: '仪表盘',
+      title: 'menu.dashboard.parent_title',
       icon: DashboardIcon,
     },
     children: [
@@ -16,7 +16,7 @@ export default [
         path: 'base',
         name: 'DashboardBase',
         component: () => import('@/pages/dashboard/base/index.vue'),
-        meta: { title: '概览仪表盘' },
+        meta: { title: 'menu.dashboard.dashboard_title'},
       },
     ],
   },

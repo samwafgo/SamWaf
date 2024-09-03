@@ -3,27 +3,20 @@
     <t-card class="list-card-container">
       <t-row justify="space-between">
         <div class="left-operation-container">
-          <t-button variant="base" theme="default" :disabled="!selectedRowKeys.length"> 导出日志 </t-button>
-          <p v-if="!!selectedRowKeys.length" class="selected-count">已选{{ selectedRowKeys.length }}项</p>
         </div>
-        <t-input v-model="searchValue" class="search-input" placeholder="请输入你需要搜索的日志" clearable>
+        <t-input v-model="searchValue" class="search-input" :placeholder="$t('page.syslog.syslog')" clearable>
           <template #suffix-icon>
             <search-icon size="20px" />
           </template>
         </t-input>
       </t-row>
-
       <div class="table-container">
         <t-table :columns="columns" :data="data" :rowKey="rowKey" :verticalAlign="verticalAlign" :hover="hover"
           :pagination="pagination" :selected-row-keys="selectedRowKeys" :loading="dataLoading"
           @page-change="rehandlePageChange" @change="rehandleChange" @select-change="rehandleSelectChange"
           :headerAffixedTop="true" :headerAffixProps="{ offsetTop: offsetTop, container: getContainer }">
-
-
-
           <template #op="slotProps">
-           <!-- <a class="t-button-link" @click="handleClickDetail(slotProps)">详情</a>-->
-            <a class="t-button-link" @click="handleClickEdit(slotProps)">详情</a>
+            <a class="t-button-link" @click="handleClickEdit(slotProps)">{{ $t('common.details') }}</a>
           </template>
         </t-table>
       </div>
@@ -32,26 +25,24 @@
       </div>
     </t-card>
 
-    <!-- 编辑Url白名单弹窗 -->
-    <t-dialog header="查看日志" :visible.sync="editFormVisible" :width="680" :footer="false">
+    <t-dialog :header="$t('common.details')" :visible.sync="editFormVisible" :width="680" :footer="false">
       <div slot="body">
-        <!-- 表单内容 -->
         <t-form :data="formEditData" ref="form" :rules="rules" :labelWidth="100">
-          <t-form-item label="操作类型" name="op_type">
-            <t-input :style="{ width: '480px' }" v-model="formEditData.op_type" placeholder="请输入操作类型"></t-input>
+          <t-form-item :label="$t('page.syslog.label_op_type')" name="op_type">
+            <t-input :style="{ width: '480px' }" v-model="formEditData.op_type" ></t-input>
           </t-form-item>
 
-          <t-form-item label="操作备注" name="op_content">
-            <t-textarea :style="{ width: '480px' }" v-model="formEditData.op_content" placeholder="请输入备注" name="op_content">
+          <t-form-item :label="$t('page.syslog.label_op_content')" name="op_content">
+            <t-textarea :style="{ width: '480px' }" v-model="formEditData.op_content"  name="op_content">
             </t-textarea>
           </t-form-item>
           <t-form-item style="float: right">
-            <t-button variant="outline" @click="onClickCloseEditBtn">取消</t-button>
+            <t-button variant="outline" @click="onClickCloseEditBtn">{{ $t('common.close') }}</t-button>
           </t-form-item>
         </t-form>
       </div>
     </t-dialog>
- 
+
   </div>
 </template>
 <script lang="ts">
@@ -92,11 +83,6 @@
       return {
         addFormVisible: false,
         editFormVisible: false,
-        guardVisible: false,
-        confirmVisible: false,
-        formData: {
-          ...INITIAL_DATA
-        },
         formEditData: {
           ...INITIAL_DATA
         },
@@ -111,19 +97,19 @@
         value: 'first',
         columns: [
           {
-            title: '操作类型',
+            title: this.$t('page.syslog.label_op_type'),
             width: 200,
             ellipsis: true,
             colKey: 'op_type',
           },
           {
-            title: '操作内容',
+            title: this.$t('page.syslog.label_op_content'),
             width: 200,
             ellipsis: true,
             colKey: 'op_content',
           },
           {
-            title: '添加时间',
+            title: this.$t('common.create_time'),
             width: 200,
             ellipsis: true,
             colKey: 'create_time',
@@ -132,7 +118,7 @@
             align: 'left',
             width: 200,
             colKey: 'op',
-            title: '操作',
+            title: this.$t('common.op'),
           },
         ],
         rowKey: 'code',
@@ -140,7 +126,6 @@
         verticalAlign: 'top',
         hover: true,
         rowClassName: (rowKey: string) => `${rowKey}-class`,
-        // 与pagination对齐
         pagination: {
           total: 0,
           current: 1,
@@ -149,21 +134,9 @@
         searchValue: '',
         //索引区域
         deleteIdx: -1,
-        guardStatusIdx :-1,
-        //主机列表
-        host_options:[]
       };
     },
     computed: {
-      confirmBody() {
-        if (this.deleteIdx > -1) {
-          const {
-            url
-          } = this.data?. [this.deleteIdx];
-          return `删除后，${url}的数据将被删除，且无法恢复`;
-        }
-        return '';
-      },
       offsetTop() {
         return this.$store.state.setting.isUseTabsRouter ? 48 : 0;
       },
@@ -174,7 +147,7 @@
     },
 
     methods: {
-      loadHostList(){ 
+      loadHostList(){
       },
       getList(keyword) {
         let that = this
@@ -213,7 +186,6 @@
         return document.querySelector('.tdesign-starter-layout');
       },
       rehandlePageChange(curr, pageInfo) {
-        console.log('分页变化', curr, pageInfo);
         this.pagination.current = curr.current
         if (this.pagination.pageSize != curr.pageSize) {
           this.pagination.current = 1
@@ -225,7 +197,6 @@
         this.selectedRowKeys = selectedRowKeys;
       },
       rehandleChange(changeParams, triggerAndData) {
-        console.log('统一Change', changeParams, triggerAndData);
       },
       handleClickDetail(e) {
         console.log(e)
@@ -251,7 +222,6 @@
       },
       onClickCloseBtn(): void {
         this.formVisible = false;
-        this.formData = {};
       },
       onClickCloseEditBtn(): void {
         this.editFormVisible = false;
@@ -292,17 +262,6 @@
 
 <style lang="less" scoped>
   @import '@/style/variables';
-
-  .payment-col {
-    display: flex;
-
-    .trend-container {
-      display: flex;
-      align-items: center;
-      margin-left: 8px;
-    }
-  }
-
   .left-operation-container {
     padding: 0 0 6px 0;
     margin-bottom: 16px;

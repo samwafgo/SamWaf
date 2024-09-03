@@ -4,13 +4,9 @@
 
     <div class="login-container">
       <div class="title-container">
-        <h1 class="title margin-no">登录</h1>
-        <h1 class="title">SamWaf网站防火墙后台</h1>
+        <h1 class="title margin-no">{{$t('login.login_title')}}</h1>
+        <h1 class="title">{{$t('login.login_sub_title')}}</h1>
         <div class="sub-title">
-         <!-- <p class="tip">{{ type == 'register' ? '已有账号?' : '没有账号吗?' }}</p>
-          <p class="tip" @click="switchType(type == 'register' ? 'login' : 'register')">
-            {{ type == 'register' ? '登录' : '注册新账号' }}
-          </p>-->
         </div>
       </div>
 
@@ -19,7 +15,7 @@
       <tdesign-setting />
     </div>
 
-    <footer class="copyright">Copyright @ 2022-{{ new Date().getFullYear() }} SamWaf. All Rights Reserved  <t-link theme="primary" @click="handleJumpOnlineUrl"> 遇到问题？ </t-link>  <a href="https://doc.samwaf.com">SamWaf在线文档</a></footer>
+    <footer class="copyright">Copyright @ 2022-{{ new Date().getFullYear() }} SamWaf. All Rights Reserved  <t-link theme="primary" @click="handleJumpOnlineUrl"> {{$t('login.login_has_question')}} </t-link>  <a href="https://doc.samwaf.com">{{$t('login.login_online_document')}} </a></footer>
   </div>
 </template>
 <script>

@@ -9,9 +9,9 @@
     <template #content>
       <div class="header-msg">
         <div class="header-msg-top">
-          <p>通知</p>
+          <p>{{ $t('page.notice.notice_title') }}</p>
           <t-button v-if="unreadMsg.length > 0" class="clear-btn" variant="text" theme="primary" @click="setRead('all')"
-            >清空</t-button
+            >{{ $t('page.notice.clear') }}</t-button
           >
         </div>
         <t-list v-if="unreadMsg.length > 0" class="narrow-scrollbar" :split="true">
@@ -22,14 +22,14 @@
             </div>
             <p class="msg-time">{{ item.message_datetime }}</p>
             <template #action>
-              <t-button size="small" variant="outline" @click="setRead('radio', item)"> 设为已读 </t-button>
+              <t-button size="small" variant="outline" @click="setRead('radio', item)"> {{ $t('page.notice.set_read') }} </t-button>
             </template>
           </t-list-item>
         </t-list>
 
         <div v-else class="empty-list">
           <img src="https://tdesign.gtimg.com/pro-template/personal/nothing.png" alt="空" />
-          <p>暂无通知</p>
+          <p>{{ $t('page.notice.empty') }}</p>
         </div>
         <div class="header-msg-bottom">
           <t-button
@@ -38,7 +38,7 @@
             variant="text"
             theme="primary"
             @click="goDetail"
-            >查看全部</t-button
+            >{{ $t('page.notice.all') }}</t-button
           >
         </div>
       </div>

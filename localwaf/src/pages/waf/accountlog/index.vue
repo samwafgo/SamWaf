@@ -2,11 +2,7 @@
   <div>
     <t-card class="list-card-container">
       <t-row justify="space-between">
-        <div class="left-operation-container">
-          <t-button variant="base" theme="default" :disabled="!selectedRowKeys.length"> 导出日志 </t-button>
-          <p v-if="!!selectedRowKeys.length" class="selected-count">已选{{ selectedRowKeys.length }}项</p>
-        </div>
-        <t-input v-model="searchValue" class="search-input" placeholder="请输入你需要搜索的日志" clearable>
+        <t-input v-model="searchValue" class="search-input" :placeholder="$t('common.placeholder_content')" clearable>
           <template #suffix-icon>
             <search-icon size="20px" />
           </template>
@@ -22,8 +18,8 @@
 
 
           <template #op="slotProps">
-            <a class="t-button-link" @click="handleClickDetail(slotProps)">详情</a>
-            <a class="t-button-link" @click="handleClickEdit(slotProps)">编辑</a>
+            <a class="t-button-link" @click="handleClickDetail(slotProps)">{{ $t('common.details') }}</a>
+            <a class="t-button-link" @click="handleClickEdit(slotProps)">{{ $t('common.edit') }}</a>
           </template>
         </t-table>
       </div>
@@ -32,29 +28,28 @@
       </div>
     </t-card>
 
-    <!-- 编辑Url白名单弹窗 -->
-    <t-dialog header="查看日志" :visible.sync="editFormVisible" :width="680" :footer="false">
+    <!-- Account Log PopDialog -->
+    <t-dialog :header="$t('page.account_log.view_log_dialog_title')" :visible.sync="editFormVisible" :width="680" :footer="false">
       <div slot="body">
-        <!-- 表单内容 -->
         <t-form :data="formEditData" ref="form" :rules="rules" :labelWidth="100">
-           <t-form-item label="操作账号" name="login_account">
-             <t-input :style="{ width: '480px' }" v-model="formEditData.login_account" placeholder="操作账号"></t-input>
+           <t-form-item :label="$t('page.account_log.operation_account')" name="login_account">
+             <t-input :style="{ width: '480px' }" v-model="formEditData.login_account" ></t-input>
            </t-form-item>
-          <t-form-item label="操作类型" name="op_type">
-            <t-input :style="{ width: '480px' }" v-model="formEditData.op_type" placeholder="请输入操作类型"></t-input>
+          <t-form-item :label="$t('page.account_log.operation_type')" name="op_type">
+            <t-input :style="{ width: '480px' }" v-model="formEditData.op_type"></t-input>
           </t-form-item>
 
-          <t-form-item label="操作备注" name="op_content">
-            <t-textarea :style="{ width: '480px' }" v-model="formEditData.op_content" placeholder="请输入备注" name="op_content">
+          <t-form-item :label="$t('common.remarks')" name="op_content">
+            <t-textarea :style="{ width: '480px' }" v-model="formEditData.op_content"  name="op_content">
             </t-textarea>
           </t-form-item>
           <t-form-item style="float: right">
-            <t-button variant="outline" @click="onClickCloseEditBtn">取消</t-button>
+            <t-button variant="outline" @click="onClickCloseEditBtn">{{ $t('common.close') }}</t-button>
           </t-form-item>
         </t-form>
       </div>
     </t-dialog>
- 
+
   </div>
 </template>
 <script lang="ts">
@@ -66,19 +61,6 @@
   import {
     prefix
   } from '@/config/global';
-  import {
-    account_log_list_api
-  } from '@/apis/account';
-
-
-  import {
-    SSL_STATUS,
-    GUARD_STATUS,
-    CONTRACT_STATUS,
-    CONTRACT_STATUS_OPTIONS,
-    CONTRACT_TYPES,
-    CONTRACT_PAYMENT_TYPES
-  } from '@/constants';
 
   const INITIAL_DATA = {
     login_account: '',
@@ -114,35 +96,35 @@
         value: 'first',
         columns: [
           {
-            title: '操作账号',
+            title:this.$t('page.account_log.operation_account'),
             align: 'left',
             width: 250,
             ellipsis: true,
-            colKey: 'login_account', 
+            colKey: 'login_account',
           },
           {
-            title: '操作类型',
+            title:this.$t('page.account_log.operation_type'),
             width: 200,
             ellipsis: true,
             colKey: 'op_type',
           },
           {
-            title: '操作内容',
+            title: this.$t('page.account_log.operation_content'),
             width: 200,
             ellipsis: true,
             colKey: 'op_content',
           },
           {
-            title: '添加时间',
+            title: this.$t('common.create_time'),
             width: 200,
             ellipsis: true,
             colKey: 'create_time',
           },
           {
-            align: 'left', 
+            align: 'left',
             width: 200,
             colKey: 'op',
-            title: '操作',
+            title: this.$t('common.op'),
           },
         ],
         rowKey: 'code',
@@ -150,7 +132,7 @@
         verticalAlign: 'top',
         hover: true,
         rowClassName: (rowKey: string) => `${rowKey}-class`,
-        // 与pagination对齐
+        // pagination
         pagination: {
           total: 0,
           current: 1,
@@ -165,38 +147,15 @@
       };
     },
     computed: {
-      confirmBody() {
-        if (this.deleteIdx > -1) {
-          const {
-            url
-          } = this.data?. [this.deleteIdx];
-          return `删除后，${url}的数据将被删除，且无法恢复`;
-        }
-        return '';
-      },
       offsetTop() {
         return this.$store.state.setting.isUseTabsRouter ? 48 : 0;
       },
     },
     mounted() {
       this.getList("")
-      this.loadHostList()
     },
 
     methods: {
-      loadHostList(){
-       /* let that = this;
-        allhost().then((res) => {
-              let resdata = res
-              console.log(resdata)
-              if (resdata.code === 0) {
-                  that.host_options = resdata.data;
-              }
-            })
-            .catch((e: Error) => {
-              console.log(e);
-        }) */
-      },
       getList(keyword) {
         let that = this
         this.$request
@@ -214,7 +173,6 @@
 
               this.data = resdata.data.list;
               this.data_attach = []
-              console.log('getList',this.data)
               this.pagination = {
                 ...this.pagination,
                 total: resdata.data.total,
@@ -233,7 +191,6 @@
         return document.querySelector('.tdesign-starter-layout');
       },
       rehandlePageChange(curr, pageInfo) {
-        console.log('分页变化', curr, pageInfo);
         this.pagination.current = curr.current
         if (this.pagination.pageSize != curr.pageSize) {
           this.pagination.current = 1
@@ -245,7 +202,6 @@
         this.selectedRowKeys = selectedRowKeys;
       },
       rehandleChange(changeParams, triggerAndData) {
-        console.log('统一Change', changeParams, triggerAndData);
       },
       handleClickDetail(e) {
         console.log(e)
@@ -312,28 +268,6 @@
 
 <style lang="less" scoped>
   @import '@/style/variables';
-
-  .payment-col {
-    display: flex;
-
-    .trend-container {
-      display: flex;
-      align-items: center;
-      margin-left: 8px;
-    }
-  }
-
-  .left-operation-container {
-    padding: 0 0 6px 0;
-    margin-bottom: 16px;
-
-    .selected-count {
-      display: inline-block;
-      margin-left: 8px;
-      color: var(--td-text-color-secondary);
-    }
-  }
-
   .search-input {
     width: 360px;
   }

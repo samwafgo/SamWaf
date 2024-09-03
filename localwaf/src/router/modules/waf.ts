@@ -7,45 +7,39 @@ export default [
     path: '/waf-host',
     name: 'wafhost',
     component: Layout,
-    meta: { title: '网站防护', icon: ApplicationIcon },
+    meta: { title: 'menu.host.parent_title', icon: ApplicationIcon },
     children: [
       {
         path: 'wafhost',
         name: 'WafHost',
         component: () => import('@/pages/waf/host/index.vue'),
-        meta: { title: '网站防护' },
+        meta: { title: 'menu.host.host_title' },
 
-      },
-      {
-        path: 'wafhostdetail',
-        name: 'WafHostDetail',
-        component: () => import('@/pages/waf/host/detail/index.vue'),
-        meta: { title: '主机防护详情', hidden: true},
       },
       {
         path: 'wafrule',
         name: 'WafRule',
         component: () => import('@/pages/waf/rule/index.vue'),
-        meta: { title: '防御规则' },
+        meta: { title: 'menu.host.host_protect_rule'},
       },
       {
         path: 'wafruleedit',
         name: 'Wafruleedit',
         component: () => import('@/pages/waf/rule/edit/index.vue'),
-        meta: { title: '防御规则编辑', keepAlive: false, hidden: true },
+        meta: { title: 'menu.host.host_protect_rule_edit', keepAlive: false, hidden: true },
       },
       {
         path: 'wafipwhitelist',
         name: 'WafIpWhiteList',
-        component: () => import('@/pages/waf/ipwhite/index.vue'),
-        meta: { title: 'IP白名单' },
+        component: () => import('@/pages/waf/ipallow/index.vue'),
+        meta: { title: 'menu.host.allow_ip'},
 
       },
       {
         path: 'wafurlwhitelist',
         name: 'WafUrlWhiteList',
-        component: () => import('@/pages/waf/urlwhite/index.vue'),
-        meta: { title: 'Url白名单' },
+        component: () => import('@/pages/waf/urlallow/index.vue'),
+        meta: { title: 'menu.host.allow_url'},
 
       },
 
@@ -53,27 +47,27 @@ export default [
         path: 'wafipBlocklist',
         name: 'WafIpBlockList',
         component: () => import('@/pages/waf/ipblock/index.vue'),
-        meta: { title: 'IP黑名单' },
+        meta: { title:'menu.host.deny_ip'},
 
       },
       {
         path: 'wafurlblocklist',
         name: 'WafUrlBlockList',
         component: () => import('@/pages/waf/urlblock/index.vue'),
-        meta: { title: '限制访问Url' },
+        meta: { title:'menu.host.deny_url'},
 
       },
       {
         path: 'wafldpurllist',
         name: 'WafLdpUrlList',
         component: () => import('@/pages/waf/ldpurl/index.vue'),
-        meta: { title: '隐私保护Url' },
+        meta: { title:  'menu.host.ldp_url'},
 
       },{
         path: 'wafanticclist',
         name: 'WafAntiCCList',
         component: () => import('@/pages/waf/anticc/index.vue'),
-        meta: { title: 'CC防护设置' },
+        meta: { title: 'menu.host.cc' },
 
       },
     ],
@@ -83,13 +77,13 @@ export default [
      path: '/wafanalysis',
      name: 'wafanalysis',
      component: Layout,
-     meta: { title: '数据分析', icon: SystemLogIcon },
+     meta: { title:'menu.analysis.parent_title', icon: SystemLogIcon },
      children: [
        {
          path: 'wafanalysislog',
          name: 'WafAnalysisLog',
          component: () => import('@/pages/waf/analysis/index.vue'),
-         meta: { title: '数据分析' },
+         meta: { title:'menu.analysis.analysis_title' },
        },
      ],
    },
@@ -98,19 +92,19 @@ export default [
     name: 'waf',
     component: Layout,
     redirect: '/waf-log/visit',
-    meta: { title: '防护日志', icon: LightingCircleIcon },
+    meta: { title: 'menu.visit_log.parent_title', icon: LightingCircleIcon },
     children: [
       {
         path: 'wafattacklog',
         name: 'WafAttackLog',
         component: () => import('@/pages/waf/attack/index.vue'),
-        meta: { title: '防护日志' },
+        meta: { title: 'menu.visit_log.visit_title' },
       },
       {
         path: 'wafattacklogdetail',
         name: 'WafAttackLogDetail',
         component: () => import('@/pages/waf/attack/detail/index.vue'),
-        meta: { title: '防护详情' ,hidden: true,keepAlive:false}
+        meta: { title:'menu.visit_log.visit_detail_title',hidden: true,keepAlive:false}
         ,
 
       },
@@ -121,19 +115,19 @@ export default [
      name: 'account',
      component: Layout,
      redirect: '/account',
-     meta: { title: '账号管理', icon: UsergroupIcon },
+     meta: { title: 'menu.account.parent_title', icon: UsergroupIcon },
      children: [
        {
          path: 'Account',
          name: 'Account',
          component: () => import('@/pages/waf/account/index.vue'),
-         meta: { title: '账号列表' },
+         meta: { title: 'menu.account.account_list_title' },
        },
        {
           path: 'AccountLog',
           name: 'AccountLog',
           component: () => import('@/pages/waf/accountlog/index.vue'),
-          meta: { title: '账号日志' },
+          meta: { title: 'menu.account.account_log_title'  },
        },
 
 
@@ -144,30 +138,30 @@ export default [
     name: 'sys',
     component: Layout,
     redirect: '/sys',
-    meta: { title: '系统设置', icon: SystemSettingIcon },
+    meta: { title:'menu.system.parent_title', icon: SystemSettingIcon },
     children: [
       {
          path: 'SysLog',
          name: 'SysLog',
          component: () => import('@/pages/waf/syslog/index.vue'),
-         meta: { title: '系统日志' },
+         meta: { title: 'menu.system.system_log_title'},
       },
       {
          path: 'SystemConfig',
          name: 'SystemConfig',
          component: () => import('@/pages/waf/systemconfig/index.vue'),
-         meta: { title: '参数设置' },
+         meta: { title:  'menu.system.system_config_title' },
        },
       {
         path: 'RumtimeSysteminfo',
         name: 'RumtimeSysteminfo',
         component: () => import('@/pages/waf/sysruntime/index.vue'),
-        meta: { title: '运行参数' },
+        meta: { title: 'menu.system.system_runtime_title' },
       },{
         path: 'OneKeyMod',
         name: 'OneKeyMod',
         component: () => import('@/pages/waf/onekeymod/index.vue'),
-        meta: { title: '一键修改' },
+        meta: { title: 'menu.system.system_one_key_modify_title' },
       }
     ],
   },
@@ -177,13 +171,13 @@ export default [
     name: 'center',
     component: Layout,
     redirect: '/center',
-    meta: { title: '设备管理', icon: ServerIcon },
+    meta: { title: 'menu.pc.parent_title', icon: ServerIcon },
     children: [
      {
         path: 'CenterManager',
         name: 'CenterManager',
         component: () => import('@/pages/waf/center/index.vue'),
-        meta: { title: '设备列表' },
+        meta: { title: 'menu.pc.pc_list_title' },
       }
     ],
   },

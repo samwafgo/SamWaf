@@ -3,29 +3,28 @@
     <t-card class="list-card-container">
       <t-row justify="space-between">
         <div class="left-operation-container">
-          <t-button @click="handleAddAntiCC"> 新建CC防护 </t-button>
-           <p v-if="!!selectedRowKeys.length" class="selected-count">已选{{ selectedRowKeys.length }}项</p>
+          <t-button @click="handleAddAntiCC"> {{ $t('page.cc.new_cc_protection') }} </t-button>
         </div>
         <div class="right-operation-container">
           <t-form ref="form" :data="searchformData" :label-width="80" colon :style="{ marginBottom: '8px' }">
 
             <t-row>
-              <span>网站：</span><t-select v-model="searchformData.host_code" clearable :style="{ width: '150px' }">
+              <span>{{$t('page.cc.host')}} :</span><t-select v-model="searchformData.host_code" clearable :style="{ width: '150px' }">
               <t-option v-for="(item, index) in host_dic" :value="index" :label="item" :key="index">
                 {{ item }}
               </t-option>
             </t-select>
               <span>URL：</span>
-              <t-input v-model="searchformData.url" class="search-input" placeholder="请输入" clearable>
+              <t-input v-model="searchformData.url" class="search-input" :placeholder="$t('common.placeholder')" clearable>
               </t-input>
-              <t-button theme="primary" :style="{ marginLeft: '8px' }" @click="getList('all')"> 查询 </t-button>
+              <t-button theme="primary" :style="{ marginLeft: '8px' }" @click="getList('all')"> {{ $t('common.search') }} </t-button>
             </t-row>
           </t-form>
         </div>
       </t-row>
-      <t-alert theme="info" message="SamWaf防护墙抵御CC攻击" close>
+      <t-alert theme="info" :message="$t('page.cc.samwaf_cc_protection')" close>
         <template #operation>
-          <span @click="handleJumpOnlineUrl">在线文档</span>
+          <span @click="handleJumpOnlineUrl">{{ $t('common.online_document') }}</span>
         </template>
       </t-alert>
       <div class="table-container">
@@ -39,8 +38,8 @@
           </template>
 
           <template #op="slotProps">
-             <a class="t-button-link" @click="handleClickEdit(slotProps)">编辑</a>
-            <a class="t-button-link" @click="handleClickDelete(slotProps)">删除</a>
+             <a class="t-button-link" @click="handleClickEdit(slotProps)">{{ $('common.edit') }}</a>
+            <a class="t-button-link" @click="handleClickDelete(slotProps)">{{ $('common.delete') }}</a>
           </template>
         </t-table>
       </div>
@@ -49,12 +48,11 @@
       </div>
     </t-card>
 
-    <!-- 新建CC防护弹窗 -->
-    <t-dialog header="新建cc防护" :visible.sync="addFormVisible" :width="680" :footer="false">
+    <!-- New CC Protect Dialog -->
+    <t-dialog :header="$t('common.new')" :visible.sync="addFormVisible" :width="680" :footer="false">
       <div slot="body">
-        <!-- 表单内容 -->
         <t-form :data="formData" ref="form" :rules="rules" @submit="onSubmit" :labelWidth="100">
-          <t-form-item label="网站" name="host_code">
+          <t-form-item :label="$t('page.cc.website')" name="host_code">
             <t-select v-model="formData.host_code" clearable :style="{ width: '480px' }">
               <t-option v-for="(item, index) in host_dic" :value="index" :label="item"
                 :key="index">
@@ -62,33 +60,32 @@
               </t-option>
             </t-select>
           </t-form-item>
-          <t-form-item label="Url" name="url">
-            <t-input :style="{ width: '480px' }" v-model="formData.url" placeholder="请输入CC防护url（可不填）"></t-input>
+          <t-form-item :label="$t('page.cc.url')" name="url">
+            <t-input :style="{ width: '480px' }" v-model="formData.url" :placeholder="$t('page.cc.input_url_placeholder')"></t-input>
           </t-form-item>
-          <t-form-item label="速率" name="rate">
-            <t-input-number :style="{ width: '480px' }" v-model="formData.rate" placeholder="请输入速率"></t-input-number>
+          <t-form-item :label="$t('page.cc.rate')" name="rate">
+            <t-input-number :style="{ width: '480px' }" v-model="formData.rate" :placeholder="$t('common.placeholder')+$t('page.cc.rate')"></t-input-number>
           </t-form-item>
-          <t-form-item label="限制次数" name="limit">
-            <t-input-number :style="{ width: '480px' }" v-model="formData.limit" placeholder="请输入限制"></t-input-number>
+          <t-form-item :label="$t('page.cc.limit')" name="limit">
+            <t-input-number :style="{ width: '480px' }" v-model="formData.limit" :placeholder="$t('common.placeholder')+$t('page.cc.limit')"></t-input-number>
           </t-form-item>
-          <t-form-item label="备注" name="remarks">
-            <t-textarea :style="{ width: '480px' }" v-model="formData.remarks" placeholder="请输入内容" name="remarks">
+          <t-form-item :label="$t('common.remarks')"  name="remarks">
+            <t-textarea :style="{ width: '480px' }" v-model="formData.remarks" :placeholder="$t('common.placeholder_content')" name="remarks">
             </t-textarea>
           </t-form-item>
           <t-form-item style="float: right">
-            <t-button variant="outline" @click="onClickCloseBtn">取消</t-button>
-            <t-button theme="primary" type="submit">确定</t-button>
+            <t-button variant="outline" @click="onClickCloseBtn">{{ $t('common.close') }}</t-button>
+            <t-button theme="primary" type="submit">{{ $t('common.confirm') }}</t-button>
           </t-form-item>
         </t-form>
       </div>
     </t-dialog>
 
-    <!-- 编辑CC防护弹窗 -->
-    <t-dialog header="编辑CC防护" :visible.sync="editFormVisible" :width="680" :footer="false">
+    <!-- Edit CC Protect Dialog -->
+    <t-dialog :header="$t('common.edit')" :visible.sync="editFormVisible" :width="680" :footer="false">
       <div slot="body">
-        <!-- 表单内容 -->
         <t-form :data="formEditData" ref="form" :rules="rules" @submit="onSubmitEdit" :labelWidth="100">
-          <t-form-item label="网站" name="host_code">
+          <t-form-item :label="$t('page.cc.website')"  name="host_code">
             <t-select v-model="formEditData.host_code" clearable :style="{ width: '480px' }">
               <t-option v-for="(item, index) in host_dic" :value="index" :label="item"
                 :key="index">
@@ -96,28 +93,29 @@
               </t-option>
             </t-select>
           </t-form-item>
-          <t-form-item label="速率" name="rate">
-            <t-input-number :style="{ width: '480px' }" v-model="formEditData.rate" placeholder="请输入速率"></t-input-number>
+          <t-form-item :label="$t('page.cc.url')" name="url">
+            <t-input :style="{ width: '480px' }" v-model="formEditData.url" :placeholder="$t('page.cc.input_url_placeholder')"></t-input>
           </t-form-item>
-          <t-form-item label="限制次数" name="limit">
-            <t-input-number :style="{ width: '480px' }" v-model="formEditData.limit" placeholder="请输入限制"></t-input-number>
+          <t-form-item :label="$t('page.cc.rate')"  name="rate">
+            <t-input-number :style="{ width: '480px' }" v-model="formEditData.rate" :placeholder="$t('common.placeholder')+$t('page.cc.rate')"></t-input-number>
           </t-form-item>
-         <t-form-item label="Url" name="url">
-           <t-input :style="{ width: '480px' }" v-model="formEditData.url" placeholder="请输入CC防护"></t-input>
-         </t-form-item>
-          <t-form-item label="备注" name="remarks">
-            <t-textarea :style="{ width: '480px' }" v-model="formEditData.remarks" placeholder="请输入内容" name="remarks">
+          <t-form-item :label="$t('page.cc.limit')"  name="limit">
+            <t-input-number :style="{ width: '480px' }" v-model="formEditData.limit" :placeholder="$t('common.placeholder')+$t('page.cc.limit')"></t-input-number>
+          </t-form-item>
+
+          <t-form-item :label="$t('common.remarks')" name="remarks">
+            <t-textarea :style="{ width: '480px' }" v-model="formEditData.remarks" :placeholder="$t('common.placeholder_content')" name="remarks">
             </t-textarea>
           </t-form-item>
           <t-form-item style="float: right">
-            <t-button variant="outline" @click="onClickCloseEditBtn">取消</t-button>
-            <t-button theme="primary" type="submit">确定</t-button>
+            <t-button variant="outline" @click="onClickCloseEditBtn">{{ $t('common.close') }}</t-button>
+            <t-button theme="primary" type="submit">{{ $t('common.confirm') }}</t-button>
           </t-form-item>
         </t-form>
       </div>
     </t-dialog>
 
-    <t-dialog header="确认删除当前所选Url?" :body="confirmBody" :visible.sync="confirmVisible" @confirm="onConfirmDelete"
+    <t-dialog :header="$t('common.confirm_delete')" :body="confirmBody" :visible.sync="confirmVisible" @confirm="onConfirmDelete"
       :onCancel="onCancel">
     </t-dialog>
   </div>
@@ -175,17 +173,17 @@ import {
         rules: {
           host_code: [{
             required: true,
-            message: '请输入网站名称',
+            message: this.$t('page.cc.website'),
             type: 'error'
           }],
           rate: [{
             required: true,
-            message: '请输入速率',
+            message: this.$t('page.cc.rate'),
             type: 'error'
           }],
           limit: [{
             required: true,
-            message: '请输入访问次数限制',
+            message: this.$t('page.cc.limit'),
             type: 'error'
           }],
         },
@@ -198,26 +196,26 @@ import {
         value: 'first',
         columns: [
           {
-            title: '网站',
+            title: this.$t('page.cc.website'),
             align: 'left',
             width: 250,
             ellipsis: true,
             colKey: 'host_code',
           },
           {
-            title: '速率',
+            title: this.$t('page.cc.rate'),
             width: 200,
             ellipsis: true,
             colKey: 'rate',
           },
           {
-            title: '限制次数',
+            title: this.$t('page.cc.limit'),
             width: 200,
             ellipsis: true,
             colKey: 'limit',
           },
           {
-            title: '添加时间',
+            title: this.$t('common.create_time'),
             width: 200,
             ellipsis: true,
             colKey: 'create_time',
@@ -227,7 +225,7 @@ import {
             align: 'left',
             width: 200,
             colKey: 'op',
-            title: '操作',
+            title: this.$t('common.op'),
           },
         ],
         rowKey: 'code',
@@ -259,7 +257,7 @@ import {
           const {
             url
           } = this.data?. [this.deleteIdx];
-          return `确认要删除吗？`;
+          return this.$t('common.data_delete_warning');
         }
         return '';
       },
@@ -337,7 +335,6 @@ import {
         console.log('统一Change', changeParams, triggerAndData);
       },
       handleClickEdit(e) {
-        console.log(e)
         const {
           id
         } = e.row
@@ -346,7 +343,6 @@ import {
         this.getDetail(id)
       },
       handleAddAntiCC() {
-        //添加CC防护
         this.addFormVisible = true
         this.formData =  {
           host_code: '',

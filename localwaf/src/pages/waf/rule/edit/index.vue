@@ -1,18 +1,18 @@
 <template>
   <div class="detail-base">
-    <t-alert theme="info" message="推荐从(日志详情)里面一键选择特征值自动编辑防御脚本 " close>
+    <t-alert theme="info" :message="$t('page.rule.detail.recommend_message') " close>
       <template #operation>
-        <span @click="handleJumpAttackLogOperation">跳转到日志列表  </span>
-        <span @click="handleJumpOnlineUrl"> 防御规则在线文档Online</span>
+        <span @click="handleJumpAttackLogOperation">{{ $t('page.rule.detail.jump_visit_log') }}  </span>
+        <span @click="handleJumpOnlineUrl"> {{ $t('page.rule.detail.jump_visit_log') }} </span>
       </template>
     </t-alert>
-    <t-form :data="formData"  @submit="onSubmit"> <!--:rules="rules"-->
-      <!--基本信息 开始-->
-      <t-card title="基本信息">
-        <t-form-item label="规则名称" name="rule_name">
-          <t-input placeholder="请输入内容" v-model="formData.rule_base.rule_name" />
+    <t-form :data="formData"  @submit="onSubmit" :labelWidth="180">
+      <!--Base Info Begin-->
+      <t-card :title="$t('page.rule.detail.base_info')">
+        <t-form-item :label="$t('page.rule.detail.rule_name')" name="rule_name">
+          <t-input :placeholder="$t('common.placeholder')" v-model="formData.rule_base.rule_name" />
         </t-form-item>
-        <t-form-item label="防护网站" name="rule_domain_code">
+        <t-form-item :label="$t('page.rule.detail.rule_domain_code')" name="rule_domain_code">
           <t-select v-model="formData.rule_base.rule_domain_code" clearable :style="{ width: '480px' }">
               <t-option v-for="(item, index) in host_options" :value="item.value" :label="item.label"
                 :key="index">
@@ -20,10 +20,10 @@
               </t-option>
             </t-select>
         </t-form-item>
-        <t-form-item label="防护级别" name="salience">
-          <t-input placeholder="请输入内容" v-model="formData.rule_base.salience" />
+        <t-form-item :label="$t('page.rule.detail.rule_salience')" name="salience">
+          <t-input :placeholder="$t('common.placeholder')" v-model="formData.rule_base.salience" />
         </t-form-item>
-        <t-form-item label="防护编排方式" name="is_manual_rule">
+        <t-form-item :label="$t('page.rule.detail.rule_manual')" name="is_manual_rule">
             <t-select  :style="{ width: '480px' }" @change="changeManualRule"
               v-model="formData.is_manual_rule">
               <t-option v-for="(item, index) in rule_manual_option" :value="item.value" :label="item.label"
@@ -33,16 +33,16 @@
             </t-select>
         </t-form-item>
       </t-card>
-      <!--基本信息 结束-->
+      <!--Base Info End-->
 
-       <!--手工编排-->
+       <!--UI Rule -->
       <div v-if="formData.is_manual_rule=='0'">
         <!--规则编排 开始-->
-      <t-card title="规则编排">
+      <t-card :title="$t('page.rule.detail.write_rule')">
         <t-button theme="primary" @click="ruleDynAdd('cond')">
-              新建
+          {{ $t('common.new') }}
         </t-button>
-        <t-form-item label="关系" name="relation_symbol" v-if="formData.rule_condition.relation_detail.length>1">
+        <t-form-item :label="$t('page.rule.detail.relation')" name="relation_symbol" v-if="formData.rule_condition.relation_detail.length>1">
           <t-select clearable :style="{ width: '480px' }"
             v-model="formData.rule_condition.relation_symbol">
             <t-option v-for="(item, index) in relation_symbol_option" :value="item.value" :label="item.label"
@@ -51,15 +51,15 @@
             </t-option>
           </t-select>
         </t-form-item>
-        <t-card title="条件"  v-for="(condition_item,condition_index) in formData.rule_condition.relation_detail">
+        <t-card :title="$t('page.rule.detail.condition')"  v-for="(condition_item,condition_index) in formData.rule_condition.relation_detail">
 
           <t-button theme="primary" @click="ruleDynDel('cond',condition_index)">
-                删除
+            {{ $t('common.delete') }}
           </t-button>
           <t-row :gutter="{ xs: 8, sm: 16, md: 24, lg: 32, xl: 32, xxl: 40 }">
             <t-col :span="4">
               <div>
-                <t-form-item label="内置实体名称">
+                <t-form-item :label="$t('page.rule.detail.built_in_entity_name')">
                   <t-select clearable :style="{ width: '480px' }" v-model="condition_item.fact_name">
                     <t-option v-for="(item, index) in fact_option" :value="item.value" :label="item.label" :key="index">
                       {{ item.label }}
@@ -70,7 +70,7 @@
             </t-col>
             <t-col :span="4">
               <div>
-                <t-form-item label="作用域" name="attr">
+                <t-form-item :label="$t('page.rule.detail.scope')" name="attr">
                   <t-select clearable :style="{ width: '480px' }" v-model="condition_item.attr">
                     <t-option v-for="(item, index) in attr_option" :value="item.value" :label="item.label" :key="index">
                       {{ item.label }}
@@ -81,7 +81,7 @@
             </t-col>
             <t-col :span="4">
               <div>
-                <t-form-item label="值类型" name="attr_type">
+                <t-form-item :label="$t('page.rule.detail.value_type')" name="attr_type">
                   <t-select clearable :style="{ width: '480px' }" v-model="condition_item.attr_type">
                     <t-option v-for="(item, index) in attr_type_option" :value="item.value" :label="item.label"
                       :key="index">
@@ -96,7 +96,7 @@
           <t-row :gutter="{ xs: 8, sm: 16, md: 24, lg: 32, xl: 32, xxl: 40 }">
             <t-col :span="4">
               <div>
-               <t-form-item label="判断" name="attr_judge">
+               <t-form-item :label="$t('page.rule.detail.judgment')" name="attr_judge">
                  <t-select clearable :style="{ width: '480px' }" v-model="condition_item.attr_judge">
                    <t-option v-for="(item, index) in attr_judge_option" :value="item.value" :label="item.label"
                      :key="index">
@@ -108,15 +108,15 @@
             </t-col>
             <t-col :span="4">
               <div>
-                <t-form-item label="值" name="att_val">
+                <t-form-item :label="$t('page.rule.detail.value')" name="att_val">
                   <t-input placeholder="请输入内容" v-model="condition_item.attr_val" />
                 </t-form-item>
               </div>
             </t-col>
             <t-col :span="4">
               <div>
-                <t-form-item label="函数判断结果" name="att_val2">
-                  <t-input placeholder="请输入函数返回值" v-model="condition_item.attr_val2" />
+                <t-form-item :label="$t('page.rule.detail.function_judgment_result')" name="att_val2">
+                  <t-input :placeholder="$t('common.placeholder')+$t('page.rule.detail.function_judgment_result')" v-model="condition_item.attr_val2" />
                 </t-form-item>
               </div>
             </t-col>
@@ -127,21 +127,21 @@
       <!--规则编排 结束-->
 
       <!--符合则执行部分 开始-->
-      <t-card title="符合则执行如下">
+      <t-card :title="$t('page.rule.detail.assignment_area')">
 
         <!--赋值总区块 开始-->
-        <t-card title="赋值">
+        <t-card :title="$t('page.rule.detail.assignment')">
         <t-button theme="primary" @click="ruleDynAdd('assignment')">
-              新建
+          {{ $t('common.new') }}
         </t-button>
-          <t-card title="赋值明细" v-for="(do_assignment_item,assignment_index) in formData.rule_do_assignment">
+          <t-card :title="$t('page.rule.detail.assignment_detail')" v-for="(do_assignment_item,assignment_index) in formData.rule_do_assignment">
             <t-button theme="primary"  @click="ruleDynDel('assignment',assignment_index)">
-                  删除
+              {{ $t('common.delete') }}
             </t-button>
             <t-row :gutter="{ xs: 8, sm: 16, md: 24, lg: 32, xl: 32, xxl: 40 }">
               <t-col :span="4">
                 <div>
-                  <t-form-item label="内置实体名称">
+                  <t-form-item :label="$t('page.rule.detail.built_in_entity_name')">
                     <t-select clearable :style="{ width: '480px' }" v-model="do_assignment_item.fact_name">
                       <t-option v-for="(item, index) in fact_option" :value="item.value" :label="item.label"
                         :key="index">
@@ -153,7 +153,7 @@
               </t-col>
               <t-col :span="4">
                 <div>
-                  <t-form-item label="作用域" name="attr">
+                  <t-form-item :label="$t('page.rule.detail.scope')" name="attr">
                     <t-select clearable :style="{ width: '480px' }" v-model="do_assignment_item.attr">
                       <t-option v-for="(item, index) in attr_option" :value="item.value" :label="item.label"
                         :key="index">
@@ -165,7 +165,7 @@
               </t-col>
               <t-col :span="4">
                 <div>
-                  <t-form-item label="值类型" name="attr_type">
+                  <t-form-item :label="$t('page.rule.detail.value_type')" name="attr_type">
                     <t-select clearable :style="{ width: '480px' }" v-model="do_assignment_item.attr_type">
                       <t-option v-for="(item, index) in attr_type_option" :value="item.value" :label="item.label"
                         :key="index">
@@ -176,8 +176,8 @@
                 </div>
               </t-col>
             </t-row>
-            <t-form-item label="值" name="att_val">
-              <t-input placeholder="请输入内容" v-model="do_assignment_item.attr_val" />
+            <t-form-item :label="$t('page.rule.detail.value')" name="att_val">
+              <t-input :placeholder="$t('common.placeholder')" v-model="do_assignment_item.attr_val" />
             </t-form-item>
           </t-card>
 
@@ -185,19 +185,19 @@
         <!--赋值总区块 结束-->
 
         <!--方法执行总区块 开始-->
-        <t-card title="方法执行">
+        <t-card :title="$t('page.rule.detail.method_execution_area')">
           <t-button theme="primary" @click="ruleDynAdd('method')">
-                新建
+            {{ $t('common.new') }}
           </t-button>
           <!--方法执行明细 开始-->
-          <t-card title="方法明细" v-for="(do_method_item,method_index) in formData.rule_do_method">
+          <t-card :title="$t('page.rule.detail.method_details')" v-for="(do_method_item,method_index) in formData.rule_do_method">
             <t-button theme="primary"  @click="ruleDynDel('method',method_index)">
-                  删除
+              {{ $t('common.delete') }}
             </t-button>
             <t-row :gutter="{ xs: 8, sm: 16, md: 24, lg: 32, xl: 32, xxl: 40 }">
               <t-col :span="6">
                 <div>
-                  <t-form-item label="内置实体名称">
+                  <t-form-item :label="$t('page.rule.detail.built_in_entity_name')">
                     <t-select clearable :style="{ width: '480px' }" v-model="do_method_item.fact_name">
                       <t-option v-for="(item, index) in fact_option" :value="item.value" :label="item.label"
                         :key="index">
@@ -209,7 +209,7 @@
               </t-col>
               <t-col :span="6">
                 <div>
-                  <t-form-item label="内置方法名称">
+                  <t-form-item :label="$t('page.rule.detail.inner_method')">
                     <t-select clearable :style="{ width: '480px' }" v-model="do_method_item.method_name">
                       <t-option v-for="(item, index) in method_option" :value="item.value" :label="item.label"
                         :key="index">
@@ -221,15 +221,15 @@
               </t-col>
             </t-row>
             <!--传参列表明细 开始-->
-            <t-card title="传参">
+            <t-card :title="$t('page.rule.detail.parameter')">
               <t-button theme="primary" @click="ruleDynAdd('parms',method_index)">
-                    新建
+                {{ $t('common.new') }}
               </t-button>
               <t-row :gutter="{ xs: 8, sm: 16, md: 24, lg: 32, xl: 32, xxl: 40 }"
                 v-for="(do_method_parms_item,parms_index) in do_method_item.parms">
                 <t-col :span="4">
                   <div>
-                    <t-form-item label="值类型" name="attr_type">
+                    <t-form-item :label="$t('page.rule.detail.value_type')" name="attr_type">
                       <t-select clearable :style="{ width: '480px' }" v-model="do_method_parms_item.attr_type">
                         <t-option v-for="(item, index) in attr_type_option" :value="item.value" :label="item.label"
                           :key="index">
@@ -242,15 +242,15 @@
                 </t-col>
                 <t-col :span="4">
                   <div>
-                    <t-form-item label="值" name="att_val">
-                      <t-input placeholder="请输入内容" v-model="do_method_parms_item.attr_val" />
+                    <t-form-item :label="$t('page.rule.detail.value')" name="att_val">
+                      <t-input :placeholder="$t('common.placeholder')" v-model="do_method_parms_item.attr_val" />
                     </t-form-item>
                   </div>
                 </t-col>
                 <t-col :span="4">
                   <div>
                     <t-button theme="primary"  @click="ruleDynDel('parms',parms_index,method_index)">
-                                    删除
+                      {{ $t('common.delete') }}
                     </t-button>
                   </div>
                 </t-col>
@@ -265,11 +265,11 @@
       <!--符合则执行部分 结束-->
 
     </div>
-    <!--界面编排 结束-->
+    <!--UI Rule End-->
 
-    <!--手工编排-->
+    <!--Manual Rule-->
     <div v-if="formData.is_manual_rule=='1'">
-    <t-card title="规则编排">
+    <t-card :title="$t('page.rule.detail.write_rule')">
       <writeRule>
         :valuecontent="formData.rule_content"
       	@edtinput="edtinput"
@@ -278,23 +278,23 @@
     </t-card>
 
 
-    <t-collapse>
-              <t-collapse-panel header="系统变量">
-                 <t-list v-for=" (item, index) in attr_option ">
-                        <t-list-item>
-                          <t-list-item-meta :title="item.label" :description="item.value" />
-                        </t-list-item>
-                </t-list>
-              </t-collapse-panel>
-            </t-collapse>
+      <t-collapse>
+        <t-collapse-panel :header="$t('page.rule.detail.system_variable')">
+           <t-list v-for=" (item, index) in attr_option ">
+                  <t-list-item>
+                    <t-list-item-meta :title="item.label" :description="item.value" />
+                  </t-list-item>
+          </t-list>
+        </t-collapse-panel>
+      </t-collapse>
     </div>
 
 
       <t-form-item style="margin-left: 100px">
         <t-space size="10px">
           <!-- type = submit，表单中的提交按钮，原生行为 -->
-          <t-button theme="primary" type="submit">提交</t-button>
-          <t-button theme="primary" type="button" @click="backPage">返回</t-button>
+          <t-button theme="primary" type="submit">{{ $t('common.submit') }}</t-button>
+          <t-button theme="primary" type="button" @click="backPage">{{ $t('common.return') }}</t-button>
         </t-space>
       </t-form-item>
     </t-form>
@@ -328,124 +328,124 @@
         prefix,
         detail_data: {},
         rule_manual_option: [{
-          label: '界面编排',
+          label: this.$t('page.rule.detail.ui_rule_edit'),
           value: '0'
         }, {
-          label: '手工代码编排',
+          label: this.$t('page.rule.detail.manual_code_rule_edit'),
           value: '1'
         }, ],
         rules: {
-          rule_name: [{ required: true, message: '请输入规则名称', type: 'error' }],
+          rule_name: [{ required: true, message: this.$t('common.placeholder')+this.$t('page.rule.detail.rule_name'), type: 'error' }],
         },
         fact_option: [{
-          label: '默认',
+          label: this.$t('page.rule.detail.mf_option_default'),
           value: 'MF'
         }, ],
         method_option: [{
-          label: '做动作',
+          label: this.$t('page.rule.detail.method_option'),
           value: 'DoSomeThing'
         }, ],
         attr_option: [{
-            label: '主机',
+            label: this.$t('page.rule.detail.inner_option_host'),
             value: 'HOST'
           },
           {
-            label: '网址',
+            label:this.$t('page.rule.detail.inner_option_url'),
             value: 'URL'
           },
           {
-            label: '网站来路(referrer)',
+            label: this.$t('page.rule.detail.inner_option_referrer'),
             value: 'REFERER'
           },
           {
-            label: '用户代理(User-Agent)',
+            label: this.$t('page.rule.detail.inner_option_user_agent'),
             value: 'USER_AGENT'
           },
           {
-            label: '访问方法',
+            label:  this.$t('page.rule.detail.inner_option_method'),
             value: 'METHOD'
           },
           {
-            label: '访问COOKIES',
+            label: this.$t('page.rule.detail.inner_option_cookies'),
             value: 'COOKIES'
           },
           {
-            label: '访问BODY',
+            label: this.$t('page.rule.detail.inner_option_body'),
             value: 'BODY'
           },
           {
-            label: '请求端口',
+            label: this.$t('page.rule.detail.inner_option_port'),
             value: 'PORT'
           },
           {
-            label: '访客IP',
+            label: this.$t('page.rule.detail.inner_option_src_ip'),
             value: 'SRC_IP'
           },
           {
-            label: '访客归属国家',
+            label: this.$t('page.rule.detail.inner_option_country'),
             value: 'COUNTRY'
           },
           {
-            label: '访客归属省份',
+            label: this.$t('page.rule.detail.inner_option_province'),
             value: 'PROVINCE'
           },{
-            label: '访客归属城市',
+            label: this.$t('page.rule.detail.inner_option_city'),
             value: 'CITY'
           },
         ],
         attr_type_option: [{
-            label: '文本',
+            label: this.$t('page.rule.detail.attr_type_text'),
             value: 'string'
           },
           {
-            label: '数字',
+            label: this.$t('page.rule.detail.attr_type_int'),
             value: 'int'
           },
         ],
         attr_judge_option: [
           {
-            label: '判断是否等于',
+            label: this.$t('page.rule.detail.judge_equal'),
             value: '=='
           },
           {
-            label: '判断是否不等于',
+            label: this.$t('page.rule.detail.judge_not_equal'),
             value: '!='
           },
           {
-            label: '判断是否大于',
+            label: this.$t('page.rule.detail.judge_greater_than'),
             value: '>'
           },
           {
-            label: '判断是否小于',
+            label: this.$t('page.rule.detail.judge_less_than'),
             value: '<'
           },
           {
-            label: '判断是否大于等于',
+            label: this.$t('page.rule.detail.judge_greater_than_equal'),
             value: '>='
           },
           {
-            label: '判断是否小于等于',
+            label: this.$t('page.rule.detail.judge_less_than_equal'),
             value: '<='
           },
           {
-            label: '判断包含(函数)',
+            label: this.$t('page.rule.detail.judge_contain'),
             value: 'system.Contains'
           },
           {
-            label: '判断开头(函数)',
+            label: this.$t('page.rule.detail.judge_has_prefix'),
             value: 'system.HasPrefix'
           },
           {
-            label: '判断结尾(函数)',
+            label: this.$t('page.rule.detail.judge_has_suffix'),
             value: 'system.HasSuffix'
           },
         ],
         relation_symbol_option: [{
-            label: '并且',
+            label: this.$t('page.rule.detail.judge_logic_and'),
             value: '&&'
           },
           {
-            label: '或者',
+            label: this.$t('page.rule.detail.judge_logic_or'),
             value: '||'
           },
         ],

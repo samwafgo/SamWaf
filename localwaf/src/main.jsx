@@ -7,21 +7,24 @@ import axiosInstance from '@/utils/request';
 import App from './App.vue';
 import router from './router';
 import zhConfig from 'tdesign-vue/es/locale/zh_CN';
+import enConfig from 'tdesign-vue/es/locale/en_US'; // 英文多语言配置
 import globalconfig from './utils/globalconfig'
 Vue.prototype.samwafglobalconfig = globalconfig;
-// import enConfig from 'tdesign-vue/es/locale/en_US'; // 英文多语言配置
 import bus from './bus/bus'
 import BaiduMap from 'vue-baidu-map'
+import i18n from "./i18n";
+import VueMeta from 'vue-meta';
 
 import 'tdesign-vue/es/style/index.css';
 import '@/style/index.less';
-
 import './permission';
 import store from './store';
+
 
 Vue.use(VueRouter);
 Vue.use(TDesign);
 Vue.use(VueClipboard);
+Vue.use(VueMeta);
 Vue.prototype.$bus = bus
 Vue.use(BaiduMap, {
   /* Visit http://lbsyun.baidu.com/apiconsole/key for details about app key. */
@@ -43,17 +46,24 @@ VueRouter.prototype.replace = function replace(location) {
 
 Vue.config.productionTip = false;
 sync(store, router);
-new Vue({
+window.vm = new Vue({
   router,
+  i18n,
   store,
+  metaInfo: {
+        title: (localStorage.getItem('lang')||'zh_CN') ==='zh_CN'?'SamWaf网站防火墙系统（Web Application Firewall）':"SamWaf Web Application Firewall",
+  },
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  render: (h) => (
-    <div>
-      {/* 可以通过config-provider提供全局（多语言、全局属性）配置，如
-      <t-config-provider globalConfig={enConfig}> */}
-      <t-config-provider globalConfig={zhConfig}>
-        <App />
-      </t-config-provider>
-    </div>
-  ),
+  render: (h) => {
+        const currentLanguage = store.getters['language/currentLanguage'];
+        const globalConfig = currentLanguage === 'zh_CN' ? zhConfig :enConfig ;
+
+        return (
+            <div>
+                <t-config-provider globalConfig={globalConfig}>
+                    <App />
+                </t-config-provider>
+            </div>
+        );
+    },
 }).$mount('#app');

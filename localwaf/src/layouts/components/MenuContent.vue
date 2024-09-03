@@ -13,7 +13,7 @@
             <t-icon v-if="typeof item.icon === 'string' && item.icon" :name="item.icon" />
             <renderFnIcon :item="item" />
           </template>
-          {{ item.title }}
+          {{ $t(item.title) }}
         </t-menu-item>
         <t-menu-item
           :key="item.path"
@@ -26,10 +26,10 @@
             <t-icon v-if="typeof item.icon === 'string' && item.icon" :name="item.icon" />
             <renderFnIcon :item="item" />
           </template>
-          {{ item.title }}
+          {{ $t(item.title) }}
         </t-menu-item>
       </template>
-      <t-submenu v-else :name="item.path" :value="item.path" :title="item.title" :key="item.path">
+      <t-submenu v-else :name="item.path" :value="item.path" :title="$t(item.title)" :key="item.path">
         <template #icon>
           <t-icon v-if="typeof item.icon === 'string' && item.icon" :name="item.icon" />
           <renderFnIcon :item="item" />

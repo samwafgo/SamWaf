@@ -9,7 +9,7 @@
   >
     <template v-if="type == 'password'">
       <t-form-item name="account">
-        <t-input v-model="formData.account" size="large" placeholder="请输入账号：">
+        <t-input v-model="formData.account" size="large" :placeholder="$t('login.input_account_placeholder')">
           <template #prefix-icon>
             <user-icon />
           </template>
@@ -23,7 +23,7 @@
           :type="showPsw ? 'text' : 'password'"
           clearable
           key="password"
-          placeholder="请输入登录密码："
+          :placeholder="$t('login.input_password_placeholder')"
         >
           <template #prefix-icon>
             <lock-on-icon />
@@ -34,55 +34,15 @@
           </template>
         </t-input>
       </t-form-item>
-
-      <!--<div class="check-container remember-pwd">
-        <t-checkbox>记住账号</t-checkbox>
-        <span class="tip">忘记账号？</span>
-      </div>-->
     </template>
 
-    <!-- 扫码登陆 -->
-    <!--<template v-else-if="type == 'qrcode'">
-      <div class="tip-container">
-        <span class="tip">请使用微信扫一扫登录</span>
-        <span class="refresh"
-          >刷新
-          <refresh-icon color="#0052D9" />
-        </span>
-      </div>
-      <qrcode-vue value="" :size="192" level="H" />
-    </template>-->
-
-    <!-- 手机号登陆 -->
-    <!--<template v-else>
-      <t-form-item name="phone">
-        <t-input v-model="formData.phone" size="large" placeholder="请输入您的手机号">
-          <template #prefix-icon>
-            <user-icon />
-          </template>
-        </t-input>
-      </t-form-item>
-
-      <t-form-item class="verification-code" name="verifyCode">
-        <t-input v-model="formData.verifyCode" size="large" placeholder="请输入验证码" key="verifyCode" />
-        <t-button variant="outline" :disabled="countDown > 0" @click="handleCounter">
-          {{ countDown == 0 ? '发送验证码' : `${countDown}秒后可重发` }}
-        </t-button>
-      </t-form-item>
-    </template>-->
-
     <t-form-item v-if="type !== 'qrcode'" class="btn-container">
-      <t-button block size="large" type="submit"> 登录 </t-button>
+      <t-button block size="large" type="submit"> {{ $t('login.login_btn_title') }} </t-button>
     </t-form-item>
-
-    <!--<div class="switch-container">
-      <span v-if="type !== 'password'" class="tip" @click="switchType('password')">使用账号密码登录</span>
-      <span v-if="type !== 'qrcode'" class="tip" @click="switchType('qrcode')">使用微信扫码登录</span>
-      <span v-if="type !== 'phone'" class="tip" @click="switchType('phone')">使用手机号登录</span>
-    </div>-->
   </t-form>
 </template>
 <script lang="ts">
+import i18n from '@/i18n'; // 确保导入全局 i18n 实例
 import Vue from 'vue';
 import QrcodeVue from 'qrcode.vue';
 import { UserIcon, LockOnIcon, BrowseOffIcon, BrowseIcon, RefreshIcon } from 'tdesign-icons-vue';
@@ -96,10 +56,10 @@ const INITIAL_DATA = {
 };
 
 const FORM_RULES = {
-  phone: [{ required: true, message: '手机号必填', type: 'error' }],
-  account: [{ required: true, message: '账号必填', type: 'error' }],
-  password: [{ required: true, message: '密码必填', type: 'error' }],
-  verifyCode: [{ required: true, message: '验证码必填', type: 'error' }],
+  phone: [{ required: true, message: i18n.t('login.rule.phone') , type: 'error' }],
+  account: [{ required: true, message: i18n.t('login.rule.account') , type: 'error' }],
+  password: [{ required: true, message: i18n.t('login.rule.password') , type: 'error' }],
+  verifyCode: [{ required: true, message: i18n.t('login.rule.verifyCode') , type: 'error' }],
 };
 /** 高级详情 */
 export default Vue.extend({
@@ -140,7 +100,7 @@ export default Vue.extend({
                 localStorage.setItem("current_account",this.formData.account)
                 this.$store.dispatch('user/login', this.formData);
 
-                this.$message.success('登录成功');
+                this.$message.success( this.$t('login.login_success'));
                 setTimeout(()=>{
                    this.$router.replace('/').catch(() => '');
                 },1000)

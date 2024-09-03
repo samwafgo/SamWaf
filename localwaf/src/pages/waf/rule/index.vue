@@ -3,32 +3,30 @@
     <t-card class="list-card-container">
       <t-row justify="space-between">
         <div class="left-operation-container">
-          <t-button @click="handleAddRule"> 新建规则 </t-button>
-          <t-button variant="base" theme="default" :disabled="!selectedRowKeys.length"> 导出日志 </t-button>
-          <p v-if="!!selectedRowKeys.length" class="selected-count">已选{{ selectedRowKeys.length }}项</p>
+          <t-button @click="handleAddRule"> {{ $t('page.rule.button_add_rule') }} </t-button>
         </div>
         <div class="right-operation-container">
           <t-form ref="form" :data="searchformData" :label-width="80" colon :style="{ marginBottom: '8px' }">
 
           <t-row>
-              <span>网站：</span><t-select v-model="searchformData.host_code" clearable :style="{ width: '150px' }">
+              <span>{{ $t('page.rule.label_website') }}:</span><t-select v-model="searchformData.host_code" clearable :style="{ width: '150px' }">
               <t-option v-for="(item, index) in host_dic" :value="index" :label="item" :key="index">
                 {{ item }}
               </t-option>
             </t-select>
-            <span>规则名：</span>
-            <t-input v-model="searchformData.rule_name" class="search-input" placeholder="请输入你需要搜索的规则" clearable>
+            <span>{{ $t('page.rule.label_rule_name') }}:</span>
+            <t-input v-model="searchformData.rule_name" class="search-input" clearable>
             </t-input>
-            <t-button theme="primary" :style="{ marginLeft: '8px' }" @click="getList('all')"> 查询 </t-button>
+            <t-button theme="primary" :style="{ marginLeft: '8px' }" @click="getList('all')"> {{ $t('common.search') }} </t-button>
           </t-row>
           </t-form>
         </div>
 
       </t-row>
 
-      <t-alert theme="info" message="SamWaf防御规则,可进行脚本(首选)，界面编辑" close>
+      <t-alert theme="info" :message="$t('page.rule.alert_message')" close>
         <template #operation>
-          <span @click="handleJumpOnlineUrl">规则编辑在线文档</span>
+          <span @click="handleJumpOnlineUrl">{{$t('page.rule.rule_online_document')}}</span>
         </template>
       </t-alert>
       <div class="table-container">
@@ -51,28 +49,13 @@
             <span> {{host_dic[row.host_code]}}</span>
           </template>
           <template #rule_status="{ row }">
-            <t-tag v-if="row.rule_status === RULE_STATUS.STOPPING" theme="danger" variant="light">未生效</t-tag>
-            <t-tag v-if="row.rule_status === RULE_STATUS.RUNNING" theme="success" variant="light">生效</t-tag>
-          </template>
-          <template #contractType="{ row }">
-            <p v-if="row.contractType === CONTRACT_TYPES.MAIN">审核失败</p>
-            <p v-if="row.contractType === CONTRACT_TYPES.SUB">待审核</p>
-            <p v-if="row.contractType === CONTRACT_TYPES.SUPPLEMENT">待履行</p>
-          </template>
-          <template #paymentType="{ row }">
-            <p v-if="row.paymentType === CONTRACT_PAYMENT_TYPES.PAYMENT" class="payment-col">
-              付款
-              <trend class="dashboard-item-trend" type="up" />
-            </p>
-            <p v-if="row.paymentType === CONTRACT_PAYMENT_TYPES.RECIPT" class="payment-col">
-              收款
-              <trend class="dashboard-item-trend" type="down" />
-            </p>
+            <t-tag v-if="row.rule_status === RULE_STATUS.STOPPING" theme="danger" variant="light">{{ $t('page.rule.rule_off') }}</t-tag>
+            <t-tag v-if="row.rule_status === RULE_STATUS.RUNNING" theme="success" variant="light">{{ $t('page.rule.rule_on') }}</t-tag>
           </template>
 
           <template #op="slotProps">
-            <a class="t-button-link" @click="handleClickEdit(slotProps)">编辑</a>
-            <a class="t-button-link" @click="handleClickDelete(slotProps)">删除</a>
+            <a class="t-button-link" @click="handleClickEdit(slotProps)">{{ $t('common.edit') }}</a>
+            <a class="t-button-link" @click="handleClickDelete(slotProps)">{{ $t('common.delete') }}</a>
           </template>
         </t-table>
       </div>
@@ -81,7 +64,7 @@
 
 
     <t-dialog
-      header="确认删除当前所选规则吗?"
+      :header="$t('common.confirm_delete')"
       :body="confirmBody"
       :visible.sync="confirmVisible"
       @confirm="onConfirmDelete"
@@ -123,24 +106,10 @@ export default Vue.extend({
       formData: { ...INITIAL_DATA },
       formEditData: { ...INITIAL_DATA },
       rules: {
-        host: [{ required: true, message: '请输入网站名称', type: 'error' }],
+        host: [{ required: true, message: this.$t('common.select_placeholder')+this.$t('page.rule.label_website'), type: 'error' }],
       },
       textareaValue: '',
-      remote_system_options: [
-        { label: '宝塔', value: '1' },
-        { label: '小皮面板(phpstudy)', value: '2' },
-        { label: 'PHPnow', value: '3' },
-      ],
-      remote_app_options: [
-        { label: '纯网站', value: '1' },
-        { label: 'API业务系统', value: '2' },
-        { label: '业务加管理', value: '3' },
-      ],
       RULE_STATUS,
-      CONTRACT_STATUS,
-      CONTRACT_STATUS_OPTIONS,
-      CONTRACT_TYPES,
-      CONTRACT_PAYMENT_TYPES,
       prefix,
       dataLoading: false,
       data: [], //列表数据信息
@@ -150,23 +119,23 @@ export default Vue.extend({
       columns: [
         { colKey: 'row-select', type: 'multiple', width: 64, fixed: 'left' },
           {
-            title: '网站',
+            title: this.$t('page.rule.label_website'),
             align: 'left',
             width: 200,
             ellipsis: true,
             colKey: 'host_code',
           },
         {
-          title: '规则名',
+          title: this.$t('page.rule.label_rule_name'),
           align: 'left',
           width: 200,
           ellipsis: true,
           colKey: 'rule_name',
         },
-        { title: '规则版本', colKey: 'rule_version', width: 70, cell: { col: 'version' } },
-        { title: '规则状态', colKey: 'rule_status', width: 70, cell: { col: 'rule_status' } },
+        { title: this.$t('page.rule.label_rule_version'), colKey: 'rule_version', width: 70, cell: { col: 'version' } },
+        { title: this.$t('page.rule.label_rule_status'), colKey: 'rule_status', width: 70, cell: { col: 'rule_status' } },
         {
-          title: '添加时间',
+          title: this.$t('common.create_time'),
           width: 200,
           ellipsis: true,
           colKey: 'create_time',
@@ -175,7 +144,7 @@ export default Vue.extend({
           align: 'left',
           width: 200,
           colKey: 'op',
-          title: '操作',
+          title: this.$t('common.op'),
         },
       ],
       rowKey: 'rule_code',
@@ -183,7 +152,6 @@ export default Vue.extend({
       verticalAlign: 'top',
       hover: true,
       rowClassName: (rowKey: string) => `${rowKey}-class`,
-      // 与pagination对齐
       pagination: {
         total: 0,
         current: 1,
@@ -204,7 +172,7 @@ export default Vue.extend({
     confirmBody() {
       if (this.deleteIdx > -1) {
         const { host } = this.data?.[this.deleteIdx];
-        return `确认要删除吗？`;
+        return this.$t('common.data_delete_warning');
       }
       return '';
     },
@@ -266,7 +234,6 @@ export default Vue.extend({
       return document.querySelector('.tdesign-starter-layout');
     },
     rehandlePageChange(curr, pageInfo) {
-      console.log('分页变化', curr, pageInfo);
       this.pagination.current = curr.current
       if(this.pagination.pageSize != curr.pageSize){
           this.pagination.current = 1
@@ -278,7 +245,6 @@ export default Vue.extend({
       this.selectedRowKeys = selectedRowKeys;
     },
     rehandleChange(changeParams, triggerAndData) {
-      console.log('统一Change', changeParams, triggerAndData);
     },
 
     handleClickEdit(e) {
@@ -320,8 +286,6 @@ export default Vue.extend({
     },
     onConfirmDelete() {
       this.confirmVisible = false;
-      console.log('delete',this.data)
-      console.log('delete',this.data[this.deleteIdx])
       let {rule_code} =  this.data[this.deleteIdx]
       let that = this
       wafRuleDelApi({ CODE: rule_code })
@@ -362,15 +326,6 @@ export default Vue.extend({
 <style lang="less" scoped>
 @import '@/style/variables';
 
-.payment-col {
-  display: flex;
-
-  .trend-container {
-    display: flex;
-    align-items: center;
-    margin-left: 8px;
-  }
-}
 
 .left-operation-container {
   padding: 0 0 6px 0;

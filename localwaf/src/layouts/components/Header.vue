@@ -2,7 +2,7 @@
 
 
   <div :class="layoutCls">
-    <t-dialog :visible.sync="update_visible" @confirm="handleDoUpdate" header="有新版本啦">
+    <t-dialog :visible.sync="update_visible" @confirm="handleDoUpdate" :header="$t('topNav.update.has_new_version')">
       <p>      <icon name="tangerinr" color="orange" />
 {{update_new_ver}}</p>
  <p>
@@ -28,40 +28,48 @@
 
           <!-- 全局通知 -->
           <notice />
-          <t-tooltip placement="bottom" content="有新版本拉" v-show="hasNewVersion">
+          <t-tooltip placement="bottom" :content="$t('topNav.update.has_new_version')" v-show="hasNewVersion">
             <t-button theme="default" shape="square" variant="text" @click="checkVersion('manual')">
               <NotificationErrorIcon />
             </t-button>
           </t-tooltip>
 
-          <t-tooltip placement="bottom" content="联系SamWaf">
+          <t-tooltip placement="bottom" :content="$t('topNav.contract')">
             <t-button theme="default" shape="square" variant="text" @click="sendMail">
               <MailIcon />
             </t-button>
           </t-tooltip>
-          <t-tooltip placement="bottom" content="帮助文档">
+          <t-tooltip placement="bottom" :content="$t('topNav.help_document')">
             <t-button theme="default" shape="square" variant="text" @click="navToHelper">
               <help-circle-icon />
             </t-button>
           </t-tooltip>
+          <t-select v-model="langValue"
+                    placeholder="SelectLanguage"
+                    @change="changeLangEvent"  style="width: 150px; display: inline-block" title="Select Language">
+            <t-option  v-for="(item, index) in langOptions"
+                       :key="index"
+                       :label="item.label"
+                       :value="item.value"/>
+          </t-select>
           <t-button theme="warning" @click="changeServer" v-if="hasClientServer">
             <template #icon><add-icon /></template>
-            当前 服务器{{ current_server.client_server_name }}
+            {{ $t('topNav.current_server')}} {{ current_server.client_server_name }}
           </t-button>
           <t-dropdown :min-column-width="125" trigger="click">
             <template #dropdown>
               <t-dropdown-menu>
                 <t-dropdown-item class="operations-dropdown-container-item" @click="handleNav('/user/index')">
-                  <user-circle-icon />个人中心
+                  <user-circle-icon /> {{ $t('topNav.dropdown_person_center')}}
                 </t-dropdown-item>
                 <t-dropdown-item class="operations-dropdown-container-item" :disabled="isUpdateloading" @click="checkVersion('manual')">
-                  <RotateIcon />升级
+                  <RotateIcon /> {{ $t('topNav.dropdown_update')}}
                 </t-dropdown-item>
                 <t-dropdown-item class="operations-dropdown-container-item" :disabled="isResetloading" @click="resetServer">
-                  <PoweroffIcon />重启
+                  <ArrowUpDownCircleIcon />{{ $t('topNav.dropdown_reboot_waf')}}
                 </t-dropdown-item>
                 <t-dropdown-item class="operations-dropdown-container-item" @click="handleLogout">
-                  <poweroff-icon />退出登录
+                  <poweroff-icon />{{ $t('topNav.dropdown_logout')}}
                 </t-dropdown-item>
               </t-dropdown-menu>
             </template>
@@ -75,7 +83,7 @@
               </div>
             </t-button>
           </t-dropdown>
-          <t-tooltip placement="bottom" content="系统设置">
+          <t-tooltip placement="bottom" :content="$t('topNav.system_config')">
             <t-button theme="default" shape="square" variant="text" @click="toggleSettingPanel">
               <setting-icon />
             </t-button>
@@ -99,7 +107,8 @@
     RotateIcon,
     Icon,
     MailIcon,
-    NotificationErrorIcon
+    NotificationErrorIcon,
+    ArrowUpDownCircleIcon
   } from 'tdesign-icons-vue';
   import {
     prefix
@@ -129,7 +138,8 @@
       RotateIcon,
       Icon,
       MailIcon,
-      NotificationErrorIcon
+      NotificationErrorIcon,
+      ArrowUpDownCircleIcon
     },
     props: {
       theme: String,
@@ -173,6 +183,18 @@
         /**控制中心相关**/
         hasClientServer:false,
         current_server:"",
+        /**语言问题**/
+        langValue:"zh_CN",
+        langOptions: [
+          {
+            value: "zh_CN",
+            label: "中文"
+          },
+          {
+            value: "en_US",
+            label: "English"
+          },
+        ]
       };
     },
     computed: {
@@ -208,6 +230,24 @@
       this.init()
     },
     methods: {
+      // 切换语言
+      changeLangEvent(value, context) {
+        switch (value) {
+          case "zh_CN":
+            this.langValue = value;
+            this.$i18n.locale = this.langValue;
+            localStorage.setItem("lang",this.langValue)
+            break;
+          case "en_US":
+            this.langValue = value;
+            this.$i18n.locale = this.langValue;
+            localStorage.setItem("lang",this.langValue)
+            break;
+          default:
+            break;
+        }
+        location.reload(); // 刷新页面
+      },
       //init
       init(){
         //帐号初始化
@@ -219,6 +259,8 @@
         }else{
           this.hasClientServer = false
         }
+        //多语言
+        this.langValue = localStorage.getItem("lang") || "zh_CN"
 
       },
       //切换服务器

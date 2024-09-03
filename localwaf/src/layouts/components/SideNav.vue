@@ -16,7 +16,7 @@
       <menu-content :navData="menu" />
       <template #operations>
         <span class="version-container"> {{ !collapsed && '' }} {{ getversion.version_name  }}({{ getversion.version  }})
-        <span v-if="getversion.version_release=='false'" style="color:red"> 调试</span></span>
+        <span v-if="getversion.version_release=='false'" style="color:red"> {{ $t('common.debug') }}</span></span>
       </template>
     </t-menu>
     <div :class="`${prefix}-side-nav-placeholder${collapsed ? '-hidden' : ''}`"></div>

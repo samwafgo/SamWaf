@@ -1,110 +1,110 @@
 <template>
   <div class="detail-base">
-    <t-card title="防御情况" class="container-base-margin-top">
+    <t-card :title="$t('page.visit_log.detail.defense_status')" class="container-base-margin-top">
       <t-steps class="detail-base-info-steps" layout="horizontal" theme="dot" :current="3">
-        <t-step-item title="访问" :content="detail_data.create_time" />
-        <t-step-item title="检测" :content="detail_data.create_time" />
-        <t-step-item title="防御状态" :content="detail_data.action" />
-        <t-step-item title="响应状态" :content="detail_data.status" />
+        <t-step-item :title="$t('page.visit_log.detail.visit_time')" :content="detail_data.create_time" />
+        <t-step-item :title="$t('page.visit_log.detail.detection_time')" />
+        <t-step-item :title="$t('page.visit_log.detail.defense_status_step')" :content="detail_data.action" />
+        <t-step-item :title="$t('page.visit_log.detail.response_status')" :content="detail_data.status" />
       </t-steps>
     </t-card>
-    <t-card title="本次请求详情" >
+    <t-card :title="$t('common.details')" >
       <div class="info-block">
         <div class="info-item">
-          <h1> 请求标识</h1>
+          <h1> {{ $t('page.visit_log.detail.request_identifier') }}</h1>
           <span>
             {{ detail_data.req_uuid }}
           </span>
         </div>
         <div class="info-item">
-          <h1> 请求时间</h1>
+          <h1> {{ $t('page.visit_log.detail.request_time') }}</h1>
           <span>
             {{ detail_data.create_time }}
           </span>
         </div>
         <div class="info-item">
-          <h1> 请求域名</h1>
+          <h1> {{ $t('page.visit_log.detail.request_domain') }}</h1>
           <span>
             {{ detail_data.host }}
           </span>
         </div>
         <div class="info-item">
-          <h1> 请求方法</h1>
+          <h1> {{ $t('page.visit_log.detail.request_method') }}</h1>
           <span>
             {{ detail_data.method }}
           </span>
         </div>
         <div class="info-item">
-          <h1> 请求内容大小</h1>
+          <h1> {{ $t('page.visit_log.detail.request_content_size') }}</h1>
           <span>
             {{ detail_data.content_length }}
           </span>
         </div>
         <div class="info-item">
-          <h1> 访问者IP</h1>
+          <h1> {{ $t('page.visit_log.detail.visitor_ip') }}</h1>
           <span>
             {{ detail_data.src_ip }}
-            <t-button theme="primary" shape="round" size="small" @click="handleAddipblock">加黑名单</t-button>
+            <t-button theme="primary" shape="round" size="small" @click="handleAddipblock">{{ $t('page.visit_log.detail.add_to_deny_list') }}</t-button>
           </span>
         </div>
         <div class="info-item">
-          <h1> 访问者端口</h1>
+          <h1> {{ $t('page.visit_log.detail.visitor_port') }}</h1>
           <span>
             {{ detail_data.src_port }}
           </span>
         </div>
         <div class="info-item">
-          <h1> 请求地区</h1>
+          <h1> {{ $t('page.visit_log.detail.request_region') }}</h1>
           <span>
             {{ detail_data.country }} {{ detail_data.province }} {{ detail_data.city }}
           </span>
         </div>
         <div class="info-item">
-          <h1> 响应编码</h1>
+          <h1> {{ $t('page.visit_log.detail.response_code') }}</h1>
           <span>
             {{ detail_data.status_code }} ({{detail_data.status}} )
           </span>
         </div>
       </div>
     </t-card>
-    <t-card title="访问其他记录" class="container-base-margin-top">
+    <t-card :title="$t('page.visit_log.detail.more_info')" class="container-base-margin-top">
          <template #actions>
-           <t-tooltip content="鼠标选中想要添加的内容后,点击页面空白即可">
-               快捷加入规则:  <t-switch size="large" v-model="quickAddRuleChecked" :label="['开', '关']"></t-switch>
+           <t-tooltip :content="$t('page.visit_log.detail.mouse_select_tooltip')">
+               {{$t('page.visit_log.detail.quick_add_rule')}}:  <t-switch size="large" v-model="quickAddRuleChecked" :label="[$t('page.visit_log.detail.open'), $t('page.visit_log.detail.close')]"></t-switch>
                </t-tooltip>
         </template>
       <t-list :split="true">
         <t-list-item>
-          <t-list-item-meta title="请求路径"></t-list-item-meta>
+          <t-list-item-meta :title="$t('page.visit_log.detail.request_path')"></t-list-item-meta>
         </t-list-item>
          <t-textarea v-model="detail_data.url" :autosize="{ minRows: 3, maxRows: 5 }" readonly @blur="handleMouseSelect('url')"/>
         <t-list-item>
-          <t-list-item-meta title="请求头"></t-list-item-meta>
+          <t-list-item-meta :title="$t('page.visit_log.detail.request_header')"></t-list-item-meta>
         </t-list-item>
          <t-textarea v-model="detail_data.header" :autosize="{ minRows: 3, maxRows: 5 }"  readonly @blur="handleMouseSelect('header')"/>
         <t-list-item>
-         <t-list-item-meta title="请求用户浏览器" ></t-list-item-meta>
+         <t-list-item-meta :title="$t('page.visit_log.detail.request_user_browser')" ></t-list-item-meta>
         </t-list-item>
          <t-textarea v-model="detail_data.user_agent" :autosize="{ minRows: 3, maxRows: 5 }" readonly @blur="handleMouseSelect('user_agent')"/>
         <t-list-item>
-          <t-list-item-meta title="请求cookies" ></t-list-item-meta>
+          <t-list-item-meta :title="$t('page.visit_log.detail.request_cookies')" ></t-list-item-meta>
         </t-list-item>
          <t-textarea v-model="detail_data.cookies" :autosize="{ minRows: 3, maxRows: 5 }" readonly @blur="handleMouseSelect('cookies')"/>
         <t-list-item >
-          <t-list-item-meta title="请求BODY" ></t-list-item-meta>
+          <t-list-item-meta :title="$t('page.visit_log.detail.request_body')" ></t-list-item-meta>
         </t-list-item>
         <t-textarea v-model="detail_data.body" :autosize="{ minRows: 3, maxRows: 5 }" readonly @blur="handleMouseSelect('body')"/>
         <t-list-item >
-          <t-list-item-meta title="请求Form" ></t-list-item-meta>
+          <t-list-item-meta :title="$t('page.visit_log.detail.request_form')" ></t-list-item-meta>
         </t-list-item>
         <t-textarea v-model="detail_data.post_form" :autosize="{ minRows: 3, maxRows: 5 }" readonly />
       </t-list>
     </t-card>
-    <t-card title="响应数据">
+    <t-card :title="$t('page.visit_log.detail.response_data')">
       <t-textarea v-model="detail_data.res_body" :autosize="{ minRows: 5, maxRows: 10 }" readonly />
 
       </t-card>
-     <t-button theme="primary" type="button" @click="backPage">返回</t-button>
+     <t-button theme="primary" type="button" @click="backPage">{{ $t('page.visit_log.detail.back') }}</t-button>
 
 
   </div>
@@ -207,12 +207,12 @@
 
 
         const confirmDia = this.$dialog.confirm({
-                header: '加入IP黑名单',
-                body: '你确定要加入黑名单IP（'+ this.detail_data.src_ip +"）么？",
-                confirmBtn: '确定',
-                cancelBtn: '取消',
+                header: this.$t('page.visit_log.detail.add_to_deny_list_confirm_header')  ,
+                body: this.$t('page.visit_log.detail.add_to_deny_list_confirm_body') ,
+                confirmBtn: this.$t('common.confirm') ,
+                cancelBtn: this.$t('common.cancel') ,
                 onConfirm: ({ e }) => {
-                   //添加黑名单IP
+                   //add deny IP
                    let formData = {
                      host_code: this.detail_data.host_code,
                      ip: this.detail_data.src_ip,
@@ -235,7 +235,6 @@
                      })
                      .finally(() => {});
 
-                  // 请求成功后，销毁弹框
                   confirmDia.destroy();
                 },
                 onClose: ({ e, trigger }) => {

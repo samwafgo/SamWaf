@@ -1,8 +1,8 @@
 <template>
   <div>
-    <t-alert theme="info" message="防御日志" close>
+    <t-alert theme="info" :message="$t('page.visit_log.visit_log')" close>
       <template #operation>
-        <span @click="handleJumpOnlineUrl">在线文档</span>
+        <span @click="handleJumpOnlineUrl">{{ $t('common.online_document') }}</span>
       </template>
     </t-alert>
     <t-card class="list-card-container">
@@ -12,7 +12,7 @@
             <t-col :span="10">
               <t-row :gutter="[16, 24]">
                 <t-col :flex="1">
-                  <t-form-item label="网站" name="rule">
+                  <t-form-item :label="$t('page.visit_log.website')" name="website">
                     <t-select v-model="searchformData.host_code" clearable :style="{ width: '150px' }">
                       <t-option v-for="(item, index) in host_dic" :value="index" :label="item" :key="index">
                         {{ item }}
@@ -22,41 +22,41 @@
                 </t-col>
                 <t-col :flex="1">
 
-                  <t-form-item label="规则名称" name="rule">
-                    <t-input v-model="searchformData.rule" class="form-item-content" type="search" placeholder="请输入规则名称"
+                  <t-form-item :label="$t('page.visit_log.rule_name')" name="rule">
+                    <t-input v-model="searchformData.rule" class="form-item-content" type="search" :placeholder="$t('common.placeholder') + $t('page.visit_log.rule_name')"
                       :style="{ minWidth: '134px' }" />
                   </t-form-item>
                 </t-col>
                 <t-col :flex="1">
-                  <t-form-item label="访问状态" name="action">
+                  <t-form-item :label="$t('page.visit_log.access_status')" name="action">
                     <t-select v-model="searchformData.action" class="form-item-content`" :options="action_options"
-                      placeholder="请选择防御状态" :style="{ width: '100px' }" />
+                      :placeholder="$t('common.select_placeholder')+$t('page.visit_log.access_status')" :style="{ width: '100px' }" />
                   </t-form-item>
                 </t-col>
                 <t-col :flex="1">
-                  <t-form-item label="响应码" name="status_code">
-                    <t-input v-model="searchformData.status_code" class="form-item-content" placeholder="请输入响应码"
+                  <t-form-item :label="$t('page.visit_log.status_code')" name="status_code">
+                    <t-input v-model="searchformData.status_code" class="form-item-content" :placeholder="$t('common.placeholder')+$t('page.visit_log.status_code')"
                       :style="{ minWidth: '100px' }" />
                   </t-form-item>
                 </t-col>
                 <t-col :flex="1">
-                  <t-form-item label="访问IP" name="src_ip">
-                    <t-input v-model="searchformData.src_ip" class="form-item-content" placeholder="请输入访问IP"
+                  <t-form-item :label="$t('page.visit_log.source_ip')" name="src_ip">
+                    <t-input v-model="searchformData.src_ip" class="form-item-content" :placeholder="$t('common.placeholder')+$t('page.visit_log.source_ip')"
                       :style="{ minWidth: '100px' }" />
                   </t-form-item>
                 </t-col>
                 <t-col :flex="2">
-                  <t-form-item label="访问日期" name="unix_add_time">
+                  <t-form-item :label="$t('page.visit_log.access_date')" name="unix_add_time">
                     <t-date-range-picker v-model="dateControl.range1" :presets="dateControl.presets" enable-time-picker valueType="YYYY-MM-DD HH:mm:ss" /></t-form-item>
                 </t-col>
                 <t-col :flex="1">
-                  <t-form-item label="访问方法" name="method">
+                  <t-form-item :label="$t('page.visit_log.access_method')" name="method">
                     <t-select v-model="searchformData.method" class="form-item-content`" :options="method_options"
-                      placeholder="请输入访问方法" :style="{ width: '100px' }" />
+                      :placeholder="$t('common.placeholder') + $t('page.visit_log.access_method')" :style="{ width: '100px' }" />
                   </t-form-item>
                 </t-col>
                 <t-col :flex="1">
-                  <t-form-item label="日志归档库" name="sharedb">
+                  <t-form-item :label="$t('common.log_archive_db')" name="sharedb">
                     <t-select v-model="searchformData.current_db_name" clearable :style="{ width: '150px' }">
                       <t-option v-for="(item, index) in share_db_dic" :value="index" :label="item" :key="index">
                         {{ item }}
@@ -68,8 +68,8 @@
             </t-col>
 
             <t-col :span="2" class="operation-container">
-              <t-button theme="primary" :style="{ marginLeft: '8px' }" @click="getList('all')"> 查询 </t-button>
-              <t-button type="reset" variant="base" theme="default"> 重置 </t-button>
+              <t-button theme="primary" :style="{ marginLeft: '8px' }" @click="getList('all')"> {{ $t('common.search') }} </t-button>
+              <t-button type="reset" variant="base" theme="default"> {{ $t('common.reset') }}  </t-button>
             </t-col>
           </t-row>
         </t-form>
@@ -103,16 +103,12 @@
             <t-tag v-if="row.rule !== ''" shape="round" theme="primary" variant="outline">{{row.rule}}</t-tag>
           </template>
           <template #op="slotProps">
-            <a class="t-button-link" @click="handleClickIPDetail(slotProps)">查询IP</a>
-            <a class="t-button-link" @click="handleClickDetail(slotProps)">详情</a>
-            <!-- <a class="t-button-link" @click="handleClickDelete(slotProps)">删除</a> -->
+            <a class="t-button-link" @click="handleClickIPDetail(slotProps)">{{$t('common.search') + $t('page.visit_log.source_ip') }}</a>
+            <a class="t-button-link" @click="handleClickDetail(slotProps)">{{$t('common.details')}}</a>
           </template>
         </t-table>
       </div>
     </t-card>
-    <t-dialog header="确认删除当前所选日志？" :body="confirmBody" :visible.sync="confirmVisible" @confirm="onConfirmDelete"
-      :onCancel="onCancel">
-    </t-dialog>
   </div>
 </template>
 <script lang="ts">
@@ -169,25 +165,25 @@
         },
         action_options: [
           {
-            label: '全部',
+            label: this.$t('common.defense_status.all'),
             value: ''
           },
           {
-            label: '阻止',
+            label: this.$t('common.defense_status.stop'),
             value: '阻止'
           },
           {
-            label: '放行',
+            label: this.$t('common.defense_status.pass'),
             value: '放行'
           },
           {
-            label: '禁止',
+            label: this.$t('common.defense_status.forbid'),
             value: '禁止'
           },
         ],
         method_options: [
           {
-            label: '全部',
+            label: this.$t('common.all'),
             value: ''
           },
           {
@@ -229,7 +225,7 @@
         displayColumns: staticColumn.concat(['guest_identification','time_spent','create_time', 'host', 'method', 'url', 'src_ip', 'country']),
         columns: [
           {
-            title: '访客身份',
+            title: this.$t('page.visit_log.guest_identity'),
             width: 100,
             ellipsis: true,
             colKey: 'guest_identification',
@@ -239,47 +235,47 @@
               // 按下 Enter 键时也触发确认搜索
               confirmEvents: ['onEnter'],
               props: {
-                placeholder: '输入关键词过滤',
+                placeholder: this.$t('common.placeholder'),
               },
               // 是否显示重置取消按钮，一般情况不需要显示
               showConfirmAndReset: true,
             },
           },
           {
-            title: '耗时(ms)',
+            title: this.$t('page.visit_log.time_spent'),
             width: 100,
             ellipsis: true,
             colKey: 'time_spent',
             sorter: true
           },
           {
-            title: '危害程度',
+            title: this.$t('page.visit_log.risk_level'),
             width: 60,
             ellipsis: true,
             colKey: 'risk_level',
           },
           {
-            title: '状态',
+            title: this.$t('common.status'),
             width: 60,
             ellipsis: true,
             colKey: 'action',
           },
           {
-            title: '触发规则',
+            title: this.$t('page.visit_log.trigger_rule'),
             align: 'left',
             width: 150,
             ellipsis: true,
             colKey: 'rule',
           },
           {
-            title: '时间',
+            title: this.$t('page.visit_log.time'),
             width: 170,
             ellipsis: true,
             colKey: 'create_time',
             sorter: true
           },
           {
-            title: '域名',
+            title: this.$t('page.visit_log.domain'),
             align: 'left',
             width: 150,
             ellipsis: true,
@@ -287,36 +283,36 @@
           },
 
           {
-            title: '请求',
+            title: this.$t('page.visit_log.request'),
             width: 70,
             ellipsis: true,
             colKey: 'method',
           },
           {
-            title: '来源IP',
+            title: this.$t('page.visit_log.source_ip'),
             width: 150,
             ellipsis: true,
             colKey: 'src_ip',
           },
           {
-            title: '国家',
+            title:  this.$t('page.visit_log.country'),
             width: 100,
             ellipsis: true,
             colKey: 'country',
           },
           {
-            title: '省份',
+            title:this.$t('page.visit_log.province'),
             width: 100,
             ellipsis: true,
             colKey: 'province',
           }, {
-            title: '城市',
+            title: this.$t('page.visit_log.city'),
             width: 100,
             ellipsis: true,
             colKey: 'city',
           },
           {
-            title: '访问url',
+            title: this.$t('page.visit_log.access_url'),
             width: 160,
             ellipsis: true,
             colKey: 'url',
@@ -332,7 +328,7 @@
               // 按下 Enter 键时也触发确认搜索
               confirmEvents: ['onEnter'],
               props: {
-                placeholder: '输入关键词过滤',
+                placeholder: this.$t('common.placeholder'),
               },
               // 是否显示重置取消按钮，一般情况不需要显示
               showConfirmAndReset: true,
@@ -348,7 +344,7 @@
             align: 'left',
             width: 120,
             colKey: 'op',
-            title: '操作',
+            title: this.$t('common.op'),
           },
         ],
         rowKey: 'REQ_UUID',
@@ -398,13 +394,6 @@
       };
     },
     computed: {
-      confirmBody() {
-        if (this.deleteIdx > -1) {
-          const { name } = this.data?.[this.deleteIdx];
-          return `删除后，${name}的所有合同信息将被清空，且无法恢复`;
-        }
-        return '';
-      },
       offsetTop() {
         return this.$store.state.setting.isUseTabsRouter ? 48 : 0;
       },
@@ -414,7 +403,7 @@
           fields: ['action', 'rule', 'create_time', 'host', 'method', 'url', 'header', 'country', 'province', 'city', 'status','risk_level','guest_identification','time_spent'],
           // 弹框组件属性透传
           dialogProps: { preventScrollThrough: true },
-          // 列配置按钮属性头像
+          // 列配置按钮属性
           buttonProps: this.customText ? { content: '显示列控制', theme: 'primary', variant: 'base' } : undefined,
           // 数据字段分组显示
           groupColumns: this.groupColumn ? GROUP_COLUMNS : undefined,
@@ -557,7 +546,6 @@
         return document.querySelector('.tdesign-starter-layout');
       },
       rehandlePageChange(curr, pageInfo) {
-        console.log('分页变化', curr, pageInfo);
         this.pagination.current = curr.current
         if (this.pagination.pageSize != curr.pageSize) {
           this.pagination.current = 1
@@ -569,7 +557,6 @@
         this.selectedRowKeys = selectedRowKeys;
       },
       rehandleChange(changeParams, triggerAndData) {
-        console.log('统一Change', changeParams, triggerAndData);
       },
       handleClickDetail(e) {
         console.log(e)
@@ -596,7 +583,6 @@
         this.confirmVisible = true;
       },
       onConfirmDelete() {
-        // 真实业务请发起请求
         this.data.splice(this.deleteIdx, 1);
         this.pagination.total = this.data.length;
         const selectedIdx = this.selectedRowKeys.indexOf(this.deleteIdx);
@@ -613,7 +599,7 @@
       resetIdx() {
         this.deleteIdx = -1;
       },
-      //跳转界面
+      //Jump Url
       handleJumpOnlineUrl(){
         window.open(this.samwafglobalconfig.getOnlineUrl()+"/guide/attacklog.html");
       },
@@ -621,7 +607,6 @@
        * table 排序
        */
       onSortChange(sorter){
-        console.log('排序',sorter)
         let that = this
 
         if (sorter != undefined){
@@ -638,13 +623,11 @@
        * 访客身份筛选
        */
       filterGuestChange(e){
-        console.log("访客身份",e)
       },
       /**
        * 筛选结果
        */
       onFilterChange(e){
-        console.log("筛选结果",e)
         this.filters.filter_by = "";
         this.filters.filter_value = "";
         //访客身份
@@ -671,32 +654,6 @@
 
 <style lang="less" scoped>
   @import '@/style/variables';
-
-  .payment-col {
-    display: flex;
-
-    .trend-container {
-      display: flex;
-      align-items: center;
-      margin-left: 8px;
-    }
-  }
-
-  .left-operation-container {
-    padding: 0 0 6px 0;
-    margin-bottom: 16px;
-
-    .selected-count {
-      display: inline-block;
-      margin-left: 8px;
-      color: var(--td-text-color-secondary);
-    }
-  }
-
-  .search-input {
-    width: 360px;
-  }
-
   .t-button+.t-button {
     margin-left: @spacer;
   }

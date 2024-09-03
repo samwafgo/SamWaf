@@ -3,45 +3,26 @@
     <t-card class="list-card-container">
       <t-row justify="space-between">
         <div class="left-operation-container">
-          <t-button @click="handleChangeLocalClear"> 切换本机（不进行远程访问） </t-button>
-          <p v-if="!!selectedRowKeys.length" class="selected-count">已选{{ selectedRowKeys.length }}项</p>
+          <t-button @click="handleChangeLocalClear"> {{$t('page.center.switch_local')}}  </t-button>
         </div>
         <div class="right-operation-container">
           <t-form ref="form" :data="searchformData" :label-width="80" colon :style="{ marginBottom: '8px' }">
 
             <t-row>
-             <!-- <span>网站：</span>
-              <t-select v-model="searchformData.host_code" clearable :style="{ width: '150px' }">
-                <t-option v-for="(item, index) in host_dic" :value="index" :label="item" :key="index">
-                  {{ item }}
-                </t-option>
-              </t-select>
-              <span>URL：</span>
-              <t-input v-model="searchformData.url" class="search-input" placeholder="请输入" clearable>
-              </t-input>-->
-              <t-button theme="primary" :style="{ marginLeft: '8px' }" @click="getList('all')"> 查询</t-button>
+              <t-button theme="primary" :style="{ marginLeft: '8px' }" @click="getList('all')"> {{ $t('common.search') }}</t-button>
             </t-row>
           </t-form>
         </div>
       </t-row>
-      <t-alert v-if="pagination.total>freeClientCount && isVip==false" theme="warning" message="超出免费台数限额" close>
-        <template #operation>
-          <span @click="handleJumpLicense">跳转授权信息画面</span>
-        </template>
-      </t-alert>
       <div class="table-container">
         <t-table :columns="columns" :data="data" :rowKey="rowKey" :verticalAlign="verticalAlign" :hover="hover"
                  :pagination="pagination" :selected-row-keys="selectedRowKeys" :loading="dataLoading"
                  @page-change="rehandlePageChange" @change="rehandleChange" @select-change="rehandleSelectChange"
                  :headerAffixedTop="true" :headerAffixProps="{ offsetTop: offsetTop, container: getContainer }">
 
-          <template #host_code="{ row }">
-            <span> {{ host_dic[row.host_code] }}</span>
-          </template>
-
           <template #op="slotProps">
-            <a class="t-button-link" v-if="pagination.total<=freeClientCount || isVip" @click="handleClickChangeServer(slotProps)">切换服务器</a>
-            <a class="t-button-link" @click="handleClickDelete(slotProps)">删除</a>
+            <a class="t-button-link" v-if="pagination.total<=freeClientCount || isVip" @click="handleClickChangeServer(slotProps)">{{ $t('page.center.server_switch_button') }}</a>
+            <a class="t-button-link" @click="handleClickDelete(slotProps)">{{ $t('common.delete') }}</a>
           </template>
         </t-table>
       </div>
@@ -99,21 +80,7 @@ export default Vue.extend({
         ...INITIAL_DATA
       },
       rules: {
-        host_code: [{
-          required: true,
-          message: '请输入网站名称',
-          type: 'error'
-        }],
-        rate: [{
-          required: true,
-          message: '请输入速率',
-          type: 'error'
-        }],
-        limit: [{
-          required: true,
-          message: '请输入访问次数限制',
-          type: 'error'
-        }],
+
       },
       textareaValue: '',
       prefix,
@@ -124,34 +91,34 @@ export default Vue.extend({
       value: 'first',
       columns: [
         {
-          title: '客户端名称',
+          title: this.$t('page.center.client_server_name'),
           align: 'left',
           width: 250,
           ellipsis: true,
           colKey: 'client_server_name',
         },
         {
-          title: '操作系统类型',
+          title:this.$t('page.center.client_system_type'),
           width: 100,
           ellipsis: true,
           colKey: 'client_system_type',
         }, {
-          title: 'IP',
+          title: this.$t('page.center.client_ip'),
           width: 150,
           ellipsis: true,
           colKey: 'client_ip',
         }, {
-          title: '端口',
+          title: this.$t('page.center.client_port'),
           width: 100,
           ellipsis: true,
           colKey: 'client_port',
         },{
-          title: '版本号',
+          title: this.$t('page.center.client_new_version'),
           width: 100,
           ellipsis: true,
           colKey: 'client_new_version',
         }, {
-          title: '版本',
+          title: this.$t('page.center.client_new_version_desc'),
           width: 200,
           ellipsis: true,
           colKey: 'client_new_version_desc',
@@ -160,16 +127,16 @@ export default Vue.extend({
           align: 'left',
           width: 200,
           colKey: 'op',
-          title: '操作',
+          title: this.$t('common.op'),
         },
         {
-          title: '最近访问时间',
+          title:this.$t('page.center.last_visit_time'),
           width: 200,
           ellipsis: true,
           colKey: 'last_visit_time',
         },
         {
-          title: '添加时间',
+          title: this.$t('common.create_time'),
           width: 200,
           ellipsis: true,
           colKey: 'create_time',
@@ -193,20 +160,9 @@ export default Vue.extend({
       //索引区域
       deleteIdx: -1,
       guardStatusIdx: -1,
-      //主机字典
-      host_dic: {}
     };
   },
   computed: {
-    confirmBody() {
-      if (this.deleteIdx > -1) {
-        const {
-          url
-        } = this.data?. [this.deleteIdx];
-        return `确认要删除吗？`;
-      }
-      return '';
-    },
     offsetTop() {
       return this.$store.state.setting.isUseTabsRouter ? 48 : 0;
     },
@@ -217,12 +173,6 @@ export default Vue.extend({
   },
 
   methods: {
-    /**
-     * 跳转授权信息*/
-    handleJumpLicense(){
-      this.$router.push('/center/License');
-    },
-    /**加载当前授权信息**/
     loadCurrentLicense() {
       let that = this
       getLicenseDetailApi({})

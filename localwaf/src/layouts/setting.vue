@@ -4,14 +4,14 @@
       size="408px"
       :footer="false"
       :visible.sync="showSettingPanel"
-      header="页面配置"
+      :header="$t('page.right_setting.page_setting')"
       :closeBtn="true"
       :onCloseBtnClick="handleCloseDrawer"
       class="setting-drawer-container"
     >
       <div class="setting-container">
         <t-form :data="formData" size="large" ref="form" labelAlign="left" @reset="onReset" @submit="onSubmit">
-          <div class="setting-group-title">主题模式</div>
+          <div class="setting-group-title">{{ $t('page.right_setting.theme_mode') }}</div>
           <t-radio-group v-model="formData.mode">
             <div v-for="(item, index) in MODE_OPTIONS" :key="index" class="setting-layout-drawer">
               <div>
@@ -22,7 +22,7 @@
               </div>
             </div>
           </t-radio-group>
-          <div class="setting-group-title">主题色</div>
+          <div class="setting-group-title">{{ $t('page.right_setting.theme_color') }}</div>
           <t-radio-group v-model="formData.brandTheme">
             <div
               v-for="(item, index) in COLOR_OPTIONS.slice(0, COLOR_OPTIONS.length - 1)"
@@ -59,7 +59,7 @@
               </t-popup>
             </div>
           </t-radio-group>
-          <div class="setting-group-title">导航布局</div>
+          <div class="setting-group-title">{{ $t('page.right_setting.navigation_layout') }}</div>
 
           <t-radio-group v-model="formData.layout">
             <div v-for="(item, index) in LAYOUT_OPTION" :key="index" class="setting-layout-drawer">
@@ -67,32 +67,32 @@
             </div>
           </t-radio-group>
 
-          <t-form-item v-show="formData.layout === 'mix'" label="分割菜单（混合模式下有效）" name="splitMenu">
+          <t-form-item v-show="formData.layout === 'mix'" :label="$t('page.right_setting.split_menu')" name="splitMenu">
             <t-switch v-model="formData.splitMenu"></t-switch>
           </t-form-item>
 
-          <t-form-item v-show="formData.layout !== 'side'" label="固定 Header" name="isHeaderFixed">
+          <t-form-item v-show="formData.layout !== 'side'" :label="$t('page.right_setting.fix_header')" name="isHeaderFixed">
             <t-switch v-model="formData.isHeaderFixed"></t-switch>
           </t-form-item>
-          <t-form-item v-show="formData.layout !== 'top'" label="固定 Sidebar" name="isSidebarFixed">
+          <t-form-item v-show="formData.layout !== 'top'" :label="$t('page.right_setting.fix_sidebar')" name="isSidebarFixed">
             <t-switch v-model="formData.isSidebarFixed"></t-switch>
           </t-form-item>
 
-          <div class="setting-group-title">元素开关</div>
-          <t-form-item label="显示 Header" name="showHeader" v-show="formData.layout === 'side'">
+          <div class="setting-group-title">{{ $t('page.right_setting.element_switches') }}</div>
+          <t-form-item :label="$t('page.right_setting.show_header')" name="showHeader" v-show="formData.layout === 'side'">
             <t-switch v-model="formData.showHeader"></t-switch>
           </t-form-item>
-          <t-form-item label="显示 Breadcrumbs" name="showBreadcrumb">
+          <t-form-item :label="$t('page.right_setting.show_breadcrumb')" name="showBreadcrumb">
             <t-switch v-model="formData.showBreadcrumb"></t-switch>
           </t-form-item>
-          <t-form-item label="显示 Footer" name="showFooter">
+          <t-form-item :label="$t('page.right_setting.show_footer')" name="showFooter">
             <t-switch v-model="formData.showFooter"></t-switch>
           </t-form-item>
-          <t-form-item label="使用 多标签Tab页" name="isUseTabsRouter">
+          <t-form-item :label="$t('page.right_setting.use_tabs_router')" name="isUseTabsRouter">
             <t-switch v-model="formData.isUseTabsRouter"></t-switch>
           </t-form-item>
           <t-form-item
-            label="footer 内收"
+            :label="$t('page.right_setting.footer_position')"
             name="footerPosition"
             v-show="formData.showFooter && !formData.isSidebarFixed"
           >
@@ -121,13 +121,13 @@ import ColorContainer from '@/components/color/index.vue';
 import SettingDarkIcon from '@/assets/assets-setting-dark.svg';
 import SettingLightIcon from '@/assets/assets-setting-light.svg';
 import SettingAutoIcon from '@/assets/assets-setting-auto.svg';
-
+import i18n from "./../i18n";
 const LAYOUT_OPTION = ['side', 'top', 'mix'];
 const COLOR_OPTIONS = ['default', 'cyan', 'green', 'yellow', 'orange', 'red', 'pink', 'purple', 'dynamic'];
 const MODE_OPTIONS = [
-  { type: 'light', text: '明亮' },
-  { type: 'dark', text: '暗黑' },
-  { type: 'auto', text: '跟随系统' },
+  { type: 'light', text: i18n.t('page.right_setting.theme_mode_color_light') },
+  { type: 'dark', text: i18n.t('page.right_setting.theme_mode_color_dark')  },
+  { type: 'auto', text: i18n.t('page.right_setting.theme_mode_color_auto')  },
 ];
 
 export default {

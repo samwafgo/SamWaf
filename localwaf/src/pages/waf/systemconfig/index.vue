@@ -3,21 +3,19 @@
     <t-card class="list-card-container">
       <t-row justify="space-between">
         <div class="left-operation-container">
-          <t-button @click="handleAddAccount"> 新建系统配置 </t-button>
-          <t-button variant="base" theme="default" :disabled="!selectedRowKeys.length"> 导出日志 </t-button>
-          <p v-if="!!selectedRowKeys.length" class="selected-count">已选{{ selectedRowKeys.length }}项</p>
+          <t-button @click="handleAddAccount"> {{$t('page.systemconfig.new_system_configuration')}} </t-button>
         </div>
         <div class="right-operation-container">
           <t-form ref="form" :data="searchformData" :label-width="80" colon :style="{ marginBottom: '8px' }">
 
             <t-row>
-              <span>配置项：</span>
-              <t-input v-model="searchformData.item" class="search-input" style="width:200px" placeholder="请输入" clearable>
+              <span>{{$t('page.systemconfig.label_configuration_item')}}:</span>
+              <t-input v-model="searchformData.item" class="search-input" style="width:200px"  clearable>
               </t-input>
-              <span>配置备注：</span>
-              <t-input v-model="searchformData.remarks" class="search-input" style="width:200px"  placeholder="请输入" clearable>
+              <span>{{$t('common.remarks')}}:</span>
+              <t-input v-model="searchformData.remarks" class="search-input" style="width:200px"   clearable>
               </t-input>
-              <t-button theme="primary" :style="{ marginLeft: '8px' }" @click="getList('all')"> 查询 </t-button>
+              <t-button theme="primary" :style="{ marginLeft: '8px' }" @click="getList('all')"> {{ $t('common.search') }} </t-button>
             </t-row>
           </t-form>
         </div>
@@ -32,8 +30,8 @@
 
 
           <template #op="slotProps">
-            <a class="t-button-link" @click="handleClickEdit(slotProps)">编辑</a>
-            <a class="t-button-link" @click="handleClickDelete(slotProps)">删除</a>
+            <a class="t-button-link" @click="handleClickEdit(slotProps)">{{ $t('common.edit') }}</a>
+            <a class="t-button-link" @click="handleClickDelete(slotProps)">{{ $t('common.delete') }}</a>
           </template>
         </t-table>
       </div>
@@ -42,53 +40,50 @@
       </div>
     </t-card>
 
-    <!-- 新建系统配置弹窗 -->
-    <t-dialog header="新建系统配置" :visible.sync="addFormVisible" :width="680" :footer="false">
+    <t-dialog :header="$t('common.new')" :visible.sync="addFormVisible" :width="680" :footer="false">
       <div slot="body">
-        <!-- 表单内容 -->
         <t-form :data="formData" ref="form" :rules="rules" @submit="onSubmit" :labelWidth="100">
-          <t-form-item label="系统配置项" name="item">
-              <t-input :style="{ width: '480px' }" v-model="formData.item" placeholder="请输入系统配置项"></t-input>
+          <t-form-item :label="$t('page.systemconfig.label_configuration_item')" name="item">
+              <t-input :style="{ width: '480px' }" v-model="formData.item"  ></t-input>
           </t-form-item>
-          <t-form-item label="系统配置值" name="value">
-            <t-input :style="{ width: '480px' }" v-model="formData.value" placeholder="请输入系统配置值"></t-input>
+          <t-form-item :label="$t('page.systemconfig.label_configuration_value')" name="value">
+            <t-input :style="{ width: '480px' }" v-model="formData.value" ></t-input>
           </t-form-item>
-          <t-form-item label="备注" name="remarks">
-            <t-textarea :style="{ width: '480px' }" v-model="formData.remarks" placeholder="请输入备注内容" name="remarks">
+          <t-form-item :label="$t('common.remarks')" name="remarks">
+            <t-textarea :style="{ width: '480px' }" v-model="formData.remarks"   name="remarks">
             </t-textarea>
           </t-form-item>
           <t-form-item style="float: right">
-            <t-button variant="outline" @click="onClickCloseBtn">取消</t-button>
-            <t-button theme="primary" type="submit">确定</t-button>
+            <t-button variant="outline" @click="onClickCloseBtn">{{ $t('common.close') }}</t-button>
+            <t-button theme="primary" type="submit">{{ $t('common.confirm') }}</t-button>
           </t-form-item>
         </t-form>
       </div>
     </t-dialog>
 
-    <!-- 编辑系统配置弹窗 -->
-    <t-dialog header="编辑系统配置" :visible.sync="editFormVisible" :width="680" :footer="false">
+
+    <t-dialog :header="$t('common.edit')" :visible.sync="editFormVisible" :width="680" :footer="false">
       <div slot="body">
-        <!-- 表单内容 -->
         <t-form :data="formEditData" ref="form" :rules="rules" @submit="onSubmitEdit" :labelWidth="100">
-          <t-form-item label="系统配置项" name="item">
-           <t-input :style="{ width: '480px' }" v-model="formEditData.item" placeholder="请输入系统配置项"></t-input>
+          <t-form-item :label="$t('page.systemconfig.label_configuration_item')" name="item">
+           <t-input :style="{ width: '480px' }" v-model="formEditData.item" ></t-input>
           </t-form-item>
-          <t-form-item label="系统配置值" name="value">
-           <t-input :style="{ width: '480px' }" v-model="formEditData.value" placeholder="请输入系统配置值"></t-input>
+          <t-form-item :label="$t('page.systemconfig.label_configuration_value')" name="value">
+           <t-input :style="{ width: '480px' }" v-model="formEditData.value" ></t-input>
           </t-form-item>
-          <t-form-item label="备注" name="remarks">
-            <t-textarea :style="{ width: '480px' }" v-model="formEditData.remarks" placeholder="请输入内容" name="remarks">
+          <t-form-item :label="$t('common.remarks')" name="remarks">
+            <t-textarea :style="{ width: '480px' }" v-model="formEditData.remarks"  name="remarks">
             </t-textarea>
           </t-form-item>
           <t-form-item style="float: right">
-            <t-button variant="outline" @click="onClickCloseEditBtn">取消</t-button>
-            <t-button theme="primary" type="submit">确定</t-button>
+            <t-button variant="outline" @click="onClickCloseEditBtn">{{ $t('common.close') }}</t-button>
+            <t-button theme="primary" type="submit">{{ $t('common.confirm') }}</t-button>
           </t-form-item>
         </t-form>
       </div>
     </t-dialog>
 
-    <t-dialog header="确认删除当前所选数据?" :body="confirmBody" :visible.sync="confirmVisible" @confirm="onConfirmDelete"
+    <t-dialog :header="$t('common.confirm_delete')" :body="confirmBody" :visible.sync="confirmVisible" @confirm="onConfirmDelete"
       :onCancel="onCancel">
     </t-dialog>
   </div>
@@ -135,12 +130,12 @@
         rules: {
           item: [{
             required: true,
-            message: '请输入系统配置名',
+            message: this.$t('common.placeholder')+this.$t('page.systemconfig.label_configuration_item'),
             type: 'error'
           }],
           value: [{
             required: true,
-            message: '请输入系统配置值',
+            message: this.$t('common.placeholder')+this.$t('page.systemconfig.label_configuration_value'),
             type: 'error'
           }],
         },
@@ -153,26 +148,26 @@
         value: 'first',
         columns: [
           {
-            title: '配置名',
+            title: this.$t('page.systemconfig.label_configuration_item'),
             align: 'left',
             width: 250,
             ellipsis: true,
             colKey: 'item',
           },
           {
-            title: '值',
+            title: this.$t('page.systemconfig.label_configuration_value'),
             width: 200,
             ellipsis: true,
             colKey: 'value',
           },
           {
-            title: '备注',
+            title: this.$t('common.remarks'),
             width: 200,
             ellipsis: true,
             colKey: 'remarks',
           },
           {
-            title: '添加时间',
+            title: this.$t('common.create_time'),
             width: 200,
             ellipsis: true,
             colKey: 'create_time',
@@ -182,7 +177,7 @@
             align: 'left',
             width: 200,
             colKey: 'op',
-            title: '操作',
+            title: this.$t('common.op'),
           },
         ],
         rowKey: 'code',
@@ -190,7 +185,6 @@
         verticalAlign: 'top',
         hover: true,
         rowClassName: (rowKey: string) => `${rowKey}-class`,
-        // 与pagination对齐
         pagination: {
           total: 0,
           current: 1,
@@ -212,7 +206,7 @@
           const {
             url
           } = this.data?. [this.deleteIdx];
-          return `删除后，数据将被删除，且无法恢复`;
+          return this.$t('common.data_delete_warning');
         }
         return '';
       },
@@ -258,7 +252,6 @@
         return document.querySelector('.tdesign-starter-layout');
       },
       rehandlePageChange(curr, pageInfo) {
-        console.log('分页变化', curr, pageInfo);
         this.pagination.current = curr.current
         if (this.pagination.pageSize != curr.pageSize) {
           this.pagination.current = 1
@@ -270,7 +263,6 @@
         this.selectedRowKeys = selectedRowKeys;
       },
       rehandleChange(changeParams, triggerAndData) {
-        console.log('统一Change', changeParams, triggerAndData);
       },
       handleClickDetail(e) {
         console.log(e)

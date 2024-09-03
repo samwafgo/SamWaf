@@ -1,7 +1,7 @@
 <template>
   <t-row :gutter="[16, 16]">
     <t-col :xs="12" :xl="9">
-      <t-card title="周期攻击与正常对比情况" subtitle="(次)" class="dashboard-chart-card">
+      <t-card :title="$t('dashboard.cycle_title')" :subtitle="$t('dashboard.cycle_subtitle')" class="dashboard-chart-card">
         <template #actions>
           <div class="dashboard-chart-title-container">
             <t-date-range-picker
@@ -21,7 +21,7 @@
       </t-card>
     </t-col>
     <t-col :xs="12" :xl="3">
-      <t-card title="正常攻击占比" subtitle="周期内" class="dashboard-chart-card">
+      <t-card :title="$t('dashboard.cycle_percent_title')"  :subtitle="$t('dashboard.cycle_percent_subtitle')" class="dashboard-chart-card">
         <div
           id="countContainer"
           ref="countContainer"

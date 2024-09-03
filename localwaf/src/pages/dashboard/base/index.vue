@@ -1,19 +1,15 @@
-
-
-
 <template>
   <div>
     <t-swiper :duration="300" :interval="5000" :navigation="navigation" v-if="tipsVisable" trigger="click">
       <t-swiper-item  v-for="(item, index)  in tips" :key="index" v-if="item.visable" >
-        <t-alert :theme="item.tipsType" :message="item.message" >
+        <t-alert :theme="item.tipsType" :message="$t(item.message)" >
           <template #operation="row">
-            <span @click="handleCreateWebOperation" v-if="item.name==='emptyHost'" >马上创建</span>
-            <span @click="handleModifyDefaultPassWebOperation" v-if="item.name==='defaultAccount'" >马上修改</span>
+            <span @click="handleCreateWebOperation" v-if="item.name==='emptyHost'" >{{$t('dashboard.tip_create_website_link')}}</span>
+            <span @click="handleModifyDefaultPassWebOperation" v-if="item.name==='defaultAccount'" >{{$t('dashboard.tip_modify_pwd_link')}}</span>
           </template>
         </t-alert>
       </t-swiper-item>
     </t-swiper>
-
 <br>
     <!-- 顶部 card  -->
     <top-panel class="row-container" />
@@ -27,7 +23,6 @@
 import TopPanel from './components/TopPanel.vue';
 import MiddleChart from './components/MiddleChart.vue';
 import RankList from './components/RankList.vue';
-import OutputOverview from './components/OutputOverview.vue';
 import {
   wafStatSysinfoapi
 } from '@/apis/stats';
@@ -37,7 +32,6 @@ export default {
     TopPanel,
     MiddleChart,
     RankList,
-    OutputOverview,
   },
   data() {
     return {
@@ -54,13 +48,13 @@ export default {
         {
           name:"emptyHost",
           visable:false,
-          message:"您当前未创建需要防护的网站，点击进行创建",
+          message:'dashboard.tip_create_website_title',
           tipsType:"success"
         },
         {
           name:"defaultAccount",
           visable:false,
-          message:"您当前还是使用默认帐号和密码请尽快修改",
+          message:'dashboard.tip_modify_pwd_title',
           tipsType:"error"
         },
       ]

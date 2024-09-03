@@ -2,13 +2,13 @@
   <div class="contentarea">
     <div class="left-column">
       <!-- 左边列内容 -->
-      日期：<t-space direction="horizontal">
+      {{$t('common.date')}} :<t-space direction="horizontal">
         <t-date-range-picker v-model="range1" :presets="presets" />
-        <t-select v-model="currentAction" class="form-item-content`" :options="action_options" placeholder="请选择防御状态"
+        <t-select v-model="currentAction" class="form-item-content`" :options="action_options"
           :style="{ width: '100px' }" />
       </t-space>
 
-      <t-button variant="outline" @click="loadCountryData"> 搜索 </t-button>
+      <t-button variant="outline" @click="loadCountryData"> {{ $t('common.search') }} </t-button>
       <div id="countryMap" style="width:100%; height:40.5rem;"></div>
     </div>
     <div class="right-column">
@@ -119,19 +119,19 @@
         currentAction: "",
         action_options: [
           {
-            label: '全部',
+            label: this.$t('common.defense_status.all'),
             value: ''
           },
           {
-            label: '阻止',
+            label: this.$t('common.defense_status.stop'),
             value: '阻止'
           },
           {
-            label: '放行',
+            label: this.$t('common.defense_status.pass'),
             value: '放行'
           },
           {
-            label: '禁止',
+            label: this.$t('common.defense_status.forbid'),
             value: '禁止'
           },
         ],
@@ -257,7 +257,6 @@
                   maxValue = item.value;
                 }
               });
-              console.log("最大值为: ", maxValue);
               that.mapOptions.series[0].data = resdata
               that.mapOptions.visualMap.max = maxValue
               that.map.setOption(that.mapOptions);

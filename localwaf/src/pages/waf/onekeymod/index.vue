@@ -4,30 +4,28 @@
       <t-row justify="space-between">
         <div class="left-operation-container">
 
-          由于单台服务器只能一个程序使用Web(80端口，443端口)，所以如果需要让Waf变为前置，那么此处需要将80=》81 ，443=》444。
-          SamWaf为了方便用户部署，新增一键修改宝塔Web端口。仅在Linux下可使用。
+          {{ $t('page.one_key_mod.one_key_placeholder')}}
 
-          <span>宝塔Nginx配置默认路径:</span>
-          <t-input v-model="defaultFilePath" class="search-input" placeholder="请输入宝塔默认路径" clearable>
+          <span>{{ $t('page.one_key_mod.baota_placeholder') }}:</span>
+          <t-input v-model="defaultFilePath" class="search-input" :placeholder="$t('page.one_key_mod.baota_placeholder')" clearable>
           </t-input>
-          <t-button @click="handleOneKeyModify"> 一键修改 </t-button>
-           <p v-if="!!selectedRowKeys.length" class="selected-count">已选{{ selectedRowKeys.length }}项</p>
+          <t-button @click="handleOneKeyModify"> {{ $t('page.on_key_mod.button_one_key_modify') }} </t-button>
         </div>
         <div class="right-operation-container">
           <t-form ref="form" :data="searchformData" :label-width="80" colon :style="{ marginBottom: '8px' }">
 
             <t-row>
 
-              <t-button theme="primary" :style="{ marginLeft: '8px' }" @click="getList('all')"> 查询 </t-button>
+              <t-button theme="primary" :style="{ marginLeft: '8px' }" @click="getList('all')"> {{ $t('common.search') }} </t-button>
             </t-row>
           </t-form>
         </div>
       </t-row>
 
-      <t-alert theme="info" message="SamWaf一键修改记录" close>
+      <t-alert theme="info" :message="$t('page.one_key_mod.modify_logs')" close>
         <template #operation>
 
-          <span @click="handleJumpOnlineUrl">在线文档</span>
+          <span @click="handleJumpOnlineUrl">{{ $t('common.online_document') }}</span>
         </template>
       </t-alert>
       <div class="table-container">
@@ -37,8 +35,8 @@
           :headerAffixedTop="true" :headerAffixProps="{ offsetTop: offsetTop, container: getContainer }">
 
           <template #op="slotProps">
-             <a class="t-button-link" @click="handleClickEdit(slotProps)">查看</a>
-            <a class="t-button-link" @click="handleClickDelete(slotProps)">删除</a>
+             <a class="t-button-link" @click="handleClickEdit(slotProps)">{{$t('common.details')}}</a>
+            <a class="t-button-link" @click="handleClickDelete(slotProps)">{{$t('common.delete')}}</a>
           </template>
         </t-table>
       </div>
@@ -48,33 +46,31 @@
     </t-card>
 
 
-    <!-- 编辑弹窗 -->
-    <t-dialog header="查看" :visible.sync="editFormVisible" :width="680" :footer="false">
+    <t-dialog :header="$t('common.details')" :visible.sync="editFormVisible" :width="680" :footer="false">
       <div slot="body">
-        <!-- 表单内容 -->
         <t-form :data="formEditData" ref="form" :labelWidth="100">
-          <t-form-item label="系统类型" name="op_system">
+          <t-form-item :label="$t('page.one_key_mod.label_op_system')" name="op_system">
            <t-input :style="{ width: '480px' }" v-model="formEditData.op_system" placeholder=""></t-input>
           </t-form-item>
-          <t-form-item label="文件路径" name="file_path">
+          <t-form-item :label="$t('page.one_key_mod.label_file_path')" name="file_path">
             <t-input :style="{ width: '480px' }" v-model="formEditData.file_path" placeholder=""></t-input>
           </t-form-item>
-          <t-form-item label="原始内容" name="before_content">
-            <t-textarea :style="{ width: '480px' }"  :autosize="{ minRows: 5, maxRows: 10 }"  v-model="formEditData.before_content" placeholder="请输入内容" name="remarks">
+          <t-form-item :label="$t('page.one_key_mod.label_before_content')" name="before_content">
+            <t-textarea :style="{ width: '480px' }"  :autosize="{ minRows: 5, maxRows: 10 }"  v-model="formEditData.before_content" name="before_content">
             </t-textarea>
           </t-form-item>
-          <t-form-item label="修改后内容" name="after_content">
-            <t-textarea :style="{ width: '480px' }" :autosize="{ minRows: 5, maxRows: 10 }"  v-model="formEditData.after_content" placeholder="请输入内容" name="remarks">
+          <t-form-item :label="$t('page.one_key_mod.label_after_content')" name="after_content">
+            <t-textarea :style="{ width: '480px' }" :autosize="{ minRows: 5, maxRows: 10 }"  v-model="formEditData.after_content"  name="after_content">
             </t-textarea>
           </t-form-item>
           <t-form-item style="float: right">
-            <t-button variant="outline" @click="onClickCloseEditBtn">取消</t-button>
+            <t-button variant="outline" @click="onClickCloseEditBtn">{{ $t('common.close') }}</t-button>
           </t-form-item>
         </t-form>
       </div>
     </t-dialog>
 
-    <t-dialog header="确认删除当前所选记录?" :body="confirmBody" :visible.sync="confirmVisible" @confirm="onConfirmDelete"
+    <t-dialog :header="$t('common.confirm_delete')" :body="confirmBody" :visible.sync="confirmVisible" @confirm="onConfirmDelete"
       :onCancel="onCancel">
     </t-dialog>
   </div>
@@ -131,21 +127,6 @@ import {
           ...INITIAL_DATA
         },
         rules: {
-          host_code: [{
-            required: true,
-            message: '请输入网站名称',
-            type: 'error'
-          }],
-          rate: [{
-            required: true,
-            message: '请输入速率',
-            type: 'error'
-          }],
-          limit: [{
-            required: true,
-            message: '请输入访问次数限制',
-            type: 'error'
-          }],
         },
         textareaValue: '',
         prefix,
@@ -156,20 +137,20 @@ import {
         value: 'first',
         columns: [
           {
-            title: '系统',
+            title: this.$t('page.one_key_mod.label_op_system'),
             align: 'left',
             width: 60,
             ellipsis: true,
             colKey: 'op_system',
           },
           {
-            title: '文件路径',
+            title: this.$t('page.one_key_mod.label_file_path'),
             width: 450,
             ellipsis: true,
             colKey: 'file_path',
           },
           {
-            title: '添加时间',
+            title: this.$t('common.create_time'),
             width: 130,
             ellipsis: true,
             colKey: 'create_time',
@@ -179,7 +160,7 @@ import {
             align: 'left',
             width: 200,
             colKey: 'op',
-            title: '操作',
+            title: this.$t('common.op'),
           },
         ],
         rowKey: 'code',
@@ -211,7 +192,7 @@ import {
           const {
             url
           } = this.data?. [this.deleteIdx];
-          return `确认要删除吗？`;
+          return this.$t('common.confirm_delete');
         }
         return '';
       },
@@ -257,7 +238,6 @@ import {
         return document.querySelector('.tdesign-starter-layout');
       },
       rehandlePageChange(curr, pageInfo) {
-        console.log('分页变化', curr, pageInfo);
         this.pagination.current = curr.current
         if (this.pagination.pageSize != curr.pageSize) {
           this.pagination.current = 1
@@ -269,7 +249,6 @@ import {
         this.selectedRowKeys = selectedRowKeys;
       },
       rehandleChange(changeParams, triggerAndData) {
-        console.log('统一Change', changeParams, triggerAndData);
       },
       handleClickEdit(e) {
         console.log(e)
@@ -380,17 +359,6 @@ import {
 
 <style lang="less" scoped>
   @import '@/style/variables';
-
-  .payment-col {
-    display: flex;
-
-    .trend-container {
-      display: flex;
-      align-items: center;
-      margin-left: 8px;
-    }
-  }
-
   .left-operation-container {
     padding: 0 0 6px 0;
     margin-bottom: 16px;

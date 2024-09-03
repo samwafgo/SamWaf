@@ -3,35 +3,34 @@
     <t-card class="list-card-container">
       <t-row justify="space-between">
         <div class="left-operation-container">
-          <t-button @click="handleAddHost"> 新建防护</t-button>
-          <t-button variant="base" theme="default" @click="HandleExportExcel()"> 导出数据</t-button>
-          <t-button variant="base" theme="default" @click="HandleImportExcel()"> 导入数据</t-button>
+          <t-button @click="handleAddHost"> {{ $t('page.host.new_protection') }}</t-button>
+          <t-button variant="base" theme="default" @click="HandleExportExcel()"> {{ $t('page.host.export_data') }}</t-button>
+          <t-button variant="base" theme="default" @click="HandleImportExcel()"> {{ $t('page.host.import_data') }}</t-button>
 
-          <p v-if="!!selectedRowKeys.length" class="selected-count">已选{{ selectedRowKeys.length }}项</p>
         </div>
         <div class="right-operation-container">
           <t-form ref="form" :data="searchformData" :label-width="80" colon :style="{ marginBottom: '8px' }">
 
             <t-row>
-              <span>网站：</span>
+              <span>{{ $t('page.host.website') }}</span>
               <t-select v-model="searchformData.code" clearable :style="{ width: '150px' }">
                 <t-option v-for="(item, index) in host_dic" :value="index" :label="item" :key="index">
                   {{ item }}
                 </t-option>
               </t-select>
               <span>URL：</span>
-              <t-input v-model="searchformData.url" class="search-input" placeholder="请输入" clearable>
+              <t-input v-model="searchformData.url" class="search-input" :placeholder="$t('common.placeholder')" clearable>
               </t-input>
-              <t-button theme="primary" :style="{ marginLeft: '8px' }" @click="getList('all')"> 查询</t-button>
+              <t-button theme="primary" :style="{ marginLeft: '8px' }" @click="getList('all')"> {{ $t('common.search') }}</t-button>
             </t-row>
           </t-form>
         </div>
       </t-row>
 
       <div class="table-container">
-        <t-alert theme="info" message="SamWaf核心功能，所有网站信息，防护功能开启等" close>
+        <t-alert theme="info" :message="$t('page.host.core_features')" close>
           <template #operation>
-            <span @click="handleJumpOnlineUrl">主机在线文档</span>
+            <span @click="handleJumpOnlineUrl">{{ $t('common.online_document') }}</span>
           </template>
         </t-alert>
         <t-table :columns="columns" size="small" :data="data" :rowKey="rowKey" :verticalAlign="verticalAlign"
@@ -39,35 +38,23 @@
                  @page-change="rehandlePageChange" @change="rehandleChange" @select-change="rehandleSelectChange"
                  :headerAffixedTop="true" :headerAffixProps="{ offsetTop: offsetTop, container: getContainer }">
           <template #guard_status="{ row }">
-              <t-switch size="large" v-model="row.guard_status ===1" :label="['已防护', '未防护']"
-                        @change="changeGuardStatus($event,row)">
+              <t-switch size="large" v-model="row.guard_status ===1" :label="[$t('page.host.guard_status_on'), $t('page.host.guard_status_off')]"
+                   @change="changeGuardStatus($event,row)">
               </t-switch>
           </template>
           <template #start_status="{ row }">
-              <t-switch size="large" v-model="row.start_status===0" :label="['自动启动', '手工启动']"
+              <t-switch size="large" v-model="row.start_status===0" :label="[$t('page.host.auto_start_on'), $t('page.host.auto_start_off')]"
                         @change="changeStartStatus($event,row)">
               </t-switch>
           </template>
           <template #ssl="{ row }">
-            <p v-if="row.ssl === SSL_STATUS.NOT_SSL">否</p>
-            <p v-if="row.ssl === SSL_STATUS.SSL">是</p>
+            <p v-if="row.ssl === SSL_STATUS.NOT_SSL">{{ $t('page.host.ssl_no') }}</p>
+            <p v-if="row.ssl === SSL_STATUS.SSL">{{ $t('page.host.ssl_yes') }}</p>
           </template>
-          <template #paymentType="{ row }">
-            <p v-if="row.paymentType === CONTRACT_PAYMENT_TYPES.PAYMENT" class="payment-col">
-              付款
-              <trend class="dashboard-item-trend" type="up"/>
-            </p>
-            <p v-if="row.paymentType === CONTRACT_PAYMENT_TYPES.RECIPT" class="payment-col">
-              收款
-              <trend class="dashboard-item-trend" type="down"/>
-            </p>
-          </template>
-
           <template #op="slotProps">
-            <!--<a class="t-button-link" @click="handleClickEdit(slotProps)">系统自带防御</a>-->
-            <a class="t-button-link" v-if="slotProps.row.global_host!==1" @click="handleClickCopy(slotProps)">复制</a>
-            <a class="t-button-link" v-if="slotProps.row.global_host!==1" @click="handleClickEdit(slotProps)">编辑</a>
-            <a class="t-button-link" v-if="slotProps.row.global_host!==1" @click="handleClickDelete(slotProps)">删除</a>
+            <a class="t-button-link" v-if="slotProps.row.global_host!==1" @click="handleClickCopy(slotProps)">{{ $t('common.copy') }}</a>
+            <a class="t-button-link" v-if="slotProps.row.global_host!==1" @click="handleClickEdit(slotProps)">{{ $t('common.edit') }}</a>
+            <a class="t-button-link" v-if="slotProps.row.global_host!==1" @click="handleClickDelete(slotProps)">{{ $t('common.delete') }}</a>
           </template>
         </t-table>
       </div>
@@ -76,159 +63,151 @@
       </div>
     </t-card>
 
-    <!-- 新建网站防御弹窗 -->
+    <!-- New WebSite Dialog -->
     <t-dialog :visible.sync="addFormVisible" :width="680" :footer="false">
       <div slot="header">
-        新建网站防御
+        {{ $t('page.host.website_protection') }}
         <t-link theme="primary" :href="hostAddUrl" target="_blank">
           <link-icon slot="prefix-icon"></link-icon>
-          访问SamWaf在线文档
+          {{ $t('common.online_document') }}
         </t-link>
       </div>
       <div slot="body">
-        <!-- 表单内容 -->
-        <t-form :data="formData" ref="form" :rules="rules" @submit="onSubmit" :labelWidth="100">
+        <t-form :data="formData" ref="form" :rules="rules" @submit="onSubmit" :labelWidth="160">
           <t-tabs :defaultValue="1">
-            <t-tab-panel :value="1" label="基础内容">
-              <t-form-item label="网站" name="host">
-                <t-tooltip class="placement top center" content="输入您需要防护的网站域名:如 www.samwaf.com" placement="top"
+            <t-tab-panel :value="1" :label="$t('page.host.tab_base')">
+              <t-form-item :label="$t('page.host.website')" name="host">
+                <t-tooltip class="placement top center" :content="$t('page.host.host_tips')" placement="top"
                            :overlay-style="{ width: '200px' }" show-arrow>
-                  <t-input :style="{ width: '480px' }" v-model="formData.host" placeholder="请输入网站的网址"></t-input>
+                  <t-input :style="{ width: '480px' }" v-model="formData.host" :placeholder="$t('common.placeholder')"></t-input>
                 </t-tooltip>
               </t-form-item>
-              <t-form-item label="端口" name="port">
+              <t-form-item :label="$t('page.host.port')" name="port">
                 <t-tooltip class="placement top center"
-                           content="输入您需要防护的网站端口 1. http是80 https 是 443 2.如果已经安装了宝塔，Nginx，IIS等 您需要手工改动端口成非80，或者非443端口"
+                           :content="$t('page.host.port_tips')"
                            placement="top" :overlay-style="{ width: '200px' }" show-arrow>
-                  <t-input-number :style="{ width: '150px' }" v-model="formData.port" placeholder="请输入网站的端口一般是80/443">
+                  <t-input-number :style="{ width: '150px' }" v-model="formData.port" :placeholder="$t('page.host.port_placeholder')">
                   </t-input-number>
                 </t-tooltip>
               </t-form-item>
-              <t-form-item label="加密证书" name="ssl">
-                <t-tooltip class="placement top center" content="如果是https需要选择加密证书，80端口不需要" placement="top"
+              <t-form-item :label="$t('page.host.ssl')" name="ssl">
+                <t-tooltip class="placement top center" :content="$t('page.host.ssl_tips')" placement="top"
                            :overlay-style="{ width: '200px' }" show-arrow>
                   <t-radio-group v-model="formData.ssl">
-                    <t-radio value="0">非加密</t-radio>
-                    <t-radio value="1">加密证书（需上传证书）</t-radio>
+                    <t-radio value="0">{{ $t('page.host.ssl_option_no') }}</t-radio>
+                    <t-radio value="1">{{ $t('page.host.ssl_option_yes') }}</t-radio>
                   </t-radio-group>
                 </t-tooltip>
               </t-form-item>
-              <t-form-item label="启动状态" name="start_status">
-                <t-tooltip class="placement top center" content="该功能是选择是否直接启动。" placement="top"
+              <t-form-item :label="$t('page.host.start_status')" name="start_status">
+                <t-tooltip class="placement top center" :content="$t('page.host.start_status_content')" placement="top"
                            :overlay-style="{ width: '200px' }" show-arrow>
                   <t-radio-group v-model="formData.start_status">
-                    <t-radio value="0">直接启动</t-radio>
-                    <t-radio value="1">等待人工启动</t-radio>
+                    <t-radio value="0">{{ $t('page.host.auto_start_on') }}</t-radio>
+                    <t-radio value="1">{{ $t('page.host.auto_start_off') }}</t-radio>
                   </t-radio-group>
                 </t-tooltip>
               </t-form-item>
-              <t-form-item label="密钥串" name="keyfile" v-if="formData.ssl=='1'">
+              <t-form-item :label="$t('page.host.keyfile')" name="keyfile" v-if="formData.ssl=='1'">
                 <t-tooltip class="placement top center"
-                           content="通常文件名：*.key 内容格式如下：-----BEGIN RSA PRIVATE KEY----- 全选复制填写进来" placement="top"
+                           :content="$t('page.host.keyfile_content')" placement="top"
                            :overlay-style="{ width: '200px' }" show-arrow>
-                  <t-textarea :style="{ width: '480px' }" v-model="formData.keyfile" placeholder="请输入内容" name="keyfile">
+                  <t-textarea :style="{ width: '480px' }" v-model="formData.keyfile" :placeholder="$t('common.placeholder')" name="keyfile">
                   </t-textarea>
                 </t-tooltip>
               </t-form-item>
-              <t-form-item label="证书串" name="certfile" v-if="formData.ssl=='1'">
+              <t-form-item :label="$t('page.host.certfile')" name="certfile" v-if="formData.ssl=='1'">
                 <t-tooltip class="placement top center"
-                           content="通常文件名：*.crt 内容格式如下：-----BEGIN CERTIFICATE----- 全选复制填写进来" placement="top"
+                           :content="$t('page.host.certfile_content')" placement="top"
                            :overlay-style="{ width: '200px' }" show-arrow>
-                  <t-textarea :style="{ width: '480px' }" v-model="formData.certfile" placeholder="请输入内容"
+                  <t-textarea :style="{ width: '480px' }" v-model="formData.certfile" :placeholder="$t('common.placeholder')"
                               name="certfile">
                   </t-textarea>
                 </t-tooltip>
               </t-form-item>
-
-              <!--<t-form-item label="后端域名" name="remote_host">
-                <t-tooltip class="placement top center" content="后端域名通常同第一项网站域名相同（加上协议 http:// 或 https://）"
+              <t-form-item :label="$t('page.host.remote_ip')" name="remote_ip">
+                <t-tooltip class="placement top center" :content="$t('page.host.remote_ip_content')"
                            placement="top" :overlay-style="{ width: '200px' }" show-arrow>
-                  <t-input :style="{ width: '480px' }" v-model="formData.remote_host" placeholder="请输入后端域名"></t-input>
-                </t-tooltip>
-              </t-form-item>-->
-              <t-form-item label="后端IP" name="remote_ip">
-                <t-tooltip class="placement top center" content="如SamWaf同网站在同一台服务器 填写127.0.0.1 如果是不同服务器请填写实际IP"
-                           placement="top" :overlay-style="{ width: '200px' }" show-arrow>
-                  <t-input :style="{ width: '480px' }" v-model="formData.remote_ip" placeholder="请输入后端IP"></t-input>
+                  <t-input :style="{ width: '480px' }" v-model="formData.remote_ip" :placeholder="$t('common.placeholder')+$t('page.host.remote_ip')"></t-input>
                 </t-tooltip>
               </t-form-item>
-              <t-form-item label="后端端口" name="remote_port">
+              <t-form-item :label="$t('page.host.remote_port')"  name="remote_port">
                 <t-tooltip class="placement top center"
-                           content="情况1，在SamWaf和网站在同一台服务器，那么端口需要写成81等其他端口  情况2：如果不在同一台服务器，那么此处可以原来端口" placement="top"
+                           :content="$t('page.host.remote_port_content')" placement="top"
                            :overlay-style="{ width: '200px' }" show-arrow>
                   <t-input-number :style="{ width: '150px' }" v-model="formData.remote_port"
-                                  placeholder="请输入网站的端口一般是80/443">
+                                  :placeholder="$t('page.host.port_placeholder')">
                   </t-input-number>
                 </t-tooltip>
               </t-form-item>
 
-              <t-form-item label="备注" name="remarks">
-                <t-textarea :style="{ width: '480px' }" v-model="formData.remarks" placeholder="请输入内容" name="remarks">
+              <t-form-item :label="$t('common.remarks')" name="remarks">
+                <t-textarea :style="{ width: '480px' }" v-model="formData.remarks" :placeholder="$t('common.placeholder_content')" name="remarks">
                 </t-textarea>
               </t-form-item>
             </t-tab-panel>
             <t-tab-panel :value="2">
               <template #label>
                 <file-safety-icon style="margin-right: 4px;color:red"/>
-                引擎自带防护
+                {{$t('page.host.tab_engine')}}
               </template>
 
-              <t-form-item label="Bot检测">
-                <t-tooltip class="placement top center" content="检测搜索引擎是否是伪装的" placement="top"
+              <t-form-item :label="$t('page.host.bot_detection')">
+                <t-tooltip class="placement top center" :content="$t('page.host.bot_detection_tips')" placement="top"
                            :overlay-style="{ width: '200px' }" show-arrow>
                   <t-radio-group v-model="hostDefenseData.bot">
-                    <t-radio value="0">关闭</t-radio>
-                    <t-radio value="1">开启</t-radio>
+                    <t-radio value="0">{{$t('common.off')}}</t-radio>
+                    <t-radio value="1">{{$t('common.on')}}</t-radio>
                   </t-radio-group>
                 </t-tooltip>
               </t-form-item>
 
-              <t-form-item label="Sql注入检测">
-                <t-tooltip class="placement top center" content="检测是否存在sql注入" placement="top"
+              <t-form-item :label="$t('page.host.sql_injection_detection')">
+                <t-tooltip class="placement top center" :content="$t('page.host.sql_injection_detection_tips')" placement="top"
                            :overlay-style="{ width: '200px' }" show-arrow>
                   <t-radio-group v-model="hostDefenseData.sqli">
-                    <t-radio value="0">关闭</t-radio>
-                    <t-radio value="1">开启</t-radio>
+                    <t-radio value="0">{{$t('common.off')}}</t-radio>
+                    <t-radio value="1">{{$t('common.on')}}</t-radio>
                   </t-radio-group>
                 </t-tooltip>
               </t-form-item>
 
-              <t-form-item label="XSS检测">
-                <t-tooltip class="placement top center" content="检测是否存在xss攻击" placement="top"
+              <t-form-item :label="$t('page.host.xss_detection')">
+                <t-tooltip class="placement top center" :content="$t('page.host.xss_detection_tips')" placement="top"
                            :overlay-style="{ width: '200px' }" show-arrow>
                   <t-radio-group v-model="hostDefenseData.xss">
-                    <t-radio value="0">关闭</t-radio>
-                    <t-radio value="1">开启</t-radio>
+                    <t-radio value="0">{{$t('common.off')}}</t-radio>
+                    <t-radio value="1">{{$t('common.on')}}</t-radio>
                   </t-radio-group>
                 </t-tooltip>
               </t-form-item>
-              <t-form-item label="扫描工具检测">
-                <t-tooltip class="placement top center" content="扫描工具检测" placement="top"
+              <t-form-item :label="$t('page.host.scan_detection')">
+                <t-tooltip class="placement top center" :content="$t('page.host.scan_detection_tips')" placement="top"
                            :overlay-style="{ width: '200px' }" show-arrow>
                   <t-radio-group v-model="hostDefenseData.scan">
-                    <t-radio value="0">关闭</t-radio>
-                    <t-radio value="1">开启</t-radio>
+                    <t-radio value="0">{{$t('common.off')}}</t-radio>
+                    <t-radio value="1">{{$t('common.on')}}</t-radio>
                   </t-radio-group>
                 </t-tooltip>
               </t-form-item>
-              <t-form-item label="RCE检测">
-                <t-tooltip class="placement top center" content="RCE远程攻击检测" placement="top"
+              <t-form-item :label="$t('page.host.rce_detection')">
+                <t-tooltip class="placement top center" :content="$t('page.host.rce_detection_tips')" placement="top"
                            :overlay-style="{ width: '200px' }" show-arrow>
                   <t-radio-group v-model="hostDefenseData.rce">
-                    <t-radio value="0">关闭</t-radio>
-                    <t-radio value="1">开启</t-radio>
+                    <t-radio value="0">{{$t('common.off')}}</t-radio>
+                    <t-radio value="1">{{$t('common.on')}}</t-radio>
                   </t-radio-group>
                 </t-tooltip>
               </t-form-item>
             </t-tab-panel>
             <t-tab-panel :value="3">
               <template #label>
-                其他配置
+                {{$t('page.host.tab_other')}}
               </template>
-              <t-form-item label="日时排除URL" name="exclude_url_log">
-                <t-tooltip class="placement top center" content="记录日志时排除URL开头的数据" placement="top"
+              <t-form-item :label="$t('page.host.exclude_url_log')" name="exclude_url_log">
+                <t-tooltip class="placement top center" :content="$t('page.host.exclude_url_log_tips')" placement="top"
                            :overlay-style="{ width: '200px' }" show-arrow>
-                <t-textarea :style="{ width: '480px' }" v-model="formData.exclude_url_log" placeholder="请输入内容"
+                <t-textarea :style="{ width: '480px' }" v-model="formData.exclude_url_log" :placeholder="$t('common.placeholder')"
                             name="exclude_url_log">
                 </t-textarea>
                 </t-tooltip>
@@ -237,63 +216,53 @@
           </t-tabs>
 
           <t-form-item style="float: right;margin-top:5px">
-            <t-button variant="outline" @click="onClickCloseBtn">取消</t-button>
-            <t-button theme="primary" type="submit">确定</t-button>
+            <t-button variant="outline" @click="onClickCloseBtn">{{ $t('common.close') }}</t-button>
+            <t-button theme="primary" type="submit">{{ $t('common.confirm') }}</t-button>
           </t-form-item>
         </t-form>
 
       </div>
     </t-dialog>
 
-    <!-- 编辑网站防御弹窗 -->
-    <t-dialog header="编辑网站防御" :visible.sync="editFormVisible" :width="680" :footer="false">
+    <!-- Edit WebSite Dialog -->
+    <t-dialog :header="$t('common.edit')" :visible.sync="editFormVisible" :width="680" :footer="false">
       <div slot="body">
-        <!-- 表单内容 -->
-        <t-form :data="formEditData" ref="form" :rules="rules" @submit="onSubmitEdit" :labelWidth="100">
+        <t-form :data="formEditData" ref="form" :rules="rules" @submit="onSubmitEdit" :labelWidth="160">
           <t-tabs :defaultValue="1">
-            <t-tab-panel :value="1" label="基础内容">
-              <t-form-item label="网站" name="host">
-                <t-input :style="{ width: '480px' }" v-model="formEditData.host" placeholder="请输入网站的网址" disabled></t-input>
+            <t-tab-panel :value="1" :label="$t('page.host.tab_base')">
+              <t-form-item :label="$t('page.host.website')" name="host">
+                <t-input :style="{ width: '480px' }" v-model="formEditData.host" :content="$t('page.host.host_tips')" disabled></t-input>
               </t-form-item>
-              <t-form-item label="端口" name="port">
-                <t-input-number :style="{ width: '150px' }" v-model="formEditData.port" placeholder="请输入网站的端口一般是80/443">
+              <t-form-item :label="$t('page.host.port')" name="port">
+                <t-input-number :style="{ width: '150px' }" v-model="formEditData.port" :content="$t('page.host.port_tips')">
                 </t-input-number>
               </t-form-item>
-              <t-form-item label="加密证书" name="ssl">
+              <t-form-item :label="$t('page.host.ssl')" name="ssl">
                 <t-radio-group v-model="formEditData.ssl">
-                  <t-radio value="0">非加密</t-radio>
-                  <t-radio value="1">加密证书（需填写证书）</t-radio>
+                  <t-radio value="0">{{ $t('page.host.ssl_option_no') }}</t-radio>
+                  <t-radio value="1">{{ $t('page.host.ssl_option_yes') }}</t-radio>
                 </t-radio-group>
               </t-form-item>
-              <!--<t-form-item label="启动状态" name="start_status">
-                <t-radio-group v-model="formEditData.start_status">
-                  <t-radio value="0">直接启动</t-radio>
-                  <t-radio value="1">等待人工启动</t-radio>
-                </t-radio-group>
-              </t-form-item>-->
-              <t-form-item label="密钥串" name="keyfile" v-if="formEditData.ssl=='1'">
-                <t-textarea :style="{ width: '480px' }" v-model="formEditData.keyfile" placeholder="请输入内容"
+              <t-form-item :label="$t('page.host.keyfile')" name="keyfile" v-if="formEditData.ssl=='1'">
+                <t-textarea :style="{ width: '480px' }" v-model="formEditData.keyfile" :placeholder="$t('common.placeholder')"
                             name="keyfile">
                 </t-textarea>
               </t-form-item>
-              <t-form-item label="证书串" name="certfile" v-if="formEditData.ssl=='1'">
-                <t-textarea :style="{ width: '480px' }" v-model="formEditData.certfile" placeholder="请输入内容"
+              <t-form-item :label="$t('page.host.certfile')" name="certfile" v-if="formEditData.ssl=='1'">
+                <t-textarea :style="{ width: '480px' }" v-model="formEditData.certfile" :placeholder="$t('common.placeholder')"
                             name="certfile">
                 </t-textarea>
               </t-form-item>
-              <!--<t-form-item label="后端域名" name="remote_host">
-                <t-input :style="{ width: '480px' }" v-model="formEditData.remote_host" placeholder="请输入后端域名"></t-input>
-              </t-form-item>-->
-              <t-form-item label="后端IP" name="remote_ip">
-                <t-input :style="{ width: '480px' }" v-model="formEditData.remote_ip" placeholder="请输入后端IP"></t-input>
+              <t-form-item :label="$t('page.host.remote_ip')" name="remote_ip">
+                <t-input :style="{ width: '480px' }" v-model="formEditData.remote_ip" :placeholder="$t('common.placeholder')+$t('page.host.remote_ip')"></t-input>
               </t-form-item>
-              <t-form-item label="后端端口" name="remote_port">
+              <t-form-item :label="$t('page.host.remote_port')" name="remote_port">
                 <t-input-number :style="{ width: '150px' }" v-model="formEditData.remote_port"
-                                placeholder="请输入网站的端口一般是80/443"></t-input-number>
+                                :placeholder="$t('page.host.port_placeholder')"></t-input-number>
               </t-form-item>
 
-              <t-form-item label="备注" name="remarks">
-                <t-textarea :style="{ width: '480px' }" v-model="formEditData.remarks" placeholder="请输入内容"
+              <t-form-item  :label="$t('common.remarks')"  name="remarks">
+                <t-textarea :style="{ width: '480px' }" v-model="formEditData.remarks" :placeholder="$t('common.placeholder_content')"
                             name="remarks">
                 </t-textarea>
               </t-form-item>
@@ -302,66 +271,66 @@
             <t-tab-panel :value="2">
               <template #label>
                 <file-safety-icon style="margin-right: 4px;color:red"/>
-                引擎自带防护
+                {{$t('page.host.tab_engine')}}
               </template>
 
-              <t-form-item label="Bot检测">
-                <t-tooltip class="placement top center" content="检测搜索引擎是否是伪装的" placement="top"
+              <t-form-item :label="$t('page.host.bot_detection')">
+                <t-tooltip class="placement top center" :content="$t('page.host.bot_detection_tips')" placement="top"
                            :overlay-style="{ width: '200px' }" show-arrow>
                   <t-radio-group v-model="hostDefenseData.bot">
-                    <t-radio value="0">关闭</t-radio>
-                    <t-radio value="1">开启</t-radio>
+                    <t-radio value="0">{{$t('common.off')}}</t-radio>
+                    <t-radio value="1">{{$t('common.on')}}</t-radio>
                   </t-radio-group>
                 </t-tooltip>
               </t-form-item>
 
-              <t-form-item label="Sql注入检测">
-                <t-tooltip class="placement top center" content="检测是否存在sql注入" placement="top"
+              <t-form-item :label="$t('page.host.sql_injection_detection')">
+                <t-tooltip class="placement top center" :content="$t('page.host.sql_injection_detection_tips')" placement="top"
                            :overlay-style="{ width: '200px' }" show-arrow>
                   <t-radio-group v-model="hostDefenseData.sqli">
-                    <t-radio value="0">关闭</t-radio>
-                    <t-radio value="1">开启</t-radio>
+                    <t-radio value="0">{{$t('common.off')}}</t-radio>
+                    <t-radio value="1">{{$t('common.on')}}</t-radio>
                   </t-radio-group>
                 </t-tooltip>
               </t-form-item>
 
-              <t-form-item label="XSS检测">
-                <t-tooltip class="placement top center" content="检测是否存在xss攻击" placement="top"
+              <t-form-item :label="$t('page.host.xss_detection')">
+                <t-tooltip class="placement top center" :content="$t('page.host.xss_detection_tips')" placement="top"
                            :overlay-style="{ width: '200px' }" show-arrow>
                   <t-radio-group v-model="hostDefenseData.xss">
-                    <t-radio value="0">关闭</t-radio>
-                    <t-radio value="1">开启</t-radio>
+                    <t-radio value="0">{{$t('common.off')}}</t-radio>
+                    <t-radio value="1">{{$t('common.on')}}</t-radio>
                   </t-radio-group>
                 </t-tooltip>
               </t-form-item>
-              <t-form-item label="扫描工具检测">
-                <t-tooltip class="placement top center" content="扫描工具检测" placement="top"
+              <t-form-item :label="$t('page.host.scan_detection')">
+                <t-tooltip class="placement top center" :content="$t('page.host.scan_detection_tips')" placement="top"
                            :overlay-style="{ width: '200px' }" show-arrow>
                   <t-radio-group v-model="hostDefenseData.scan">
-                    <t-radio value="0">关闭</t-radio>
-                    <t-radio value="1">开启</t-radio>
+                    <t-radio value="0">{{$t('common.off')}}</t-radio>
+                    <t-radio value="1">{{$t('common.on')}}</t-radio>
                   </t-radio-group>
                 </t-tooltip>
               </t-form-item>
-              <t-form-item label="RCE检测">
-                <t-tooltip class="placement top center" content="RCE远程攻击检测" placement="top"
+              <t-form-item :label="$t('page.host.rce_detection')">
+                <t-tooltip class="placement top center" :content="$t('page.host.rce_detection_tips')" placement="top"
                            :overlay-style="{ width: '200px' }" show-arrow>
                   <t-radio-group v-model="hostDefenseData.rce">
-                    <t-radio value="0">关闭</t-radio>
-                    <t-radio value="1">开启</t-radio>
+                    <t-radio value="0">{{$t('common.off')}}</t-radio>
+                    <t-radio value="1">{{$t('common.on')}}</t-radio>
                   </t-radio-group>
                 </t-tooltip>
               </t-form-item>
             </t-tab-panel>
             <t-tab-panel :value="3">
               <template #label>
-                其他配置
+                {{$t('page.host.tab_other')}}
               </template>
 
-              <t-form-item label="日时排除URL" name="exclude_url_log">
-                <t-tooltip class="placement top center" content="记录日志时排除URL开头的数据" placement="top"
+              <t-form-item :label="$t('page.host.exclude_url_log')" name="exclude_url_log">
+                <t-tooltip class="placement top center" :content="$t('page.host.exclude_url_log_tips')" placement="top"
                            :overlay-style="{ width: '200px' }" show-arrow>
-                  <t-textarea :style="{ width: '480px' }" v-model="formEditData.exclude_url_log" placeholder="请输入内容"
+                  <t-textarea :style="{ width: '480px' }" v-model="formEditData.exclude_url_log" :placeholder="$t('common.placeholder')"
                               name="exclude_url_log">
                   </t-textarea>
                 </t-tooltip>
@@ -369,33 +338,33 @@
             </t-tab-panel>
           </t-tabs>
           <t-form-item style="float: right;margin-top:5px">
-            <t-button variant="outline" @click="onClickCloseEditBtn">取消</t-button>
-            <t-button theme="primary" type="submit">确定</t-button>
+            <t-button variant="outline" @click="onClickCloseEditBtn">{{ $t('common.close') }}</t-button>
+            <t-button theme="primary" type="submit">{{ $t('common.confirm') }}</t-button>
           </t-form-item>
 
         </t-form>
       </div>
     </t-dialog>
 
-    <t-dialog header="确认删除当前所选网站?" :body="confirmBody" :visible.sync="confirmVisible" @confirm="onConfirmDelete"
+    <t-dialog :header="$t('common.confirm_delete')" :body="confirmBody" :visible.sync="confirmVisible" @confirm="onConfirmDelete"
               :onCancel="onCancel">
     </t-dialog>
 
     <t-dialog :visible.sync="ImportXlsxVisible" @confirm="ImportXlsxVisible=false">
       <t-upload :action="fileUploadUrl" :tips="tips" :headers="fileHeader" v-model="files" @fail="handleFail"
-                @success="onSuccess" theme="file-input" placeholder="未选择文件"></t-upload>
+                @success="onSuccess" theme="file-input" :placeholder="$t('page.host.upload_tips')"></t-upload>
     </t-dialog>
 
-    <t-dialog header="防护状态提示" :visible.sync="guardConfirmVisible" @confirm="onGuardStatusConfirm"
+    <t-dialog :header="$t('page.host.guard_status_confirm')" :visible.sync="guardConfirmVisible" @confirm="onGuardStatusConfirm"
               :onCancel="onGuardStatusCancel">
       <div slot="body">
-        <div>防护状态【开启】，该网站进行实时防护。防护状态【关闭】，该网站会关闭实时防护。</div>
+        <div>{{$t('page.host.guard_status_confirm_content')}}</div>
       </div>
     </t-dialog>
 
-    <t-dialog header="启动状态提示" :visible.sync="startConfirmVisible" @confirm="onStartStatusConfirm"
+    <t-dialog :header="$t('page.host.start_status_confirm')" :visible.sync="startConfirmVisible" @confirm="onStartStatusConfirm"
               :onCancel="onStartStatusCancel">
-      <div>启动状态【开启】会正常接收用户请求。 启动状态【关闭】会停止用户请求</div>
+      <div>{{$t('page.host.start_status_confirm_content')}}</div>
     </t-dialog>
   </div>
 </template>
@@ -442,7 +411,7 @@ export default Vue.extend({
   data() {
     return {
       files: [],
-      tips: '上传文件大小在 5M 以内',
+      tips: this.$t('page.host.upload_file_limit_size'),
       baseUrl: "",
       fileUploadUrl: "",
       fileHeader: {},
@@ -468,66 +437,62 @@ export default Vue.extend({
       rules: {
         host: [{
           required: true,
-          message: '请输入网站名称',
+          message: this.$t('common.placeholder'+this.$t('page.host.host')),
           type: 'error'
         }],
         port: [{
           required: true,
-          message: '请输入网站端口',
+          message: this.$t('common.placeholder'+this.$t('page.host.port')),
           type: 'error'
         }],
         remote_ip: [{
           required: true,
-          message: '请输入远端IP',
+          message: this.$t('common.placeholder'+this.$t('page.host.remote_ip')),
           type: 'error'
         }],
         remote_port: [{
           required: true,
-          message: '请输入远端端口',
+          message: this.$t('common.placeholder'+this.$t('page.host.remote_port')),
           type: 'error'
         }],
       },
       remote_system_options: [{
-        label: '宝塔',
+        label: this.$t('page.host.back_system_type_baota'),
         value: '1'
       },
         {
-          label: '小皮面板(phpstudy)',
+          label: this.$t('page.host.back_system_type_phpstudy'),
           value: '2'
         },
         {
-          label: 'PHPnow',
+          label: this.$t('page.host.back_system_type_phpnow'),
           value: '3'
         },
         {
-          label: '默认',
+          label: this.$t('page.host.back_system_type_default'),
           value: '4'
         },
       ],
       remote_app_options: [{
-        label: '纯网站',
+        label: this.$t('page.host.back_system_biz_website'),
         value: '1'
       },
         {
-          label: 'API业务系统',
+          label: this.$t('page.host.back_system_biz_api'),
           value: '2'
         },
         {
-          label: '业务加管理',
+          label: this.$t('page.host.back_system_biz_mange'),
           value: '3'
         },
         {
-          label: '默认',
+          label: this.$t('page.host.back_system_biz_default'),
           value: '4'
         },
       ],
       GUARD_STATUS,
       SSL_STATUS,
       START_STATUS,
-      CONTRACT_STATUS,
-      CONTRACT_STATUS_OPTIONS,
-      CONTRACT_TYPES,
-      CONTRACT_PAYMENT_TYPES,
       prefix,
       dataLoading: false,
       data: [], //列表数据信息
@@ -536,20 +501,20 @@ export default Vue.extend({
       value: 'first',
       columns: [
         {
-          title: '网站',
+          title: this.$t('page.host.host'),
           align: 'left',
           width: 200,
           ellipsis: true,
           colKey: 'host',
         },
         {
-          title: '网站端口',
+          title: this.$t('page.host.port'),
           width: 100,
           ellipsis: true,
           colKey: 'port',
         },
         {
-          title: '启动状态',
+          title: this.$t('page.host.start_status'),
           colKey: 'start_status',
           width: 100,
           cell: {
@@ -557,7 +522,7 @@ export default Vue.extend({
           }
         },
         {
-          title: '防护状态',
+          title: this.$t('page.host.guard_status'),
           colKey: 'guard_status',
           width: 100,
           cell: {
@@ -565,7 +530,7 @@ export default Vue.extend({
           }
         },
         {
-          title: '加密证书',
+          title:this.$t('page.host.ssl'),
           width: 100,
           ellipsis: true,
           colKey: 'ssl',
@@ -574,13 +539,13 @@ export default Vue.extend({
           }
         },
         {
-          title: '备注',
+          title: this.$t('common.remarks'),
           width: 200,
           ellipsis: true,
           colKey: 'remarks',
         },
         {
-          title: '添加时间',
+          title: this.$t('common.create_time'),
           width: 200,
           ellipsis: true,
           colKey: 'create_time',
@@ -590,7 +555,7 @@ export default Vue.extend({
           align: 'left',
           width: 200,
           colKey: 'op',
-          title: '操作',
+          title: this.$t('common.op'),
         },
       ],
       rowKey: 'code',
@@ -598,7 +563,6 @@ export default Vue.extend({
       verticalAlign: 'top',
       hover: true,
       rowClassName: (rowKey: string) => `${rowKey}-class`,
-      // 与pagination对齐
       pagination: {
         total: 0,
         current: 1,
@@ -631,7 +595,7 @@ export default Vue.extend({
         const {
           host
         } = this.data?.[this.deleteIdx];
-        return `删除后，${host}的所有网站信息和规则将被清空，且无法恢复`;
+        return $t('page.host.delete_confirm_clear_relation');
       }
       return '';
     },
@@ -708,7 +672,6 @@ export default Vue.extend({
       return document.querySelector('.tdesign-starter-layout');
     },
     rehandlePageChange(curr, pageInfo) {
-      console.log('分页变化', curr, pageInfo);
       this.pagination.current = curr.current
       if (this.pagination.pageSize != curr.pageSize) {
         this.pagination.current = 1
@@ -720,7 +683,6 @@ export default Vue.extend({
       this.selectedRowKeys = selectedRowKeys;
     },
     rehandleChange(changeParams, triggerAndData) {
-      console.log('统一Change', changeParams, triggerAndData);
     },
     handleClickDetail(e) {
       console.log(e)
@@ -742,7 +704,7 @@ export default Vue.extend({
         code, global_host
       } = e.row
       if (global_host === 1) {
-        this.$message.warning("全局网站不能操作");
+        this.$message.warning(this.$t('page.host.forbid_for_global_site'));
         return
       }
       console.log(code)
@@ -783,7 +745,7 @@ export default Vue.extend({
         code, global_host
       } = e.row
       if (global_host === 1) {
-        this.$message.warning("全局网站只能配置保护状态");
+        this.$message.warning(this.$t('page.host.forbid_for_global_site_only_change_guard_status'));
         return
       }
       console.log(code)
@@ -791,7 +753,6 @@ export default Vue.extend({
       this.getDetail(code)
     },
     handleAddHost() {
-      //添加host
       this.addFormVisible = true
     },
     onSubmit({
@@ -806,7 +767,7 @@ export default Vue.extend({
         }
         postdata.host = postdata.host.toLowerCase();
         if (postdata.host.indexOf("http://") >=0 || postdata.host.indexOf("https://") >=0) {
-          that.$message.warning("主机请不要填写http和https 直接写域名即可");
+           that.$message.warning(this.$t('page.host.host_rule_msg'));
            return
         }
         postdata.remote_host = "http://" + postdata.host

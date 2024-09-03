@@ -3,29 +3,28 @@
     <t-card class="list-card-container">
       <t-row justify="space-between">
         <div class="left-operation-container">
-          <t-button @click="handleAddLdpUrl"> 新建隐私保护Url </t-button>
-           <p v-if="!!selectedRowKeys.length" class="selected-count">已选{{ selectedRowKeys.length }}项</p>
+          <t-button @click="handleAddLdpUrl"> {{ $t('page.ldpurl.new_privacy_url') }} </t-button>
         </div>
         <div class="right-operation-container">
           <t-form ref="form" :data="searchformData" :label-width="80" colon :style="{ marginBottom: '8px' }">
 
             <t-row>
-              <span>网站：</span><t-select v-model="searchformData.host_code" clearable :style="{ width: '150px' }">
+              <span>{{$t('page.ldpurl.label_website')}}:</span><t-select v-model="searchformData.host_code" clearable :style="{ width: '150px' }">
               <t-option v-for="(item, index) in host_dic" :value="index" :label="item" :key="index">
                 {{ item }}
               </t-option>
             </t-select>
-              <span>URL：</span>
-              <t-input v-model="searchformData.url" class="search-input" placeholder="请输入" clearable>
+              <span>{{$t('page.ldpurl.label_url')}}:</span>
+              <t-input v-model="searchformData.url" class="search-input" clearable>
               </t-input>
-              <t-button theme="primary" :style="{ marginLeft: '8px' }" @click="getList('all')"> 查询 </t-button>
+              <t-button theme="primary" :style="{ marginLeft: '8px' }" @click="getList('all')"> {{ $t('common.search') }} </t-button>
             </t-row>
           </t-form>
         </div>
       </t-row>
-      <t-alert theme="info" message="SamWaf用户在访问指定的url返回的敏感数据脱敏处理，如手机号会隐藏部分" close>
+      <t-alert theme="info" :message="$t('page.ldpurl.alert_message')" close>
         <template #operation>
-          <span @click="handleJumpOnlineUrl">在线文档</span>
+          <span @click="handleJumpOnlineUrl">{{ $t('common.online_document') }}</span>
         </template>
       </t-alert>
       <div class="table-container">
@@ -33,14 +32,12 @@
           :pagination="pagination" :selected-row-keys="selectedRowKeys" :loading="dataLoading"
           @page-change="rehandlePageChange" @change="rehandleChange" @select-change="rehandleSelectChange"
           :headerAffixedTop="true" :headerAffixProps="{ offsetTop: offsetTop, container: getContainer }">
-
-
           <template #host_code="{ row }">
             <span> {{host_dic[row.host_code]}}</span>
           </template>
           <template #op="slotProps">
-            <a class="t-button-link" @click="handleClickEdit(slotProps)">编辑</a>
-            <a class="t-button-link" @click="handleClickDelete(slotProps)">删除</a>
+            <a class="t-button-link" @click="handleClickEdit(slotProps)">{{ $t('common.edit') }}</a>
+            <a class="t-button-link" @click="handleClickDelete(slotProps)">{{ $t('common.delete') }}</a>
           </template>
         </t-table>
       </div>
@@ -49,12 +46,10 @@
       </div>
     </t-card>
 
-    <!-- 新建隐私保护Url弹窗 -->
-    <t-dialog header="新建Url隐私保护" :visible.sync="addFormVisible" :width="680" :footer="false">
+    <t-dialog :header="$t('common.new')" :visible.sync="addFormVisible" :width="680" :footer="false">
       <div slot="body">
-        <!-- 表单内容 -->
         <t-form :data="formData" ref="form" :rules="rules" @submit="onSubmit" :labelWidth="100">
-          <t-form-item label="网站" name="host_code">
+          <t-form-item :label="$t('page.ldpurl.label_website')" name="host_code">
             <t-select v-model="formData.host_code" clearable :style="{ width: '480px' }">
               <t-option v-for="(item, index) in host_dic" :value="index" :label="item"
                 :key="index">
@@ -62,7 +57,7 @@
               </t-option>
             </t-select>
           </t-form-item>
-          <t-form-item label="匹配方式" name="compare_type">
+          <t-form-item :label="$t('page.ldpurl.label_compare_type')" name="compare_type">
             <t-select v-model="formData.compare_type" clearable :style="{ width: '480px' }">
               <t-option v-for="(item, index) in compare_type_options" :value="item.value" :label="item.label"
                 :key="index">
@@ -70,27 +65,25 @@
               </t-option>
             </t-select>
           </t-form-item>
-          <t-form-item label="Url" name="url">
-            <t-input :style="{ width: '480px' }" v-model="formData.url" placeholder="请输入隐私保护Url"></t-input>
+          <t-form-item :label="$t('page.ldpurl.label_url')" name="url">
+            <t-input :style="{ width: '480px' }" v-model="formData.url" ></t-input>
           </t-form-item>
-          <t-form-item label="备注" name="remarks">
-            <t-textarea :style="{ width: '480px' }" v-model="formData.remarks" placeholder="请输入内容" name="remarks">
+          <t-form-item  :label="$t('page.ldpurl.label_remarks')" name="remarks">
+            <t-textarea :style="{ width: '480px' }" v-model="formData.remarks"   name="remarks">
             </t-textarea>
           </t-form-item>
           <t-form-item style="float: right">
-            <t-button variant="outline" @click="onClickCloseBtn">取消</t-button>
-            <t-button theme="primary" type="submit">确定</t-button>
+            <t-button variant="outline" @click="onClickCloseBtn">{{ $t('common.close') }}</t-button>
+            <t-button theme="primary" type="submit">{{ $t('common.confirm') }}</t-button>
           </t-form-item>
         </t-form>
       </div>
     </t-dialog>
 
-    <!-- 编辑Url隐私保护弹窗 -->
-    <t-dialog header="编辑Url隐私保护" :visible.sync="editFormVisible" :width="680" :footer="false">
+    <t-dialog :header="$t('common.edit')" :visible.sync="editFormVisible" :width="680" :footer="false">
       <div slot="body">
-        <!-- 表单内容 -->
         <t-form :data="formEditData" ref="form" :rules="rules" @submit="onSubmitEdit" :labelWidth="100">
-          <t-form-item label="网站" name="host_code">
+          <t-form-item :label="$t('page.ldpurl.label_website')" name="host_code">
             <t-select v-model="formEditData.host_code" clearable :style="{ width: '480px' }">
               <t-option v-for="(item, index) in host_dic" :value="index" :label="item"
                 :key="index">
@@ -98,7 +91,7 @@
               </t-option>
             </t-select>
           </t-form-item>
-          <t-form-item label="匹配方式" name="compare_type">
+          <t-form-item :label="$t('page.ldpurl.label_compare_type')" name="compare_type">
             <t-select v-model="formEditData.compare_type" clearable :style="{ width: '480px' }">
               <t-option v-for="(item, index) in compare_type_options" :value="item.value" :label="item.label"
                 :key="index">
@@ -106,22 +99,22 @@
               </t-option>
             </t-select>
           </t-form-item>
-         <t-form-item label="Url" name="url">
-           <t-input :style="{ width: '480px' }" v-model="formEditData.url" placeholder="请输入隐私保护Url"></t-input>
+         <t-form-item :label="$t('page.ldpurl.label_url')" name="url">
+           <t-input :style="{ width: '480px' }" v-model="formEditData.url" ></t-input>
          </t-form-item>
-          <t-form-item label="备注" name="remarks">
-            <t-textarea :style="{ width: '480px' }" v-model="formEditData.remarks" placeholder="请输入内容" name="remarks">
+          <t-form-item :label="$t('page.ldpurl.label_remarks')" name="remarks">
+            <t-textarea :style="{ width: '480px' }" v-model="formEditData.remarks"  name="remarks">
             </t-textarea>
           </t-form-item>
           <t-form-item style="float: right">
-            <t-button variant="outline" @click="onClickCloseEditBtn">取消</t-button>
-            <t-button theme="primary" type="submit">确定</t-button>
+            <t-button variant="outline" @click="onClickCloseEditBtn">{{ $t('common.close') }}</t-button>
+            <t-button theme="primary" type="submit">{{ $t('common.confirm') }}</t-button>
           </t-form-item>
         </t-form>
       </div>
     </t-dialog>
 
-    <t-dialog header="确认删除当前所选Url?" :body="confirmBody" :visible.sync="confirmVisible" @confirm="onConfirmDelete"
+    <t-dialog :header="$t('common.confirm_delete')" :body="confirmBody" :visible.sync="confirmVisible" @confirm="onConfirmDelete"
       :onCancel="onCancel">
     </t-dialog>
   </div>
@@ -175,31 +168,31 @@
           ...INITIAL_DATA
         },
         compare_type_options: [{
-            label: '等于',
+            label: this.$t('page.ldpurl.compare_type_option_equal'),
             value: '等于'
           },
           {
-            label: '前缀匹配',
+            label: this.$t('page.ldpurl.compare_type_option_pre'),
             value: '前缀匹配'
           },
           {
-            label: '后缀匹配',
+            label: this.$t('page.ldpurl.compare_type_option_end'),
             value: '后缀匹配'
           },
           {
-            label: '包含匹配',
+            label: this.$t('page.ldpurl.compare_type_option_contain'),
             value: '包含匹配'
           },
         ],
         rules: {
           host_code: [{
             required: true,
-            message: '请输入网站名称',
+            message: this.$t('common.placeholder')+this.$t('page.ldpurl.label_website'),
             type: 'error'
           }],
           url: [{
             required: true,
-            message: '请输入url',
+            message: this.$t('common.placeholder')+this.$t('page.ldpurl.label_url'),
             type: 'error'
           }],
         },
@@ -212,32 +205,32 @@
         value: 'first',
         columns: [
           {
-            title: '网站',
+            title: this.$t('page.ldpurl.label_website'),
             align: 'left',
             width: 250,
             ellipsis: true,
             colKey: 'host_code',
           },{
-            title: '匹配方式',
+            title: this.$t('page.ldpurl.label_compare_type'),
             align: 'left',
             width: 250,
             ellipsis: true,
             colKey: 'compare_type',
           },
           {
-            title: 'Url',
+            title:this.$t('page.ldpurl.label_url'),
             width: 200,
             ellipsis: true,
             colKey: 'url',
           },
           {
-            title: '备注',
+            title: this.$t('common.remarks'),
             width: 200,
             ellipsis: true,
             colKey: 'remarks',
           },
           {
-            title: '添加时间',
+            title: this.$t('common.create_time'),
             width: 200,
             ellipsis: true,
             colKey: 'create_time',
@@ -247,7 +240,7 @@
             align: 'left',
             width: 200,
             colKey: 'op',
-            title: '操作',
+            title: this.$t('common.op'),
           },
         ],
         rowKey: 'code',
@@ -255,7 +248,6 @@
         verticalAlign: 'top',
         hover: true,
         rowClassName: (rowKey: string) => `${rowKey}-class`,
-        // 与pagination对齐
         pagination: {
           total: 0,
           current: 1,
@@ -279,7 +271,7 @@
           const {
             url
           } = this.data?. [this.deleteIdx];
-          return `确认是否要删除吗？`;
+          return this.$t('common.confirm_delete');
         }
         return '';
       },
@@ -342,7 +334,6 @@
         return document.querySelector('.tdesign-starter-layout');
       },
       rehandlePageChange(curr, pageInfo) {
-        console.log('分页变化', curr, pageInfo);
         this.pagination.current = curr.current
         if (this.pagination.pageSize != curr.pageSize) {
           this.pagination.current = 1
@@ -354,7 +345,6 @@
         this.selectedRowKeys = selectedRowKeys;
       },
       rehandleChange(changeParams, triggerAndData) {
-        console.log('统一Change', changeParams, triggerAndData);
       },
       handleClickEdit(e) {
         console.log(e)

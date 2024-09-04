@@ -12,3 +12,5 @@
 registration_data.bin
 dist/
 .idea/
+/public/dist/*
+!*.gitkeep

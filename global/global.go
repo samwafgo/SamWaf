@@ -50,6 +50,7 @@ var (
 	GWAF_LOCAL_STATS_DB       *gorm.DB                //通用本地数据库存放统计数据，尊重用户隐私
 	GWAF_REMOTE_DB            *gorm.DB                //仅当用户使用云数据库
 	GWAF_LOCAL_SERVER_PORT    int       = 26666       // 本地local端口
+	GWAF_LOCAL_INDEX_HTML     string                  //本地首页HTML信息
 	GWAF_USER_CODE            string                  // 当前识别号
 	GWAF_CUSTOM_SERVER_NAME   string                  // 当前服务器自定义名称
 	GWAF_TENANT_ID            string    = "SamWafCom" // 当前租户ID

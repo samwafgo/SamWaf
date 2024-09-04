@@ -4,10 +4,9 @@ import (
 	"SamWaf/global"
 	"SamWaf/middleware"
 	"SamWaf/router"
-	"SamWaf/vue"
+	"SamWaf/wafmangeweb/static"
 	"context"
 	"errors"
-	assetfs "github.com/elazarl/go-bindata-assetfs"
 	"github.com/gin-gonic/gin"
 	"log"
 	"net/http"
@@ -53,9 +52,12 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitCenterRouter(RouterGroup)
 		router.ApiGroupApp.InitLicenseRouter(RouterGroup)
 	}
-	//TODO 中心管控 特定
-	//RouterGroup.Use(middleware.CenterApi())
 	r.Use(middleware.GinGlobalExceptionMiddleWare())
+	if global.GWAF_RELEASE == "true" {
+		static.Static(r, func(handlers ...gin.HandlerFunc) {
+			r.NoRoute(handlers...)
+		})
+	}
 
 }
 func (web *WafWebManager) cors() gin.HandlerFunc {
@@ -85,9 +87,6 @@ func (web *WafWebManager) StartLocalServer() {
 	r := gin.Default()
 	r.Use(web.cors()) //解决跨域
 
-	if global.GWAF_RELEASE == "true" {
-		web.index(r)
-	}
 	web.initRouter(r)
 
 	web.R = r
@@ -118,53 +117,4 @@ func (web *WafWebManager) CloseLocalServer() {
 	}
 
 	log.Println("local Server exiting")
-}
-
-// vue静态路由
-func (web *WafWebManager) index(r *gin.Engine) *gin.Engine {
-	//静态文件路径
-	const staticPath = `vue/dist/`
-	var (
-		js = assetfs.AssetFS{
-			Asset:     vue.Asset,
-			AssetDir:  vue.AssetDir,
-			AssetInfo: nil,
-			Prefix:    staticPath + "assets",
-			Fallback:  "index.html",
-		}
-		fs = assetfs.AssetFS{
-			Asset:     vue.Asset,
-			AssetDir:  vue.AssetDir,
-			AssetInfo: nil,
-			Prefix:    staticPath,
-			Fallback:  "index.html",
-		}
-	)
-	// 加载静态文件
-	r.StaticFS("/assets", &js)
-	r.StaticFS("/favicon.ico", &fs)
-	r.GET("/", func(c *gin.Context) {
-		//设置响应状态
-		c.Writer.WriteHeader(http.StatusOK)
-		//载入首页
-		indexHTML, _ := vue.Asset(staticPath + "index.html")
-		c.Writer.Write(indexHTML)
-		//响应HTML类型
-		c.Writer.Header().Add("Accept", "text/html")
-		//显示刷新
-		c.Writer.Flush()
-	})
-	// 关键点【解决页面刷新404的问题】
-	r.NoRoute(func(c *gin.Context) {
-		//设置响应状态
-		c.Writer.WriteHeader(http.StatusOK)
-		//载入首页
-		indexHTML, _ := vue.Asset(staticPath + "index.html")
-		c.Writer.Write(indexHTML)
-		//响应HTML类型
-		c.Writer.Header().Add("Accept", "text/html")
-		//显示刷新
-		c.Writer.Flush()
-	})
-	return r
 }

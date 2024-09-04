@@ -14,7 +14,12 @@ before:
     - go mod tidy
     # you may remove this if you don't need go generate
     - go generate ./...
-
+    # pull samwaf web
+    - curl -L https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
+    - tar -zxvf dist.tar.gz
+    - rm -rf public/dist
+    - mv -f dist public
+    - rm -rf dist.tar.gz
 builds:
   - id: "samwaf_linux"
     env:

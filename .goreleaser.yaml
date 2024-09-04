@@ -16,17 +16,32 @@ before:
     - go generate ./...
 
 builds:
-  - id: "samwaf"
+  - id: "samwaf_linux"
     env:
       - CGO_ENABLED=1
-      - GOPROXY=https://goproxy.cn,direct
+      - CC=x86_64-linux-gnu-gcc
+      - CXX=x86_64-linux-gnu-g++
+    goos:
+      - linux
+    goarch:
+      - amd64
+    ldflags:
+      - -X SamWaf/global.GWAF_RELEASE=true
+      - -X SamWaf/global.GWAF_RELEASE_VERSION_NAME={{ time "20060102" }}
+      - -X SamWaf/global.GWAF_RELEASE_VERSION={{.Tag}}
+      - -s -w
+      - -extldflags "-static"
+  - id: "samwaf_win"
+    env:
+      - CGO_ENABLED=1
       - CGO_CFLAGS=-Wno-unused-variable
       - CGO_CFLAGS=-Wno-unused-function
       - CGO_CFLAGS=-Werror=implicit-function-declaration
       - CGO_CFLAGS=-Werror=unused-variable
+      - CC=x86_64-w64-mingw32-gcc
+      - CXX=x86_64-w64-mingw32-g++
     goos:
       - windows
-      - linux
     goarch:
       - amd64
     ldflags:
@@ -42,26 +57,12 @@ upx:
     enabled: false
 
     # Filter by build ID.
-    ids: [samwaf]
-
-    # Filter by GOOS.
-    goos: [windows]
-
-    # Filter by GOARCH.
-    goarch: [amd64]
-
-    # Filter by GOAMD64.
-    goamd64: [v1]
+    ids: [samwaf_linux,samwaf_win]
 
     # Compress argument.
     # Valid options are from '1' (faster) to '9' (better), and 'best'.
     compress: best
 
-    # Whether to try LZMA (slower).
-    lzma: true
-
-    # Whether to try all methods and filters (slow).
-    brute: true
 archives:
   - format: tar.gz
     # this name template makes the OS and Arch compatible with the results of `uname`.

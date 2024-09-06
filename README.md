@@ -17,7 +17,7 @@ SamWaf is a lightweight, open-source web application firewall for small companie
 
 ## Architecture
 
-![SamWaf Architecture](/docs/images_en/tecDesignEn.png)
+![SamWaf Architecture](/docs/images_en/tecDesign.png)
 
 ## Interface
 ![SamWaf Web Application Firewall Overview](/docs/images_en/overview.png)

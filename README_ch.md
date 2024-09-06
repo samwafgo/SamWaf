@@ -36,14 +36,14 @@ SamWaf网站防火墙是一款适用于小公司、工作室和个人网站的�
     </tr>
     <tr>
         <td><img src="./docs/images/cc.png" alt="CC"/></td>
-        <td><img src="./docs/images/ipblack.png" alt="IP黑名单"/></td>
+        <td><img src="./docs/images/ipblock.png" alt="IP黑名单"/></td>
     </tr>
     <tr>
         <td align="center">IP白名单</td>
         <td align="center">LDP</td>
     </tr>
     <tr>
-        <td><img src="./docs/images/ipwhite.png" alt="IP白名单"/></td>
+        <td><img src="./docs/images/ipallow.png" alt="IP白名单"/></td>
         <td><img src="./docs/images/ldp.png" alt="LDP"/></td>
     </tr>
     <tr>
@@ -67,8 +67,8 @@ SamWaf网站防火墙是一款适用于小公司、工作室和个人网站的�
         <td align="center">URL白名单</td>
     </tr>
     <tr>
-        <td><img src="./docs/images/urlblack.png" alt="URL黑名单"/></td>
-        <td><img src="./docs/images/urlwhite.png" alt="URL白名单"/></td>
+        <td><img src="./docs/images/urlblock.png" alt="URL黑名单"/></td>
+        <td><img src="./docs/images/urlallow.png" alt="URL白名单"/></td>
     </tr>
 </table>
 

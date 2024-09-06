@@ -17,10 +17,10 @@ SamWaf is a lightweight, open-source web application firewall for small companie
 
 ## Architecture
 
-![SamWaf Architecture](/docs/images/tecDesignEn.png)
+![SamWaf Architecture](/docs/images_en/tecDesignEn.png)
 
 ## Interface
-![SamWaf Web Application Firewall Overview](/docs/images/overview.png)
+![SamWaf Web Application Firewall Overview](/docs/images_en/overview.png)
 
 <table>
     <tr>
@@ -28,48 +28,48 @@ SamWaf is a lightweight, open-source web application firewall for small companie
         <td align="center">Attack Log</td>
     </tr>
     <tr>
-        <td><img src="./docs/images/add_host.png" alt="Add Host"/></td>
-        <td><img src="./docs/images/attacklog.png" alt="Attack Log"/></td>
+        <td><img src="./docs/images_en/add_host.png" alt="Add Host"/></td>
+        <td><img src="./docs/images_en/attacklog.png" alt="Attack Log"/></td>
     </tr>
     <tr>
         <td align="center">CC</td>
-        <td align="center">IP Blacklist</td>
+        <td align="center">IP Blocklist</td>
     </tr>
     <tr>
-        <td><img src="./docs/images/cc.png" alt="CC"/></td>
-        <td><img src="./docs/images/ipblack.png" alt="IP Blacklist"/></td>
+        <td><img src="./docs/images_en/cc.png" alt="CC"/></td>
+        <td><img src="./docs/images_en/ipblock.png" alt="IP Blocklist"/></td>
     </tr>
     <tr>
-        <td align="center">IP Whitelist</td>
+        <td align="center">IP Allowlist</td>
         <td align="center">LDP</td>
     </tr>
     <tr>
-        <td><img src="./docs/images/ipwhite.png" alt="IP Whitelist"/></td>
-        <td><img src="./docs/images/ldp.png" alt="LDP"/></td>
+        <td><img src="./docs/images_en/ipallow.png" alt="IP Allowlist"/></td>
+        <td><img src="./docs/images_en/ldp.png" alt="LDP"/></td>
     </tr>
     <tr>
         <td align="center">Add Rule Script Log</td>
         <td align="center">Select Log</td>
     </tr>
     <tr>
-        <td><img src="./docs/images/log_add_rule_script.png" alt="Add Rule Script Log"/></td>
-        <td><img src="./docs/images/log_select.png" alt="Select Log"/></td>
+        <td><img src="./docs/images_en/log_add_rule_script.png" alt="Add Rule Script Log"/></td>
+        <td><img src="./docs/images_en/log_select.png" alt="Select Log"/></td>
     </tr>
     <tr>
         <td align="center">Log Details</td>
         <td align="center">Manual Rule</td>
     </tr>
     <tr>
-        <td><img src="./docs/images/logdetail.png" alt="Log Details"/></td>
-        <td><img src="./docs/images/manual_rule.png" alt="Manual Rule"/></td>
+        <td><img src="./docs/images_en/logdetail.png" alt="Log Details"/></td>
+        <td><img src="./docs/images_en/manual_rule.png" alt="Manual Rule"/></td>
     </tr>
     <tr>
-        <td align="center">URL Blacklist</td>
-        <td align="center">URL Whitelist</td>
+        <td align="center">URL Blocklist</td>
+        <td align="center">URL Allowlist</td>
     </tr>
     <tr>
-        <td><img src="./docs/images/urlblack.png" alt="URL Blacklist"/></td>
-        <td><img src="./docs/images/urlwhite.png" alt="URL Whitelist"/></td>
+        <td><img src="./docs/images_en/urlblock.png" alt="URL Blocklist"/></td>
+        <td><img src="./docs/images_en/urlallow.png" alt="URL Allowlist"/></td>
     </tr>
 </table>
 
@@ -79,9 +79,9 @@ SamWaf is a lightweight, open-source web application firewall for small companie
 - Lightweight, no dependency on third-party services
 - Fully independent engine, protection functions do not rely on IIS, Nginx
 - Customizable protection rules, supporting both script and GUI editing
-- Supports whitelist access
-- Supports IP blacklist
-- Supports URL whitelist
+- Supports allowlist access
+- Supports IP blocklist
+- Supports URL allowlist
 - Supports URL access restrictions
 - Supports designated data privacy output
 - Supports CC frequency access

@@ -5,8 +5,8 @@ const (
 	ChanTypeRule
 	ChanTypeAnticc
 	ChanTypeLdp
-	ChanTypeWhiteIP
-	ChanTypeWhiteURL
+	ChanTypeAllowIP
+	ChanTypeAllowURL
 	ChanTypeBlockIP
 	ChanTypeBlockURL
 	ChanTypeDelHost

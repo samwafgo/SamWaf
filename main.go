@@ -317,16 +317,16 @@ func (m *wafSystenService) run() {
 		case msg := <-global.GWAF_CHAN_MSG:
 			if globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]] != nil && globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode] != "" {
 				switch msg.Type {
-				case enums.ChanTypeWhiteIP:
+				case enums.ChanTypeAllowIP:
 					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Lock()
-					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].IPWhiteLists = msg.Content.([]model.IPWhiteList)
-					zlog.Debug("远程配置", zap.Any("IPWhiteLists", msg.Content.([]model.IPWhiteList)))
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].IPWhiteLists = msg.Content.([]model.IPAllowList)
+					zlog.Debug("远程配置", zap.Any("IPWhiteLists", msg.Content.([]model.IPAllowList)))
 					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Unlock()
 					break
-				case enums.ChanTypeWhiteURL:
+				case enums.ChanTypeAllowURL:
 					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Lock()
-					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].UrlWhiteLists = msg.Content.([]model.URLWhiteList)
-					zlog.Debug("远程配置", zap.Any("UrlWhiteLists", msg.Content.([]model.URLWhiteList)))
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].UrlWhiteLists = msg.Content.([]model.URLAllowList)
+					zlog.Debug("远程配置", zap.Any("UrlWhiteLists", msg.Content.([]model.URLAllowList)))
 					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Unlock()
 					break
 				case enums.ChanTypeBlockIP:

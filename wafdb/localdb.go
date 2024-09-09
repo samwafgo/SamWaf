@@ -101,8 +101,8 @@ func InitCoreDb(currentDir string) {
 		db.AutoMigrate(&model.LDPUrl{})
 
 		//白名单处理
-		db.AutoMigrate(&model.IPWhiteList{})
-		db.AutoMigrate(&model.URLWhiteList{})
+		db.AutoMigrate(&model.IPAllowList{})
+		db.AutoMigrate(&model.URLAllowList{})
 
 		//限制处理
 		db.AutoMigrate(&model.IPBlockList{})

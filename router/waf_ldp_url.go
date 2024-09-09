@@ -8,7 +8,7 @@ import (
 type LdpUrlRouter struct {
 }
 
-func (receiver *WhiteUrlRouter) InitLdpUrlRouter(group *gin.RouterGroup) {
+func (receiver *LdpUrlRouter) InitLdpUrlRouter(group *gin.RouterGroup) {
 	LdpUrlRouterApi := api.APIGroupAPP.WafLdpUrlApi
 	ldpUrlRouter := group.Group("")
 	ldpUrlRouter.POST("/samwaf/wafhost/ldpurl/list", LdpUrlRouterApi.GetListApi)

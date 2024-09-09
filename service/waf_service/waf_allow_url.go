@@ -15,8 +15,8 @@ type WafWhiteUrlService struct{}
 
 var WafWhiteUrlServiceApp = new(WafWhiteUrlService)
 
-func (receiver *WafWhiteUrlService) AddApi(req request.WafWhiteUrlAddReq) error {
-	var bean = &model.URLWhiteList{
+func (receiver *WafWhiteUrlService) AddApi(req request.WafAllowUrlAddReq) error {
+	var bean = &model.URLAllowList{
 		BaseOrm: baseorm.BaseOrm{
 			Id:          uuid.NewV4().String(),
 			USER_CODE:   global.GWAF_USER_CODE,
@@ -33,12 +33,12 @@ func (receiver *WafWhiteUrlService) AddApi(req request.WafWhiteUrlAddReq) error 
 	return nil
 }
 
-func (receiver *WafWhiteUrlService) CheckIsExistApi(req request.WafWhiteUrlAddReq) error {
-	return global.GWAF_LOCAL_DB.First(&model.URLWhiteList{}, "host_code = ? and url= ?", req.HostCode,
+func (receiver *WafWhiteUrlService) CheckIsExistApi(req request.WafAllowUrlAddReq) error {
+	return global.GWAF_LOCAL_DB.First(&model.URLAllowList{}, "host_code = ? and url= ?", req.HostCode,
 		req.Url).Error
 }
-func (receiver *WafWhiteUrlService) ModifyApi(req request.WafWhiteUrlEditReq) error {
-	var ipWhite model.URLWhiteList
+func (receiver *WafWhiteUrlService) ModifyApi(req request.WafAllowUrlEditReq) error {
+	var ipWhite model.URLAllowList
 	global.GWAF_LOCAL_DB.Where("host_code = ? and url= ?", req.HostCode,
 		req.Url).Find(&ipWhite)
 	if ipWhite.Id != "" && ipWhite.Url != req.Url {
@@ -51,22 +51,22 @@ func (receiver *WafWhiteUrlService) ModifyApi(req request.WafWhiteUrlEditReq) er
 		"Remarks":      req.Remarks,
 		"UPDATE_TIME":  customtype.JsonTime(time.Now()),
 	}
-	err := global.GWAF_LOCAL_DB.Model(model.URLWhiteList{}).Where("id = ?", req.Id).Updates(ipWhiteMap).Error
+	err := global.GWAF_LOCAL_DB.Model(model.URLAllowList{}).Where("id = ?", req.Id).Updates(ipWhiteMap).Error
 
 	return err
 }
-func (receiver *WafWhiteUrlService) GetDetailApi(req request.WafWhiteUrlDetailReq) model.URLWhiteList {
-	var bean model.URLWhiteList
+func (receiver *WafWhiteUrlService) GetDetailApi(req request.WafAllowUrlDetailReq) model.URLAllowList {
+	var bean model.URLAllowList
 	global.GWAF_LOCAL_DB.Where("id=?", req.Id).Find(&bean)
 	return bean
 }
-func (receiver *WafWhiteUrlService) GetDetailByIdApi(id string) model.URLWhiteList {
-	var bean model.URLWhiteList
+func (receiver *WafWhiteUrlService) GetDetailByIdApi(id string) model.URLAllowList {
+	var bean model.URLAllowList
 	global.GWAF_LOCAL_DB.Where("id=?", id).Find(&bean)
 	return bean
 }
-func (receiver *WafWhiteUrlService) GetListApi(req request.WafWhiteUrlSearchReq) ([]model.URLWhiteList, int64, error) {
-	var list []model.URLWhiteList
+func (receiver *WafWhiteUrlService) GetListApi(req request.WafAllowUrlSearchReq) ([]model.URLAllowList, int64, error) {
+	var list []model.URLAllowList
 	var total int64 = 0
 	/*where条件*/
 	var whereField = ""
@@ -93,17 +93,17 @@ func (receiver *WafWhiteUrlService) GetListApi(req request.WafWhiteUrlSearchReq)
 		whereValues = append(whereValues, req.Url)
 	}
 
-	global.GWAF_LOCAL_DB.Model(&model.URLWhiteList{}).Where(whereField, whereValues...).Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&list)
-	global.GWAF_LOCAL_DB.Model(&model.URLWhiteList{}).Where(whereField, whereValues...).Count(&total)
+	global.GWAF_LOCAL_DB.Model(&model.URLAllowList{}).Where(whereField, whereValues...).Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&list)
+	global.GWAF_LOCAL_DB.Model(&model.URLAllowList{}).Where(whereField, whereValues...).Count(&total)
 
 	return list, total, nil
 }
-func (receiver *WafWhiteUrlService) DelApi(req request.WafWhiteUrlDelReq) error {
-	var ipWhite model.URLWhiteList
+func (receiver *WafWhiteUrlService) DelApi(req request.WafAllowUrlDelReq) error {
+	var ipWhite model.URLAllowList
 	err := global.GWAF_LOCAL_DB.Where("id = ?", req.Id).First(&ipWhite).Error
 	if err != nil {
 		return err
 	}
-	err = global.GWAF_LOCAL_DB.Where("id = ?", req.Id).Delete(model.URLWhiteList{}).Error
+	err = global.GWAF_LOCAL_DB.Where("id = ?", req.Id).Delete(model.URLAllowList{}).Error
 	return err
 }

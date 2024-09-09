@@ -12,16 +12,16 @@ import (
 	"gorm.io/gorm"
 )
 
-type WafWhiteUrlApi struct {
+type WafAllowUrlApi struct {
 }
 
-func (w *WafWhiteUrlApi) AddApi(c *gin.Context) {
-	var req request.WafWhiteUrlAddReq
+func (w *WafAllowUrlApi) AddApi(c *gin.Context) {
+	var req request.WafAllowUrlAddReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
-		err = wafUrlWhiteService.CheckIsExistApi(req)
+		err = wafUrlAllowService.CheckIsExistApi(req)
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
-			err = wafUrlWhiteService.AddApi(req)
+			err = wafUrlAllowService.AddApi(req)
 			if err == nil {
 				w.NotifyWaf(req.HostCode)
 				response.OkWithMessage("添加成功", c)
@@ -39,21 +39,21 @@ func (w *WafWhiteUrlApi) AddApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
-func (w *WafWhiteUrlApi) GetDetailApi(c *gin.Context) {
-	var req request.WafWhiteUrlDetailReq
+func (w *WafAllowUrlApi) GetDetailApi(c *gin.Context) {
+	var req request.WafAllowUrlDetailReq
 	err := c.ShouldBind(&req)
 	if err == nil {
-		bean := wafUrlWhiteService.GetDetailApi(req)
+		bean := wafUrlAllowService.GetDetailApi(req)
 		response.OkWithDetailed(bean, "获取成功", c)
 	} else {
 		response.FailWithMessage("解析失败", c)
 	}
 }
-func (w *WafWhiteUrlApi) GetListApi(c *gin.Context) {
-	var req request.WafWhiteUrlSearchReq
+func (w *WafAllowUrlApi) GetListApi(c *gin.Context) {
+	var req request.WafAllowUrlSearchReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
-		beans, total, _ := wafUrlWhiteService.GetListApi(req)
+		beans, total, _ := wafUrlAllowService.GetListApi(req)
 		response.OkWithDetailed(response.PageResult{
 			List:      beans,
 			Total:     total,
@@ -64,12 +64,12 @@ func (w *WafWhiteUrlApi) GetListApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
-func (w *WafWhiteUrlApi) DelWhiteUrlApi(c *gin.Context) {
-	var req request.WafWhiteUrlDelReq
+func (w *WafAllowUrlApi) DelAllowUrlApi(c *gin.Context) {
+	var req request.WafAllowUrlDelReq
 	err := c.ShouldBind(&req)
 	if err == nil {
-		bean := wafUrlWhiteService.GetDetailByIdApi(req.Id)
-		err = wafUrlWhiteService.DelApi(req)
+		bean := wafUrlAllowService.GetDetailByIdApi(req.Id)
+		err = wafUrlAllowService.DelApi(req)
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 			response.FailWithMessage("请检测参数", c)
 		} else if err != nil {
@@ -84,11 +84,11 @@ func (w *WafWhiteUrlApi) DelWhiteUrlApi(c *gin.Context) {
 	}
 }
 
-func (w *WafWhiteUrlApi) ModifyWhiteUrlApi(c *gin.Context) {
-	var req request.WafWhiteUrlEditReq
+func (w *WafAllowUrlApi) ModifyAllowUrlApi(c *gin.Context) {
+	var req request.WafAllowUrlEditReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
-		err = wafUrlWhiteService.ModifyApi(req)
+		err = wafUrlAllowService.ModifyApi(req)
 		if err != nil {
 			response.FailWithMessage("编辑发生错误", c)
 		} else {
@@ -105,12 +105,12 @@ func (w *WafWhiteUrlApi) ModifyWhiteUrlApi(c *gin.Context) {
 *
 通知到waf引擎实时生效
 */
-func (w *WafWhiteUrlApi) NotifyWaf(host_code string) {
-	var urlWhites []model.URLWhiteList
+func (w *WafAllowUrlApi) NotifyWaf(host_code string) {
+	var urlWhites []model.URLAllowList
 	global.GWAF_LOCAL_DB.Where("host_code = ? ", host_code).Find(&urlWhites)
 	var chanInfo = spec.ChanCommonHost{
 		HostCode: host_code,
-		Type:     enums.ChanTypeWhiteURL,
+		Type:     enums.ChanTypeAllowURL,
 		Content:  urlWhites,
 	}
 	global.GWAF_CHAN_MSG <- chanInfo

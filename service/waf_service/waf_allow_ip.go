@@ -15,8 +15,8 @@ type WafWhiteIpService struct{}
 
 var WafWhiteIpServiceApp = new(WafWhiteIpService)
 
-func (receiver *WafWhiteIpService) AddApi(wafWhiteIpAddReq request.WafWhiteIpAddReq) error {
-	var wafHost = &model.IPWhiteList{
+func (receiver *WafWhiteIpService) AddApi(wafWhiteIpAddReq request.WafAllowIpAddReq) error {
+	var wafHost = &model.IPAllowList{
 		BaseOrm: baseorm.BaseOrm{
 			Id:          uuid.NewV4().String(),
 			USER_CODE:   global.GWAF_USER_CODE,
@@ -32,12 +32,12 @@ func (receiver *WafWhiteIpService) AddApi(wafWhiteIpAddReq request.WafWhiteIpAdd
 	return nil
 }
 
-func (receiver *WafWhiteIpService) CheckIsExistApi(wafWhiteIpAddReq request.WafWhiteIpAddReq) error {
-	return global.GWAF_LOCAL_DB.First(&model.IPWhiteList{}, "host_code = ? and ip= ?", wafWhiteIpAddReq.HostCode,
+func (receiver *WafWhiteIpService) CheckIsExistApi(wafWhiteIpAddReq request.WafAllowIpAddReq) error {
+	return global.GWAF_LOCAL_DB.First(&model.IPAllowList{}, "host_code = ? and ip= ?", wafWhiteIpAddReq.HostCode,
 		wafWhiteIpAddReq.Ip).Error
 }
-func (receiver *WafWhiteIpService) ModifyApi(wafWhiteIpEditReq request.WafWhiteIpEditReq) error {
-	var ipWhite model.IPWhiteList
+func (receiver *WafWhiteIpService) ModifyApi(wafWhiteIpEditReq request.WafAllowIpEditReq) error {
+	var ipWhite model.IPAllowList
 	global.GWAF_LOCAL_DB.Where("host_code = ? and ip= ?", wafWhiteIpEditReq.HostCode,
 		wafWhiteIpEditReq.Ip).Find(&ipWhite)
 	if ipWhite.Id != "" && ipWhite.Ip != wafWhiteIpEditReq.Ip {
@@ -49,22 +49,22 @@ func (receiver *WafWhiteIpService) ModifyApi(wafWhiteIpEditReq request.WafWhiteI
 		"Remarks":     wafWhiteIpEditReq.Remarks,
 		"UPDATE_TIME": customtype.JsonTime(time.Now()),
 	}
-	err := global.GWAF_LOCAL_DB.Model(model.IPWhiteList{}).Where("id = ?", wafWhiteIpEditReq.Id).Updates(ipWhiteMap).Error
+	err := global.GWAF_LOCAL_DB.Model(model.IPAllowList{}).Where("id = ?", wafWhiteIpEditReq.Id).Updates(ipWhiteMap).Error
 
 	return err
 }
-func (receiver *WafWhiteIpService) GetDetailApi(req request.WafWhiteIpDetailReq) model.IPWhiteList {
-	var ipWhite model.IPWhiteList
+func (receiver *WafWhiteIpService) GetDetailApi(req request.WafAllowIpDetailReq) model.IPAllowList {
+	var ipWhite model.IPAllowList
 	global.GWAF_LOCAL_DB.Where("id=?", req.Id).Find(&ipWhite)
 	return ipWhite
 }
-func (receiver *WafWhiteIpService) GetDetailByIdApi(id string) model.IPWhiteList {
-	var ipWhite model.IPWhiteList
+func (receiver *WafWhiteIpService) GetDetailByIdApi(id string) model.IPAllowList {
+	var ipWhite model.IPAllowList
 	global.GWAF_LOCAL_DB.Where("id=?", id).Find(&ipWhite)
 	return ipWhite
 }
-func (receiver *WafWhiteIpService) GetListApi(req request.WafWhiteIpSearchReq) ([]model.IPWhiteList, int64, error) {
-	var ipWhites []model.IPWhiteList
+func (receiver *WafWhiteIpService) GetListApi(req request.WafAllowIpSearchReq) ([]model.IPAllowList, int64, error) {
+	var ipWhites []model.IPAllowList
 	var total int64 = 0
 	/*where条件*/
 	var whereField = ""
@@ -91,17 +91,17 @@ func (receiver *WafWhiteIpService) GetListApi(req request.WafWhiteIpSearchReq) (
 		whereValues = append(whereValues, req.Ip)
 	}
 
-	global.GWAF_LOCAL_DB.Model(&model.IPWhiteList{}).Where(whereField, whereValues...).Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&ipWhites)
-	global.GWAF_LOCAL_DB.Model(&model.IPWhiteList{}).Where(whereField, whereValues...).Count(&total)
+	global.GWAF_LOCAL_DB.Model(&model.IPAllowList{}).Where(whereField, whereValues...).Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&ipWhites)
+	global.GWAF_LOCAL_DB.Model(&model.IPAllowList{}).Where(whereField, whereValues...).Count(&total)
 
 	return ipWhites, total, nil
 }
-func (receiver *WafWhiteIpService) DelApi(req request.WafWhiteIpDelReq) error {
-	var ipWhite model.IPWhiteList
+func (receiver *WafWhiteIpService) DelApi(req request.WafAllowIpDelReq) error {
+	var ipWhite model.IPAllowList
 	err := global.GWAF_LOCAL_DB.Where("id = ?", req.Id).First(&ipWhite).Error
 	if err != nil {
 		return err
 	}
-	err = global.GWAF_LOCAL_DB.Where("id = ?", req.Id).Delete(model.IPWhiteList{}).Error
+	err = global.GWAF_LOCAL_DB.Where("id = ?", req.Id).Delete(model.IPAllowList{}).Error
 	return err
 }

@@ -6,8 +6,8 @@ type ApiGroup struct {
 	RuleRouter
 	EngineRouter
 	StatRouter
-	WhiteIpRouter
-	WhiteUrlRouter
+	AllowIpRouter
+	AllowUrlRouter
 	LdpUrlRouter
 	AntiCCRouter
 	BlockIpRouter

@@ -8,8 +8,8 @@ type APIGroup struct {
 	WafLogAPi
 	WafRuleAPi
 	WafEngineApi
-	WafWhiteIpApi
-	WafWhiteUrlApi
+	WafAllowIpApi
+	WafAllowUrlApi
 	WafLdpUrlApi
 	WafAntiCCApi
 	WafBlockIpApi
@@ -33,8 +33,8 @@ var (
 	wafLogService      = waf_service.WafLogServiceApp
 	wafStatService     = waf_service.WafStatServiceApp
 	wafRuleService     = waf_service.WafRuleServiceApp
-	wafIpWhiteService  = waf_service.WafWhiteIpServiceApp
-	wafUrlWhiteService = waf_service.WafWhiteUrlServiceApp
+	wafIpAllowService  = waf_service.WafWhiteIpServiceApp
+	wafUrlAllowService = waf_service.WafWhiteUrlServiceApp
 	wafLdpUrlService   = waf_service.WafLdpUrlServiceApp
 	wafAntiCCService   = waf_service.WafAntiCCServiceApp
 

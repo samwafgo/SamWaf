@@ -25,9 +25,10 @@ type Hosts struct {
 }
 
 type HostsDefense struct {
-	DEFENSE_BOT  int `json:"bot"`  //防御-虚假BOT
-	DEFENSE_SQLI int `json:"sqli"` //防御-Sql注入
-	DEFENSE_XSS  int `json:"xss"`  //防御-xss攻击
-	DEFENSE_SCAN int `json:"scan"` //防御-scan工具扫描
-	DEFENSE_RCE  int `json:"rce"`  //防御-scan工具扫描
+	DEFENSE_BOT       int `json:"bot"`       //防御-虚假BOT
+	DEFENSE_SQLI      int `json:"sqli"`      //防御-Sql注入
+	DEFENSE_XSS       int `json:"xss"`       //防御-xss攻击
+	DEFENSE_SCAN      int `json:"scan"`      //防御-scan工具扫描
+	DEFENSE_RCE       int `json:"rce"`       //防御-scan工具扫描
+	DEFENSE_SENSITIVE int `json:"sensitive"` //敏感词检测
 }

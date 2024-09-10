@@ -194,11 +194,12 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 
 				hostDefense := model.HostsDefense{
-					DEFENSE_BOT:  1,
-					DEFENSE_SQLI: 1,
-					DEFENSE_XSS:  1,
-					DEFENSE_SCAN: 1,
-					DEFENSE_RCE:  1,
+					DEFENSE_BOT:       1,
+					DEFENSE_SQLI:      1,
+					DEFENSE_XSS:       1,
+					DEFENSE_SCAN:      1,
+					DEFENSE_RCE:       1,
+					DEFENSE_SENSITIVE: 1,
 				}
 				err := json.Unmarshal([]byte(waf.HostTarget[host].Host.DEFENSE_JSON), &hostDefense)
 				if err != nil {
@@ -243,9 +244,12 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				//检测敏感词
-				if handleBlock(waf.CheckSensitive) {
-					return
+				if hostDefense.DEFENSE_SENSITIVE == 1 {
+					if handleBlock(waf.CheckSensitive) {
+						return
+					}
 				}
+
 			}
 
 		}

@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	goahocorasick "github.com/anknown/ahocorasick"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 	"golang.org/x/net/html/charset"
@@ -53,6 +54,10 @@ type WafEngine struct {
 	AllCertificate map[int]map[string]*tls.Certificate
 
 	EngineCurrentStatus int // 当前waf引擎状态
+
+	//敏感词管理
+	Sensitive        []model.Sensitive //敏感词
+	SensitiveManager *goahocorasick.Machine
 }
 
 func (waf *WafEngine) Error() string {
@@ -235,6 +240,10 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 				//规则判断
 				if handleBlock(waf.CheckRule) {
+					return
+				}
+				//检测敏感词
+				if handleBlock(waf.CheckSensitive) {
 					return
 				}
 			}
@@ -712,11 +721,11 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) innerbean.ServerRunTime {
 	}
 
 	//查询ip白名单
-	var ipwhitelist []model.IPWhiteList
+	var ipwhitelist []model.IPAllowList
 	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&ipwhitelist)
 
 	//查询url白名单
-	var urlwhitelist []model.URLWhiteList
+	var urlwhitelist []model.URLAllowList
 	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&urlwhitelist)
 
 	//查询ip黑名单
@@ -757,6 +766,7 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) innerbean.ServerRunTime {
 	waf.HostTarget[inHost.Host+":"+strconv.Itoa(inHost.Port)] = hostsafe
 	//赋值到对照表里面
 	waf.HostCode[inHost.Code] = inHost.Host + ":" + strconv.Itoa(inHost.Port)
+
 	return waf.ServerOnline[inHost.Port]
 }
 
@@ -823,6 +833,8 @@ func (waf *WafEngine) StartAllProxyServer() {
 		waf.StartProxyServer(v)
 	}
 	waf.EnumAllPortProxyServer()
+
+	waf.ReLoadSensitive()
 }
 
 // 罗列端口
@@ -948,4 +960,26 @@ func (waf *WafEngine) StopProxyServer(v innerbean.ServerRunTime) {
 	if v.Svr != nil {
 		v.Svr.Close()
 	}
+}
+func (waf *WafEngine) ReLoadSensitive() {
+	//敏感词处理
+	var sensitiveList []model.Sensitive
+	global.GWAF_LOCAL_DB.Find(&sensitiveList)
+	//敏感词
+	waf.Sensitive = sensitiveList
+	// 提取 content 字段并转换为 [][]rune
+	var keywords [][]rune
+	for _, sensitive := range waf.Sensitive {
+		// 将 content 转换为 []rune 并追加到 keywords
+		keywords = append(keywords, []rune(sensitive.Content))
+	}
+
+	m := new(goahocorasick.Machine)
+	err := m.Build(keywords)
+	if err != nil {
+		zlog.Error("load sensitive error", err)
+		return
+	}
+	waf.SensitiveManager = m
+
 }

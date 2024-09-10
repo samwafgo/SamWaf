@@ -23,6 +23,7 @@ type ApiGroup struct {
 	OneKeyModRouter
 	WafLicenseRouter
 	CenterRouter
+	SensitiveRouter
 }
 type PublicApiGroup struct {
 	LoginRouter

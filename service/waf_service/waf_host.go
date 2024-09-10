@@ -148,9 +148,9 @@ func (receiver *WafHostService) DelHostApi(req request.WafHostDelReq) (model.Hos
 	//删除隐私保护url
 	err = global.GWAF_LOCAL_DB.Where("Host_Code = ?", req.CODE).Delete(model.LDPUrl{}).Error
 	//删除白名单ip
-	err = global.GWAF_LOCAL_DB.Where("Host_Code = ?", req.CODE).Delete(model.IPWhiteList{}).Error
+	err = global.GWAF_LOCAL_DB.Where("Host_Code = ?", req.CODE).Delete(model.IPAllowList{}).Error
 	//删除白名单URL
-	err = global.GWAF_LOCAL_DB.Where("Host_Code = ?", req.CODE).Delete(model.URLWhiteList{}).Error
+	err = global.GWAF_LOCAL_DB.Where("Host_Code = ?", req.CODE).Delete(model.URLAllowList{}).Error
 	return webhost, err
 }
 func (receiver *WafHostService) ModifyGuardStatusApi(req request.WafHostGuardStatusReq) error {

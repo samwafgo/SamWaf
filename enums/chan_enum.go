@@ -10,4 +10,5 @@ const (
 	ChanTypeBlockIP
 	ChanTypeBlockURL
 	ChanTypeDelHost
+	ChanTypeSensitive
 )

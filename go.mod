@@ -4,11 +4,11 @@ go 1.19
 
 require (
 	github.com/360EntSecGroup-Skylar/excelize v1.4.1
+	github.com/anknown/ahocorasick v0.0.0-20190904063843-d75dbd5169c0
 	github.com/bytedance/godlp v1.2.15
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/dsnet/compress v0.0.1
 	github.com/edwingeng/deque v1.0.3
-	github.com/elazarl/go-bindata-assetfs v1.0.1
 	github.com/gin-gonic/gin v1.8.1
 	github.com/go-co-op/gocron v1.17.1
 	github.com/gorilla/websocket v1.5.0
@@ -31,6 +31,7 @@ require (
 )
 
 require (
+	github.com/anknown/darts v0.0.0-20151216065714-83ff685239e6 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20220527190237-ee62e23da966 // indirect
 	github.com/bmatcuk/doublestar v1.3.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

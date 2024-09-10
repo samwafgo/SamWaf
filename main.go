@@ -484,6 +484,12 @@ func (m *wafSystenService) run() {
 					os.Exit(0)
 				}
 			}
+			break
+
+		case sensitive := <-global.GWAF_CHAN_SENSITIVE:
+			zlog.Debug("远程配置", sensitive)
+			globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ReLoadSensitive()
+			break
 		}
 
 	}

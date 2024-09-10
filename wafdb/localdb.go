@@ -126,6 +126,10 @@ func InitCoreDb(currentDir string) {
 
 		//中心管控数据
 		db.AutoMigrate(&model.Center{})
+
+		//敏感词管理
+		db.AutoMigrate(&model.Sensitive{})
+
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
 

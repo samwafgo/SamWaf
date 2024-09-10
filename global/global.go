@@ -64,10 +64,11 @@ var (
 	GWAF_DLP_CONFIG string              // 脱敏引擎配置数据
 
 	/**链聚合**/
-	GWAF_CHAN_HOST   = make(chan model.Hosts, 10)         //主机链
-	GWAF_CHAN_ENGINE = make(chan int, 10)                 //引擎链
-	GWAF_CHAN_MSG    = make(chan spec.ChanCommonHost, 10) //全局通讯包
-	GWAF_CHAN_UPDATE = make(chan int, 10)                 //升级后处理链
+	GWAF_CHAN_HOST      = make(chan model.Hosts, 10)         //主机链
+	GWAF_CHAN_ENGINE    = make(chan int, 10)                 //引擎链
+	GWAF_CHAN_MSG       = make(chan spec.ChanCommonHost, 10) //全局通讯包
+	GWAF_CHAN_UPDATE    = make(chan int, 10)                 //升级后处理链
+	GWAF_CHAN_SENSITIVE = make(chan int, 10)                 //敏感词处理链
 
 	/*****CACHE相关*********/
 	GCACHE_WAFCACHE      *cache.WafCache      //cache

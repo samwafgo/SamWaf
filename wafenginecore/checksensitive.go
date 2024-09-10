@@ -17,6 +17,9 @@ func (waf *WafEngine) CheckSensitive(weblogbean *innerbean.WebLog, formValue url
 		Title:           "",
 		Content:         "",
 	}
+	if len(waf.Sensitive) == 0 {
+		return result
+	}
 	//敏感词检测
 	matchURLResult := waf.SensitiveManager.MultiPatternSearch([]rune(weblogbean.URL), true)
 	if len(matchURLResult) > 0 {

@@ -180,6 +180,7 @@ func (m *wafSystenService) run() {
 		AllCertificate: map[int]map[string]*tls.Certificate{},
 
 		EngineCurrentStatus: 0, // 当前waf引擎状态
+		Sensitive:           make([]model.Sensitive, 0),
 	}
 	http.Handle("/", globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE)
 	globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartWaf()

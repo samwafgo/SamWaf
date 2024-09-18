@@ -1,15 +1,18 @@
 English | [简体中文](README_ch.md) 
 
-# SamWaf Open Source Web Application Firewall
 
-<p align="center"> 
+<div align="center">
+ <img alt="SamWaf" width="100" src="./docs/images/logo.png"> 
+
+A lightweight open-source web application firewall
 
 [![Release](https://img.shields.io/github/release/samwafgo/SamWaf.svg)](https://github.com/samwafgo/SamWaf/releases)
 [![Gitee](https://img.shields.io/badge/Gitee-blue?style=flat-square&logo=Gitee)](https://gitee.com/samwaf/SamWaf)
 [![GitHub stars](https://img.shields.io/github/stars/samwafgo/SamWaf?style=flat-square&logo=Github)](https://github.com/samwafgo/SamWaf)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
-</p>
+</div>
 
+  
 ## Development Motivation:
 - **Lightweight**: Initially, I used security products like Safe * and Yun* based on nginx, apache, and iis plugins for protection, but the plugin form had a high coupling degree.
 - **Privatization**: Later, most cloud protection services were adopted, but private deployment is affordable only for medium and large enterprises, while small companies and studios find it costly.

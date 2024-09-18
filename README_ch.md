@@ -1,7 +1,14 @@
 [English](README.md) | 简体中文
 
 # SamWaf开源网站防火墙
+
+<p align="center"> 
+
 [![Release](https://img.shields.io/github/release/samwafgo/SamWaf.svg)](https://github.com/samwafgo/SamWaf/releases)
+[![Gitee](https://img.shields.io/badge/Gitee-blue?style=flat-square&logo=Gitee)](https://gitee.com/samwaf/SamWaf)
+[![GitHub stars](https://img.shields.io/github/stars/samwafgo/SamWaf?style=flat-square&logo=Github)](https://github.com/samwafgo/SamWaf)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
+</p>
 
 ## 开发初衷:
 - 【轻量】早期在使用过安*,云*产品基于 nginx,apache,iis 做插件进行防护,但是插件形式耦合度太高了。

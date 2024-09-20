@@ -8,6 +8,8 @@ import (
 	"SamWaf/model/baseorm"
 	"SamWaf/utils"
 	"SamWaf/utils/zlog"
+	"context"
+	"database/sql"
 	"fmt"
 	uuid "github.com/satori/go.uuid"
 	"gorm.io/gorm/logger"
@@ -19,6 +21,7 @@ import (
 
 	//"github.com/kangarooxin/gorm-plugin-crypto"
 	//"github.com/kangarooxin/gorm-plugin-crypto/strategy"
+	gowxsqlite3 "github.com/pengge/go-wxsqlite3"
 	"github.com/pengge/sqlitedriver"
 	"gorm.io/gorm"
 )
@@ -89,7 +92,8 @@ func InitCoreDb(currentDir string) {
 			})
 		}
 		global.GWAF_LOCAL_DB = db
-
+		s, err := db.DB()
+		s.Ping()
 		//db.Use(crypto.NewCryptoPlugin())
 		// 注册默认的AES加解密策略
 		//crypto.RegisterCryptoStrategy(strategy.NewAesCryptoStrategy("3Y)(27EtO^tK8Bj~"))
@@ -279,4 +283,88 @@ func before_query(db *gorm.DB) {
 	db.Where("tenant_id = ? and user_code=? ", global.GWAF_TENANT_ID, global.GWAF_USER_CODE)
 }
 func before_update(db *gorm.DB) {
+}
+
+// 在线备份
+func BackupDatabase(db *gorm.DB, backupFile string) error {
+	// 获取底层的 sql.DB 对象
+	sqlDB, err := db.DB()
+	if err != nil {
+		return err
+	}
+
+	// 获取源数据库的连接
+	srcConn, err := sqlDB.Conn(context.Background())
+	if err != nil {
+		return err
+	}
+	defer srcConn.Close()
+
+	// 获取底层的 SQLiteConn 对象
+	var srcSQLiteConn *gowxsqlite3.SQLiteConn
+	err = srcConn.Raw(func(driverConn interface{}) error {
+		// 将 driverConn 转换为 *wxsqlite3.SQLiteConn
+		sqliteConn, ok := driverConn.(*gowxsqlite3.SQLiteConn)
+		if !ok {
+			return fmt.Errorf("not a SQLite connection")
+		}
+		srcSQLiteConn = sqliteConn
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	// 打开目标数据库连接
+	destConn, err := sql.Open("sqlite3", backupFile)
+	if err != nil {
+		return err
+	}
+	defer destConn.Close()
+
+	// 获取目标数据库的连接
+	destSqlConn, err := destConn.Conn(context.Background())
+	if err != nil {
+		return err
+	}
+	defer destSqlConn.Close()
+
+	// 获取目标数据库的 SQLiteConn 对象
+	var destSQLiteConn *gowxsqlite3.SQLiteConn
+	err = destSqlConn.Raw(func(driverConn interface{}) error {
+		// 将 driverConn 转换为 *wxsqlite3.SQLiteConn
+		sqliteConn, ok := driverConn.(*gowxsqlite3.SQLiteConn)
+		if !ok {
+			return fmt.Errorf("not a SQLite connection")
+		}
+		destSQLiteConn = sqliteConn
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	// 执行备份
+	backup, err := destSQLiteConn.Backup("main", srcSQLiteConn, "main")
+	if err != nil {
+		return err
+	}
+	defer backup.Finish()
+
+	// 执行备份步骤 (-1 代表全部备份)
+	for {
+		b, stepErr := backup.Step(-1) // 备份指定多个页面 -1 是所有
+		if b == false {
+			zlog.Debug("backup fail", stepErr)
+			if stepErr != nil {
+				return stepErr
+			}
+		} else {
+			break
+		}
+
+	}
+
+	fmt.Println("Backup completed successfully")
+	return nil
 }

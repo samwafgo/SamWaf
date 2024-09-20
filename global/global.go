@@ -35,8 +35,9 @@ var (
 	GWAF_RUNTIME_RECORD_LOG_TYPE string = "all" // 记录日志形式： 全部(all),非正常(abnormal)
 	GWAF_RUNTIME_IS_UPDATETING   bool   = false //是否正在升级中
 
-	GWAF_RUNTIME_CURRENT_EXEPATH string = "" //当前程序运行路径
-	GWAF_RUNTIME_CURRENT_WEBPORT string = "" //当前程序所占用端口
+	GWAF_RUNTIME_CURRENT_EXEPATH                 string = "" //当前程序运行路径
+	GWAF_RUNTIME_CURRENT_WEBPORT                 string = "" //当前程序所占用端口
+	GWAF_RUNTIME_CURRENT_EXPORT_DB_LOG_FILE_PATH string = "" //生成的日志导出文件路径
 
 	/**
 	遥测数据

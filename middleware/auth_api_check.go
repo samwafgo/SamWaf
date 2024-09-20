@@ -5,6 +5,7 @@ import (
 	"SamWaf/service/waf_service"
 	"SamWaf/utils/zlog"
 	"github.com/gin-gonic/gin"
+	"strings"
 )
 
 var (
@@ -18,6 +19,8 @@ func Auth() gin.HandlerFunc {
 		tokenStr := ""
 		if c.Request.RequestURI == "/samwaf/ws" {
 			tokenStr = c.GetHeader("Sec-WebSocket-Protocol")
+		} else if strings.HasPrefix(c.Request.RequestURI, "/samwaf/waflog/attack/download") {
+			tokenStr = c.Query("X-Token")
 		} else {
 			tokenStr = c.GetHeader("X-Token")
 		}

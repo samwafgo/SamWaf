@@ -45,6 +45,16 @@ type UpdateResultMessageInfo struct {
 
 /*
 *
+导出日志结果
+*/
+type ExportResultMessageInfo struct {
+	BaseMessageInfo
+	Msg     string `json:"msg"`
+	Success string `json:"success"`
+}
+
+/*
+*
 实时操作反馈
 */
 type OpResultMessageInfo struct {

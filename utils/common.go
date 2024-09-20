@@ -204,3 +204,54 @@ func CheckIPInCIDR(ip string, ipRange string) bool {
 		return false // 如果IP地址不在任何一个CIDR范围内，则返回false
 	}
 }
+
+// 检查 JSON 字符串是否为有效的 UTF-8 编码
+func CheckJSONValidity(jsonStr []byte) bool {
+	for i := 0; i < len(jsonStr); {
+		r, size := rune(jsonStr[i]), 1
+		switch {
+		case r >= 0xF0:
+			r, size = rune(jsonStr[i+3]), 4
+		case r >= 0xE0:
+			r, size = rune(jsonStr[i+2]), 3
+		case r >= 0xC0:
+			r, size = rune(jsonStr[i+1]), 2
+		default:
+		}
+		if r > 0xFFFF {
+			return false
+		}
+		i += size
+	}
+	return true
+}
+
+/*
+*
+删除老旧数据
+*/
+func DeleteOldFiles(dir string, duration time.Duration) error {
+	// 遍历目录下的文件
+	return filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// 如果是文件并且文件创建时间超过指定的时间
+		if !info.IsDir() {
+			// 获取文件的修改时间（可以近似认为是创建时间）
+			fileModTime := info.ModTime()
+
+			// 判断文件是否超过指定的时间（比如30分钟）
+			if time.Since(fileModTime) > duration {
+				// 删除文件
+				zlog.Info("删除陈旧文件:", path)
+				err := os.Remove(path)
+				if err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+}

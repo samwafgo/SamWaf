@@ -255,6 +255,12 @@ func (m *wafSystenService) run() {
 	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Day().At("05:00").Do(func() {
 		go waftask.TaskDeleteHistoryInfo()
 	})
+	// 每30分钟进行历史文件的删除
+	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(30).Minutes().Do(func() {
+		go waftask.TaskHistoryDownload()
+
+	})
+
 	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.StartAsync()
 
 	//脱敏处理初始化

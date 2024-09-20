@@ -79,6 +79,5 @@ linux
      grule-rule-engine,ip2region,sqlitedriver,viper,libinjection-go
 
 ## TODO List
-
-- 二进制版本文件从github action 进行编译和发布    
+ 
 - 完善对应功能test 

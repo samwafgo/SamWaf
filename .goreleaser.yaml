@@ -26,7 +26,7 @@ builds:
       - CGO_ENABLED=1
       - CC=x86_64-linux-gnu-gcc
       - CXX=x86_64-linux-gnu-g++
-      - CGO_CFLAGS=-Werror=unused-variable
+      - CGO_CFLAGS=-Wno-unused-variable
     goos:
       - linux
     goarch:

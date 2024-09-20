@@ -22,6 +22,7 @@ before:
     - rm -rf dist.tar.gz
 builds:
   - id: "samwaf_linux"
+    binary: "SamWafLinux64"
     env:
       - CGO_ENABLED=1
       - CC=x86_64-linux-gnu-gcc
@@ -38,6 +39,7 @@ builds:
       - -s -w
       - -extldflags "-static"
   - id: "samwaf_win"
+    binary: "SamWaf64.exe"
     env:
       - CGO_ENABLED=1
       - CC=x86_64-w64-mingw32-gcc

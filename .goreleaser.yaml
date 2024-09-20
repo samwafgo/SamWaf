@@ -39,7 +39,7 @@ builds:
       - -s -w
       - -extldflags "-static"
   - id: "samwaf_win"
-    binary: "SamWaf64.exe"
+    binary: "SamWaf64"
     env:
       - CGO_ENABLED=1
       - CC=x86_64-w64-mingw32-gcc

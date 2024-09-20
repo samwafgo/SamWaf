@@ -40,12 +40,9 @@ builds:
   - id: "samwaf_win"
     env:
       - CGO_ENABLED=1
-      - CGO_CFLAGS=-Wno-unused-variable
-      - CGO_CFLAGS=-Wno-unused-function
-      - CGO_CFLAGS=-Werror=implicit-function-declaration
-      - CGO_CFLAGS=-Werror=unused-variable
       - CC=x86_64-w64-mingw32-gcc
       - CXX=x86_64-w64-mingw32-g++
+      - CGO_CFLAGS=-Wno-unused-variable
     goos:
       - windows
     goarch:

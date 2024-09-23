@@ -318,7 +318,7 @@ func (m *wafSystenService) run() {
 	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Minutes().Do(func() {
 		go waftask.TaskClientToCenter()
 	})
-
+	zlog.Info("SamWaf has started successfully.You can open http://127.0.0.1:" + strconv.Itoa(global.GWAF_LOCAL_SERVER_PORT) + " in your Browser")
 	for {
 		select {
 		case msg := <-global.GWAF_CHAN_MSG:

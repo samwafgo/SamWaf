@@ -59,7 +59,7 @@ upx:
   - # Whether to enable it or not.
     #
     # Templates: allowed.
-    enabled: false
+    enabled: true
 
     # Filter by build ID.
     ids: [samwaf_linux,samwaf_win]

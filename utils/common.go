@@ -255,3 +255,9 @@ func DeleteOldFiles(dir string, duration time.Duration) error {
 		return nil
 	})
 }
+
+// 检测是否属于ipv4
+func IsValidIPv4(ip string) bool {
+	parsedIP := net.ParseIP(ip)
+	return parsedIP != nil && parsedIP.To4() != nil
+}

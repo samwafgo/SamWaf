@@ -32,6 +32,7 @@ import (
 	"golang.org/x/text/transform"
 	"golang.org/x/time/rate"
 	"io"
+	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"net/url"
@@ -87,10 +88,14 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 检查域名是否已经注册
 	if target, ok := waf.HostTarget[host]; ok {
 		// 取出客户IP
-		ipAndPort := strings.Split(r.RemoteAddr, ":")
+		ipErr, clientIP, clientPort := waf.getClientIP(r, strings.Split(global.GCONFIG_RECORD_PROXY_HEADER, ",")...)
+		if ipErr != nil {
+			zlog.Error("get client error", ipErr.Error())
+			return
+		}
 		_, ok := waf.ServerOnline[waf.HostTarget[host].Host.Remote_port]
 		//检测如果访问IP和远程IP是同一个IP，且远程端口在本地Server已存在则显示配置错误
-		if ipAndPort[0] == waf.HostTarget[host].Host.Remote_ip && ok == true {
+		if clientIP == waf.HostTarget[host].Host.Remote_ip && ok == true {
 			resBytes := []byte("500: 配置有误" + host + " 当前IP和访问远端IP一样，且端口也一样，会造成循环问题")
 			_, err := w.Write(resBytes)
 			if err != nil {
@@ -118,7 +123,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		region := utils.GetCountry(ipAndPort[0])
+		region := utils.GetCountry(clientIP)
 		currentDay, _ := strconv.Atoi(time.Now().Format("20060102"))
 
 		//URL 解码
@@ -137,8 +142,8 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			COUNTRY:              region[0],
 			PROVINCE:             region[2],
 			CITY:                 region[3],
-			SRC_IP:               ipAndPort[0],
-			SRC_PORT:             ipAndPort[1],
+			SRC_IP:               clientIP,
+			SRC_PORT:             clientPort,
 			CREATE_TIME:          datetimeNow.Format("2006-01-02 15:04:05"),
 			UNIX_ADD_TIME:        datetimeNow.UnixNano() / 1e6,
 			CONTENT_LENGTH:       contentLength,
@@ -289,8 +294,12 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		cookies, _ := json.Marshal(r.Cookies())
 		header, _ := json.Marshal(r.Header)
 		// 取出客户IP
-		ipAndPort := strings.Split(r.RemoteAddr, ":")
-		region := utils.GetCountry(ipAndPort[0])
+		ipErr, clientIP, clientPort := waf.getClientIP(r, strings.Split(global.GCONFIG_RECORD_PROXY_HEADER, ",")...)
+		if ipErr != nil {
+			zlog.Error("get client error", ipErr.Error())
+			return
+		}
+		region := utils.GetCountry(clientIP)
 		datetimeNow := time.Now()
 
 		currentDay, _ := strconv.Atoi(datetimeNow.Format("20060102"))
@@ -304,8 +313,8 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			COUNTRY:              region[0],
 			PROVINCE:             region[2],
 			CITY:                 region[3],
-			SRC_IP:               ipAndPort[0],
-			SRC_PORT:             ipAndPort[1],
+			SRC_IP:               clientIP,
+			SRC_PORT:             clientPort,
 			CREATE_TIME:          datetimeNow.Format("2006-01-02 15:04:05"),
 			UNIX_ADD_TIME:        datetimeNow.UnixNano() / 1e6,
 			CONTENT_LENGTH:       contentLength,
@@ -331,6 +340,31 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		weblogbean.ACTION = "禁止"
 		global.GQEQUE_LOG_DB.PushBack(weblogbean)
 	}
+}
+func (waf *WafEngine) getClientIP(r *http.Request, headers ...string) (error, string, string) {
+	for _, header := range headers {
+		ip := r.Header.Get(header)
+		if ip != "" {
+			// 处理可能的多个 IP 地址，以逗号分隔，取第一个有效的
+			ips := strings.Split(ip, ",")
+			trimmedIP := strings.TrimSpace(ips[0])
+			if utils.IsValidIPv4(trimmedIP) {
+				return nil, trimmedIP, "0"
+			}
+			return errors.New("invalid IPv4 address from header: " + header + " value:" + ip), "", ""
+		}
+	}
+
+	// 如果没有找到，使用 r.RemoteAddr
+	ip, port, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return err, "", ""
+	}
+	if !utils.IsValidIPv4(ip) {
+		return errors.New("invalid IPv4 address from RemoteAddr" + " value:" + ip), "", ""
+	}
+
+	return nil, ip, port
 }
 func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean innerbean.WebLog, ruleName string, blockInfo string) {
 	//发送微信推送消息
@@ -971,6 +1005,9 @@ func (waf *WafEngine) ReLoadSensitive() {
 	global.GWAF_LOCAL_DB.Find(&sensitiveList)
 	//敏感词
 	waf.Sensitive = sensitiveList
+	if len(sensitiveList) == 0 {
+		return
+	}
 	// 提取 content 字段并转换为 [][]rune
 	var keywords [][]rune
 	for _, sensitive := range waf.Sensitive {

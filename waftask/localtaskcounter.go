@@ -431,7 +431,21 @@ func TaskLoadSetting() {
 			Options:  "",
 		})
 	}
-
+	//获取用户IP头方式
+	configItem = wafSystemConfigService.GetDetailByItem("gwaf_proxy_header")
+	if configItem.Id != "" {
+		if global.GCONFIG_RECORD_PROXY_HEADER != configItem.Value {
+			global.GCONFIG_RECORD_PROXY_HEADER = configItem.Value
+		}
+	} else {
+		wafSystemConfigService.AddApi(request.WafSystemConfigAddReq{
+			Item:     "gwaf_proxy_header",
+			Value:    global.GCONFIG_RECORD_PROXY_HEADER,
+			Remarks:  "获取访客IP头信息（按照顺序）",
+			ItemType: "string",
+			Options:  "",
+		})
+	}
 }
 
 /*

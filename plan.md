@@ -6,3 +6,12 @@
 | 2  | 固定密码还是风险太大,考虑开发随机密码并增加二次验证   |       | X  |
 | 3  | 增加后端负载                       |       | X  |
 | 4  | 增加检测返回内容如果是特殊词进行屏蔽           |       | X  |
+
+# SamWafWeb  Modify Log
+
+gitee :https://gitee.com/samwaf/SamWafWeb
+github:https://github.com/samwafgo/SamWafWeb
+
+| SamWafWeb版本 | 时间         | 内容         | 预计完成时间 | 状态 |
+|:------------|:-----------|:-----------|:------:|:--:|
+| v1.3.2      | 2024.09.24 | 修正点击关闭逻辑问题 |       | √  |

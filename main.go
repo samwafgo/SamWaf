@@ -575,6 +575,7 @@ func main() {
 			if err != nil {
 				log.Fatal(err)
 			}
+			fmt.Printf("Samwaf has successfully executed the '%s' command.\n", command)
 			break
 		case "resetpwd": //重制密码
 			//加载配置

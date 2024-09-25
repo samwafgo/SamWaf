@@ -174,6 +174,35 @@ http://127.0.0.1:26666
 
 Default account: admin  Default password: admin868 (Please change the default password upon first login)
 
+
+## Upgrade Guide
+
+**Note: The upgrade process will terminate the service, please upgrade during off-peak hours.**
+
+### Automatic Upgrade
+If a new version is available, an upgrade prompt will pop up for confirmation, allowing you to initiate the upgrade. The page will automatically refresh after the upgrade is complete.
+
+### Manual Upgrade
+- For direct launch:
+    1. Close the application.
+    2. Download the latest program and replace the existing files, then manually start it again.
+
+- For service mode:
+```
+1. First, pause the service.
+
+  Windows: SamWaf64.exe stop
+  Linux: ./SamWafLinux64 stop
+  
+2. Replace with the latest application files.
+
+3. Start the service:
+Windows: SamWaf64.exe start
+Linux: ./SamWafLinux64 start
+```
+
+**Note**: Upgrading the Windows service may trigger security rules from 360 or Huorong, preventing the new files from being replaced normally. In this case, you can manually replace the files. Those familiar with this area can help determine the correct handling method.
+
 ## Online Documentation
 
 [Online Documentation](https://doc.samwaf.com/)

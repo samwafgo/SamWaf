@@ -24,6 +24,7 @@ type ApiGroup struct {
 	WafLicenseRouter
 	CenterRouter
 	SensitiveRouter
+	LoadBalanceRouter
 }
 type PublicApiGroup struct {
 	LoginRouter

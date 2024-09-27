@@ -13,6 +13,7 @@ import (
 	"SamWaf/service/waf_service"
 	"SamWaf/utils"
 	"SamWaf/utils/zlog"
+	"SamWaf/wafenginecore/loadbalance"
 	"SamWaf/wafproxy"
 	"bufio"
 	"bytes"
@@ -270,7 +271,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// 在请求上下文中存储自定义数据
 		ctx := context.WithValue(r.Context(), "weblog", weblogbean)
 		// 代理请求
-		waf.ProxyHTTP(w, r, host, remoteUrl, ctx, weblogbean)
+		waf.ProxyHTTP(w, r, host, remoteUrl, clientIP, ctx, weblogbean)
 		return
 	} else {
 		resBytes := []byte("403: Host forbidden " + host)
@@ -778,14 +779,18 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) innerbean.ServerRunTime {
 	var ldpurls []model.LDPUrl
 	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&ldpurls)
 
+	//查询负载均衡
+	var loadBalanceList []model.LoadBalance
+	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&loadBalanceList)
 	//初始化主机host
 	hostsafe := &wafenginmodel.HostSafe{
-		LoadBalance: &wafenginmodel.LoadBalance{
-			IsEnable:          false,
-			LoadBalanceStage:  0,
-			CurrentProxyIndex: 0,
-			RevProxies:        []*wafproxy.ReverseProxy{},
+		LoadBalanceRuntime: &wafenginmodel.LoadBalanceRuntime{
+			CurrentProxyIndex:       0,
+			RevProxies:              []*wafproxy.ReverseProxy{},
+			WeightRoundRobinBalance: &loadbalance.WeightRoundRobinBalance{},
+			IpHashBalance:           loadbalance.NewConsistentHashBalance(nil),
 		},
+		LoadBalanceLists:    loadBalanceList,
 		Rule:                ruleHelper,
 		TargetHost:          inHost.Remote_host + ":" + strconv.Itoa(inHost.Remote_port),
 		RuleData:            ruleconfigs,
@@ -861,6 +866,20 @@ func (waf *WafEngine) RemoveHost(host model.Hosts, isSslChange bool) {
 		delete(waf.HostCode, host.Code)
 		//c.移除主机保护信息
 		delete(waf.HostTarget, host.Host+":"+strconv.Itoa(host.Port))
+	}
+}
+
+// 清除代理
+func (waf *WafEngine) ClearProxy(hostCode string) {
+	var list []model.LoadBalance
+	global.GWAF_LOCAL_DB.Where("host_code = ? ", hostCode).Find(&list)
+	if waf.HostTarget[waf.HostCode[hostCode]] != nil {
+		waf.HostTarget[waf.HostCode[hostCode]].Mux.Lock()
+		defer waf.HostTarget[waf.HostCode[hostCode]].Mux.Unlock()
+		waf.HostTarget[waf.HostCode[hostCode]].LoadBalanceRuntime.RevProxies = []*wafproxy.ReverseProxy{}
+		waf.HostTarget[waf.HostCode[hostCode]].LoadBalanceRuntime.WeightRoundRobinBalance = &loadbalance.WeightRoundRobinBalance{}
+		waf.HostTarget[waf.HostCode[hostCode]].LoadBalanceRuntime.IpHashBalance = loadbalance.NewConsistentHashBalance(nil)
+		waf.HostTarget[waf.HostCode[hostCode]].LoadBalanceLists = list
 	}
 }
 

@@ -11,4 +11,5 @@ const (
 	ChanTypeBlockURL
 	ChanTypeDelHost
 	ChanTypeSensitive
+	ChanTypeLoadBalance
 )

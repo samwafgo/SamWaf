@@ -26,6 +26,7 @@ type APIGroup struct {
 	CenterApi
 	WafLicenseApi
 	WafSensitiveApi
+	WafLoadBalanceApi
 }
 
 var APIGroupAPP = new(APIGroup)
@@ -57,4 +58,6 @@ var (
 	CenterService = waf_service.CenterServiceApp
 
 	wafSensitiveService = waf_service.WafSensitiveServiceApp
+
+	wafLoadBalanceService = waf_service.WafLoadBalanceServiceApp
 )

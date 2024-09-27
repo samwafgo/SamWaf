@@ -385,9 +385,9 @@ func (m *wafSystenService) run() {
 								//情况2
 								zlog.Debug("主机处理情况2 端口不变,域名也不变，就是重新加载数据")
 								if globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[hosts[0].Host+":"+strconv.Itoa(hosts[0].Port)] != nil &&
-									len(globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[hosts[0].Host+":"+strconv.Itoa(hosts[0].Port)].LoadBalance.RevProxies) > 0 {
+									len(globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[hosts[0].Host+":"+strconv.Itoa(hosts[0].Port)].LoadBalanceRuntime.RevProxies) > 0 {
 									//设置空代理
-									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[hosts[0].Host+":"+strconv.Itoa(hosts[0].Port)].LoadBalance.RevProxies = nil
+									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[hosts[0].Host+":"+strconv.Itoa(hosts[0].Port)].LoadBalanceRuntime.RevProxies = nil
 									zlog.Debug("主机重新代理", hosts[0].Host+":"+strconv.Itoa(hosts[0].Port))
 								}
 								//如果本次是关闭，那么应该关闭主机
@@ -404,8 +404,8 @@ func (m *wafSystenService) run() {
 								//情况3
 								zlog.Debug("主机处理情况3 端口从A切换到B了，域名是旧的 ；端口更改后当前这个端口下没有域名了，应该是关闭了，并移除数据")
 								if globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[hostsOld.Host+":"+strconv.Itoa(hostsOld.Port)] != nil &&
-									len(globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[hostsOld.Host+":"+strconv.Itoa(hostsOld.Port)].LoadBalance.RevProxies) > 0 {
-									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[hostsOld.Host+":"+strconv.Itoa(hostsOld.Port)].LoadBalance.RevProxies = nil
+									len(globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[hostsOld.Host+":"+strconv.Itoa(hostsOld.Port)].LoadBalanceRuntime.RevProxies) > 0 {
+									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[hostsOld.Host+":"+strconv.Itoa(hostsOld.Port)].LoadBalanceRuntime.RevProxies = nil
 								}
 								globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hostsOld, false)
 								globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.LoadHost(hosts[0])
@@ -421,6 +421,9 @@ func (m *wafSystenService) run() {
 						globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(host, false)
 						globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.EnumAllPortProxyServer()
 					}
+					break
+				case enums.ChanTypeLoadBalance:
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ClearProxy(msg.HostCode)
 					break
 				}
 

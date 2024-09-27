@@ -16,6 +16,12 @@ type WafHostService struct{}
 var WafHostServiceApp = new(WafHostService)
 
 func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (string, error) {
+	uniCode := ""
+	if wafHostAddReq.Code == "" {
+		uniCode = uuid.NewV4().String()
+	} else {
+		uniCode = wafHostAddReq.Code
+	}
 	var wafHost = &model.Hosts{
 		BaseOrm: baseorm.BaseOrm{
 			Id:          uuid.NewV4().String(),
@@ -24,23 +30,25 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 			CREATE_TIME: customtype.JsonTime(time.Now()),
 			UPDATE_TIME: customtype.JsonTime(time.Now()),
 		},
-		Code:            uuid.NewV4().String(),
-		Host:            wafHostAddReq.Host,
-		Port:            wafHostAddReq.Port,
-		Ssl:             wafHostAddReq.Ssl,
-		GUARD_STATUS:    1,
-		REMOTE_SYSTEM:   wafHostAddReq.REMOTE_SYSTEM,
-		REMOTE_APP:      wafHostAddReq.REMOTE_APP,
-		Remote_host:     wafHostAddReq.Remote_host,
-		Remote_port:     wafHostAddReq.Remote_port,
-		Remote_ip:       wafHostAddReq.Remote_ip,
-		Certfile:        wafHostAddReq.Certfile,
-		Keyfile:         wafHostAddReq.Keyfile,
-		REMARKS:         wafHostAddReq.REMARKS,
-		GLOBAL_HOST:     0,
-		DEFENSE_JSON:    wafHostAddReq.DEFENSE_JSON,
-		START_STATUS:    wafHostAddReq.START_STATUS,
-		EXCLUDE_URL_LOG: wafHostAddReq.EXCLUDE_URL_LOG,
+		Code:                uniCode,
+		Host:                wafHostAddReq.Host,
+		Port:                wafHostAddReq.Port,
+		Ssl:                 wafHostAddReq.Ssl,
+		GUARD_STATUS:        1,
+		REMOTE_SYSTEM:       wafHostAddReq.REMOTE_SYSTEM,
+		REMOTE_APP:          wafHostAddReq.REMOTE_APP,
+		Remote_host:         wafHostAddReq.Remote_host,
+		Remote_port:         wafHostAddReq.Remote_port,
+		Remote_ip:           wafHostAddReq.Remote_ip,
+		Certfile:            wafHostAddReq.Certfile,
+		Keyfile:             wafHostAddReq.Keyfile,
+		REMARKS:             wafHostAddReq.REMARKS,
+		GLOBAL_HOST:         0,
+		DEFENSE_JSON:        wafHostAddReq.DEFENSE_JSON,
+		START_STATUS:        wafHostAddReq.START_STATUS,
+		EXCLUDE_URL_LOG:     wafHostAddReq.EXCLUDE_URL_LOG,
+		IsEnableLoadBalance: wafHostAddReq.IsEnableLoadBalance,
+		LoadBalanceStage:    wafHostAddReq.LoadBalanceStage,
 	}
 	global.GWAF_LOCAL_DB.Create(wafHost)
 	return wafHost.Code, nil
@@ -67,19 +75,21 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 		"Port": wafHostEditReq.Port,
 		"Ssl":  wafHostEditReq.Ssl,
 		//"GUARD_STATUS":  0,
-		"REMOTE_SYSTEM":   wafHostEditReq.REMOTE_SYSTEM,
-		"REMOTE_APP":      wafHostEditReq.REMOTE_APP,
-		"Remote_host":     wafHostEditReq.Remote_host,
-		"Remote_ip":       wafHostEditReq.Remote_ip,
-		"Remote_port":     wafHostEditReq.Remote_port,
-		"REMARKS":         wafHostEditReq.REMARKS,
-		"GLOBAL_HOST":     0,
-		"Certfile":        wafHostEditReq.Certfile,
-		"Keyfile":         wafHostEditReq.Keyfile,
-		"UPDATE_TIME":     customtype.JsonTime(time.Now()),
-		"DEFENSE_JSON":    wafHostEditReq.DEFENSE_JSON,
-		"START_STATUS":    wafHostEditReq.START_STATUS,
-		"EXCLUDE_URL_LOG": wafHostEditReq.EXCLUDE_URL_LOG,
+		"REMOTE_SYSTEM":       wafHostEditReq.REMOTE_SYSTEM,
+		"REMOTE_APP":          wafHostEditReq.REMOTE_APP,
+		"Remote_host":         wafHostEditReq.Remote_host,
+		"Remote_ip":           wafHostEditReq.Remote_ip,
+		"Remote_port":         wafHostEditReq.Remote_port,
+		"REMARKS":             wafHostEditReq.REMARKS,
+		"GLOBAL_HOST":         0,
+		"Certfile":            wafHostEditReq.Certfile,
+		"Keyfile":             wafHostEditReq.Keyfile,
+		"UPDATE_TIME":         customtype.JsonTime(time.Now()),
+		"DEFENSE_JSON":        wafHostEditReq.DEFENSE_JSON,
+		"START_STATUS":        wafHostEditReq.START_STATUS,
+		"EXCLUDE_URL_LOG":     wafHostEditReq.EXCLUDE_URL_LOG,
+		"IsEnableLoadBalance": wafHostEditReq.IsEnableLoadBalance,
+		"LoadBalanceStage":    wafHostEditReq.LoadBalanceStage,
 	}
 	err := global.GWAF_LOCAL_DB.Debug().Model(model.Hosts{}).Where("CODE=?", wafHostEditReq.CODE).Updates(hostMap).Error
 

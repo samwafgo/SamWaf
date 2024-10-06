@@ -170,7 +170,7 @@ func (receiver *WafStatService) StatHomeRumtimeSysinfo() []response2.WafNameValu
 	data = append(data, response2.WafNameValue{Name: "Goroutine数量", Value: fmt.Sprintf("%v", runtime.NumGoroutine())})
 	data = append(data, response2.WafNameValue{Name: "系统类型", Value: fmt.Sprintf("%v", runtime.GOOS)})
 	data = append(data, response2.WafNameValue{Name: "系统架构", Value: fmt.Sprintf("%v", runtime.GOARCH)})
-
+	data = append(data, response2.WafNameValue{Name: "编译器版本", Value: fmt.Sprintf("%v", runtime.Version())})
 	// 获取开机时间
 	boottime, _ := host.BootTime()
 	ntime := time.Now().Unix()

@@ -1,6 +1,6 @@
 # Compile 编译说明
 ## 环境说明
-golang:1.22.3
+golang:1.21.4
 
 ## 代码说明
 
@@ -61,6 +61,7 @@ wechat          # 微信相关文件
 
 ## 编译
  
+提前安装好:mingw(https://www.mingw-w64.org/downloads/)
 
 windows
 ```

@@ -261,3 +261,14 @@ func IsValidIPv4(ip string) bool {
 	parsedIP := net.ParseIP(ip)
 	return parsedIP != nil && parsedIP.To4() != nil
 }
+
+/*
+获取纯域名
+*/
+func GetPureDomain(host string) string {
+	// 检查是否包含端口号
+	if strings.Contains(host, ":") {
+		host, _, _ = net.SplitHostPort(host)
+	}
+	return host
+}

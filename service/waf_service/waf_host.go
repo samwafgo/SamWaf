@@ -49,6 +49,7 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 		EXCLUDE_URL_LOG:     wafHostAddReq.EXCLUDE_URL_LOG,
 		IsEnableLoadBalance: wafHostAddReq.IsEnableLoadBalance,
 		LoadBalanceStage:    wafHostAddReq.LoadBalanceStage,
+		UnrestrictedPort:    wafHostAddReq.UnrestrictedPort,
 	}
 	global.GWAF_LOCAL_DB.Create(wafHost)
 	return wafHost.Code, nil
@@ -90,6 +91,7 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 		"EXCLUDE_URL_LOG":     wafHostEditReq.EXCLUDE_URL_LOG,
 		"IsEnableLoadBalance": wafHostEditReq.IsEnableLoadBalance,
 		"LoadBalanceStage":    wafHostEditReq.LoadBalanceStage,
+		"UnrestrictedPort":    wafHostEditReq.UnrestrictedPort,
 	}
 	err := global.GWAF_LOCAL_DB.Debug().Model(model.Hosts{}).Where("CODE=?", wafHostEditReq.CODE).Updates(hostMap).Error
 

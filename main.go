@@ -174,8 +174,9 @@ func (m *wafSystenService) run() {
 	globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE = &wafenginecore.WafEngine{
 		HostTarget: map[string]*wafenginmodel.HostSafe{},
 		//主机和code的关系
-		HostCode:     map[string]string{},
-		ServerOnline: map[int]innerbean.ServerRunTime{},
+		HostCode:         map[string]string{},
+		HostTargetNoPort: map[string]string{},
+		ServerOnline:     map[int]innerbean.ServerRunTime{},
 		//所有证书情况 对应端口 可能多个端口都是https 443，或者其他非标准端口也要实现https证书
 		AllCertificate: map[int]map[string]*tls.Certificate{},
 

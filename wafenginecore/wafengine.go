@@ -37,6 +37,7 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"net/url"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -48,6 +49,8 @@ type WafEngine struct {
 	HostTarget map[string]*wafenginmodel.HostSafe
 	//主机和code的关系（key:主机code,value:主机名+":"+端口）
 	HostCode map[string]string
+	//主机域名和配置防护关系 (key:主机域名,value:主机的hostCode)
+	HostTargetNoPort map[string]string
 	//服务在线情况（key：端口，value :服务情况）
 	ServerOnline map[int]innerbean.ServerRunTime
 
@@ -84,8 +87,16 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		e := recover()
 		if e != nil { // 捕获该协程的panic 111111
 			fmt.Println("11recover ", e)
+			debug.PrintStack() // 打印堆栈信息
+
 		}
 	}()
+
+	//检测是否是不检测端口的情况
+	if target, ok := waf.HostTargetNoPort[utils.GetPureDomain(host)]; ok {
+		host = target
+	}
+
 	// 检查域名是否已经注册
 	if target, ok := waf.HostTarget[host]; ok {
 		// 取出客户IP
@@ -435,7 +446,10 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 					host = host + ":80"
 				}
 			}
-
+			//检测是否是不检测端口的情况
+			if target, ok := waf.HostTargetNoPort[utils.GetPureDomain(host)]; ok {
+				host = target
+			}
 			ldpFlag := false
 			//隐私保护（局部）
 			for i := 0; i < len(waf.HostTarget[host].LdpUrlLists); i++ {
@@ -621,20 +635,21 @@ func (waf *WafEngine) StartWaf() {
 				CREATE_TIME: customtype.JsonTime(time.Now()),
 				UPDATE_TIME: customtype.JsonTime(time.Now()),
 			},
-			Code:          uuid.NewV4().String(),
-			Host:          "全局网站",
-			Port:          0,
-			Ssl:           0,
-			GUARD_STATUS:  0,
-			REMOTE_SYSTEM: "",
-			REMOTE_APP:    "",
-			Remote_host:   "",
-			Remote_port:   0,
-			Certfile:      "",
-			Keyfile:       "",
-			REMARKS:       "",
-			GLOBAL_HOST:   1,
-			START_STATUS:  0,
+			Code:             uuid.NewV4().String(),
+			Host:             "全局网站",
+			Port:             0,
+			Ssl:              0,
+			GUARD_STATUS:     0,
+			REMOTE_SYSTEM:    "",
+			REMOTE_APP:       "",
+			Remote_host:      "",
+			Remote_port:      0,
+			Certfile:         "",
+			Keyfile:          "",
+			REMARKS:          "",
+			GLOBAL_HOST:      1,
+			START_STATUS:     0,
+			UnrestrictedPort: 0,
 		}
 		global.GWAF_LOCAL_DB.Create(wafGlobalHost)
 	}
@@ -689,6 +704,7 @@ func (waf *WafEngine) CloseWaf() {
 	//重置信息
 	waf.HostTarget = map[string]*wafenginmodel.HostSafe{}
 	waf.HostCode = map[string]string{}
+	waf.HostTargetNoPort = map[string]string{}
 	waf.ServerOnline = map[int]innerbean.ServerRunTime{}
 	waf.AllCertificate = map[int]map[string]*tls.Certificate{}
 
@@ -809,6 +825,17 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) innerbean.ServerRunTime {
 	waf.HostTarget[inHost.Host+":"+strconv.Itoa(inHost.Port)] = hostsafe
 	//赋值到对照表里面
 	waf.HostCode[inHost.Code] = inHost.Host + ":" + strconv.Itoa(inHost.Port)
+	//如果是不限制端口的情况
+	if inHost.UnrestrictedPort == 1 {
+		zlog.Debug("来源端口宽松模式")
+		waf.HostTargetNoPort[inHost.Host] = inHost.Host + ":" + strconv.Itoa(inHost.Port)
+	} else {
+		if _, ok := waf.HostTargetNoPort[inHost.Host]; ok {
+			zlog.Debug("来源端口严苛模式")
+			delete(waf.HostTargetNoPort, inHost.Host)
+		}
+
+	}
 
 	return waf.ServerOnline[inHost.Port]
 }

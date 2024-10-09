@@ -25,6 +25,7 @@ type ApiGroup struct {
 	CenterRouter
 	SensitiveRouter
 	LoadBalanceRouter
+	SslConfigRouter
 }
 type PublicApiGroup struct {
 	LoginRouter

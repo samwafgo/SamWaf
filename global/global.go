@@ -70,7 +70,7 @@ var (
 	GWAF_CHAN_MSG       = make(chan spec.ChanCommonHost, 10) //全局通讯包
 	GWAF_CHAN_UPDATE    = make(chan int, 10)                 //升级后处理链
 	GWAF_CHAN_SENSITIVE = make(chan int, 10)                 //敏感词处理链
-
+	GWAF_CHAN_SSL       = make(chan string, 10)              //证书处理链
 	/*****CACHE相关*********/
 	GCACHE_WAFCACHE      *cache.WafCache      //cache
 	GCACHE_WECHAT_ACCESS string          = "" //微信访问密钥

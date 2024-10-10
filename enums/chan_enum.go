@@ -12,4 +12,5 @@ const (
 	ChanTypeDelHost
 	ChanTypeSensitive
 	ChanTypeLoadBalance
+	ChanTypeSSL
 )

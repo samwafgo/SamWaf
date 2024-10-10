@@ -75,7 +75,11 @@ func (m *wafSystenService) Stop(s service.Service) error {
 func NeverExit(name string, f func()) {
 	defer func() {
 		if v := recover(); v != nil { // 侦测到一个恐慌
-			zlog.Info("协程%s崩溃了，准备重启一个", name)
+			stackBuf := make([]byte, 1024)
+			stackSize := runtime.Stack(stackBuf, false)
+			stackTrace := string(stackBuf[:stackSize])
+
+			zlog.Info(fmt.Sprintf("协程%s崩溃了，准备重启一个。 : %v, Stack Trace: %s", name, v, stackTrace))
 			go NeverExit(name, f) // 重启一个同功能协程
 		}
 	}()
@@ -144,6 +148,8 @@ func (m *wafSystenService) run() {
 		rversion = rversion + " linux"
 	} else if runtime.GOOS == "windows" {
 		rversion = rversion + " windows"
+	} else {
+		rversion = rversion + "  " + runtime.GOOS
 	}
 
 	zlog.Info(rversion)
@@ -260,6 +266,11 @@ func (m *wafSystenService) run() {
 	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(30).Minutes().Do(func() {
 		go waftask.TaskHistoryDownload()
 
+	})
+
+	//每天早晨3点进行执行ssl证书的处理
+	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Day().At("03:00").Do(func() {
+		go waftask.SSLReload()
 	})
 
 	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.StartAsync()
@@ -425,6 +436,12 @@ func (m *wafSystenService) run() {
 					break
 				case enums.ChanTypeLoadBalance:
 					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ClearProxy(msg.HostCode)
+					break
+				case enums.ChanTypeSSL:
+					host := msg.Content.(model.Hosts)
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(host, true)
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.LoadHost(host)
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartAllProxyServer()
 					break
 				}
 

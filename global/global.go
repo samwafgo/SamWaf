@@ -98,7 +98,7 @@ var (
 	GCONFIG_RECORD_MAX_RES_BODY_LENGTH int64  = 1024 * 4                    //限制记录最大响应的body长度 record_max_rep_body_length
 	GCONFIG_RECORD_RESP                int64  = 0                           // 是否记录响应记录 record_resp
 	GCONFIG_RECORD_PROXY_HEADER        string = "X-Forwarded-For,X-Real-IP" //配置获取IP头信息
-
+	GCONFIG_RECORD_AUTO_LOAD_SSL       int64  = 1                           //是否每天凌晨3点自动加载ssl证书
 	//升级相关
 	GUPDATE_VERSION_URL string = "https://update.samwaf.com/" //
 

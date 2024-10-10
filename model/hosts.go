@@ -24,6 +24,8 @@ type Hosts struct {
 	IsEnableLoadBalance int    `json:"is_enable_load_balance"` //是否激活负载  1 激活  非1 没有激活
 	LoadBalanceStage    int    `json:"load_balance_stage"`     //负载策略
 	UnrestrictedPort    int    `json:"unrestricted_port"`      //不限来源匹配端口 0 限制 1，不限制
+	BindSslId           string `json:"bind_ssl_id"`            //绑定SSL的ID
+
 }
 
 type HostsDefense struct {

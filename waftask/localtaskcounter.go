@@ -6,18 +6,15 @@ import (
 	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
-	"SamWaf/model/request"
 	"SamWaf/service/waf_service"
 	"SamWaf/utils"
 	"SamWaf/utils/zlog"
-	"SamWaf/wafdb"
 	"SamWaf/wafsec"
 	"SamWaf/wechat"
 	"encoding/json"
 	"fmt"
 	uuid "github.com/satori/go.uuid"
 	"os"
-	"strconv"
 	"time"
 )
 
@@ -279,175 +276,6 @@ func TaskDeleteHistoryInfo() {
 	waf_service.WafLogServiceApp.DeleteHistory(deleteBeforeDay)
 }
 
-// 加载配置数据
-func TaskLoadSetting() {
-	zlog.Debug("TaskLoadSetting")
-	configItem := wafSystemConfigService.GetDetailByItem("record_max_req_body_length")
-	if configItem.Id != "" {
-		value, err := strconv.ParseInt(configItem.Value, 10, 0)
-		if err == nil {
-			if global.GCONFIG_RECORD_MAX_BODY_LENGTH != value {
-				global.GCONFIG_RECORD_MAX_BODY_LENGTH = value
-			}
-		}
-	} else {
-		wafSystemConfigAddReq := request.WafSystemConfigAddReq{
-			Item:     "record_max_req_body_length",
-			Value:    strconv.FormatInt(global.GCONFIG_RECORD_MAX_BODY_LENGTH, 10),
-			Remarks:  "记录请求最大报文",
-			ItemType: "int",
-		}
-		wafSystemConfigService.AddApi(wafSystemConfigAddReq)
-	}
-
-	configItem = wafSystemConfigService.GetDetailByItem("record_max_rep_body_length")
-	if configItem.Id != "" {
-		value, err := strconv.ParseInt(configItem.Value, 10, 0)
-		if err == nil {
-			if global.GCONFIG_RECORD_MAX_RES_BODY_LENGTH != value {
-				global.GCONFIG_RECORD_MAX_RES_BODY_LENGTH = value
-			}
-		}
-	} else {
-		wafSystemConfigAddReq := request.WafSystemConfigAddReq{
-			Item:     "record_max_rep_body_length",
-			Value:    strconv.FormatInt(global.GCONFIG_RECORD_MAX_RES_BODY_LENGTH, 10),
-			Remarks:  "如果可以记录，满足最大响应报文大小才记录",
-			ItemType: "int",
-		}
-		wafSystemConfigService.AddApi(wafSystemConfigAddReq)
-	}
-	configItem = wafSystemConfigService.GetDetailByItem("record_resp")
-	if configItem.Id != "" {
-		value, err := strconv.ParseInt(configItem.Value, 10, 0)
-		if err == nil {
-			if global.GCONFIG_RECORD_RESP != value {
-				global.GCONFIG_RECORD_RESP = value
-			}
-		}
-	} else {
-		wafSystemConfigAddReq := request.WafSystemConfigAddReq{
-			Item:     "record_resp",
-			Value:    strconv.FormatInt(global.GCONFIG_RECORD_RESP, 10),
-			Remarks:  "是否记录响应报文",
-			ItemType: "int",
-		}
-		wafSystemConfigService.AddApi(wafSystemConfigAddReq)
-	}
-	configItem = wafSystemConfigService.GetDetailByItem("delete_history_log_day")
-	if configItem.Id != "" {
-		value, err := strconv.Atoi(configItem.Value)
-		if err == nil {
-			if global.GDATA_DELETE_INTERVAL != value {
-				global.GDATA_DELETE_INTERVAL = value
-			}
-		}
-	} else {
-		wafSystemConfigAddReq := request.WafSystemConfigAddReq{
-			Item:     "delete_history_log_day",
-			Value:    strconv.Itoa(global.GDATA_DELETE_INTERVAL),
-			Remarks:  "删除多少天前的日志数据(单位:天)",
-			ItemType: "int",
-		}
-		wafSystemConfigService.AddApi(wafSystemConfigAddReq)
-	}
-
-	configItem = wafSystemConfigService.GetDetailByItem("log_db_size")
-	if configItem.Id != "" {
-		value, err := strconv.ParseInt(configItem.Value, 10, 64)
-		if err == nil {
-			if global.GDATA_SHARE_DB_SIZE != value {
-				global.GDATA_SHARE_DB_SIZE = value
-			}
-		}
-	} else {
-		wafSystemConfigAddReq := request.WafSystemConfigAddReq{
-			Item:     "log_db_size",
-			Value:    strconv.FormatInt(global.GDATA_SHARE_DB_SIZE, 10),
-			Remarks:  "日志归档最大记录数量",
-			ItemType: "int",
-		}
-		wafSystemConfigService.AddApi(wafSystemConfigAddReq)
-	}
-
-	//dns查询
-	configItem = wafSystemConfigService.GetDetailByItem("dns_server")
-	if configItem.Id != "" {
-		if global.GWAF_RUNTIME_DNS_SERVER != configItem.Value {
-			global.GWAF_RUNTIME_DNS_SERVER = configItem.Value
-		}
-	} else {
-		wafSystemConfigService.AddApi(request.WafSystemConfigAddReq{
-			Item:     "dns_server",
-			Value:    global.GWAF_RUNTIME_DNS_SERVER,
-			Remarks:  "DNS服务器",
-			ItemType: "options",
-			Options:  "119.29.29.29|腾讯DNS,8.8.8.8|谷歌DNS",
-		})
-	}
-
-	//日志记录类型
-	configItem = wafSystemConfigService.GetDetailByItem("record_log_type")
-	if configItem.Id != "" {
-		if global.GWAF_RUNTIME_RECORD_LOG_TYPE != configItem.Value {
-			global.GWAF_RUNTIME_RECORD_LOG_TYPE = configItem.Value
-		}
-	} else {
-		wafSystemConfigService.AddApi(request.WafSystemConfigAddReq{
-			Item:     "record_log_type",
-			Value:    global.GWAF_RUNTIME_RECORD_LOG_TYPE,
-			Remarks:  "日志记录类型",
-			ItemType: "options",
-			Options:  "all|全部,abnormal|非正常",
-		})
-	}
-	//控制中心-开关
-	configItem = wafSystemConfigService.GetDetailByItem("gwaf_center_enable")
-	if configItem.Id != "" {
-		if global.GWAF_CENTER_ENABLE != configItem.Value {
-			global.GWAF_CENTER_ENABLE = configItem.Value
-		}
-	} else {
-		wafSystemConfigService.AddApi(request.WafSystemConfigAddReq{
-			Item:     "gwaf_center_enable",
-			Value:    global.GWAF_CENTER_ENABLE,
-			Remarks:  "中心开关",
-			ItemType: "bool",
-			Options:  "false|关闭,true|开启",
-		})
-	}
-	//控制中心-中心url
-	configItem = wafSystemConfigService.GetDetailByItem("gwaf_center_url")
-	if configItem.Id != "" {
-		if global.GWAF_CENTER_URL != configItem.Value {
-			global.GWAF_CENTER_URL = configItem.Value
-		}
-	} else {
-		wafSystemConfigService.AddApi(request.WafSystemConfigAddReq{
-			Item:     "gwaf_center_url",
-			Value:    global.GWAF_CENTER_URL,
-			Remarks:  "中心URL",
-			ItemType: "string",
-			Options:  "",
-		})
-	}
-	//获取用户IP头方式
-	configItem = wafSystemConfigService.GetDetailByItem("gwaf_proxy_header")
-	if configItem.Id != "" {
-		if global.GCONFIG_RECORD_PROXY_HEADER != configItem.Value {
-			global.GCONFIG_RECORD_PROXY_HEADER = configItem.Value
-		}
-	} else {
-		wafSystemConfigService.AddApi(request.WafSystemConfigAddReq{
-			Item:     "gwaf_proxy_header",
-			Value:    global.GCONFIG_RECORD_PROXY_HEADER,
-			Remarks:  "获取访客IP头信息（按照顺序）",
-			ItemType: "string",
-			Options:  "",
-		})
-	}
-}
-
 /*
 *
 定时发送延迟信息
@@ -500,99 +328,6 @@ func TaskDelayInfo() {
 			}
 		}
 	}
-}
-
-// 检测库是否切换
-func TaskShareDbInfo() {
-	zlog.Info("检测是否需要进行分库")
-	if global.GDATA_CURRENT_CHANGE {
-		//如果正在切换库 跳过
-		zlog.Debug("切库状态")
-		return
-	}
-	if global.GWAF_LOCAL_DB == nil || global.GWAF_LOCAL_LOG_DB == nil {
-		zlog.Debug("数据库没有初始化完成呢")
-		return
-	}
-	//获取当前日志数量
-	var total int64 = 0
-	global.GWAF_LOCAL_LOG_DB.Model(&innerbean.WebLog{}).Count(&total)
-	if total > global.GDATA_SHARE_DB_SIZE {
-		global.GDATA_CURRENT_CHANGE = true
-		oldDBFilename := "local_log.db"
-		newDBFilename := fmt.Sprintf("local_log_%v.db", time.Now().Format("20060102150405"))
-
-		var lastedDb model.ShareDb
-		err := global.GWAF_LOCAL_DB.Limit(1).Order("create_time desc").Find(&lastedDb).Error
-		startTime := customtype.JsonTime(time.Now())
-		if err == nil {
-			startTime = lastedDb.EndTime
-		}
-		sharDbBean := model.ShareDb{
-			BaseOrm: baseorm.BaseOrm{
-				Id:          uuid.NewV4().String(),
-				USER_CODE:   global.GWAF_USER_CODE,
-				Tenant_ID:   global.GWAF_TENANT_ID,
-				CREATE_TIME: customtype.JsonTime(time.Now()),
-				UPDATE_TIME: customtype.JsonTime(time.Now()),
-			},
-			DbLogicType: "log",
-			StartTime:   startTime,
-			EndTime:     customtype.JsonTime(time.Now()),
-			FileName:    newDBFilename,
-			Cnt:         total,
-		}
-
-		currentDir := utils.GetCurrentDir()
-		oldDBFilename = currentDir + "/data/" + oldDBFilename
-		newDBFilename = currentDir + "/data/" + newDBFilename
-		zlog.Info("正在切库中...")
-		sqlDB, err := global.GWAF_LOCAL_LOG_DB.DB()
-
-		if err != nil {
-			zlog.Error("切换关闭时候错误", err)
-		} else {
-
-			// 关闭数据库连接
-			if err := sqlDB.Close(); err != nil {
-				zlog.Error("切换关闭时候错误", err)
-			}
-		}
-		var testTotal int64
-		for {
-			testError := global.GWAF_LOCAL_LOG_DB.Model(&innerbean.WebLog{}).Count(&testTotal).Error
-			if testError != nil {
-				zlog.Error("检测数据", testError)
-				break
-			}
-			time.Sleep(1 * time.Second)
-		}
-
-		// 关闭与数据库相关的连接或程序
-		// 重命名数据库文件
-		if err := os.Rename(oldDBFilename, newDBFilename); err != nil {
-			zlog.Error("Error renaming database file:", err)
-		}
-
-		// 重命名 .db-shm 文件
-		if err := os.Rename(oldDBFilename+"-shm", newDBFilename+"-shm"); err != nil {
-			zlog.Error("Error renaming .db-shm file:", err)
-			// 如果有必要，可以选择回滚数据库文件的重命名
-
-		}
-
-		// 重命名 .db-wal 文件
-		if err := os.Rename(oldDBFilename+"-wal", newDBFilename+"-wal"); err != nil {
-			zlog.Error("Error renaming .db-wal file:", err)
-			// 如果有必要，可以选择回滚数据库文件的重命名
-		}
-		global.GWAF_LOCAL_DB.Create(sharDbBean)
-		global.GWAF_LOCAL_LOG_DB = nil
-		wafdb.InitLogDb("")
-		global.GDATA_CURRENT_CHANGE = false
-		zlog.Info("切库完成...")
-	}
-
 }
 
 // 删除老旧数据

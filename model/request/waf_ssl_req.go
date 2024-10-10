@@ -12,10 +12,10 @@ type SslConfigEditReq struct {
 	KeyContent  string `json:"key_content" form:"key_content"`   // 密钥文件内容
 }
 type SslConfigDetailReq struct {
-	Id string `json:"id"`
+	Id string `json:"id"   form:"id"`
 }
 type SslConfigDeleteReq struct {
-	Id string `json:"id"`
+	Id string `json:"id"   form:"id"`
 }
 type SslConfigSearchReq struct {
 	Domains string `json:"domains"` // 证书适用的域名

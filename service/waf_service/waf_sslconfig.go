@@ -6,11 +6,14 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
+	"SamWaf/model/response"
+	"SamWaf/utils"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
 	"github.com/satori/go.uuid"
 	"gorm.io/gorm"
+	"path/filepath"
 	"time"
 )
 
@@ -47,7 +50,7 @@ func (receiver *WafSslConfigService) AddApi(req request.SslConfigAddReq) error {
 		domains = "未指定域名"
 	}
 	err = receiver.CheckIsExistApi(serialNo)
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+	if err == nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return errors.New("证书已存在")
 	}
 	var bean = &model.SslConfig{
@@ -69,6 +72,11 @@ func (receiver *WafSslConfigService) AddApi(req request.SslConfigAddReq) error {
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
 	return nil
+}
+
+func (receiver *WafSslConfigService) AddInner(config model.SslConfig) {
+	config.Id = uuid.NewV4().String()
+	global.GWAF_LOCAL_DB.Create(config)
 }
 
 func (receiver *WafSslConfigService) CheckIsExistApi(serialNo string) error {
@@ -126,14 +134,42 @@ func (receiver *WafSslConfigService) ModifyApi(req request.SslConfigEditReq) err
 	return err
 }
 
-// GetDetailApi gets the SSL configuration details by its ID
-func (receiver *WafSslConfigService) GetDetailApi(req request.SslConfigDetailReq) model.SslConfig {
-	var bean model.SslConfig
-	global.GWAF_LOCAL_DB.Where("id=?", req.Id).Find(&bean)
-	return bean
+func (receiver *WafSslConfigService) ModifyInner(config model.SslConfig) error {
+	beanMap := map[string]interface{}{
+		"CertContent": config.CertContent,
+		"KeyContent":  config.KeyContent,
+		"SerialNo":    config.SerialNo,
+		"Subject":     config.Subject,
+		"Issuer":      config.Issuer,
+		"ValidFrom":   config.ValidFrom,
+		"ValidTo":     config.ValidTo,
+		"Domains":     config.Domains,
+		"UPDATE_TIME": customtype.JsonTime(time.Now()),
+	}
+	err := global.GWAF_LOCAL_DB.Model(model.SslConfig{}).Where("id = ?", config.Id).Updates(beanMap).Error
+	return err
 }
 
-func (receiver *WafSslConfigService) GetListApi(req request.SslConfigSearchReq) ([]model.SslConfig, int64, error) {
+// GetDetailApi gets the SSL configuration details by its ID
+func (receiver *WafSslConfigService) GetDetailApi(req request.SslConfigDetailReq) response.WafSslConfigRep {
+	var bean model.SslConfig
+	global.GWAF_LOCAL_DB.Where("id=?", req.Id).Find(&bean)
+	rep := response.WafSslConfigRep{
+		SslConfig:      bean,
+		KeyPath:        filepath.Join(utils.GetCurrentDir(), bean.Id, "domain.key"),
+		CertPath:       filepath.Join(utils.GetCurrentDir(), bean.Id, "domain.cert"),
+		ExpirationInfo: bean.ExpirationMessage(),
+	}
+	return rep
+}
+
+// GetDetailInner 获取详情信息
+func (receiver *WafSslConfigService) GetDetailInner(id string) model.SslConfig {
+	var bean model.SslConfig
+	global.GWAF_LOCAL_DB.Where("id=?", id).Find(&bean)
+	return bean
+}
+func (receiver *WafSslConfigService) GetListApi(req request.SslConfigSearchReq) ([]response.WafSslConfigRep, int64, error) {
 	var list []model.SslConfig
 	var total int64 = 0
 	var whereField = ""
@@ -147,7 +183,47 @@ func (receiver *WafSslConfigService) GetListApi(req request.SslConfigSearchReq) 
 	global.GWAF_LOCAL_DB.Model(&model.SslConfig{}).Where(whereField, whereValues...).Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Order("valid_to desc").Find(&list)
 	global.GWAF_LOCAL_DB.Model(&model.SslConfig{}).Where(whereField, whereValues...).Count(&total)
 
-	return list, total, nil
+	// 初始化返回结果列表
+	var repList []response.WafSslConfigRep
+
+	// 遍历查询结果，构建返回数据
+	for _, sslConfig := range list {
+		rep := response.WafSslConfigRep{
+			SslConfig:      sslConfig,
+			KeyPath:        filepath.Join(utils.GetCurrentDir(), "ssl", sslConfig.Id, "domain.key"),
+			CertPath:       filepath.Join(utils.GetCurrentDir(), "ssl", sslConfig.Id, "domain.crt"),
+			ExpirationInfo: sslConfig.ExpirationMessage(),
+		}
+		repList = append(repList, rep)
+	}
+
+	return repList, total, nil
+}
+
+func (receiver *WafSslConfigService) GetAllListInner() ([]response.WafSslConfigRep, int64, error) {
+	var list []model.SslConfig
+	var total int64 = 0
+	var whereField = ""
+	var whereValues []interface{}
+
+	global.GWAF_LOCAL_DB.Model(&model.SslConfig{}).Where(whereField, whereValues...).Order("valid_to desc").Find(&list)
+	global.GWAF_LOCAL_DB.Model(&model.SslConfig{}).Where(whereField, whereValues...).Count(&total)
+
+	// 初始化返回结果列表
+	var repList []response.WafSslConfigRep
+
+	// 遍历查询结果，构建返回数据
+	for _, sslConfig := range list {
+		rep := response.WafSslConfigRep{
+			SslConfig:      sslConfig,
+			KeyPath:        filepath.Join(utils.GetCurrentDir(), "ssl", sslConfig.Id, "domain.key"),
+			CertPath:       filepath.Join(utils.GetCurrentDir(), "ssl", sslConfig.Id, "domain.crt"),
+			ExpirationInfo: sslConfig.ExpirationMessage(),
+		}
+		repList = append(repList, rep)
+	}
+
+	return repList, total, nil
 }
 
 func (receiver *WafSslConfigService) DelApi(req request.SslConfigDeleteReq) error {

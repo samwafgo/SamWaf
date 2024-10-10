@@ -50,6 +50,7 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 		IsEnableLoadBalance: wafHostAddReq.IsEnableLoadBalance,
 		LoadBalanceStage:    wafHostAddReq.LoadBalanceStage,
 		UnrestrictedPort:    wafHostAddReq.UnrestrictedPort,
+		BindSslId:           wafHostAddReq.BindSslId,
 	}
 	global.GWAF_LOCAL_DB.Create(wafHost)
 	return wafHost.Code, nil
@@ -92,6 +93,7 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 		"IsEnableLoadBalance": wafHostEditReq.IsEnableLoadBalance,
 		"LoadBalanceStage":    wafHostEditReq.LoadBalanceStage,
 		"UnrestrictedPort":    wafHostEditReq.UnrestrictedPort,
+		"BindSslId":           wafHostEditReq.BindSslId,
 	}
 	err := global.GWAF_LOCAL_DB.Debug().Model(model.Hosts{}).Where("CODE=?", wafHostEditReq.CODE).Updates(hostMap).Error
 
@@ -212,4 +214,22 @@ func (receiver *WafHostService) IsEmptyHost() bool {
 	} else {
 		return false
 	}
+}
+
+// GetHostBySSLConfigId 通过SSL绑定ID获取主机信息
+func (receiver *WafHostService) GetHostBySSLConfigId(sslId string) []model.Hosts {
+	var webHosts []model.Hosts
+	global.GWAF_LOCAL_DB.Where("bind_ssl_id=?", sslId).Find(&webHosts)
+	return webHosts
+}
+
+// UpdateSSLInfo 更新ssl证书信息
+func (receiver *WafHostService) UpdateSSLInfo(certContent string, keyContent string, hostCode string) error {
+	hostMap := map[string]interface{}{
+		"Certfile":    certContent,
+		"Keyfile":     keyContent,
+		"UPDATE_TIME": customtype.JsonTime(time.Now()),
+	}
+	err := global.GWAF_LOCAL_DB.Debug().Model(model.Hosts{}).Where("CODE=?", hostCode).Updates(hostMap).Error
+	return err
 }

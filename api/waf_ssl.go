@@ -1,9 +1,13 @@
 package api
 
 import (
+	"SamWaf/enums"
 	"SamWaf/global"
+	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
+	"SamWaf/model/spec"
+	"SamWaf/utils/zlog"
 	"errors"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -68,7 +72,6 @@ func (s *WafSslConfigApi) DelSslConfigApi(c *gin.Context) {
 		} else if err != nil {
 			response.FailWithMessage("发生错误", c)
 		} else {
-			s.NotifySslUpdate(req.Id)
 			response.OkWithMessage("删除成功", c)
 		}
 	} else {
@@ -81,11 +84,15 @@ func (s *WafSslConfigApi) ModifySslConfigApi(c *gin.Context) {
 	var req request.SslConfigEditReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		oldSslBean := wafSslConfigService.GetDetailInner(req.Id)
 		err = wafSslConfigService.ModifyApi(req)
 		if err != nil {
 			response.FailWithMessage("编辑发生错误", c)
 		} else {
-			s.NotifySslUpdate(req.Id)
+			newSslBean := wafSslConfigService.GetDetailInner(req.Id)
+			if oldSslBean.SerialNo != newSslBean.SerialNo {
+				s.NotifySslUpdate(oldSslBean, newSslBean)
+			}
 			response.OkWithMessage("编辑成功", c)
 		}
 	} else {
@@ -93,10 +100,22 @@ func (s *WafSslConfigApi) ModifySslConfigApi(c *gin.Context) {
 	}
 }
 
-/*
-*
-通知到SSL引擎使其配置实时生效
-*/
-func (s *WafSslConfigApi) NotifySslUpdate(id string) {
-	global.GWAF_CHAN_SSL <- id
+// NotifySslUpdate 通知到SSL引擎使其配置实时生效
+func (s *WafSslConfigApi) NotifySslUpdate(oldConfig model.SslConfig, newConfig model.SslConfig) {
+	innerLogName := "NotifySslUpdate"
+	for _, hosts := range wafHostService.GetHostBySSLConfigId(oldConfig.Id) {
+		//1.更新主机信息 2.发送主机通知
+		err := wafHostService.UpdateSSLInfo(newConfig.CertContent, newConfig.KeyContent, hosts.Code)
+		if err != nil {
+			zlog.Error(innerLogName, "ssl host update:", err.Error())
+			continue
+		}
+		var chanInfo = spec.ChanCommonHost{
+			HostCode:   hosts.Code,
+			Type:       enums.ChanTypeSSL,
+			Content:    hosts,
+			OldContent: hosts,
+		}
+		global.GWAF_CHAN_MSG <- chanInfo
+	}
 }

@@ -12,6 +12,8 @@ services:
       - ./conf:/app/conf
       - ./data:/app/data
       - ./logs:/app/logs
+      - ./ssl:/app/ssl
+
     networks:
       - samwafnet
     restart: always

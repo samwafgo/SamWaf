@@ -9,8 +9,8 @@ COPY release/SamWafLinux64 .
 # 设置执行权限
 RUN chmod +x SamWafLinux64
 
-# 挂载 conf, data, 和 logs 目录
-VOLUME ["/app/conf", "/app/data", "/app/logs"]
+# 挂载 conf, data,  logs 和ssl 目录
+VOLUME ["/app/conf", "/app/data", "/app/logs", "/app/ssl"]
 
 # 暴露端口
 EXPOSE 26666 80 443

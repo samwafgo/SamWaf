@@ -82,7 +82,7 @@ Bench finished, {count: 3419215, failed: 0, took: 3m48.3903262s}
 - 1.替换后 通过日志查看
  
 
-![SamWaf Architecture](/docs/common_images/ipchange.png)
+![SamWaf ipchange](./common_images/ipchange.png)
 
 - 2.测试数据库查询是否正常，也可以用工具先看看：
 

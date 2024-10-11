@@ -13,6 +13,11 @@ https://github.com/samwafgo/ip2region/releases
 
 - 1.编辑
 
+下载一份原始ip数据
+
+https://github.com/lionsoul2014/ip2region/blob/master/data/ip.merge.txt
+
+
 ```
 xdb_maker.exe edit --src=./ip.merge.txt
 

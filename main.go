@@ -28,11 +28,13 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 	"gorm.io/gorm"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -103,7 +105,22 @@ func (m *wafSystenService) run() {
 	//初始化步骤[加载ip数据库]
 	// 从嵌入的文件中读取内容
 
-	global.GCACHE_IP_CBUFF = Ip2regionBytes
+	// 拼接文件路径
+	ip2RegionFilePath := filepath.Join(utils.GetCurrentDir(), "data", "ip2region.xdb")
+	// 检查文件是否存在
+	if _, err := os.Stat(ip2RegionFilePath); os.IsNotExist(err) {
+		global.GCACHE_IP_CBUFF = Ip2regionBytes
+	} else {
+		// 读取文件内容
+		fileBytes, err := ioutil.ReadFile(ip2RegionFilePath)
+		if err != nil {
+			log.Fatalf("Failed to read IP database file ip2region.xdb: %v", err)
+		}
+		global.GCACHE_IP_CBUFF = fileBytes
+		// 检查是否成功读取
+		zlog.Info("IP database ip2region.xdb loaded into cache, size: ", len(global.GCACHE_IP_CBUFF), ip2RegionFilePath)
+	}
+
 	global.GWAF_DLP_CONFIG = ldpConfig
 	global.GWAF_REG_PUBLIC_KEY = publicKey
 

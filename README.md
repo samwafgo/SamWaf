@@ -221,6 +221,10 @@ How to Compile
 ## Tested and Supported Platforms
 [Tested and Supported Platforms](./docs/Tested_supported_systems.md)
 
+## Other Info 
+
+- [Update IP Database](./docs/ipmodify.md)
+
 ## Testing Results
 [Testing Results](./test/attackTest.md)
 

@@ -219,6 +219,10 @@ How to compile
 ## 已测试支持的平台
 [已测试支持的平台](./docs/Tested_supported_systems.md)
 
+## 其它信息
+
+- [更新IP数据库](./docs/ipmodify.md)
+ 
 ## 测试效果
 [测试效果](./test/attackTest.md)
 

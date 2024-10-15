@@ -47,7 +47,7 @@ jobs:
           CGO_ENABLED: 1
           CC: x86_64-w64-mingw32-gcc
           CXX: x86_64-w64-mingw32-g++
-          CGO_CFLAGS: -Wno-unused-variable
+          CGO_CFLAGS: -Wno-unused-variable -Wno-error=implicit-function-declaration
         run: |
           go build -ldflags="-X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=v1.3.6 -s -w" -o ./release/SamWaf64W7.exe main.go
       - name: Archive artifacts

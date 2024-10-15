@@ -44,6 +44,8 @@ jobs:
         run: echo "CURRENT_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
       - name: Build Win7/Win8/Windows2008r2
         env:
+          GOOS: windows
+          GOARCH: amd64
           CGO_ENABLED: 1
           CC: x86_64-w64-mingw32-gcc
           CXX: x86_64-w64-mingw32-g++

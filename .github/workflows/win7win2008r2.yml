@@ -36,10 +36,10 @@ jobs:
       - name: Revert Golang1.23 commit for Windows7/8
         run: |
           cd $(go env GOROOT)
-          patch --verbose -R -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go123/9ac42137ef6730e8b7daca016ece831297a1d75b.diff
-          patch --verbose -R -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go123/21290de8a4c91408de7c2b5b68757b1e90af49dd.diff
-          patch --verbose -R -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go123/6a31d3fa8e47ddabc10bd97bff10d9a85f4cfb76.diff
-          patch --verbose -R -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go123/69e2eed6dd0f6d815ebf15797761c13f31213dd6.diff 
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go123/9ac42137ef6730e8b7daca016ece831297a1d75b.diff
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go123/21290de8a4c91408de7c2b5b68757b1e90af49dd.diff
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go123/6a31d3fa8e47ddabc10bd97bff10d9a85f4cfb76.diff
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go123/69e2eed6dd0f6d815ebf15797761c13f31213dd6.diff
       - name: Get current tag
         run: echo "CURRENT_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
       - name: Build Win7/Win8/Windows2008r2

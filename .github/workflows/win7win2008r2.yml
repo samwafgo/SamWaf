@@ -49,7 +49,7 @@ jobs:
         run: echo "CURRENT_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
 
       - name: Set BUILDTIME environment variable
-        run: echo "BUILDTIME=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
+        run: echo "BUILDTIME=$(date +'%Y%m%d')" >> $GITHUB_ENV
 
       - name: Build Win7/Win8/Windows2008r2
         env:
@@ -62,7 +62,7 @@ jobs:
           BUILDTIME: ${{ env.BUILDTIME }}
           CURRENT_TAG: ${{ env.CURRENT_TAG }}
         run: |
-          go build -ldflags="-X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=${CURRENT_TAG} -s -w" -o ./release/SamWaf64W7.exe main.go
+          go build -ldflags="-X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=${CURRENT_TAG} -s -w -extldflags '-static'" -o ./release/SamWaf64W7.exe main.go
 
       - name: Archive artifacts
         uses: actions/upload-artifact@v4

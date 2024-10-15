@@ -44,7 +44,7 @@ jobs:
         run: echo "CURRENT_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
       - name: Build Win7/Win8/Windows2008r2
         run: |
-          go build -ldflags="-X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=v1.3.6 -s -w" -o %cd%/release/SamWaf64W7.exe main.go
+          go build -ldflags="-X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=v1.3.6 -s -w" -o ./release/SamWaf64W7.exe main.go
 
       - name: Archive  artifacts
         uses: actions/upload-artifact@v4

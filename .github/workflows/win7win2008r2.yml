@@ -27,7 +27,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 build-essential
       - name: DownLoad New SamWafWeb
-        run: | 
+        run: |
           curl -L https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
           tar -zxvf dist.tar.gz
           rm -rf public/dist
@@ -43,10 +43,14 @@ jobs:
       - name: Get current tag
         run: echo "CURRENT_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
       - name: Build Win7/Win8/Windows2008r2
+        env:
+          CGO_ENABLED: 1
+          CC: x86_64-w64-mingw32-gcc
+          CXX: x86_64-w64-mingw32-g++
+          CGO_CFLAGS: -Wno-unused-variable
         run: |
           go build -ldflags="-X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=v1.3.6 -s -w" -o ./release/SamWaf64W7.exe main.go
-
-      - name: Archive  artifacts
+      - name: Archive artifacts
         uses: actions/upload-artifact@v4
         with:
           path: |

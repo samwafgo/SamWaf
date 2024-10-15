@@ -1,0 +1,255 @@
+diff --git a/src/runtime/os_windows.go b/src/runtime/os_windows.go
+index d237858ca4c1a..79309ea93bf32 100644
+--- a/src/runtime/os_windows.go
++++ b/src/runtime/os_windows.go
+@@ -40,8 +40,8 @@ const (
+ //go:cgo_import_dynamic runtime._GetSystemInfo GetSystemInfo%1 "kernel32.dll"
+ //go:cgo_import_dynamic runtime._GetThreadContext GetThreadContext%2 "kernel32.dll"
+ //go:cgo_import_dynamic runtime._SetThreadContext SetThreadContext%2 "kernel32.dll"
+-//go:cgo_import_dynamic runtime._LoadLibraryExW LoadLibraryExW%3 "kernel32.dll"
+ //go:cgo_import_dynamic runtime._LoadLibraryW LoadLibraryW%1 "kernel32.dll"
++//go:cgo_import_dynamic runtime._LoadLibraryA LoadLibraryA%1 "kernel32.dll"
+ //go:cgo_import_dynamic runtime._PostQueuedCompletionStatus PostQueuedCompletionStatus%4 "kernel32.dll"
+ //go:cgo_import_dynamic runtime._QueryPerformanceCounter QueryPerformanceCounter%1 "kernel32.dll"
+ //go:cgo_import_dynamic runtime._RaiseFailFastException RaiseFailFastException%3 "kernel32.dll"
+@@ -74,7 +74,6 @@ var (
+ 	// Following syscalls are available on every Windows PC.
+ 	// All these variables are set by the Windows executable
+ 	// loader before the Go program starts.
+-	_AddVectoredContinueHandler,
+ 	_AddVectoredExceptionHandler,
+ 	_CloseHandle,
+ 	_CreateEventA,
+@@ -98,8 +97,8 @@ var (
+ 	_GetSystemInfo,
+ 	_GetThreadContext,
+ 	_SetThreadContext,
+-	_LoadLibraryExW,
+ 	_LoadLibraryW,
++	_LoadLibraryA,
+ 	_PostQueuedCompletionStatus,
+ 	_QueryPerformanceCounter,
+ 	_RaiseFailFastException,
+@@ -127,6 +126,14 @@ var (
+ 	_WriteFile,
+ 	_ stdFunction
+ 
++	// Following syscalls are only available on some Windows PCs.
++	// We will load syscalls, if available, before using them.
++	_AddDllDirectory,
++	_AddVectoredContinueHandler,
++	_LoadLibraryExA,
++	_LoadLibraryExW,
++	_ stdFunction
++
+ 	// Use RtlGenRandom to generate cryptographically random data.
+ 	// This approach has been recommended by Microsoft (see issue
+ 	// 15589 for details).
+@@ -150,14 +157,6 @@ var (
+ 	_ stdFunction
+ )
+ 
+-var (
+-	advapi32dll = [...]uint16{'a', 'd', 'v', 'a', 'p', 'i', '3', '2', '.', 'd', 'l', 'l', 0}
+-	ntdlldll    = [...]uint16{'n', 't', 'd', 'l', 'l', '.', 'd', 'l', 'l', 0}
+-	powrprofdll = [...]uint16{'p', 'o', 'w', 'r', 'p', 'r', 'o', 'f', '.', 'd', 'l', 'l', 0}
+-	winmmdll    = [...]uint16{'w', 'i', 'n', 'm', 'm', '.', 'd', 'l', 'l', 0}
+-	ws2_32dll   = [...]uint16{'w', 's', '2', '_', '3', '2', '.', 'd', 'l', 'l', 0}
+-)
+-
+ // Function to be called by windows CreateThread
+ // to start new os thread.
+ func tstart_stdcall(newm *m)
+@@ -246,25 +245,51 @@ func windows_GetSystemDirectory() string {
+ 	return unsafe.String(&sysDirectory[0], sysDirectoryLen)
+ }
+ 
+-func windowsLoadSystemLib(name []uint16) uintptr {
+-	return stdcall3(_LoadLibraryExW, uintptr(unsafe.Pointer(&name[0])), 0, _LOAD_LIBRARY_SEARCH_SYSTEM32)
++//go:linkname syscall_getSystemDirectory syscall.getSystemDirectory
++func syscall_getSystemDirectory() string {
++	return unsafe.String(&sysDirectory[0], sysDirectoryLen)
++}
++
++func windowsLoadSystemLib(name []byte) uintptr {
++	if useLoadLibraryEx {
++		return stdcall3(_LoadLibraryExA, uintptr(unsafe.Pointer(&name[0])), 0, _LOAD_LIBRARY_SEARCH_SYSTEM32)
++	} else {
++		absName := append(sysDirectory[:sysDirectoryLen], name...)
++		return stdcall1(_LoadLibraryA, uintptr(unsafe.Pointer(&absName[0])))
++	}
+ }
+ 
+ func loadOptionalSyscalls() {
+-	a32 := windowsLoadSystemLib(advapi32dll[:])
++	var kernel32dll = []byte("kernel32.dll\000")
++	k32 := stdcall1(_LoadLibraryA, uintptr(unsafe.Pointer(&kernel32dll[0])))
++	if k32 == 0 {
++		throw("kernel32.dll not found")
++	}
++	_AddDllDirectory = windowsFindfunc(k32, []byte("AddDllDirectory\000"))
++	_AddVectoredContinueHandler = windowsFindfunc(k32, []byte("AddVectoredContinueHandler\000"))
++	_LoadLibraryExA = windowsFindfunc(k32, []byte("LoadLibraryExA\000"))
++	_LoadLibraryExW = windowsFindfunc(k32, []byte("LoadLibraryExW\000"))
++	useLoadLibraryEx = (_LoadLibraryExW != nil && _LoadLibraryExA != nil && _AddDllDirectory != nil)
++
++	initSysDirectory()
++
++	var advapi32dll = []byte("advapi32.dll\000")
++	a32 := windowsLoadSystemLib(advapi32dll)
+ 	if a32 == 0 {
+ 		throw("advapi32.dll not found")
+ 	}
+ 	_RtlGenRandom = windowsFindfunc(a32, []byte("SystemFunction036\000"))
+ 
+-	n32 := windowsLoadSystemLib(ntdlldll[:])
++	var ntdll = []byte("ntdll.dll\000")
++	n32 := windowsLoadSystemLib(ntdll)
+ 	if n32 == 0 {
+ 		throw("ntdll.dll not found")
+ 	}
+ 	_RtlGetCurrentPeb = windowsFindfunc(n32, []byte("RtlGetCurrentPeb\000"))
+ 	_RtlGetNtVersionNumbers = windowsFindfunc(n32, []byte("RtlGetNtVersionNumbers\000"))
+ 
+-	m32 := windowsLoadSystemLib(winmmdll[:])
++	var winmmdll = []byte("winmm.dll\000")
++	m32 := windowsLoadSystemLib(winmmdll)
+ 	if m32 == 0 {
+ 		throw("winmm.dll not found")
+ 	}
+@@ -274,7 +299,8 @@ func loadOptionalSyscalls() {
+ 		throw("timeBegin/EndPeriod not found")
+ 	}
+ 
+-	ws232 := windowsLoadSystemLib(ws2_32dll[:])
++	var ws232dll = []byte("ws2_32.dll\000")
++	ws232 := windowsLoadSystemLib(ws232dll)
+ 	if ws232 == 0 {
+ 		throw("ws2_32.dll not found")
+ 	}
+@@ -293,7 +319,7 @@ func monitorSuspendResume() {
+ 		context  uintptr
+ 	}
+ 
+-	powrprof := windowsLoadSystemLib(powrprofdll[:])
++	powrprof := windowsLoadSystemLib([]byte("powrprof.dll\000"))
+ 	if powrprof == 0 {
+ 		return // Running on Windows 7, where we don't need it anyway.
+ 	}
+@@ -367,6 +393,22 @@ const (
+ // in sys_windows_386.s and sys_windows_amd64.s:
+ func getlasterror() uint32
+ 
++// When loading DLLs, we prefer to use LoadLibraryEx with
++// LOAD_LIBRARY_SEARCH_* flags, if available. LoadLibraryEx is not
++// available on old Windows, though, and the LOAD_LIBRARY_SEARCH_*
++// flags are not available on some versions of Windows without a
++// security patch.
++//
++// https://msdn.microsoft.com/en-us/library/ms684179(v=vs.85).aspx says:
++// "Windows 7, Windows Server 2008 R2, Windows Vista, and Windows
++// Server 2008: The LOAD_LIBRARY_SEARCH_* flags are available on
++// systems that have KB2533623 installed. To determine whether the
++// flags are available, use GetProcAddress to get the address of the
++// AddDllDirectory, RemoveDllDirectory, or SetDefaultDllDirectories
++// function. If GetProcAddress succeeds, the LOAD_LIBRARY_SEARCH_*
++// flags can be used with LoadLibraryEx."
++var useLoadLibraryEx bool
++
+ var timeBeginPeriodRetValue uint32
+ 
+ // osRelaxMinNS indicates that sysmon shouldn't osRelax if the next
+@@ -514,7 +556,6 @@ func osinit() {
+ 	initHighResTimer()
+ 	timeBeginPeriodRetValue = osRelax(false)
+ 
+-	initSysDirectory()
+ 	initLongPathSupport()
+ 
+ 	ncpu = getproccount()
+diff --git a/src/runtime/syscall_windows.go b/src/runtime/syscall_windows.go
+index ba88e93d7dc96..3c3dd777d3612 100644
+--- a/src/runtime/syscall_windows.go
++++ b/src/runtime/syscall_windows.go
+@@ -413,23 +413,36 @@ func callbackWrap(a *callbackArgs) {
+ 
+ const _LOAD_LIBRARY_SEARCH_SYSTEM32 = 0x00000800
+ 
++// When available, this function will use LoadLibraryEx with the filename
++// parameter and the important SEARCH_SYSTEM32 argument. But on systems that
++// do not have that option, absoluteFilepath should contain a fallback
++// to the full path inside of system32 for use with vanilla LoadLibrary.
++//
+ //go:linkname syscall_loadsystemlibrary syscall.loadsystemlibrary
+ //go:nosplit
+ //go:cgo_unsafe_args
+-func syscall_loadsystemlibrary(filename *uint16) (handle, err uintptr) {
++func syscall_loadsystemlibrary(filename *uint16, absoluteFilepath *uint16) (handle, err uintptr) {
+ 	lockOSThread()
+ 	c := &getg().m.syscall
+-	c.fn = getLoadLibraryEx()
+-	c.n = 3
+-	args := struct {
+-		lpFileName *uint16
+-		hFile      uintptr // always 0
+-		flags      uint32
+-	}{filename, 0, _LOAD_LIBRARY_SEARCH_SYSTEM32}
+-	c.args = uintptr(noescape(unsafe.Pointer(&args)))
++
++	if useLoadLibraryEx {
++		c.fn = getLoadLibraryEx()
++		c.n = 3
++		args := struct {
++			lpFileName *uint16
++			hFile      uintptr // always 0
++			flags      uint32
++		}{filename, 0, _LOAD_LIBRARY_SEARCH_SYSTEM32}
++		c.args = uintptr(noescape(unsafe.Pointer(&args)))
++	} else {
++		c.fn = getLoadLibrary()
++		c.n = 1
++		c.args = uintptr(noescape(unsafe.Pointer(&absoluteFilepath)))
++	}
+ 
+ 	cgocall(asmstdcallAddr, unsafe.Pointer(c))
+ 	KeepAlive(filename)
++	KeepAlive(absoluteFilepath)
+ 	handle = c.r1
+ 	if handle == 0 {
+ 		err = c.err
+diff --git a/src/syscall/dll_windows.go b/src/syscall/dll_windows.go
+index 5f62b5512cad7..82071fa5ab6ad 100644
+--- a/src/syscall/dll_windows.go
++++ b/src/syscall/dll_windows.go
+@@ -44,7 +44,7 @@ func Syscall18(trap, nargs, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a
+ 
+ func SyscallN(trap uintptr, args ...uintptr) (r1, r2 uintptr, err Errno)
+ func loadlibrary(filename *uint16) (handle uintptr, err Errno)
+-func loadsystemlibrary(filename *uint16) (handle uintptr, err Errno)
++func loadsystemlibrary(filename *uint16, absoluteFilepath *uint16) (handle uintptr, err Errno)
+ func getprocaddress(handle uintptr, procname *uint8) (proc uintptr, err Errno)
+ 
+ // A DLL implements access to a single DLL.
+@@ -53,6 +53,9 @@ type DLL struct {
+ 	Handle Handle
+ }
+ 
++//go:linkname getSystemDirectory
++func getSystemDirectory() string // Implemented in runtime package.
++
+ // LoadDLL loads the named DLL file into memory.
+ //
+ // If name is not an absolute path and is not a known system DLL used by
+@@ -69,7 +72,11 @@ func LoadDLL(name string) (*DLL, error) {
+ 	var h uintptr
+ 	var e Errno
+ 	if sysdll.IsSystemDLL[name] {
+-		h, e = loadsystemlibrary(namep)
++		absoluteFilepathp, err := UTF16PtrFromString(getSystemDirectory() + name)
++		if err != nil {
++			return nil, err
++		}
++		h, e = loadsystemlibrary(namep, absoluteFilepathp)
+ 	} else {
+ 		h, e = loadlibrary(namep)
+ 	}

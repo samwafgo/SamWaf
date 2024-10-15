@@ -35,6 +35,9 @@ jobs:
           rm -rf public/dist
           mv -f dist public
           rm -rf dist.tar.gz
+          ls
+          ls public
+          ls public/dist
 
       - name: Revert Golang1.23 commit for Windows7/8
         run: |

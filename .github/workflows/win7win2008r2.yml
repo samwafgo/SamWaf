@@ -1,4 +1,4 @@
-name: win7win2008r2
+name: win7win8win2008r2
 
 on:
   push:
@@ -67,5 +67,11 @@ jobs:
       - name: Archive artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: SamWaf64W7.exe
+          name: SamWaf64Win7_Win8_Win2008
           path: release/SamWaf64W7.exe
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            release/SamWaf64W7.exe

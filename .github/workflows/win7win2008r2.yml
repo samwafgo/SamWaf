@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  goreleaser:
+  win7win2008r2:
     runs-on: ubuntu-latest
     steps:
       -
@@ -19,7 +19,7 @@ jobs:
           fetch-depth: 0
       -
         name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: '1.23'
       - name: Install dependencies for Windows cross-compilation

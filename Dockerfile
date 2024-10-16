@@ -4,7 +4,7 @@ LABEL authors="samwaf"
 WORKDIR /app
 
 # 复制 release/SamWafLinux64 到镜像中
-COPY release/SamWafLinux64 .
+COPY dist/samwaf_linux_linux_amd64_v1/SamWafLinux64 ./SamWafLinux64
 
 # 设置执行权限
 RUN chmod +x SamWafLinux64

@@ -160,6 +160,7 @@ docker run -d --name=samwaf-instance \
            -v /path/to/your/conf:/app/conf \
            -v /path/to/your/data:/app/data \
            -v /path/to/your/logs:/app/logs \
+           -v /path/to/your/ssl:/app/ssl \
            samwaf/samwaf
 
 

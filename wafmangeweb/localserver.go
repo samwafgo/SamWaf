@@ -4,6 +4,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/middleware"
 	"SamWaf/router"
+	"SamWaf/utils/zlog"
 	"SamWaf/wafmangeweb/static"
 	"context"
 	"errors"
@@ -17,6 +18,7 @@ import (
 type WafWebManager struct {
 	HttpServer *http.Server
 	R          *gin.Engine
+	LogName    string
 }
 
 func (web *WafWebManager) initRouter(r *gin.Engine) {
@@ -60,6 +62,9 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		static.Static(r, func(handlers ...gin.HandlerFunc) {
 			r.NoRoute(handlers...)
 		})
+		zlog.Info(web.LogName, "use static asset")
+	} else {
+		zlog.Info(web.LogName, "no use static asset")
 	}
 
 }
@@ -98,10 +103,9 @@ func (web *WafWebManager) StartLocalServer() {
 		Handler: r,
 	}
 	if err := web.HttpServer.ListenAndServe(); err != nil && errors.Is(err, http.ErrServerClosed) {
-		log.Printf("listen: %s\n", err)
+		zlog.Error(web.LogName, "use static asset", err.Error())
 	}
-
-	log.Printf("本地 port:%d\n", global.GWAF_LOCAL_SERVER_PORT)
+	zlog.Info(web.LogName, "本地 port:", global.GWAF_LOCAL_SERVER_PORT)
 }
 
 /*
@@ -116,8 +120,7 @@ func (web *WafWebManager) CloseLocalServer() {
 	defer cancel()
 
 	if err := web.HttpServer.Shutdown(ctx); err != nil {
-		log.Fatal("Server forced to shutdown:", err)
+		zlog.Error(web.LogName, "Server forced to shutdown:", err.Error())
 	}
-
-	log.Println("local Server exiting")
+	zlog.Info(web.LogName, "local Server exiting")
 }

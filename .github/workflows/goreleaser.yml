@@ -56,6 +56,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 build-essential
 
+      - name: Install UPX
+        run: |
+          sudo apt-get install -y upx
+
       - name: DownLoad New SamWafWeb
         run: |
           curl -L https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
@@ -94,6 +98,10 @@ jobs:
           CURRENT_TAG: ${{ env.CURRENT_TAG }}
         run: |
           go build -ldflags="-X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=true -X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=${CURRENT_TAG} -s -w -extldflags '-static'" -o ./release/SamWaf64W7.exe main.go
+
+      - name: Compress executable with UPX
+        run: |
+          upx --best --lzma ./release/SamWaf64W7.exe
 
       - name: Archive artifacts
         uses: actions/upload-artifact@v4

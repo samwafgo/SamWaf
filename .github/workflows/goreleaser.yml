@@ -12,13 +12,11 @@ jobs:
   goreleaser:
     runs-on: ubuntu-latest
     steps:
-      -
-        name: Checkout
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      -
-        name: Set up Go
+      - name: Set up Go
         uses: actions/setup-go@v4
         with:
           go-version: '1.21.4'
@@ -26,8 +24,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 build-essential
-      -
-        name: Run GoReleaser
+      - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v4
         with:
           # either 'goreleaser' (default) or 'goreleaser-pro'
@@ -38,6 +35,41 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Your GoReleaser Pro key, if you are using the 'goreleaser-pro' distribution
           # GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+      - name: List Folder
+        run: |
+          ls
+          cd dist
+
+      # Build Docker Image
+      - name: Build Docker Image
+        run: |
+          docker build -t samwaf/samwaf:latest .
+          docker tag samwaf/samwaf:latest samwaf/samwaf:${{ github.ref }}
+
+      # Push Docker Image to Docker Hub
+      - name: Push Docker Image
+        run: |
+          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+          docker push samwaf/samwaf:latest
+          docker push samwaf/samwaf:${{ github.ref }}
+
+      # Test the Docker Image
+      - name: Test Docker Image
+        run: |
+          # Start the Docker container
+          docker run -d --name=samwaf-instance \
+            -p 26666:26666 \
+            samwaf/samwaf:latest
+
+          # Wait for a few seconds to allow the application to start
+          sleep 5
+
+          # Test the application by sending a request
+          curl -f http://localhost:26666 || (echo "Test failed" && exit 1)
+
+          # Optionally, stop and remove the container after testing
+          docker stop samwaf-instance
+          docker rm samwaf-instance
   win7win2008r2:
     runs-on: ubuntu-latest
     steps:

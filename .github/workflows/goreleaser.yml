@@ -97,21 +97,21 @@ jobs:
           BUILDTIME: ${{ env.BUILDTIME }}
           CURRENT_TAG: ${{ env.CURRENT_TAG }}
         run: |
-          go build -ldflags="-X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=true -X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=${CURRENT_TAG} -s -w -extldflags '-static'" -o ./release/SamWaf64W7.exe main.go
+          go build -ldflags="-X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=true -X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=${CURRENT_TAG} -s -w -extldflags '-static'" -o ./release/SamWaf64Win7Win8Win2008.exe main.go
 
       - name: Compress executable with UPX
         run: |
-          upx --best --lzma ./release/SamWaf64W7.exe
+          upx --best --lzma ./release/SamWaf64Win7Win8Win2008.exe
 
       - name: Archive artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: SamWaf64Win7_Win8_Win2008
-          path: release/SamWaf64W7.exe
+          name: SamWaf64Win7Win8Win2008_Win8_Win2008
+          path: release/SamWaf64Win7Win8Win2008.exe
       - name: Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            release/SamWaf64W7.exe
+            release/SamWaf64Win7Win8Win2008.exe
     needs: goreleaser

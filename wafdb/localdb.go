@@ -19,8 +19,8 @@ import (
 	"path/filepath"
 	"time"
 
-	//"github.com/kangarooxin/gorm-plugin-crypto"
-	//"github.com/kangarooxin/gorm-plugin-crypto/strategy"
+	//"github.com/kangarooxin/gorm-webplugin-crypto"
+	//"github.com/kangarooxin/gorm-webplugin-crypto/strategy"
 	gowxsqlite3 "github.com/pengge/go-wxsqlite3"
 	"github.com/pengge/sqlitedriver"
 	"gorm.io/gorm"

@@ -9,12 +9,12 @@ import (
 	"SamWaf/model/baseorm"
 	"SamWaf/model/detection"
 	"SamWaf/model/wafenginmodel"
-	"SamWaf/plugin"
 	"SamWaf/service/waf_service"
 	"SamWaf/utils"
 	"SamWaf/utils/zlog"
 	"SamWaf/wafenginecore/loadbalance"
 	"SamWaf/wafproxy"
+	"SamWaf/webplugin"
 	"bufio"
 	"bytes"
 	"compress/flate"
@@ -770,9 +770,9 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) innerbean.ServerRunTime {
 	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Limit(1).Find(&anticcBean)
 
 	//初始化插件-ip计数器
-	var pluginIpRateLimiter *plugin.IPRateLimiter
+	var pluginIpRateLimiter *webplugin.IPRateLimiter
 	if anticcBean.Id != "" {
-		pluginIpRateLimiter = plugin.NewIPRateLimiter(rate.Limit(anticcBean.Rate), anticcBean.Limit)
+		pluginIpRateLimiter = webplugin.NewIPRateLimiter(rate.Limit(anticcBean.Rate), anticcBean.Limit)
 	}
 
 	//查询ip白名单

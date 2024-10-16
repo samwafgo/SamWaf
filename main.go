@@ -8,7 +8,6 @@ import (
 	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/model/wafenginmodel"
-	"SamWaf/plugin"
 	"SamWaf/utils"
 	"SamWaf/utils/zlog"
 	"SamWaf/wafconfig"
@@ -19,6 +18,7 @@ import (
 	"SamWaf/wafsafeclear"
 	"SamWaf/wafsnowflake"
 	"SamWaf/waftask"
+	"SamWaf/webplugin"
 	"crypto/tls"
 	_ "embed"
 	"fmt"
@@ -394,7 +394,7 @@ func (m *wafSystenService) run() {
 					break
 				case enums.ChanTypeAnticc:
 					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Lock()
-					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].PluginIpRateLimiter = plugin.NewIPRateLimiter(rate.Limit(msg.Content.(model.AntiCC).Rate), msg.Content.(model.AntiCC).Limit)
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].PluginIpRateLimiter = webplugin.NewIPRateLimiter(rate.Limit(msg.Content.(model.AntiCC).Rate), msg.Content.(model.AntiCC).Limit)
 					zlog.Debug("远程配置", zap.Any("Anticc", msg.Content.(model.AntiCC)))
 					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Unlock()
 					break

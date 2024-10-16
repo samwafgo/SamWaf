@@ -1,0 +1,105 @@
+diff --git a/src/runtime/os_windows.go b/src/runtime/os_windows.go
+index 564b043fb7be0..2e293e99fe463 100644
+--- a/src/runtime/os_windows.go
++++ b/src/runtime/os_windows.go
+@@ -478,6 +478,28 @@ func initLongPathSupport() {
+ 	canUseLongPaths = true
+ }
+ 
++var osVersionInfo struct {
++	majorVersion uint32
++	minorVersion uint32
++	buildNumber  uint32
++}
++
++func initOsVersionInfo() {
++	info := _OSVERSIONINFOW{}
++	info.osVersionInfoSize = uint32(unsafe.Sizeof(info))
++	stdcall1(_RtlGetVersion, uintptr(unsafe.Pointer(&info)))
++	osVersionInfo.majorVersion = info.majorVersion
++	osVersionInfo.minorVersion = info.minorVersion
++	osVersionInfo.buildNumber = info.buildNumber
++}
++
++//go:linkname rtlGetNtVersionNumbers syscall.rtlGetNtVersionNumbers
++func rtlGetNtVersionNumbers(majorVersion *uint32, minorVersion *uint32, buildNumber *uint32) {
++	*majorVersion = osVersionInfo.majorVersion
++	*minorVersion = osVersionInfo.minorVersion
++	*buildNumber = osVersionInfo.buildNumber
++}
++
+ func osinit() {
+ 	asmstdcallAddr = unsafe.Pointer(abi.FuncPCABI0(asmstdcall))
+ 
+@@ -492,6 +514,7 @@ func osinit() {
+ 
+ 	initSysDirectory()
+ 	initLongPathSupport()
++	initOsVersionInfo()
+ 
+ 	ncpu = getproccount()
+ 
+diff --git a/src/syscall/exec_windows.go b/src/syscall/exec_windows.go
+index 9077d8aec57ca..65833c56362c8 100644
+--- a/src/syscall/exec_windows.go
++++ b/src/syscall/exec_windows.go
+@@ -253,6 +253,9 @@ type SysProcAttr struct {
+ var zeroProcAttr ProcAttr
+ var zeroSysProcAttr SysProcAttr
+ 
++//go:linkname rtlGetNtVersionNumbers
++func rtlGetNtVersionNumbers(majorVersion *uint32, minorVersion *uint32, buildNumber *uint32)
++
+ func StartProcess(argv0 string, argv []string, attr *ProcAttr) (pid int, handle uintptr, err error) {
+ 	if len(argv0) == 0 {
+ 		return 0, 0, EWINDOWS
+@@ -316,6 +319,17 @@ func StartProcess(argv0 string, argv []string, attr *ProcAttr) (pid int, handle
+ 		}
+ 	}
+ 
++	var maj, min, build uint32
++	rtlGetNtVersionNumbers(&maj, &min, &build)
++	isWin7 := maj < 6 || (maj == 6 && min <= 1)
++	// NT kernel handles are divisible by 4, with the bottom 3 bits left as
++	// a tag. The fully set tag correlates with the types of handles we're
++	// concerned about here.  Except, the kernel will interpret some
++	// special handle values, like -1, -2, and so forth, so kernelbase.dll
++	// checks to see that those bottom three bits are checked, but that top
++	// bit is not checked.
++	isLegacyWin7ConsoleHandle := func(handle Handle) bool { return isWin7 && handle&0x10000003 == 3 }
++
+ 	p, _ := GetCurrentProcess()
+ 	parentProcess := p
+ 	if sys.ParentProcess != 0 {
+@@ -324,7 +338,15 @@ func StartProcess(argv0 string, argv []string, attr *ProcAttr) (pid int, handle
+ 	fd := make([]Handle, len(attr.Files))
+ 	for i := range attr.Files {
+ 		if attr.Files[i] > 0 {
+-			err := DuplicateHandle(p, Handle(attr.Files[i]), parentProcess, &fd[i], 0, true, DUPLICATE_SAME_ACCESS)
++			destinationProcessHandle := parentProcess
++
++			// On Windows 7, console handles aren't real handles, and can only be duplicated
++			// into the current process, not a parent one, which amounts to the same thing.
++			if parentProcess != p && isLegacyWin7ConsoleHandle(Handle(attr.Files[i])) {
++				destinationProcessHandle = p
++			}
++
++			err := DuplicateHandle(p, Handle(attr.Files[i]), destinationProcessHandle, &fd[i], 0, true, DUPLICATE_SAME_ACCESS)
+ 			if err != nil {
+ 				return 0, 0, err
+ 			}
+@@ -355,6 +377,14 @@ func StartProcess(argv0 string, argv []string, attr *ProcAttr) (pid int, handle
+ 
+ 	fd = append(fd, sys.AdditionalInheritedHandles...)
+ 
++	// On Windows 7, console handles aren't real handles, so don't pass them
++	// through to PROC_THREAD_ATTRIBUTE_HANDLE_LIST.
++	for i := range fd {
++		if isLegacyWin7ConsoleHandle(fd[i]) {
++			fd[i] = 0
++		}
++	}
++
+ 	// The presence of a NULL handle in the list is enough to cause PROC_THREAD_ATTRIBUTE_HANDLE_LIST
+ 	// to treat the entire list as empty, so remove NULL handles.
+ 	j := 0

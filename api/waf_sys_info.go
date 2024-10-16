@@ -51,8 +51,6 @@ func (w *WafSysInfoApi) CheckVersionApi(c *gin.Context) {
 			VersionNew:     newVer,
 			VersionDesc:    desc,
 		}, "有新版本", c)
-		/*wafDelayMsgService.Add("升级结果", "升级结果", "升级成功，当前版本为："+global.GWAF_RUNTIME_NEW_VERSION+" 版本说明:"+global.GWAF_RUNTIME_NEW_VERSION_DESC)
-		waftask.TaskDelayInfo()*/
 	} else {
 		response.FailWithMessage("没有最新版本", c)
 		return
@@ -65,6 +63,10 @@ func (w *WafSysInfoApi) UpdateApi(c *gin.Context) {
 
 	if global.GWAF_RUNTIME_IS_UPDATETING == true {
 		response.OkWithMessage("正在升级中...请在消息等待结果", c)
+		return
+	}
+	if global.GWAF_RUNTIME_WIN7_VERSION == "true" {
+		response.OkWithMessage("您当前使用的是Win7内核版本，请手工下载版本升级。https://github.com/samwafgo/SamWaf/releases", c)
 		return
 	}
 	global.GWAF_RUNTIME_IS_UPDATETING = true

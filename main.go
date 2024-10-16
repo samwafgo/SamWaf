@@ -168,7 +168,9 @@ func (m *wafSystenService) run() {
 	} else {
 		rversion = rversion + "  " + runtime.GOOS
 	}
-
+	if global.GWAF_RUNTIME_WIN7_VERSION == "true" {
+		rversion = rversion + " Win7内核版本"
+	}
 	zlog.Info(rversion)
 	zlog.Info("OutIp", global.GWAF_RUNTIME_IP)
 
@@ -210,7 +212,7 @@ func (m *wafSystenService) run() {
 	globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartWaf()
 
 	//启动管理界面
-	webmanager = &wafmangeweb.WafWebManager{}
+	webmanager = &wafmangeweb.WafWebManager{LogName: "WebManager"}
 	go func() {
 		webmanager.StartLocalServer()
 	}()

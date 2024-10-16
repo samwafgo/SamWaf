@@ -38,3 +38,72 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Your GoReleaser Pro key, if you are using the 'goreleaser-pro' distribution
           # GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+  win7win2008r2:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Install dependencies for Windows cross-compilation
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 build-essential
+
+      - name: DownLoad New SamWafWeb
+        run: |
+          curl -L https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
+          tar -zxvf dist.tar.gz
+          rm -rf public/dist
+          mv -f dist public
+          rm -rf dist.tar.gz
+          ls
+          ls public
+          ls public/dist
+
+      - name: Revert Golang1.23 commit for Windows7/8
+        run: |
+          cd $(go env GOROOT)
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go123/9ac42137ef6730e8b7daca016ece831297a1d75b.diff
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go123/21290de8a4c91408de7c2b5b68757b1e90af49dd.diff
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go123/6a31d3fa8e47ddabc10bd97bff10d9a85f4cfb76.diff
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go123/69e2eed6dd0f6d815ebf15797761c13f31213dd6.diff
+
+      - name: Get current tag
+        id: get_tag
+        run: echo "CURRENT_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Set BUILDTIME environment variable
+        run: echo "BUILDTIME=$(date +'%Y%m%d')" >> $GITHUB_ENV
+
+      - name: Build Win7/Win8/Windows2008r2
+        env:
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: 1
+          CC: x86_64-w64-mingw32-gcc
+          CXX: x86_64-w64-mingw32-g++
+          CGO_CFLAGS: -Wno-unused-variable -Wno-implicit-function-declaration
+          BUILDTIME: ${{ env.BUILDTIME }}
+          CURRENT_TAG: ${{ env.CURRENT_TAG }}
+        run: |
+          go build -ldflags="-X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=true -X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=${CURRENT_TAG} -s -w -extldflags '-static'" -o ./release/SamWaf64W7.exe main.go
+
+      - name: Archive artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: SamWaf64Win7_Win8_Win2008
+          path: release/SamWaf64W7.exe
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            release/SamWaf64W7.exe
+    needs: goreleaser

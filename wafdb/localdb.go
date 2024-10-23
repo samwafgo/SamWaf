@@ -1,13 +1,13 @@
 package wafdb
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
 	"SamWaf/utils"
-	"SamWaf/utils/zlog"
 	"context"
 	"database/sql"
 	"fmt"
@@ -139,12 +139,14 @@ func InitCoreDb(currentDir string) {
 
 		//SSL证书
 		db.AutoMigrate(&model.SslConfig{})
+
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
 
 		//重启需要删除无效规则
 		db.Where("user_code = ? and rule_status = 999", global.GWAF_USER_CODE).Delete(model.Rules{})
 
+		pathCoreSql(db)
 	}
 }
 
@@ -181,6 +183,7 @@ func InitLogDb(currentDir string) {
 		global.GWAF_LOCAL_LOG_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 		global.GWAF_LOCAL_LOG_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
 
+		pathLogSql(db)
 		var total int64 = 0
 		global.GWAF_LOCAL_DB.Model(&model.ShareDb{}).Count(&total)
 		if total == 0 {

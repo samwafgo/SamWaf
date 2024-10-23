@@ -1,13 +1,13 @@
 package waftask
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
 	"SamWaf/utils"
-	"SamWaf/utils/zlog"
 	"SamWaf/wafdb"
 	"fmt"
 	uuid "github.com/satori/go.uuid"

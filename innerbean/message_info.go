@@ -1,7 +1,7 @@
 package innerbean
 
 import (
-	"SamWaf/wechat"
+	"SamWaf/utils/wechat"
 )
 
 type BaseInfo interface {

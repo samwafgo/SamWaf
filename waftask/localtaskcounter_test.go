@@ -1,8 +1,8 @@
 package waftask
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/global"
-	"SamWaf/utils/zlog"
 	"SamWaf/wafdb"
 	"github.com/spf13/viper"
 	"testing"

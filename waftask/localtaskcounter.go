@@ -1,6 +1,7 @@
 package waftask
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/innerbean"
@@ -8,9 +9,8 @@ import (
 	"SamWaf/model/baseorm"
 	"SamWaf/service/waf_service"
 	"SamWaf/utils"
-	"SamWaf/utils/zlog"
+	"SamWaf/utils/wechat"
 	"SamWaf/wafsec"
-	"SamWaf/wechat"
 	"encoding/json"
 	"fmt"
 	uuid "github.com/satori/go.uuid"
@@ -90,6 +90,9 @@ func TaskCounter() {
 	//一、 主机聚合统计
 	{
 		var resultHosts []CountHostResult
+		explain := global.GWAF_LOCAL_LOG_DB.Debug().Explain("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host FROM \"web_logs\" where task_flag = ?  and unix_add_time > ? GROUP BY host_code, user_code,action,tenant_id,day,host",
+			1, currenyDayMillisecondsBak)
+		zlog.Debug(explain)
 		global.GWAF_LOCAL_LOG_DB.Raw("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host FROM \"web_logs\" where task_flag = ?  and unix_add_time > ? GROUP BY host_code, user_code,action,tenant_id,day,host",
 			1, currenyDayMillisecondsBak).Scan(&resultHosts)
 		/****
@@ -116,7 +119,7 @@ func TaskCounter() {
 					Type:     value.ACTION,
 					Count:    value.Count,
 				}
-				global.GQEQUE_STATS_DB.PushBack(statDay2)
+				global.GQEQUE_STATS_DB.Enqueue(statDay2)
 			} else {
 				statDayMap := map[string]interface{}{
 					"Count":       value.Count + statDay.Count,
@@ -128,7 +131,7 @@ func TaskCounter() {
 					Update: statDayMap,
 				}
 				updateBean.Args = append(updateBean.Args, value.TenantId, value.UserCode, value.HostCode, value.ACTION, value.Day)
-				global.GQEQUE_STATS_UPDATE_DB.PushBack(updateBean)
+				global.GQEQUE_STATS_UPDATE_DB.Enqueue(updateBean)
 			}
 		}
 	}
@@ -163,7 +166,7 @@ func TaskCounter() {
 					Count:    value.Count,
 					IP:       value.Ip,
 				}
-				global.GQEQUE_STATS_DB.PushBack(statDay2)
+				global.GQEQUE_STATS_DB.Enqueue(statDay2)
 			} else {
 				statDayMap := map[string]interface{}{
 					"Count":       value.Count + statDay.Count,
@@ -176,7 +179,7 @@ func TaskCounter() {
 					Update: statDayMap,
 				}
 				updateBean.Args = append(updateBean.Args, value.TenantId, value.UserCode, value.HostCode, value.Ip, value.ACTION, value.Day)
-				global.GQEQUE_STATS_UPDATE_DB.PushBack(updateBean)
+				global.GQEQUE_STATS_UPDATE_DB.Enqueue(updateBean)
 
 			}
 		}
@@ -214,7 +217,7 @@ func TaskCounter() {
 					Province: value.Province,
 					City:     value.City,
 				}
-				global.GQEQUE_STATS_DB.PushBack(statDay2)
+				global.GQEQUE_STATS_DB.Enqueue(statDay2)
 			} else {
 				statDayMap := map[string]interface{}{
 					"Count":       value.Count + statDay.Count,
@@ -227,7 +230,7 @@ func TaskCounter() {
 					Update: statDayMap,
 				}
 				updateBean.Args = append(updateBean.Args, value.TenantId, value.UserCode, value.HostCode, value.Country, value.Province, value.City, value.ACTION, value.Day)
-				global.GQEQUE_STATS_UPDATE_DB.PushBack(updateBean)
+				global.GQEQUE_STATS_UPDATE_DB.Enqueue(updateBean)
 
 			}
 		}
@@ -256,7 +259,7 @@ func TaskStatusNotify() {
 	if err == nil {
 		noticeStr := fmt.Sprintf("今日访问量：%d 今天恶意访问量:%d 昨日恶意访问量:%d", statHomeInfo.VisitCountOfToday, statHomeInfo.AttackCountOfToday, statHomeInfo.AttackCountOfYesterday)
 
-		global.GQEQUE_MESSAGE_DB.PushBack(innerbean.OperatorMessageInfo{
+		global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
 			BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "汇总通知"},
 			OperaCnt:        noticeStr,
 		})
@@ -272,7 +275,7 @@ func TaskStatusNotify() {
 */
 func TaskDeleteHistoryInfo() {
 	zlog.Debug("TaskDeleteHistoryInfo")
-	deleteBeforeDay := time.Now().AddDate(0, 0, -global.GDATA_DELETE_INTERVAL).Format("2006-01-02 15:04")
+	deleteBeforeDay := time.Now().AddDate(0, 0, -int(global.GDATA_DELETE_INTERVAL)).Format("2006-01-02 15:04")
 	waf_service.WafLogServiceApp.DeleteHistory(deleteBeforeDay)
 }
 
@@ -289,7 +292,7 @@ func TaskDelayInfo() {
 				msg := models[i]
 				sendSuccess := 0
 				//发送websocket
-				for _, ws := range global.GWebSocket.SocketMap {
+				for _, ws := range global.GWebSocket.GetAllWebSocket() {
 					if ws != nil {
 
 						cmdType := "Info"

@@ -1,9 +1,9 @@
 package utils
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/model"
-	"SamWaf/utils/zlog"
 	"fmt"
 	"github.com/lionsoul2014/ip2region/binding/golang/xdb"
 	"io/ioutil"

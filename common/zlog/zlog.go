@@ -1,7 +1,6 @@
 package zlog
 
 import (
-	"SamWaf/global"
 	"fmt"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -20,7 +19,7 @@ import (
 // zlog.Warn("hello", zap.String("name", "Kevin"), zap.Any("arbitraryObj", dummyObject))
 var logger *zap.Logger
 
-func init() {
+func InitZLog(releaseFlag string) {
 	encoderConfig := zap.NewProductionEncoderConfig()
 	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	encoder := zapcore.NewJSONEncoder(encoderConfig)
@@ -29,7 +28,7 @@ func init() {
 	//fileWriteSyncer = zapcore.AddSync(file)
 	fileWriteSyncer := getFileLogWriter()
 
-	if global.GWAF_RELEASE == "false" {
+	if releaseFlag == "false" {
 		core := zapcore.NewTee(
 			// 同时向控制台和文件写日志， 生产环境记得把控制台写入去掉
 			zapcore.NewCore(encoder, zapcore.AddSync(os.Stdout), zapcore.DebugLevel),

@@ -1,9 +1,9 @@
 package middleware
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/model/common/response"
 	"SamWaf/service/waf_service"
-	"SamWaf/utils/zlog"
 	"github.com/gin-gonic/gin"
 	"strings"
 )

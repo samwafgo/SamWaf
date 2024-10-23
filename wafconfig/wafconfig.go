@@ -1,9 +1,9 @@
 package wafconfig
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/utils"
-	"SamWaf/utils/zlog"
 	"github.com/denisbrodbeck/machineid"
 	uuid "github.com/satori/go.uuid"
 	"github.com/spf13/viper"

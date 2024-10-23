@@ -1,12 +1,12 @@
 package waftask
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/model/spec"
 	"SamWaf/service/waf_service"
 	"SamWaf/utils"
-	"SamWaf/utils/zlog"
 )
 
 var (

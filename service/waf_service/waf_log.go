@@ -37,6 +37,8 @@ func (receiver *WafLogService) GetListApi(req request.WafAttackLogSearch) ([]inn
 
 	splitFilterBys := strings.Split(req.FilterBy, "|")
 	splitFilterValues := strings.Split(req.FilterValue, "|")
+	/*强制索引*/
+	var forceIndex = "web_logs"
 	/*where条件*/
 	var whereField = ""
 	var whereValues []interface{}
@@ -96,6 +98,12 @@ func (receiver *WafLogService) GetListApi(req request.WafAttackLogSearch) ([]inn
 			}
 		}
 	}
+	//强制索引
+	{
+		if strings.Contains(whereField, "unix_add_time") {
+			forceIndex = "web_logs INDEXED BY  idx_web_time_tenant_user_code"
+		}
+	}
 
 	//where字段赋值
 	{
@@ -141,13 +149,15 @@ func (receiver *WafLogService) GetListApi(req request.WafAttackLogSearch) ([]inn
 		return nil, 0, errors.New("输入排序字段不合法")
 	}
 	if len(req.CurrrentDbName) == 0 || req.CurrrentDbName == "local_log.db" {
-		global.GWAF_LOCAL_LOG_DB.Limit(req.PageSize).Where(whereField, whereValues...).Offset(req.PageSize * (req.PageIndex - 1)).Order(orderInfo).Find(&weblogs)
-		global.GWAF_LOCAL_LOG_DB.Model(&innerbean.WebLog{}).Where(whereField, whereValues...).Count(&total)
-
+		global.GWAF_LOCAL_LOG_DB.Table(forceIndex).Limit(req.PageSize).Where(whereField, whereValues...).Offset(req.PageSize * (req.PageIndex - 1)).Order(orderInfo).Find(&weblogs)
+		global.GWAF_LOCAL_LOG_DB.Table(forceIndex).Where(whereField, whereValues...).Count(&total)
+		/*global.GWAF_LOCAL_LOG_DB.Table("web_logs INDEXED BY idx_web_time_tenant_user_code ").Limit(req.PageSize).Where(whereField, whereValues...).Offset(req.PageSize * (req.PageIndex - 1)).Order(orderInfo).Find(&weblogs)
+		global.GWAF_LOCAL_LOG_DB.Table("web_logs INDEXED BY idx_web_time_tenant_user_code ").Model(&innerbean.WebLog{}).Where(whereField, whereValues...).Count(&total)
+		*/
 	} else {
 		wafdb.InitManaulLogDb("", req.CurrrentDbName)
-		global.GDATA_CURRENT_LOG_DB_MAP[req.CurrrentDbName].Debug().Limit(req.PageSize).Where(whereField, whereValues...).Offset(req.PageSize * (req.PageIndex - 1)).Order(orderInfo).Find(&weblogs)
-		global.GDATA_CURRENT_LOG_DB_MAP[req.CurrrentDbName].Model(&innerbean.WebLog{}).Where(whereField, whereValues...).Count(&total)
+		global.GDATA_CURRENT_LOG_DB_MAP[req.CurrrentDbName].Table(forceIndex).Limit(req.PageSize).Where(whereField, whereValues...).Offset(req.PageSize * (req.PageIndex - 1)).Order(orderInfo).Find(&weblogs)
+		global.GDATA_CURRENT_LOG_DB_MAP[req.CurrrentDbName].Table(forceIndex).Where(whereField, whereValues...).Count(&total)
 
 	}
 	return weblogs, total, nil

@@ -1,7 +1,7 @@
 package wafenginecore
 
 import (
-	"SamWaf/utils/zlog"
+	"SamWaf/common/zlog"
 	"strconv"
 )
 

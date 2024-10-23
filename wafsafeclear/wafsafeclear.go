@@ -1,8 +1,8 @@
 package wafsafeclear
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/global"
-	"SamWaf/utils/zlog"
 )
 
 func SafeClear() {

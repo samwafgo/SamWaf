@@ -1,12 +1,12 @@
 package waf_service
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
-	"SamWaf/utils/zlog"
 	"errors"
 	uuid "github.com/satori/go.uuid"
 	"time"

@@ -1,10 +1,10 @@
 package wafmangeweb
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/middleware"
 	"SamWaf/router"
-	"SamWaf/utils/zlog"
 	"SamWaf/wafmangeweb/static"
 	"context"
 	"errors"
@@ -29,7 +29,7 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 	router.PublicApiGroupApp.InitCenterRouter(PublicRouterGroup) //注册中心接收接口
 
 	RouterGroup := r.Group("")
-	RouterGroup.Use(middleware.Auth(), middleware.CenterApi(), middleware.SecApi()) //TODO 中心管控 特定
+	RouterGroup.Use(middleware.Auth(), middleware.CenterApi(), middleware.SecApi(), middleware.GinGlobalExceptionMiddleWare()) //TODO 中心管控 特定
 	{
 		router.ApiGroupApp.InitHostRouter(RouterGroup)
 		router.ApiGroupApp.InitLogRouter(RouterGroup)
@@ -57,7 +57,7 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitLoadBalanceRouter(RouterGroup)
 		router.ApiGroupApp.InitSslConfigRouter(RouterGroup)
 	}
-	r.Use(middleware.GinGlobalExceptionMiddleWare())
+	//r.Use(middleware.GinGlobalExceptionMiddleWare())
 	if global.GWAF_RELEASE == "true" {
 		static.Static(r, func(handlers ...gin.HandlerFunc) {
 			r.NoRoute(handlers...)

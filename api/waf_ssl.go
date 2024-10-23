@@ -1,13 +1,13 @@
 package api
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	"SamWaf/model/spec"
-	"SamWaf/utils/zlog"
 	"errors"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"

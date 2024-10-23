@@ -1,8 +1,8 @@
 package wafbot
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/global"
-	"SamWaf/utils/zlog"
 	"context"
 	"fmt"
 	"net"

@@ -1,10 +1,10 @@
 package utils
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/innerbean"
-	"SamWaf/utils/zlog"
-	"SamWaf/wechat"
+	"SamWaf/utils/wechat"
 )
 
 type NotifyHelper struct {

@@ -1,7 +1,7 @@
 package wechat
 
 import (
-	"SamWaf/utils/zlog"
+	"SamWaf/common/zlog"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"

@@ -24,11 +24,12 @@ func (receiver *WafSystemConfigService) AddApi(wafSystemConfigAddReq request.Waf
 			CREATE_TIME: customtype.JsonTime(time.Now()),
 			UPDATE_TIME: customtype.JsonTime(time.Now()),
 		},
-		Item:     wafSystemConfigAddReq.Item,
-		Value:    wafSystemConfigAddReq.Value,
-		IsSystem: "0",
-		Remarks:  wafSystemConfigAddReq.Remarks,
-		HashInfo: "",
+		ItemClass: wafSystemConfigAddReq.ItemClass,
+		Item:      wafSystemConfigAddReq.Item,
+		Value:     wafSystemConfigAddReq.Value,
+		IsSystem:  "0",
+		Remarks:   wafSystemConfigAddReq.Remarks,
+		HashInfo:  "",
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
 	return nil
@@ -45,6 +46,7 @@ func (receiver *WafSystemConfigService) ModifyApi(req request.WafSystemConfigEdi
 	}
 	editMap := map[string]interface{}{
 		"Item":        req.Item,
+		"ItemClass":   req.ItemClass,
 		"Value":       req.Value,
 		"Remarks":     req.Remarks,
 		"ItemType":    req.ItemType,

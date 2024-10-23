@@ -1,11 +1,11 @@
 package waftask
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/model/request"
 	"SamWaf/service/waf_service"
-	"SamWaf/utils/zlog"
 	"SamWaf/wafsec"
 	"encoding/json"
 	"io/ioutil"

@@ -1,6 +1,7 @@
 package wafenginecore
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/customtype"
 	"SamWaf/enums"
 	"SamWaf/global"
@@ -9,12 +10,11 @@ import (
 	"SamWaf/model/baseorm"
 	"SamWaf/model/detection"
 	"SamWaf/model/wafenginmodel"
-	"SamWaf/plugin"
 	"SamWaf/service/waf_service"
 	"SamWaf/utils"
-	"SamWaf/utils/zlog"
 	"SamWaf/wafenginecore/loadbalance"
 	"SamWaf/wafproxy"
+	"SamWaf/webplugin"
 	"bufio"
 	"bytes"
 	"compress/flate"
@@ -179,10 +179,11 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.Header.Get("Content-Type"), "application/x-www-form-urlencoded") {
 			// 解码 x-www-form-urlencoded 数据
 			formValuest, err := url.ParseQuery(weblogbean.BODY)
-			if err != nil {
-				fmt.Println("解码失败:", err)
-			} else {
+			if err == nil {
 				formValues = formValuest
+			} else {
+				fmt.Println("解码失败:", err)
+				fmt.Println("解码失败:", weblogbean.BODY)
 			}
 		}
 
@@ -350,7 +351,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		//记录响应body
 		weblogbean.RES_BODY = string(resBytes)
 		weblogbean.ACTION = "禁止"
-		global.GQEQUE_LOG_DB.PushBack(weblogbean)
+		global.GQEQUE_LOG_DB.Enqueue(weblogbean)
 	}
 }
 func (waf *WafEngine) getClientIP(r *http.Request, headers ...string) (error, string, string) {
@@ -379,13 +380,16 @@ func (waf *WafEngine) getClientIP(r *http.Request, headers ...string) (error, st
 	return nil, ip, port
 }
 func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean innerbean.WebLog, ruleName string, blockInfo string) {
-	//发送微信推送消息
-	global.GQEQUE_MESSAGE_DB.PushBack(innerbean.RuleMessageInfo{
-		BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "命中保护规则", Server: global.GWAF_CUSTOM_SERVER_NAME},
-		Domain:          weblogbean.HOST,
-		RuleInfo:        ruleName,
-		Ip:              fmt.Sprintf("%s (%s)", weblogbean.SRC_IP, utils.GetCountry(weblogbean.SRC_IP)),
-	})
+
+	go func() {
+		//发送推送消息
+		global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.RuleMessageInfo{
+			BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "命中保护规则", Server: global.GWAF_CUSTOM_SERVER_NAME},
+			Domain:          weblogbean.HOST,
+			RuleInfo:        ruleName,
+			Ip:              fmt.Sprintf("%s (%s)", weblogbean.SRC_IP, utils.GetCountry(weblogbean.SRC_IP)),
+		})
+	}()
 
 	resBytes := []byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>" + blockInfo + "</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>")
 	w.WriteHeader(403)
@@ -404,11 +408,11 @@ func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean innerbean.
 	weblogbean.STATUS_CODE = 403
 	weblogbean.TASK_FLAG = 1
 	weblogbean.GUEST_IDENTIFICATION = "可疑用户"
-	global.GQEQUE_LOG_DB.PushBack(weblogbean)
+	global.GQEQUE_LOG_DB.Enqueue(weblogbean)
 }
 func (waf *WafEngine) errorResponse() func(http.ResponseWriter, *http.Request, error) {
 	return func(w http.ResponseWriter, req *http.Request, err error) {
-		zlog.Error("服务不可用 response:", zap.Any("err", err))
+		zlog.Error("服务不可用 response:", zap.Any("err", err.Error()))
 		resBytes := []byte("<html><head><title>服务不可用</title></head><body><center><h1>服务不可用</h1> <br><h3></h3></center></body> </html>")
 
 		w.WriteHeader(http.StatusServiceUnavailable)
@@ -551,7 +555,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 				weblogfrist.TASK_FLAG = 1
 				if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "all" {
 					if waf.HostTarget[host].Host.EXCLUDE_URL_LOG == "" {
-						global.GQEQUE_LOG_DB.PushBack(weblogfrist)
+						global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
 					} else {
 						lines := strings.Split(waf.HostTarget[host].Host.EXCLUDE_URL_LOG, "\n")
 						isRecordLog := true
@@ -562,11 +566,11 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 							}
 						}
 						if isRecordLog {
-							global.GQEQUE_LOG_DB.PushBack(weblogfrist)
+							global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
 						}
 					}
 				} else if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "abnormal" && weblogfrist.ACTION != "放行" {
-					global.GQEQUE_LOG_DB.PushBack(weblogfrist)
+					global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
 				}
 
 			}
@@ -673,7 +677,7 @@ func (waf *WafEngine) StartWaf() {
 		OpType:    "信息",
 		OpContent: "WAF启动",
 	}
-	global.GQEQUE_LOG_DB.PushBack(wafSysLog)
+	global.GQEQUE_LOG_DB.Enqueue(wafSysLog)
 
 	waf.StartAllProxyServer()
 }
@@ -697,7 +701,7 @@ func (waf *WafEngine) CloseWaf() {
 		OpType:    "信息",
 		OpContent: "WAF关闭",
 	}
-	global.GQEQUE_LOG_DB.PushBack(wafSysLog)
+	global.GQEQUE_LOG_DB.Enqueue(wafSysLog)
 	waf.EngineCurrentStatus = 0
 
 	waf.StopAllProxyServer()
@@ -770,9 +774,9 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) innerbean.ServerRunTime {
 	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Limit(1).Find(&anticcBean)
 
 	//初始化插件-ip计数器
-	var pluginIpRateLimiter *plugin.IPRateLimiter
+	var pluginIpRateLimiter *webplugin.IPRateLimiter
 	if anticcBean.Id != "" {
-		pluginIpRateLimiter = plugin.NewIPRateLimiter(rate.Limit(anticcBean.Rate), anticcBean.Limit)
+		pluginIpRateLimiter = webplugin.NewIPRateLimiter(rate.Limit(anticcBean.Rate), anticcBean.Limit)
 	}
 
 	//查询ip白名单
@@ -985,7 +989,7 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 					OpType:    "系统运行错误",
 					OpContent: "HTTPS端口被占用: " + strconv.Itoa(innruntime.Port) + ",请检查",
 				}
-				global.GQEQUE_LOG_DB.PushBack(wafSysLog)
+				global.GQEQUE_LOG_DB.Enqueue(wafSysLog)
 				zlog.Error("[HTTPServer] https server start fail, cause:[%v]", err)
 			}
 			zlog.Info("server https shutdown")
@@ -1023,7 +1027,7 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 					OpType:    "系统运行错误",
 					OpContent: "HTTP端口被占用: " + strconv.Itoa(innruntime.Port) + ",请检查",
 				}
-				global.GQEQUE_LOG_DB.PushBack(wafSysLog)
+				global.GQEQUE_LOG_DB.Enqueue(wafSysLog)
 				zlog.Error("[HTTPServer] http server start fail, cause:[%v]", err)
 			}
 			zlog.Info("server  http shutdown")

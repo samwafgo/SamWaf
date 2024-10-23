@@ -1,13 +1,13 @@
 package api
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	response2 "SamWaf/model/response"
 	"SamWaf/utils"
-	"SamWaf/utils/zlog"
 	"SamWaf/wafdb"
 	"fmt"
 	"github.com/gin-gonic/gin"
@@ -92,7 +92,7 @@ func (w *WafLogAPi) ExportDBApi(c *gin.Context) {
 		downloadFilePath := filepath.Join(downLoadDir, downloadFileName)
 		err := wafdb.BackupDatabase(global.GWAF_LOCAL_LOG_DB, downloadFilePath)
 		if err != nil {
-			global.GQEQUE_MESSAGE_DB.PushBack(innerbean.OpResultMessageInfo{
+			global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OpResultMessageInfo{
 				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "DOWNLOAD_LOG", Server: global.GWAF_CUSTOM_SERVER_NAME},
 				Msg:             "导出失败",
 				Success:         "true",
@@ -100,7 +100,7 @@ func (w *WafLogAPi) ExportDBApi(c *gin.Context) {
 		} else {
 			global.GWAF_RUNTIME_CURRENT_EXPORT_DB_LOG_FILE_PATH = downloadFilePath
 			//发送websocket 推送消息
-			global.GQEQUE_MESSAGE_DB.PushBack(innerbean.ExportResultMessageInfo{
+			global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.ExportResultMessageInfo{
 				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "DOWNLOAD_LOG", Server: global.GWAF_CUSTOM_SERVER_NAME},
 				Msg:             "导出完毕",
 				Success:         "true",

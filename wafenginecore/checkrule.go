@@ -1,10 +1,10 @@
 package wafenginecore
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model/detection"
-	"SamWaf/utils/zlog"
 	"net/url"
 )
 

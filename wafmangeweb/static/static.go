@@ -1,9 +1,9 @@
 package static
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/public"
-	"SamWaf/utils/zlog"
 	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"

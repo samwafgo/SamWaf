@@ -55,7 +55,7 @@ func OneKeyModifyBt(btSavePath string) (error, string) {
 					// 读取文件内容
 					afterContent, _ := ioutil.ReadFile(filePath)
 					//插入记录
-					global.GQEQUE_LOG_DB.PushBack(model.OneKeyMod{
+					global.GQEQUE_LOG_DB.Enqueue(model.OneKeyMod{
 						BaseOrm: baseorm.BaseOrm{
 							Id:          uuid.NewV4().String(),
 							USER_CODE:   global.GWAF_USER_CODE,

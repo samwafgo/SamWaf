@@ -1,11 +1,11 @@
 package api
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	response2 "SamWaf/model/response"
-	"SamWaf/utils/zlog"
 	"SamWaf/wafreg"
 	"github.com/gin-gonic/gin"
 	"io/ioutil"

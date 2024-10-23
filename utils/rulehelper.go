@@ -1,9 +1,9 @@
 package utils
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/innerbean"
 	"SamWaf/model"
-	"SamWaf/utils/zlog"
 	"errors"
 	"github.com/hyperjumptech/grule-rule-engine/ast"
 	"github.com/hyperjumptech/grule-rule-engine/builder"

@@ -2,23 +2,26 @@ package main
 
 import (
 	"SamWaf/cache"
+	"SamWaf/common/gwebsocket"
+	"SamWaf/common/zlog"
 	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/globalobj"
 	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/model/wafenginmodel"
-	"SamWaf/plugin"
 	"SamWaf/utils"
-	"SamWaf/utils/zlog"
 	"SamWaf/wafconfig"
 	"SamWaf/wafdb"
 	"SamWaf/wafenginecore"
 	"SamWaf/wafmangeweb"
+	"SamWaf/wafnotify"
+	"SamWaf/wafqueue"
 	"SamWaf/wafreg"
 	"SamWaf/wafsafeclear"
 	"SamWaf/wafsnowflake"
 	"SamWaf/waftask"
+	"SamWaf/webplugin"
 	"crypto/tls"
 	_ "embed"
 	"fmt"
@@ -36,6 +39,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -76,15 +80,16 @@ func (m *wafSystenService) Stop(s service.Service) error {
 // 守护协程
 func NeverExit(name string, f func()) {
 	defer func() {
-		if v := recover(); v != nil { // 侦测到一个恐慌
-			stackBuf := make([]byte, 1024)
-			stackSize := runtime.Stack(stackBuf, false)
-			stackTrace := string(stackBuf[:stackSize])
+		if v := recover(); v != nil {
+			zlog.Info(fmt.Sprintf("协程%s崩溃了，准备重启一个。 : %v, Stack Trace: %s", name, v, debug.Stack()))
+			if global.GWAF_RELEASE == "false" {
+				debug.PrintStack()
+			}
 
-			zlog.Info(fmt.Sprintf("协程%s崩溃了，准备重启一个。 : %v, Stack Trace: %s", name, v, stackTrace))
 			go NeverExit(name, f) // 重启一个同功能协程
 		}
 	}()
+	zlog.Info(name + " start")
 	f()
 }
 
@@ -191,10 +196,17 @@ func (m *wafSystenService) run() {
 	wafdb.InitLogDb("")
 	wafdb.InitStatsDb("")
 	//初始化队列引擎
-	wafenginecore.InitDequeEngine()
+	wafqueue.InitDequeEngine()
 	//启动队列消费
-	go NeverExit("ProcessDequeEngine", wafenginecore.ProcessDequeEngine)
+	go NeverExit("ProcessCoreDequeEngine", wafqueue.ProcessCoreDequeEngine)
+	go NeverExit("ProcessMessageDequeEngine", wafqueue.ProcessMessageDequeEngine)
+	go NeverExit("ProcessStatDequeEngine", wafqueue.ProcessStatDequeEngine)
+	go NeverExit("ProcessLogDequeEngine", wafqueue.ProcessLogDequeEngine)
 
+	//初始化一次系统参数信息
+	waftask.TaskLoadSetting(true)
+	//启动通知相关程序
+	global.GNOTIFY_KAKFA_SERVICE = wafnotify.InitNotifyKafkaEngine(global.GCONFIG_RECORD_KAFKA_ENABLE, global.GCONFIG_RECORD_KAFKA_URL, global.GCONFIG_RECORD_KAFKA_TOPIC) //kafka
 	//启动waf
 	globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE = &wafenginecore.WafEngine{
 		HostTarget: map[string]*wafenginmodel.HostSafe{},
@@ -218,7 +230,7 @@ func (m *wafSystenService) run() {
 	}()
 
 	//启动websocket
-	global.GWebSocket = model.InitWafWebSocket()
+	global.GWebSocket = gwebsocket.InitWafWebSocket()
 	//定时取规则并更新（考虑后期定时拉取公共规则 待定，可能会影响实际生产）
 
 	//定时器 （后期考虑是否独立包处理）
@@ -257,7 +269,7 @@ func (m *wafSystenService) run() {
 	})
 	// 获取参数
 	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Minutes().Do(func() {
-		go waftask.TaskLoadSetting()
+		go waftask.TaskLoadSetting(false)
 
 	})
 
@@ -394,7 +406,7 @@ func (m *wafSystenService) run() {
 					break
 				case enums.ChanTypeAnticc:
 					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Lock()
-					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].PluginIpRateLimiter = plugin.NewIPRateLimiter(rate.Limit(msg.Content.(model.AntiCC).Rate), msg.Content.(model.AntiCC).Limit)
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].PluginIpRateLimiter = webplugin.NewIPRateLimiter(rate.Limit(msg.Content.(model.AntiCC).Rate), msg.Content.(model.AntiCC).Limit)
 					zlog.Debug("远程配置", zap.Any("Anticc", msg.Content.(model.AntiCC)))
 					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Unlock()
 					break
@@ -565,6 +577,8 @@ func (m *wafSystenService) Graceful() {
 }
 
 func main() {
+	//初始化日志
+	zlog.InitZLog(global.GWAF_RELEASE)
 	if v := recover(); v != nil { // 侦测到一个恐慌
 		zlog.Info("主流程上被异常了")
 	}

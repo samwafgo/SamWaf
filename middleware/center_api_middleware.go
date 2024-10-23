@@ -1,9 +1,9 @@
 package middleware
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/service/waf_service"
-	"SamWaf/utils/zlog"
 	"bytes"
 	"github.com/gin-gonic/gin"
 	"io/ioutil"

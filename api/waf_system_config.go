@@ -3,6 +3,7 @@ package api
 import (
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
+	"SamWaf/waftask"
 	"errors"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -85,6 +86,7 @@ func (w *WafSystemConfigApi) ModifyApi(c *gin.Context) {
 		if err != nil {
 			response.FailWithMessage("编辑发生错误", c)
 		} else {
+			waftask.TaskLoadSetting(true)
 			response.OkWithMessage("编辑成功", c)
 		}
 

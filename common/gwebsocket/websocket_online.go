@@ -1,4 +1,4 @@
-package model
+package gwebsocket
 
 import (
 	"errors"
@@ -39,6 +39,17 @@ func (wafWebsocket *WebSocketOnline) GetWebSocket(key string) *Wssocket.Conn {
 	} else {
 		return nil
 	}
+}
+func (wafWebsocket *WebSocketOnline) GetAllWebSocket() map[string]*Wssocket.Conn {
+	wafWebsocket.Mux.Lock()
+	defer wafWebsocket.Mux.Unlock()
+
+	// 创建一个副本，防止外部修改
+	sockets := make(map[string]*Wssocket.Conn)
+	for k, v := range wafWebsocket.SocketMap {
+		sockets[k] = v
+	}
+	return sockets
 }
 func (wafWebsocket *WebSocketOnline) DelWebSocket(key string) error {
 	wafWebsocket.Mux.Lock()

@@ -1,9 +1,9 @@
 package wafenginecore
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/innerbean"
 	"SamWaf/model"
-	"SamWaf/utils/zlog"
 	"SamWaf/wafproxy"
 	"context"
 	"crypto/tls"

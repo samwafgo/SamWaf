@@ -1,4 +1,4 @@
-package plugin
+package webplugin
 
 import (
 	"sync"

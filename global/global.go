@@ -2,11 +2,13 @@ package global
 
 import (
 	"SamWaf/cache"
+	"SamWaf/common/gwebsocket"
+	"SamWaf/common/queue"
 	"SamWaf/model"
 	"SamWaf/model/spec"
+	"SamWaf/wafnotify"
 	"SamWaf/wafsnowflake"
 	"github.com/bytedance/godlp/dlpheader"
-	Dequelib "github.com/edwingeng/deque"
 	"gorm.io/gorm"
 	"strconv"
 	"time"
@@ -76,14 +78,17 @@ var (
 	GCACHE_WECHAT_ACCESS string          = "" //微信访问密钥
 	GCACHE_IP_CBUFF      []byte               // IP相关缓存
 
-	GDATA_DELETE_INTERVAL = 180 // 删除180天前的数据
+	GDATA_DELETE_INTERVAL int64 = 180 // 删除180天前的数据
 
 	/****队列相关*****/
-	GQEQUE_DB              Dequelib.Deque //正常DB队列
-	GQEQUE_LOG_DB          Dequelib.Deque //日志DB队列
-	GQEQUE_STATS_DB        Dequelib.Deque //统计DB队列
-	GQEQUE_STATS_UPDATE_DB Dequelib.Deque //统计更新DB队列
-	GQEQUE_MESSAGE_DB      Dequelib.Deque //发送消息队列
+	GQEQUE_DB              *queue.Queue //正常DB队列
+	GQEQUE_LOG_DB          *queue.Queue //日志DB队列
+	GQEQUE_STATS_DB        *queue.Queue //统计DB队列
+	GQEQUE_STATS_UPDATE_DB *queue.Queue //统计更新DB队列
+	GQEQUE_MESSAGE_DB      *queue.Queue //发送消息队列
+
+	/*******通知相关*************/
+	GNOTIFY_KAKFA_SERVICE *wafnotify.WafNotifyService //通知服务
 
 	/******数据库处理参数*****/
 	GDATA_BATCH_INSERT       int                 = 1000        //最大批量插入
@@ -91,7 +96,7 @@ var (
 	GDATA_CURRENT_CHANGE     bool                = false       //当前是否正在切换
 	GDATA_CURRENT_LOG_DB_MAP map[string]*gorm.DB               //当前自定义的数据库连接 TODO 如果用户打开了多个 会不会影响内存
 	/******WebSocket*********/
-	GWebSocket *model.WebSocketOnline
+	GWebSocket *gwebsocket.WebSocketOnline
 
 	/******记录参数配置****************/
 	GCONFIG_RECORD_MAX_BODY_LENGTH     int64  = 1024 * 2                    //限制记录最大请求的body长度 record_max_req_body_length
@@ -99,6 +104,10 @@ var (
 	GCONFIG_RECORD_RESP                int64  = 0                           // 是否记录响应记录 record_resp
 	GCONFIG_RECORD_PROXY_HEADER        string = "X-Forwarded-For,X-Real-IP" //配置获取IP头信息
 	GCONFIG_RECORD_AUTO_LOAD_SSL       int64  = 1                           //是否每天凌晨3点自动加载ssl证书
+	GCONFIG_RECORD_KAFKA_ENABLE        int64  = 0                           //kafka 是否激活
+	GCONFIG_RECORD_KAFKA_URL           string = "127.0.0.1:9092"            //kafka url地址
+	GCONFIG_RECORD_KAFKA_TOPIC         string = "samwaf_logs_topic"         //kafka topic
+
 	//升级相关
 	GUPDATE_VERSION_URL string = "https://update.samwaf.com/" //
 

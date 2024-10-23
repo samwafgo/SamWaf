@@ -138,10 +138,6 @@ jobs:
         run: |
           go build -ldflags="-X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=true -X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=${CURRENT_TAG} -s -w -extldflags '-static'" -o ./release/SamWaf64Win7Win8Win2008.exe main.go
 
-      - name: Compress executable with UPX
-        run: |
-          upx --best --lzma ./release/SamWaf64Win7Win8Win2008.exe
-
       - name: Archive artifacts
         uses: actions/upload-artifact@v4
         with:

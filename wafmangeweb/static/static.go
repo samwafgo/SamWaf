@@ -59,6 +59,19 @@ func Static(r *gin.Engine, noRoute func(handlers ...gin.HandlerFunc)) {
 		c.Status(http.StatusOK)
 		_, _ = io.Copy(c.Writer, faviconFile)
 	})
+	r.GET("/robots.txt", func(c *gin.Context) {
+		robotFile, err := static.Open("robots.txt")
+		if err != nil {
+			zlog.Error("can't find robots.txt")
+			c.Status(http.StatusNotFound)
+			return
+		}
+		defer robotFile.Close()
+
+		c.Header("Content-Type", "text/plain")
+		c.Status(http.StatusOK)
+		_, _ = io.Copy(c.Writer, robotFile)
+	})
 
 	noRoute(func(c *gin.Context) {
 		c.Header("Content-Type", "text/html")

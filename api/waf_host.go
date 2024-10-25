@@ -12,6 +12,7 @@ import (
 	"SamWaf/model/spec"
 	"SamWaf/utils"
 	"errors"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -87,12 +88,12 @@ func (w *WafHostAPi) GetAllListApi(c *gin.Context) {
 
 		if wafHosts[i].Ssl == 1 {
 			allHostRep[i] = response2.AllHostRep{
-				Host: wafHosts[i].Host + "(SSL)",
+				Host: fmt.Sprintf("%s:%d(SSL)", wafHosts[i].Host, wafHosts[i].Port),
 				Code: wafHosts[i].Code,
 			}
 		} else {
 			allHostRep[i] = response2.AllHostRep{
-				Host: wafHosts[i].Host,
+				Host: fmt.Sprintf("%s:%d", wafHosts[i].Host, wafHosts[i].Port),
 				Code: wafHosts[i].Code,
 			}
 		}

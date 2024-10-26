@@ -70,6 +70,7 @@ func (waf *WafEngine) Error() string {
 	return fmt.Sprintf(fs)
 }
 func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	innerLogName := "WafEngine ServeHTTP"
 	atomic.AddUint64(&global.GWAF_RUNTIME_QPS, 1) // 原子增加计数器
 	host := r.Host
 	if !strings.Contains(host, ":") {
@@ -185,6 +186,19 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				fmt.Println("解码失败:", err)
 				fmt.Println("解码失败:", weblogbean.BODY)
 			}
+		}
+		if host == waf.HostTarget[host].Host.Host+":80" && waf.HostTarget[host].Host.AutoJumpHTTPS == 1 && waf.HostTarget[host].Host.Ssl == 1 {
+			// 重定向到 HTTPS 版本的 URL
+			targetHttpsUrl := fmt.Sprintf("%s%s%s", "https://", r.Host, r.URL.Path)
+			if waf.HostTarget[host].Host.Port != 443 {
+				targetHttpsUrl = fmt.Sprintf("%s%s:%d%s", "https://", r.Host, waf.HostTarget[host].Host.Port, r.URL.Path)
+			}
+			if r.URL.RawQuery != "" {
+				targetHttpsUrl += "?" + r.URL.RawQuery
+			}
+			zlog.Info(innerLogName, "jump https", targetHttpsUrl)
+			http.Redirect(w, r, targetHttpsUrl, int(global.GCONFIG_RECORD_REDIRECT_HTTPS_CODE))
+			return
 		}
 
 		r.Header.Add("waf_req_uuid", weblogbean.REQ_UUID)
@@ -654,6 +668,8 @@ func (waf *WafEngine) StartWaf() {
 			GLOBAL_HOST:      1,
 			START_STATUS:     0,
 			UnrestrictedPort: 0,
+			BindSslId:        "",
+			AutoJumpHTTPS:    0,
 		}
 		global.GWAF_LOCAL_DB.Create(wafGlobalHost)
 	}
@@ -755,6 +771,23 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) innerbean.ServerRunTime {
 		}
 
 	}
+	//检查是否存在强制跳转HTTPS的情况
+	if inHost.AutoJumpHTTPS == 1 {
+		default80Port := 80
+		_, ok := waf.ServerOnline[default80Port]
+		if ok == false && inHost.GLOBAL_HOST == 0 {
+			if inHost.START_STATUS == 0 {
+				waf.ServerOnline[default80Port] = innerbean.ServerRunTime{
+					ServerType: "http",
+					Port:       default80Port,
+					Status:     1,
+				}
+			} else {
+				delete(waf.ServerOnline, default80Port)
+			}
+		}
+	}
+
 	//加载主机对于的规则
 	ruleHelper := &utils.RuleHelper{}
 	ruleHelper.InitRuleEngine()
@@ -825,10 +858,16 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) innerbean.ServerRunTime {
 	}
 	hostsafe.Mux.Lock()
 	defer hostsafe.Mux.Unlock()
-	//赋值到白名单里面
+	//目标关系情况
 	waf.HostTarget[inHost.Host+":"+strconv.Itoa(inHost.Port)] = hostsafe
 	//赋值到对照表里面
 	waf.HostCode[inHost.Code] = inHost.Host + ":" + strconv.Itoa(inHost.Port)
+
+	//如果存在强制跳转
+	if inHost.AutoJumpHTTPS == 1 {
+		waf.HostTarget[inHost.Host+":80"] = hostsafe
+		waf.HostCode[inHost.Code] = inHost.Host + ":80"
+	}
 	//如果是不限制端口的情况
 	if inHost.UnrestrictedPort == 1 {
 		zlog.Debug("来源端口宽松模式")

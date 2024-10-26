@@ -107,7 +107,7 @@ var (
 	GCONFIG_RECORD_KAFKA_ENABLE        int64  = 0                           //kafka 是否激活
 	GCONFIG_RECORD_KAFKA_URL           string = "127.0.0.1:9092"            //kafka url地址
 	GCONFIG_RECORD_KAFKA_TOPIC         string = "samwaf_logs_topic"         //kafka topic
-
+	GCONFIG_RECORD_REDIRECT_HTTPS_CODE int64  = 301                         //80跳转https的方式
 	//升级相关
 	GUPDATE_VERSION_URL string = "https://update.samwaf.com/" //
 

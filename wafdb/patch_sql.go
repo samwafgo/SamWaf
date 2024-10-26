@@ -54,4 +54,11 @@ func pathCoreSql(db *gorm.DB) {
 	} else {
 		zlog.Info("db", "system_config :item_class init successfully")
 	}
+	// 20241026 是否自动跳转https站点
+	err = db.Exec("UPDATE hosts SET auto_jump_http_s=0 WHERE auto_jump_http_s IS NULL ").Error
+	if err != nil {
+		panic("failed to hosts :auto_jump_https " + err.Error())
+	} else {
+		zlog.Info("db", "hosts :auto_jump_https init successfully")
+	}
 }

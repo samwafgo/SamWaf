@@ -27,6 +27,9 @@ func setConfigIntValue(name string, value int64, change int) {
 			global.GNOTIFY_KAKFA_SERVICE.ChangeEnable(value)
 		}
 		global.GCONFIG_RECORD_KAFKA_ENABLE = value
+	case "redirect_https_code":
+		global.GCONFIG_RECORD_REDIRECT_HTTPS_CODE = value
+		break
 	default:
 		zlog.Warn("Unknown config item:", name)
 	}
@@ -115,5 +118,7 @@ func TaskLoadSetting(initLoad bool) {
 	updateConfigIntItem(initLoad, "kafka", "kafka_enable", global.GCONFIG_RECORD_KAFKA_ENABLE, "kafka 是否激活", "int", "")
 	updateConfigStringItem(initLoad, "kafka", "kafka_url", global.GCONFIG_RECORD_KAFKA_URL, "kafka url地址", "string", "")
 	updateConfigStringItem(initLoad, "kafka", "kafka_topic", global.GCONFIG_RECORD_KAFKA_TOPIC, "kafka topic", "string", "")
+
+	updateConfigIntItem(initLoad, "system", "redirect_https_code", global.GCONFIG_RECORD_REDIRECT_HTTPS_CODE, "80重定向https时候跳转代码", "int", "")
 
 }

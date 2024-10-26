@@ -1,7 +1,8 @@
 /vue/
 /release/
 /vue/dist/
-/data/
+/conf/*
+/data/*
 /data/local_log.db
 /data/local_stats.db
 /data/local.db

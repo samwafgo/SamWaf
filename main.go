@@ -170,6 +170,12 @@ func (m *wafSystenService) run() {
 		rversion = rversion + " linux"
 	} else if runtime.GOOS == "windows" {
 		rversion = rversion + " windows"
+		if utils.IsSupportedWindows7Version() {
+			zlog.Info("Now your system is win7 or win2008r2.")
+		}
+		if global.GWAF_RUNTIME_WIN7_VERSION == "true" && utils.IsSupportedWindows7Version() == false {
+			zlog.Error("Now your use is win7 or win2008r2 special version，We recommend you download normal version")
+		}
 	} else {
 		rversion = rversion + "  " + runtime.GOOS
 	}
@@ -180,7 +186,7 @@ func (m *wafSystenService) run() {
 	zlog.Info("OutIp", global.GWAF_RUNTIME_IP)
 
 	if global.GWAF_RELEASE == "false" {
-		global.GUPDATE_VERSION_URL = "http://127.0.0.1:81/"
+		global.GUPDATE_VERSION_URL = "http://127.0.0.1:8111/"
 		/*runtime.GOMAXPROCS(1)              // 限制 CPU 使用数，避免过载
 		runtime.SetMutexProfileFraction(1) // 开启对锁调用的跟踪
 		runtime.SetBlockProfileRate(1)     // 开启对阻塞操作的跟踪*/

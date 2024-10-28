@@ -6,7 +6,9 @@ import (
 	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/model/common/response"
+	"SamWaf/utils"
 	"SamWaf/wafupdate"
+	"fmt"
 	"github.com/gin-gonic/gin"
 )
 
@@ -26,11 +28,17 @@ func (w *WafSysInfoApi) CheckVersionApi(c *gin.Context) {
 		response.OkWithMessage("正在升级中...请在消息等待结果", c)
 		return
 	}
+	var remoteURL string
+	if global.GWAF_RUNTIME_WIN7_VERSION == "true" || utils.IsSupportedWindows7Version() {
+		remoteURL = fmt.Sprintf("%s%s", global.GUPDATE_VERSION_URL, "win7/")
+	} else {
+		remoteURL = fmt.Sprintf("%s%s", global.GUPDATE_VERSION_URL, "")
+	}
 	var updater = &wafupdate.Updater{
 		CurrentVersion: global.GWAF_RELEASE_VERSION, // Manually update the const, or set it using `go build -ldflags="-X main.VERSION=<newver>" -o hello-updater src/hello-updater/main.go`
-		ApiURL:         global.GUPDATE_VERSION_URL,  // The server hosting `$CmdName/$GOOS-$ARCH.json` which contains the checksum for the binary
-		BinURL:         global.GUPDATE_VERSION_URL,  // The server hosting the zip file containing the binary application which is a fallback for the patch method
-		DiffURL:        global.GUPDATE_VERSION_URL,  // The server hosting the binary patch diff for incremental updates
+		ApiURL:         remoteURL,                   // The server hosting `$CmdName/$GOOS-$ARCH.json` which contains the checksum for the binary
+		BinURL:         remoteURL,                   // The server hosting the zip file containing the binary application which is a fallback for the patch method
+		DiffURL:        remoteURL,                   // The server hosting the binary patch diff for incremental updates
 		Dir:            "tmp_update/",               // The directory created by the app when run which stores the cktime file
 		CmdName:        "samwaf_update",             // The app name which is appended to the ApiURL to look for an update
 		//ForceCheck:     true,                     // For this example, always check for an update unless the version is "dev"
@@ -65,16 +73,18 @@ func (w *WafSysInfoApi) UpdateApi(c *gin.Context) {
 		response.OkWithMessage("正在升级中...请在消息等待结果", c)
 		return
 	}
-	if global.GWAF_RUNTIME_WIN7_VERSION == "true" {
-		response.OkWithMessage("您当前使用的是Win7内核版本，请手工下载版本升级。https://github.com/samwafgo/SamWaf/releases", c)
-		return
+	var remoteURL string
+	if global.GWAF_RUNTIME_WIN7_VERSION == "true" || utils.IsSupportedWindows7Version() {
+		remoteURL = fmt.Sprintf("%s%s", global.GUPDATE_VERSION_URL, "win7/")
+	} else {
+		remoteURL = fmt.Sprintf("%s%s", global.GUPDATE_VERSION_URL, "")
 	}
 	global.GWAF_RUNTIME_IS_UPDATETING = true
 	var updater = &wafupdate.Updater{
 		CurrentVersion: global.GWAF_RELEASE_VERSION, // Manually update the const, or set it using `go build -ldflags="-X main.VERSION=<newver>" -o hello-updater src/hello-updater/main.go`
-		ApiURL:         global.GUPDATE_VERSION_URL,  // The server hosting `$CmdName/$GOOS-$ARCH.json` which contains the checksum for the binary
-		BinURL:         global.GUPDATE_VERSION_URL,  // The server hosting the zip file containing the binary application which is a fallback for the patch method
-		DiffURL:        global.GUPDATE_VERSION_URL,  // The server hosting the binary patch diff for incremental updates
+		ApiURL:         remoteURL,                   // The server hosting `$CmdName/$GOOS-$ARCH.json` which contains the checksum for the binary
+		BinURL:         remoteURL,                   // The server hosting the zip file containing the binary application which is a fallback for the patch method
+		DiffURL:        remoteURL,                   // The server hosting the binary patch diff for incremental updates
 		Dir:            "tmp_update/",               // The directory created by the app when run which stores the cktime file
 		CmdName:        "samwaf_update",             // The app name which is appended to the ApiURL to look for an update
 		//ForceCheck:     true,                     // For this example, always check for an update unless the version is "dev"

@@ -26,11 +26,11 @@ var (
 	GWAF_RUNTIME_AREA        string = ""          //本机当前所在区域
 	GWAF_RUNTIME_SERVER_TYPE bool   = false       //当前是是否以服务形式启动
 
-	GWAF_RUNTIME_NEW_VERSION      string = ""      //最新版本号
-	GWAF_RUNTIME_NEW_VERSION_DESC string = ""      //最新版本描述
-	GWAF_RUNTIME_WIN7_VERSION     string = "false" //是否是win7内部版本
-	GWAF_RUNTIME_QPS              uint64 = 0       //当前qps
-	GWAF_RUNTIME_LOG_PROCESS      uint64 = 0       //log 处理速度
+	GWAF_RUNTIME_NEW_VERSION      string = ""     //最新版本号
+	GWAF_RUNTIME_NEW_VERSION_DESC string = ""     //最新版本描述
+	GWAF_RUNTIME_WIN7_VERSION     string = "true" //是否是win7内部版本
+	GWAF_RUNTIME_QPS              uint64 = 0      //当前qps
+	GWAF_RUNTIME_LOG_PROCESS      uint64 = 0      //log 处理速度
 
 	GWAF_RUNTIME_DNS_SERVER string = "119.29.29.29" //反向查询DNS的IP
 
@@ -58,7 +58,7 @@ var (
 	GWAF_CUSTOM_SERVER_NAME   string                  // 当前服务器自定义名称
 	GWAF_TENANT_ID            string    = "SamWafCom" // 当前租户ID
 	GWAF_RELEASE              string    = "false"     // 当前是否为发行版
-	GWAF_RELEASE_VERSION_NAME string    = "1.0"       // 发行版的版本号名称
+	GWAF_RELEASE_VERSION_NAME string    = "20241028"  // 发行版的版本号名称
 	GWAF_RELEASE_VERSION      string    = "v1.0.0"    // 发行版的版本号
 	GWAF_LAST_UPDATE_TIME     time.Time               // 上次时间
 	GWAF_NOTICE_ENABLE        bool      = false       // 是否开启通知

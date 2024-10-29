@@ -444,7 +444,7 @@ func (m *wafSystenService) run() {
 									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hosts[0], false)
 								}
 								//如果本次ssl和上次ssl不同
-								if hosts[0].Ssl != hostsOld.Ssl {
+								if hosts[0].Ssl != hostsOld.Ssl || hosts[0].Keyfile != hostsOld.Keyfile || hosts[0].Certfile != hostsOld.Certfile {
 									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hosts[0], true)
 								}
 								globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.LoadHost(hosts[0])

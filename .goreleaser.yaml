@@ -34,6 +34,7 @@ builds:
       - amd64
     ldflags:
       - -X SamWaf/global.GWAF_RELEASE=true
+      - -X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=false
       - -X SamWaf/global.GWAF_RELEASE_VERSION_NAME={{ time "20060102" }}
       - -X SamWaf/global.GWAF_RELEASE_VERSION={{.Tag}}
       - -s -w
@@ -51,6 +52,7 @@ builds:
       - amd64
     ldflags:
       - -X SamWaf/global.GWAF_RELEASE=true
+      - -X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=false
       - -X SamWaf/global.GWAF_RELEASE_VERSION_NAME={{ time "20060102" }}
       - -X SamWaf/global.GWAF_RELEASE_VERSION={{.Tag}}
       - -s -w

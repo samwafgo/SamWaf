@@ -110,7 +110,6 @@ func (ac *AllCertificate) LoadSSLByFilePath(domain string, certPath string, keyP
 		return nil
 	} else {
 		if certificate != nil && certificate.Certificate[0] != nil {
-			//TODO 需要处理只有不同的情况才进行加载
 			zlog.Debug("需要重新加载证书")
 			ac.Map[domain] = &newCert
 		}

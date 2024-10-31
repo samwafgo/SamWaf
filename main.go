@@ -42,6 +42,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -221,7 +222,10 @@ func (m *wafSystenService) run() {
 		HostTargetNoPort: map[string]string{},
 		ServerOnline:     map[int]innerbean.ServerRunTime{},
 		//所有证书情况 对应端口 可能多个端口都是https 443，或者其他非标准端口也要实现https证书
-		AllCertificate: map[int]map[string]*tls.Certificate{},
+		AllCertificate: wafenginecore.AllCertificate{
+			Mux: sync.Mutex{},
+			Map: map[string]*tls.Certificate{},
+		},
 
 		EngineCurrentStatus: 0, // 当前waf引擎状态
 		Sensitive:           make([]model.Sensitive, 0),
@@ -441,11 +445,11 @@ func (m *wafSystenService) run() {
 								}
 								//如果本次是关闭，那么应该关闭主机
 								if hosts[0].START_STATUS == 1 {
-									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hosts[0], false)
+									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hosts[0])
 								}
 								//如果本次ssl和上次ssl不同
 								if hosts[0].Ssl != hostsOld.Ssl || hosts[0].Keyfile != hostsOld.Keyfile || hosts[0].Certfile != hostsOld.Certfile {
-									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hosts[0], true)
+									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hosts[0])
 								}
 								globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.LoadHost(hosts[0])
 								globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartAllProxyServer()
@@ -456,7 +460,7 @@ func (m *wafSystenService) run() {
 									len(globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[hostsOld.Host+":"+strconv.Itoa(hostsOld.Port)].LoadBalanceRuntime.RevProxies) > 0 {
 									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[hostsOld.Host+":"+strconv.Itoa(hostsOld.Port)].LoadBalanceRuntime.RevProxies = nil
 								}
-								globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hostsOld, false)
+								globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hostsOld)
 								globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.LoadHost(hosts[0])
 								globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartAllProxyServer()
 							}
@@ -467,7 +471,7 @@ func (m *wafSystenService) run() {
 				case enums.ChanTypeDelHost:
 					host := msg.Content.(model.Hosts)
 					if host.Id != "" {
-						globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(host, false)
+						globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(host)
 						globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.EnumAllPortProxyServer()
 					}
 					break
@@ -476,7 +480,7 @@ func (m *wafSystenService) run() {
 					break
 				case enums.ChanTypeSSL:
 					host := msg.Content.(model.Hosts)
-					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(host, true)
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(host)
 					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.LoadHost(host)
 					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartAllProxyServer()
 					break

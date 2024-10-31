@@ -271,3 +271,29 @@ func GetPureDomain(host string) string {
 	}
 	return host
 }
+
+// UpdateFileIsHasNewInfo 检查文件内容并更新
+func UpdateFileIsHasNewInfo(filePath, newContent string) error {
+	// 检查文件是否存在
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		// 文件不存在，写入新内容
+		if err := ioutil.WriteFile(filePath, []byte(newContent), 0644); err != nil {
+			return fmt.Errorf("failed to write file %s: %v", filePath, err)
+		}
+	} else {
+		// 文件存在，读取当前内容
+		currentContent, err := ioutil.ReadFile(filePath)
+		if err != nil {
+			return fmt.Errorf("failed to read file %s: %v", filePath, err)
+		}
+
+		// 比较内容是否一致
+		if string(currentContent) != newContent {
+			// 内容不一致，更新文件
+			if err := ioutil.WriteFile(filePath, []byte(newContent), 0644); err != nil {
+				return fmt.Errorf("failed to update file %s: %v", filePath, err)
+			}
+		}
+	}
+	return nil
+}

@@ -61,4 +61,11 @@ func pathCoreSql(db *gorm.DB) {
 	} else {
 		zlog.Info("db", "hosts :auto_jump_https init successfully")
 	}
+	//20241030 初始化一次状态信息
+	err = db.Exec("UPDATE hosts SET start_status=0 WHERE start_status IS NULL ").Error
+	if err != nil {
+		panic("failed to hosts :start_status " + err.Error())
+	} else {
+		zlog.Info("db", "hosts :start_status init successfully")
+	}
 }

@@ -44,6 +44,8 @@ func SSLReload() {
 			}
 			wafSslConfigService.AddInner(backSslConfig)
 			err = wafSslConfigService.ModifyInner(updateSslConfig)
+			/*fmt.Printf("updateSslConfig: %+v\n", updateSslConfig)
+			fmt.Printf("backSslConfig: %+v\n", backSslConfig)*/
 			if err != nil {
 				zlog.Error(innerLogName, "ssl modify inner config:", err.Error())
 			}
@@ -54,6 +56,8 @@ func SSLReload() {
 					zlog.Error(innerLogName, "ssl host update:", err.Error())
 					continue
 				}
+				hosts.Keyfile = updateSslConfig.KeyContent
+				hosts.Certfile = updateSslConfig.CertContent
 				var chanInfo = spec.ChanCommonHost{
 					HostCode:   hosts.Code,
 					Type:       enums.ChanTypeSSL,

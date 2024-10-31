@@ -1,8 +1,12 @@
 package api
 
 import (
+	"SamWaf/customtype"
+	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/innerbean"
+	"SamWaf/model"
+	"SamWaf/model/baseorm"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	response2 "SamWaf/model/response"
@@ -10,21 +14,13 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	uuid "github.com/satori/go.uuid"
+	"time"
 )
 
 type WafLoginApi struct {
 }
 
 func (w *WafLoginApi) LoginApi(c *gin.Context) {
-	/*bodyBytes, err := ioutil.ReadAll(c.Request.Body)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read request body"})
-		c.Abort()
-		return
-	}
-
-	c.Request.Body = ioutil.NopCloser(bytes.NewBuffer(bodyBytes)) // Reset the request body to original
-	fmt.Println("Raw body:", string(bodyBytes))*/
 	var req request.WafLoginReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
@@ -44,12 +40,55 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 		}
 		bean := wafAccountService.GetInfoByLoginApi(req)
 		if bean.Id != "" {
+			clientIP := c.ClientIP()
+			clientCountry := utils.GetCountry(clientIP)
+			// 检查客户端的登录错误次数
+			cacheKey := enums.CACHE_LOGIN_ERROR + clientIP
+			hitCounter := 0
 
-			//校验密码是否正确
+			if global.GCACHE_WAFCACHE.IsKeyExist(cacheKey) {
+				hitCounter, err = global.GCACHE_WAFCACHE.GetInt(cacheKey)
+				if err != nil {
+					// 获取失败，重置计数
+					hitCounter = 0
+				}
+			}
+
+			// 如果大于某个数就不让登录了
+			if hitCounter >= int(global.GCONFIG_RECORD_LOGIN_MAX_ERROR_TIME) {
+				response.FailWithMessage("登录超限请稍后重试", c)
+				return
+			}
+
+			// 校验密码是否正确
 			if bean.LoginPassword != utils.Md5String(req.LoginPassword+global.GWAF_DEFAULT_ACCOUNT_SALT) {
+				// 密码错误，增加错误计数
+				hitCounter++
+				global.GCACHE_WAFCACHE.SetWithTTl(cacheKey, hitCounter, time.Duration(global.GCONFIG_RECORD_LOGIN_LIMIT_MINTUTES)*time.Minute)
+
+				loginError := fmt.Sprintf("输入密码错误超过次数限制，IP:%s 归属地区：%s", clientIP, clientCountry)
+				wafSysLog := model.WafSysLog{
+					BaseOrm: baseorm.BaseOrm{
+						Id:          uuid.NewV4().String(),
+						USER_CODE:   global.GWAF_USER_CODE,
+						Tenant_ID:   global.GWAF_TENANT_ID,
+						CREATE_TIME: customtype.JsonTime(time.Now()),
+						UPDATE_TIME: customtype.JsonTime(time.Now()),
+					},
+					OpType:    "登录信息",
+					OpContent: loginError,
+				}
+				global.GQEQUE_LOG_DB.Enqueue(wafSysLog)
+
+				global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
+					BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "登录错误"},
+					OperaCnt:        loginError,
+				})
 				response.FailWithMessage("登录密码错误", c)
 				return
 			}
+			// 密码正确，清除错误计数
+			global.GCACHE_WAFCACHE.Remove(cacheKey)
 			//如果存在旧的状态删除
 			oldTokenInfo := wafTokenInfoService.GetInfoByLoginAccount(req.LoginAccount)
 			if oldTokenInfo.Id != "" {
@@ -60,11 +99,24 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 			tokenInfo := wafTokenInfoService.AddApi(bean.LoginAccount, accessToken, c.ClientIP())
 
 			//通知信息
-			noticeStr := fmt.Sprintf("登录IP:%s 归属地区：%s", c.ClientIP(), utils.GetCountry(c.ClientIP()))
+			noticeStr := fmt.Sprintf("登录IP:%s 归属地区：%s", clientIP, clientCountry)
 			global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
 				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "登录信息"},
 				OperaCnt:        noticeStr,
 			})
+
+			wafSysLog := model.WafSysLog{
+				BaseOrm: baseorm.BaseOrm{
+					Id:          uuid.NewV4().String(),
+					USER_CODE:   global.GWAF_USER_CODE,
+					Tenant_ID:   global.GWAF_TENANT_ID,
+					CREATE_TIME: customtype.JsonTime(time.Now()),
+					UPDATE_TIME: customtype.JsonTime(time.Now()),
+				},
+				OpType:    "登录信息",
+				OpContent: noticeStr,
+			}
+			global.GQEQUE_LOG_DB.Enqueue(wafSysLog)
 
 			response.OkWithDetailed(response2.LoginRep{
 				AccessToken: tokenInfo.AccessToken,

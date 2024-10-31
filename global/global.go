@@ -88,7 +88,8 @@ var (
 	GQEQUE_MESSAGE_DB      *queue.Queue //发送消息队列
 
 	/*******通知相关*************/
-	GNOTIFY_KAKFA_SERVICE *wafnotify.WafNotifyService //通知服务
+	GNOTIFY_KAKFA_SERVICE           *wafnotify.WafNotifyService                                  //通知服务
+	GNOTIFY_SEND_MAX_LIMIT_MINTUTES                             = time.Duration(5) * time.Minute // 规则相关信息最大发送抑止 默认5分钟
 
 	/******数据库处理参数*****/
 	GDATA_BATCH_INSERT       int                 = 1000        //最大批量插入
@@ -98,16 +99,6 @@ var (
 	/******WebSocket*********/
 	GWebSocket *gwebsocket.WebSocketOnline
 
-	/******记录参数配置****************/
-	GCONFIG_RECORD_MAX_BODY_LENGTH     int64  = 1024 * 2                    //限制记录最大请求的body长度 record_max_req_body_length
-	GCONFIG_RECORD_MAX_RES_BODY_LENGTH int64  = 1024 * 4                    //限制记录最大响应的body长度 record_max_rep_body_length
-	GCONFIG_RECORD_RESP                int64  = 0                           // 是否记录响应记录 record_resp
-	GCONFIG_RECORD_PROXY_HEADER        string = "X-Forwarded-For,X-Real-IP" //配置获取IP头信息
-	GCONFIG_RECORD_AUTO_LOAD_SSL       int64  = 1                           //是否每天凌晨3点自动加载ssl证书
-	GCONFIG_RECORD_KAFKA_ENABLE        int64  = 0                           //kafka 是否激活
-	GCONFIG_RECORD_KAFKA_URL           string = "127.0.0.1:9092"            //kafka url地址
-	GCONFIG_RECORD_KAFKA_TOPIC         string = "samwaf_logs_topic"         //kafka topic
-	GCONFIG_RECORD_REDIRECT_HTTPS_CODE int64  = 301                         //80跳转https的方式
 	//升级相关
 	GUPDATE_VERSION_URL string = "https://update.samwaf.com/" //
 

@@ -85,6 +85,17 @@ func (wafCache *WafCache) Get(key string) interface{} {
 	delete(wafCache.cache, key)
 	return nil
 }
+
+func (wafCache *WafCache) Remove(key string) interface{} {
+	wafCache.mu.Lock()
+	defer wafCache.mu.Unlock()
+	_, found := wafCache.cache[key]
+	if !found {
+		return nil
+	}
+	delete(wafCache.cache, key)
+	return nil
+}
 func (wafCache *WafCache) GetLastTime(key string) (time.Time, error) {
 	wafCache.mu.Lock()
 	defer wafCache.mu.Unlock()

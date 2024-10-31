@@ -7,12 +7,10 @@ import (
 	"SamWaf/wafproxy"
 	"context"
 	"crypto/tls"
-	"errors"
 	"net"
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -97,27 +95,12 @@ func (waf *WafEngine) createTransport(r *http.Request, host string, isEnableLoad
 	if r.TLS != nil {
 		// 增加https标识
 		customHeaders["X-FORWARDED-PROTO"] = "https"
-
-		hostParts := strings.Split(host, ":")
-		port := "443"
-		if len(hostParts) == 2 {
-			port = hostParts[1]
-		}
 		transport = &http.Transport{
 			TLSClientConfig: &tls.Config{
-				NameToCertificate:  make(map[string]*tls.Certificate, 0),
 				InsecureSkipVerify: false,
+				GetCertificate:     waf.GetCertificateFunc,
 			},
 			DialContext: dialContext,
-		}
-		portInt, _ := strconv.Atoi(port)
-
-		transport.TLSClientConfig.NameToCertificate = waf.AllCertificate[portInt]
-		transport.TLSClientConfig.GetCertificate = func(clientInfo *tls.ClientHelloInfo) (*tls.Certificate, error) {
-			if x509Cert, ok := transport.TLSClientConfig.NameToCertificate[clientInfo.ServerName]; ok {
-				return x509Cert, nil
-			}
-			return nil, errors.New("config error")
 		}
 	} else {
 		transport = &http.Transport{

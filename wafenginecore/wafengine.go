@@ -10,11 +10,9 @@ import (
 	"SamWaf/model/baseorm"
 	"SamWaf/model/detection"
 	"SamWaf/model/wafenginmodel"
-	"SamWaf/service/waf_service"
 	"SamWaf/utils"
 	"SamWaf/wafenginecore/loadbalance"
 	"SamWaf/wafproxy"
-	"SamWaf/webplugin"
 	"bufio"
 	"bytes"
 	"compress/flate"
@@ -31,7 +29,6 @@ import (
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/unicode"
 	"golang.org/x/text/transform"
-	"golang.org/x/time/rate"
 	"io"
 	"net"
 	"net/http"
@@ -40,6 +37,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -54,15 +52,106 @@ type WafEngine struct {
 	//服务在线情况（key：端口，value :服务情况）
 	ServerOnline map[int]innerbean.ServerRunTime
 
-	//所有证书情况 对应端口 可能多个端口都是https 443，或者其他非标准端口也要实现https证书
-	//嵌套结构 (key：端口 ，再往下是 下面的主机名，value 证书)
-	AllCertificate map[int]map[string]*tls.Certificate
-
-	EngineCurrentStatus int // 当前waf引擎状态
+	AllCertificate      AllCertificate //所有证书
+	EngineCurrentStatus int            // 当前waf引擎状态
 
 	//敏感词管理
 	Sensitive        []model.Sensitive //敏感词
 	SensitiveManager *goahocorasick.Machine
+}
+type AllCertificate struct {
+	Mux sync.Mutex
+	Map map[string]*tls.Certificate
+}
+
+// LoadSSL 加载证书
+func (ac *AllCertificate) LoadSSL(domain string, cert string, key string) error {
+	ac.Mux.Lock()
+	defer ac.Mux.Unlock()
+	domain = strings.ToLower(domain)
+	// 加载新的证书
+	newCert, err := tls.X509KeyPair([]byte(cert), []byte(key))
+	if err != nil {
+		return err
+	}
+	certificate, ok := ac.Map[domain]
+	if !ok {
+		ac.Map[domain] = &newCert
+		return nil
+	} else {
+		if certificate == nil {
+			ac.Map[domain] = &newCert
+			return nil
+		}
+		if certificate != nil && certificate.Certificate[0] != nil {
+			zlog.Debug("需要重新加载证书")
+			ac.Map[domain] = &newCert
+		}
+	}
+
+	// 检查域名是否已存在，如果存在则替换
+	ac.Map[domain] = &newCert
+	return nil
+}
+
+// LoadSSLByFilePath 加载证书从文件
+func (ac *AllCertificate) LoadSSLByFilePath(domain string, certPath string, keyPath string) error {
+	ac.Mux.Lock()
+	defer ac.Mux.Unlock()
+	domain = strings.ToLower(domain)
+	// 加载新的证书
+	newCert, err := tls.LoadX509KeyPair(certPath, keyPath)
+	if err != nil {
+		return err
+	}
+	certificate, ok := ac.Map[domain]
+	if !ok {
+		ac.Map[domain] = &newCert
+		return nil
+	} else {
+		if certificate != nil && certificate.Certificate[0] != nil {
+			zlog.Debug("需要重新加载证书")
+			ac.Map[domain] = &newCert
+		}
+	}
+
+	// 检查域名是否已存在，如果存在则替换
+	ac.Map[domain] = &newCert
+	return nil
+}
+
+// RemoveSSL 移除证书
+func (ac *AllCertificate) RemoveSSL(domain string) error {
+	ac.Mux.Lock()
+	defer ac.Mux.Unlock()
+	domain = strings.ToLower(domain)
+	_, ok := ac.Map[domain]
+	if ok {
+		ac.Map[domain] = nil
+	}
+	return nil
+}
+
+// GetSSL 加载证书
+func (ac *AllCertificate) GetSSL(domain string) *tls.Certificate {
+	ac.Mux.Lock()
+	defer ac.Mux.Unlock()
+	domain = strings.ToLower(domain)
+	certificate, ok := ac.Map[domain]
+	if ok {
+		return certificate
+	}
+	return nil
+}
+
+// GetCertificateFunc 获取证书的函数
+func (waf *WafEngine) GetCertificateFunc(clientInfo *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	zlog.Debug("GetCertificate ", clientInfo.ServerName)
+	x509Cert := waf.AllCertificate.GetSSL(clientInfo.ServerName)
+	if x509Cert != nil {
+		return x509Cert, nil
+	}
+	return nil, errors.New("config error")
 }
 
 func (waf *WafEngine) Error() string {
@@ -698,7 +787,7 @@ func (waf *WafEngine) StartWaf() {
 	waf.StartAllProxyServer()
 }
 
-// 关闭waf
+// CloseWaf 关闭waf
 func (waf *WafEngine) CloseWaf() {
 	defer func() {
 		e := recover()
@@ -726,216 +815,9 @@ func (waf *WafEngine) CloseWaf() {
 	waf.HostCode = map[string]string{}
 	waf.HostTargetNoPort = map[string]string{}
 	waf.ServerOnline = map[int]innerbean.ServerRunTime{}
-	waf.AllCertificate = map[int]map[string]*tls.Certificate{}
-
-}
-
-// 加载全部host
-func (waf *WafEngine) LoadAllHost() {
-	//重新查询
-	var hosts []model.Hosts
-	global.GWAF_LOCAL_DB.Find(&hosts)
-	for i := 0; i < len(hosts); i++ {
-		waf.LoadHost(hosts[i])
-	}
-}
-
-// 加载指定host
-func (waf *WafEngine) LoadHost(inHost model.Hosts) innerbean.ServerRunTime {
-
-	//检测https
-	if inHost.Ssl == 1 {
-		cert, err := tls.X509KeyPair([]byte(inHost.Certfile), []byte(inHost.Keyfile))
-		if err != nil {
-			zlog.Warn("Cannot find %s cert & key file. Error is: %s\n", inHost.Host, err)
-			return innerbean.ServerRunTime{}
-
-		}
-		mm, ok := waf.AllCertificate[inHost.Port] //[hosts[i].Host]
-		if !ok {
-			mm = make(map[string]*tls.Certificate)
-			waf.AllCertificate[inHost.Port] = mm
-		}
-		waf.AllCertificate[inHost.Port][inHost.Host] = &cert
-	}
-	_, ok := waf.ServerOnline[inHost.Port]
-	if ok == false && inHost.GLOBAL_HOST == 0 {
-		if inHost.START_STATUS == 0 {
-			waf.ServerOnline[inHost.Port] = innerbean.ServerRunTime{
-				ServerType: utils.GetServerByHosts(inHost),
-				Port:       inHost.Port,
-				Status:     1,
-			}
-		} else {
-			delete(waf.ServerOnline, inHost.Port)
-		}
-
-	}
-	//检查是否存在强制跳转HTTPS的情况
-	if inHost.AutoJumpHTTPS == 1 {
-		default80Port := 80
-		_, ok := waf.ServerOnline[default80Port]
-		if ok == false && inHost.GLOBAL_HOST == 0 {
-			if inHost.START_STATUS == 0 {
-				waf.ServerOnline[default80Port] = innerbean.ServerRunTime{
-					ServerType: "http",
-					Port:       default80Port,
-					Status:     1,
-				}
-			} else {
-				delete(waf.ServerOnline, default80Port)
-			}
-		}
-	}
-
-	//加载主机对于的规则
-	ruleHelper := &utils.RuleHelper{}
-	ruleHelper.InitRuleEngine()
-	//查询规则
-	var vcnt int
-	global.GWAF_LOCAL_DB.Model(&model.Rules{}).Where("host_code = ? and rule_status<>999",
-		inHost.Code).Select("sum(rule_version) as vcnt").Row().Scan(&vcnt)
-	zlog.Debug("主机host" + inHost.Code + " 版本" + strconv.Itoa(vcnt))
-	var ruleconfigs []model.Rules
-	if vcnt > 0 {
-		global.GWAF_LOCAL_DB.Where("host_code = ?and rule_status<>999", inHost.Code).Find(&ruleconfigs)
-		ruleHelper.LoadRules(ruleconfigs)
-	}
-	//查询ip限流(应该针对一个网址只有一个)
-	var anticcBean model.AntiCC
-
-	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Limit(1).Find(&anticcBean)
-
-	//初始化插件-ip计数器
-	var pluginIpRateLimiter *webplugin.IPRateLimiter
-	if anticcBean.Id != "" {
-		pluginIpRateLimiter = webplugin.NewIPRateLimiter(rate.Limit(anticcBean.Rate), anticcBean.Limit)
-	}
-
-	//查询ip白名单
-	var ipwhitelist []model.IPAllowList
-	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&ipwhitelist)
-
-	//查询url白名单
-	var urlwhitelist []model.URLAllowList
-	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&urlwhitelist)
-
-	//查询ip黑名单
-	var ipblocklist []model.IPBlockList
-	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&ipblocklist)
-
-	//查询url白名单
-	var urlblocklist []model.URLBlockList
-	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&urlblocklist)
-
-	//查询url隐私保护
-	var ldpurls []model.LDPUrl
-	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&ldpurls)
-
-	//查询负载均衡
-	var loadBalanceList []model.LoadBalance
-	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&loadBalanceList)
-	//初始化主机host
-	hostsafe := &wafenginmodel.HostSafe{
-		LoadBalanceRuntime: &wafenginmodel.LoadBalanceRuntime{
-			CurrentProxyIndex:       0,
-			RevProxies:              []*wafproxy.ReverseProxy{},
-			WeightRoundRobinBalance: &loadbalance.WeightRoundRobinBalance{},
-			IpHashBalance:           loadbalance.NewConsistentHashBalance(nil),
-		},
-		LoadBalanceLists:    loadBalanceList,
-		Rule:                ruleHelper,
-		TargetHost:          inHost.Remote_host + ":" + strconv.Itoa(inHost.Remote_port),
-		RuleData:            ruleconfigs,
-		RuleVersionSum:      vcnt,
-		Host:                inHost,
-		PluginIpRateLimiter: pluginIpRateLimiter,
-		IPWhiteLists:        ipwhitelist,
-		UrlWhiteLists:       urlwhitelist,
-		LdpUrlLists:         ldpurls,
-		IPBlockLists:        ipblocklist,
-		UrlBlockLists:       urlblocklist,
-	}
-	hostsafe.Mux.Lock()
-	defer hostsafe.Mux.Unlock()
-	//目标关系情况
-	waf.HostTarget[inHost.Host+":"+strconv.Itoa(inHost.Port)] = hostsafe
-	//赋值到对照表里面
-	waf.HostCode[inHost.Code] = inHost.Host + ":" + strconv.Itoa(inHost.Port)
-
-	//如果存在强制跳转
-	if inHost.AutoJumpHTTPS == 1 {
-		waf.HostTarget[inHost.Host+":80"] = hostsafe
-		waf.HostCode[inHost.Code] = inHost.Host + ":80"
-	}
-	//如果是不限制端口的情况
-	if inHost.UnrestrictedPort == 1 {
-		zlog.Debug("来源端口宽松模式")
-		waf.HostTargetNoPort[inHost.Host] = inHost.Host + ":" + strconv.Itoa(inHost.Port)
-	} else {
-		if _, ok := waf.HostTargetNoPort[inHost.Host]; ok {
-			zlog.Debug("来源端口严苛模式")
-			delete(waf.HostTargetNoPort, inHost.Host)
-		}
-
-	}
-
-	return waf.ServerOnline[inHost.Port]
-}
-
-/*
-*
-移除主机
-*/
-func (waf *WafEngine) RemoveHost(host model.Hosts, isSslChange bool) {
-	/*//主机情况
-	HostTarget map[string]*wafenginmodel.HostSafe
-	//主机和code的关系
-	HostCode     map[string]string
-	ServerOnline map[int]innerbean.ServerRunTime
-
-	//所有证书情况 对应端口 可能多个端口都是https 443，或者其他非标准端口也要实现https证书
-	AllCertificate map[int]map[string]*tls.Certificate*/
-	//1.如果这个port里面没有了主机 那可以直接停掉服务
-	//2.除了第一个情况之外的，把所有他的主机信息和关联信息都干掉
-
-	if waf_service.WafHostServiceApp.CheckAvailablePortExistApi(host.Port) == 0 || isSslChange {
-		zlog.Debug("准备移除这个端口下所有信息")
-		// a.移除证书数据
-		_, ok := waf.AllCertificate[host.Port]
-		if ok {
-			delete(waf.AllCertificate, host.Port)
-		}
-		//b.移除对照关系
-		delete(waf.HostCode, host.Code)
-		//c.移除主机保护信息
-		delete(waf.HostTarget, host.Host+":"+strconv.Itoa(host.Port))
-		//d.暂停服务 并 移除服务信息
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		_, svrOk := waf.ServerOnline[host.Port]
-		if svrOk {
-			err := waf.ServerOnline[host.Port].Svr.Shutdown(ctx)
-			if err != nil {
-				zlog.Error("shutting down: " + err.Error())
-			} else {
-				zlog.Info("shutdown processed successfully port" + strconv.Itoa(host.Port))
-			}
-			delete(waf.ServerOnline, host.Port)
-		}
-
-	} else {
-		zlog.Debug("准备移除没用的主机信息")
-		// a.移除某个端口下的证书数据
-		_, ok := waf.AllCertificate[host.Port][host.Host]
-		if ok {
-			delete(waf.AllCertificate[host.Port], host.Host)
-		}
-		//b.移除对照关系
-		delete(waf.HostCode, host.Code)
-		//c.移除主机保护信息
-		delete(waf.HostTarget, host.Host+":"+strconv.Itoa(host.Port))
+	waf.AllCertificate = AllCertificate{
+		Mux: sync.Mutex{},
+		Map: map[string]*tls.Certificate{},
 	}
 }
 
@@ -996,21 +878,13 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 				Addr:    ":" + strconv.Itoa(innruntime.Port),
 				Handler: waf,
 				TLSConfig: &tls.Config{
-					NameToCertificate: make(map[string]*tls.Certificate, 0),
+					GetCertificate: waf.GetCertificateFunc,
 				},
 			}
 			serclone := waf.ServerOnline[innruntime.Port]
 			serclone.Svr = svr
 			serclone.Status = 0
 			waf.ServerOnline[innruntime.Port] = serclone
-
-			svr.TLSConfig.NameToCertificate = waf.AllCertificate[innruntime.Port]
-			svr.TLSConfig.GetCertificate = func(clientInfo *tls.ClientHelloInfo) (*tls.Certificate, error) {
-				if x509Cert, ok := svr.TLSConfig.NameToCertificate[clientInfo.ServerName]; ok {
-					return x509Cert, nil
-				}
-				return nil, errors.New("config error")
-			}
 			zlog.Info("启动HTTPS 服务器" + strconv.Itoa(innruntime.Port))
 			err := svr.ListenAndServeTLS("", "")
 			if err == http.ErrServerClosed {
@@ -1087,29 +961,4 @@ func (waf *WafEngine) StopProxyServer(v innerbean.ServerRunTime) {
 	if v.Svr != nil {
 		v.Svr.Close()
 	}
-}
-func (waf *WafEngine) ReLoadSensitive() {
-	//敏感词处理
-	var sensitiveList []model.Sensitive
-	global.GWAF_LOCAL_DB.Find(&sensitiveList)
-	//敏感词
-	waf.Sensitive = sensitiveList
-	if len(sensitiveList) == 0 {
-		return
-	}
-	// 提取 content 字段并转换为 [][]rune
-	var keywords [][]rune
-	for _, sensitive := range waf.Sensitive {
-		// 将 content 转换为 []rune 并追加到 keywords
-		keywords = append(keywords, []rune(sensitive.Content))
-	}
-
-	m := new(goahocorasick.Machine)
-	err := m.Build(keywords)
-	if err != nil {
-		zlog.Error("load sensitive error", err)
-		return
-	}
-	waf.SensitiveManager = m
-
 }

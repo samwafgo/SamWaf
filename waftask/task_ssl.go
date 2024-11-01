@@ -6,7 +6,6 @@ import (
 	"SamWaf/global"
 	"SamWaf/model/spec"
 	"SamWaf/service/waf_service"
-	"SamWaf/utils"
 )
 
 var (
@@ -37,15 +36,13 @@ func SSLReload() {
 			return
 		}
 		for _, rep := range sslConfigReps {
-			err, updateSslConfig, backSslConfig := rep.CheckKeyAndCertFileLoad(utils.GetCurrentDir())
+			err, updateSslConfig, backSslConfig := rep.CheckKeyAndCertFileLoad()
 			if err != nil {
 				zlog.Error(innerLogName, "ssl config:", err.Error())
 				continue
 			}
 			wafSslConfigService.AddInner(backSslConfig)
 			err = wafSslConfigService.ModifyInner(updateSslConfig)
-			/*fmt.Printf("updateSslConfig: %+v\n", updateSslConfig)
-			fmt.Printf("backSslConfig: %+v\n", backSslConfig)*/
 			if err != nil {
 				zlog.Error(innerLogName, "ssl modify inner config:", err.Error())
 			}

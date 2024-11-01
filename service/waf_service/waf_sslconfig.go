@@ -1,6 +1,7 @@
 package waf_service
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/model"
@@ -69,13 +70,33 @@ func (receiver *WafSslConfigService) AddApi(req request.SslConfigAddReq) error {
 		ValidFrom:   validFrom,
 		ValidTo:     validTo,
 		Domains:     domains,
+		CertPath:    req.CertPath,
+		KeyPath:     req.KeyPath,
+	}
+	if bean.CertPath == "" {
+		bean.CertPath = filepath.Join(utils.GetCurrentDir(), "ssl", bean.Id, "domain.crt")
+	}
+	if bean.KeyPath == "" {
+		bean.KeyPath = filepath.Join(utils.GetCurrentDir(), "ssl", bean.Id, "domain.key")
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
 	return nil
 }
 
 func (receiver *WafSslConfigService) AddInner(config model.SslConfig) {
+	//检测如果证书编号已经存在不需在进行添加了
+	err := global.GWAF_LOCAL_DB.First(&model.SslConfig{}, "serial_no = ?", config.SerialNo).Error
+	if err == nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		zlog.Info("证书已经存在不进行再次备份")
+		return
+	}
 	config.Id = uuid.NewV4().String()
+	if config.CertPath == "" {
+		config.CertPath = filepath.Join(utils.GetCurrentDir(), "ssl", config.Id, "domain.crt")
+	}
+	if config.KeyPath == "" {
+		config.KeyPath = filepath.Join(utils.GetCurrentDir(), "ssl", config.Id, "domain.key")
+	}
 	global.GWAF_LOCAL_DB.Create(config)
 }
 
@@ -118,6 +139,12 @@ func (receiver *WafSslConfigService) ModifyApi(req request.SslConfigEditReq) err
 		return errors.New("该证书已经存在")
 	}
 
+	if req.CertPath == "" {
+		req.CertPath = filepath.Join(utils.GetCurrentDir(), "ssl", bean.Id, "domain.crt")
+	}
+	if req.KeyPath == "" {
+		req.KeyPath = filepath.Join(utils.GetCurrentDir(), "ssl", bean.Id, "domain.key")
+	}
 	beanMap := map[string]interface{}{
 		"CertContent": req.CertContent,
 		"KeyContent":  req.KeyContent,
@@ -128,6 +155,8 @@ func (receiver *WafSslConfigService) ModifyApi(req request.SslConfigEditReq) err
 		"ValidTo":     validTo,
 		"Domains":     domains,
 		"UPDATE_TIME": customtype.JsonTime(time.Now()),
+		"CertPath":    req.CertPath,
+		"KeyPath":     req.KeyPath,
 	}
 	err = global.GWAF_LOCAL_DB.Model(model.SslConfig{}).Where("id = ?", req.Id).Updates(beanMap).Error
 
@@ -135,6 +164,12 @@ func (receiver *WafSslConfigService) ModifyApi(req request.SslConfigEditReq) err
 }
 
 func (receiver *WafSslConfigService) ModifyInner(config model.SslConfig) error {
+	if config.CertPath == "" {
+		config.CertPath = filepath.Join(utils.GetCurrentDir(), "ssl", config.Id, "domain.crt")
+	}
+	if config.KeyPath == "" {
+		config.KeyPath = filepath.Join(utils.GetCurrentDir(), "ssl", config.Id, "domain.key")
+	}
 	beanMap := map[string]interface{}{
 		"CertContent": config.CertContent,
 		"KeyContent":  config.KeyContent,
@@ -145,6 +180,8 @@ func (receiver *WafSslConfigService) ModifyInner(config model.SslConfig) error {
 		"ValidTo":     config.ValidTo,
 		"Domains":     config.Domains,
 		"UPDATE_TIME": customtype.JsonTime(time.Now()),
+		"CertPath":    config.CertPath,
+		"KeyPath":     config.KeyPath,
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.SslConfig{}).Where("id = ?", config.Id).Updates(beanMap).Error
 	return err
@@ -154,10 +191,14 @@ func (receiver *WafSslConfigService) ModifyInner(config model.SslConfig) error {
 func (receiver *WafSslConfigService) GetDetailApi(req request.SslConfigDetailReq) response.WafSslConfigRep {
 	var bean model.SslConfig
 	global.GWAF_LOCAL_DB.Where("id=?", req.Id).Find(&bean)
+	if bean.CertPath == "" {
+		bean.CertPath = filepath.Join(utils.GetCurrentDir(), "ssl", bean.Id, "domain.crt")
+	}
+	if bean.KeyPath == "" {
+		bean.KeyPath = filepath.Join(utils.GetCurrentDir(), "ssl", bean.Id, "domain.key")
+	}
 	rep := response.WafSslConfigRep{
 		SslConfig:      bean,
-		KeyPath:        filepath.Join(utils.GetCurrentDir(), bean.Id, "domain.key"),
-		CertPath:       filepath.Join(utils.GetCurrentDir(), bean.Id, "domain.cert"),
 		ExpirationInfo: bean.ExpirationMessage(),
 	}
 	return rep
@@ -188,10 +229,14 @@ func (receiver *WafSslConfigService) GetListApi(req request.SslConfigSearchReq) 
 
 	// 遍历查询结果，构建返回数据
 	for _, sslConfig := range list {
+		if sslConfig.CertPath == "" {
+			sslConfig.CertPath = filepath.Join(utils.GetCurrentDir(), "ssl", sslConfig.Id, "domain.crt")
+		}
+		if sslConfig.KeyPath == "" {
+			sslConfig.KeyPath = filepath.Join(utils.GetCurrentDir(), "ssl", sslConfig.Id, "domain.key")
+		}
 		rep := response.WafSslConfigRep{
 			SslConfig:      sslConfig,
-			KeyPath:        filepath.Join(utils.GetCurrentDir(), "ssl", sslConfig.Id, "domain.key"),
-			CertPath:       filepath.Join(utils.GetCurrentDir(), "ssl", sslConfig.Id, "domain.crt"),
 			ExpirationInfo: sslConfig.ExpirationMessage(),
 		}
 		repList = append(repList, rep)
@@ -214,10 +259,14 @@ func (receiver *WafSslConfigService) GetAllListInner() ([]response.WafSslConfigR
 
 	// 遍历查询结果，构建返回数据
 	for _, sslConfig := range list {
+		if sslConfig.CertPath == "" {
+			sslConfig.CertPath = filepath.Join(utils.GetCurrentDir(), "ssl", sslConfig.Id, "domain.crt")
+		}
+		if sslConfig.KeyPath == "" {
+			sslConfig.KeyPath = filepath.Join(utils.GetCurrentDir(), "ssl", sslConfig.Id, "domain.key")
+		}
 		rep := response.WafSslConfigRep{
 			SslConfig:      sslConfig,
-			KeyPath:        filepath.Join(utils.GetCurrentDir(), "ssl", sslConfig.Id, "domain.key"),
-			CertPath:       filepath.Join(utils.GetCurrentDir(), "ssl", sslConfig.Id, "domain.crt"),
 			ExpirationInfo: sslConfig.ExpirationMessage(),
 		}
 		repList = append(repList, rep)

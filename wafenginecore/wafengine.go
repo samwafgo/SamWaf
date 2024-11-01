@@ -189,6 +189,18 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// 检查域名是否已经注册
 	if target, ok := waf.HostTarget[host]; ok {
+		//检测网站是否已关闭
+		if waf.HostTarget[host].Host.START_STATUS == 1 {
+			resBytes := []byte("<html><head><title>网站已关闭</title></head><body><center><h1>当前访问网站已关闭</h1> <br><h3></h3></center></body> </html>")
+
+			w.WriteHeader(http.StatusServiceUnavailable)
+			if _, writeErr := w.Write(resBytes); writeErr != nil {
+				zlog.Debug("write fail:", zap.Any("err", writeErr))
+				return
+			}
+
+			return
+		}
 		// 取出客户IP
 		ipErr, clientIP, clientPort := waf.getClientIP(r, strings.Split(global.GCONFIG_RECORD_PROXY_HEADER, ",")...)
 		if ipErr != nil {

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"time"
 )
 
@@ -22,6 +21,8 @@ type SslConfig struct {
 	ValidFrom   time.Time `json:"valid_from"`   // 证书有效期开始时间
 	ValidTo     time.Time `json:"valid_to"`     // 证书有效期结束时间
 	Domains     string    `json:"domains"`      // 证书适用的域名
+	KeyPath     string    `json:"key_path"`     //密钥文件位置
+	CertPath    string    `json:"cert_path"`    //crt文件配置
 }
 
 // 获取到期提示信息
@@ -37,27 +38,26 @@ func (s *SslConfig) ExpirationMessage() string {
 }
 
 // 检查信息并进行赋值
-func (s *SslConfig) CheckKeyAndCertFileLoad(currentPath string) (error, SslConfig, SslConfig) {
-	keyFilePath := filepath.Join(currentPath, "ssl", s.Id, "domain.key")
-	certFilePath := filepath.Join(currentPath, "ssl", s.Id, "domain.crt")
+func (s *SslConfig) CheckKeyAndCertFileLoad() (error, SslConfig, SslConfig) {
+
 	// 检查 key 文件是否存在
-	if _, err := os.Stat(keyFilePath); os.IsNotExist(err) {
-		return fmt.Errorf("密钥文件不存在: %s", keyFilePath), SslConfig{}, SslConfig{}
+	if _, err := os.Stat(s.KeyPath); os.IsNotExist(err) {
+		return fmt.Errorf("密钥文件不存在: %s", s.KeyPath), SslConfig{}, SslConfig{}
 	}
 
 	// 检查 cert 文件是否存在
-	if _, err := os.Stat(certFilePath); os.IsNotExist(err) {
-		return fmt.Errorf("证书文件不存在: %s", certFilePath), SslConfig{}, SslConfig{}
+	if _, err := os.Stat(s.CertPath); os.IsNotExist(err) {
+		return fmt.Errorf("证书文件不存在: %s", s.CertPath), SslConfig{}, SslConfig{}
 	}
 
 	// 读取密钥文件内容
-	keyContent, err := ioutil.ReadFile(keyFilePath)
+	keyContent, err := ioutil.ReadFile(s.KeyPath)
 	if err != nil {
 		return fmt.Errorf("无法读取密钥文件: %v", err), SslConfig{}, SslConfig{}
 	}
 
 	// 读取证书文件内容
-	certContent, err := ioutil.ReadFile(certFilePath)
+	certContent, err := ioutil.ReadFile(s.CertPath)
 	if err != nil {
 		return fmt.Errorf("无法读取证书文件: %v", err), SslConfig{}, SslConfig{}
 	}

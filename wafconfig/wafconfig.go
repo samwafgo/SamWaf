@@ -78,6 +78,12 @@ func LoadAndInitConfig() {
 		config.Set("notice.isenable", false)
 	}
 
+	if config.IsSet("export_download") == false {
+		config.Set("export_download", global.GWAF_CAN_EXPORT_DOWNLOAD_LOG)
+	} else {
+		global.GWAF_CAN_EXPORT_DOWNLOAD_LOG = config.GetBool("export_download")
+	}
+
 	err := config.WriteConfig()
 	if err != nil {
 		zlog.Error("write config failed: ", err)

@@ -1,4 +1,5 @@
 custom_server_name: LAPTOP-TUSTCG76
+export_download: false
 local_port: 26666
 notice:
     isenable: false

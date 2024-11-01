@@ -61,6 +61,14 @@ func (w *WafLogAPi) GetListApi(c *gin.Context) {
 	}
 }
 func (w *WafLogAPi) ExportDBApi(c *gin.Context) {
+	if global.GWAF_CAN_EXPORT_DOWNLOAD_LOG == false {
+		global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
+			BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "导出失败"},
+			OperaCnt:        "当前不允许导出",
+		})
+		response.FailWithMessage("当前不允许导出", c)
+		return
+	}
 	if global.GDATA_CURRENT_CHANGE {
 		//如果正在切换库 跳过
 		response.FailWithMessage("正在切换数据库请等待", c)
@@ -109,6 +117,14 @@ func (w *WafLogAPi) ExportDBApi(c *gin.Context) {
 	}()
 }
 func (w *WafLogAPi) DownloadApi(c *gin.Context) {
+	if global.GWAF_CAN_EXPORT_DOWNLOAD_LOG == false {
+		global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
+			BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "下载失败"},
+			OperaCnt:        "当前不允许下载",
+		})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "当前不允许下载"})
+		return
+	}
 	if len(global.GWAF_RUNTIME_CURRENT_EXPORT_DB_LOG_FILE_PATH) == 0 {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to download file,not find file"})
 		return

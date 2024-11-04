@@ -48,12 +48,21 @@ func InitZLog(releaseFlag string) {
 }
 
 func getFileLogWriter() (writeSyncer zapcore.WriteSyncer) {
-	exePath, err := os.Executable()
-	if err != nil {
-		fmt.Println("Failed to get executable path:", err)
+	exeDir := ""
+	// 检测环境变量是否存在
+	envVar := "SamWafIDE"
+	if value, exists := os.LookupEnv(envVar); exists {
+		fmt.Println("当前在IDE,环境变量" + value)
+		exeDir = "."
+	} else {
+		exePath, err := os.Executable()
+		if err != nil {
+			fmt.Errorf(err.Error())
+			exeDir = ""
+		} else {
+			exeDir = filepath.Dir(exePath)
+		}
 	}
-
-	exeDir := filepath.Dir(exePath)
 	// 使用 lumberjack 实现 log rotate
 	lumberJackLogger := &lumberjack.Logger{
 		Filename:   exeDir + "/logs/log.log",

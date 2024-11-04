@@ -527,7 +527,10 @@ func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean innerbean.
 }
 func (waf *WafEngine) errorResponse() func(http.ResponseWriter, *http.Request, error) {
 	return func(w http.ResponseWriter, req *http.Request, err error) {
-		zlog.Error("服务不可用 response:", zap.Any("err", err.Error()))
+
+		requestInfo := fmt.Sprintf("Method: %s, URL: %s, Headers: %v", req.Method, req.URL.String(), req.Header)
+		zlog.Error("服务不可用 response:", zap.Any("err", err.Error()), zap.String("request_info", requestInfo))
+
 		resBytes := []byte("<html><head><title>服务不可用</title></head><body><center><h1>服务不可用</h1> <br><h3></h3></center></body> </html>")
 
 		w.WriteHeader(http.StatusServiceUnavailable)

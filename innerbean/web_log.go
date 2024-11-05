@@ -1,7 +1,5 @@
 package innerbean
 
-import "gorm.io/gorm"
-
 type WebLog struct {
 	WafInnerDFlag        string `json:"waf_inner_dflag"` //日志队列处理方式
 	HOST                 string `json:"host"`
@@ -40,11 +38,6 @@ type WebLog struct {
 // 在 GORM 的 Model 方法中定义复合索引
 func (WebLog) TableName() string {
 	return "web_logs"
-}
-
-func (WebLog) BeforeCreate(tx *gorm.DB) (err error) {
-	tx.Exec("CREATE INDEX IF NOT EXISTS idx_web_logs_task_flag_time ON web_logs (task_flag, unix_add_time)")
-	return
 }
 
 type WAFLog struct {

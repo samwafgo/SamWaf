@@ -12,6 +12,7 @@ import (
 	"SamWaf/model/wafenginmodel"
 	"SamWaf/utils"
 	"SamWaf/wafenginecore/loadbalance"
+	"SamWaf/wafenginecore/wafhttpcore"
 	"SamWaf/wafproxy"
 	"bufio"
 	"bytes"
@@ -241,10 +242,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		currentDay, _ := strconv.Atoi(time.Now().Format("20060102"))
 
 		//URL 解码
-		enEscapeUrl, _urlEscapeOk := url.QueryUnescape(r.RequestURI)
-		if _urlEscapeOk != nil {
-			enEscapeUrl = r.RequestURI
-		}
+		enEscapeUrl := wafhttpcore.WafHttpCoreUrlEncode(r.RequestURI, 100)
 		datetimeNow := time.Now()
 		weblogbean := innerbean.WebLog{
 			HOST:                 host,

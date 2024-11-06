@@ -8,13 +8,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
 	"SamWaf/service/waf_service"
-	"SamWaf/utils"
-	"SamWaf/utils/wechat"
-	"SamWaf/wafsec"
-	"encoding/json"
-	"fmt"
 	uuid "github.com/satori/go.uuid"
-	"os"
 	"time"
 )
 
@@ -55,6 +49,12 @@ type CountCityResult struct {
 	Count    int    `json:"count"` //数量
 }
 
+type CountIPRuleResult struct {
+	Ip   string `json:"ip"`   //用户ip
+	Rule string `json:"rule"` //规则
+	Cnt  int64  `json:"cnt"`  //数量
+}
+
 /**
 定时统计
 */
@@ -90,11 +90,8 @@ func TaskCounter() {
 	//一、 主机聚合统计
 	{
 		var resultHosts []CountHostResult
-		explain := global.GWAF_LOCAL_LOG_DB.Debug().Explain("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host FROM \"web_logs\" where task_flag = ?  and unix_add_time > ? GROUP BY host_code, user_code,action,tenant_id,day,host",
-			1, currenyDayMillisecondsBak)
-		zlog.Debug(explain)
-		global.GWAF_LOCAL_LOG_DB.Raw("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host FROM \"web_logs\" where task_flag = ?  and unix_add_time > ? GROUP BY host_code, user_code,action,tenant_id,day,host",
-			1, currenyDayMillisecondsBak).Scan(&resultHosts)
+		global.GWAF_LOCAL_LOG_DB.Raw("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host FROM \"web_logs\" where task_flag = ?  and unix_add_time > ?  and tenant_id = ? and user_code =?  GROUP BY host_code, user_code,action,tenant_id,day,host",
+			1, currenyDayMillisecondsBak, global.GWAF_TENANT_ID, global.GWAF_USER_CODE).Scan(&resultHosts)
 		/****
 		1.如果不存在则创建
 		2.如果存在则累加这个周期的统计数
@@ -139,8 +136,8 @@ func TaskCounter() {
 	//二、 IP聚合统计
 	{
 		var resultIP []CountIPResult
-		global.GWAF_LOCAL_LOG_DB.Raw("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host,src_ip as ip FROM \"web_logs\" where task_flag = ?  and unix_add_time > ?  GROUP BY host_code, user_code,action,tenant_id,day,host,ip",
-			1, currenyDayMillisecondsBak).Scan(&resultIP)
+		global.GWAF_LOCAL_LOG_DB.Raw("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host,src_ip as ip FROM \"web_logs\" where task_flag = ?  and unix_add_time > ?  and tenant_id = ? and user_code =?  GROUP BY host_code, user_code,action,tenant_id,day,host,ip",
+			1, currenyDayMillisecondsBak, global.GWAF_TENANT_ID, global.GWAF_USER_CODE).Scan(&resultIP)
 		/****
 		1.如果不存在则创建
 		2.如果存在则累加这个周期的统计数
@@ -188,8 +185,8 @@ func TaskCounter() {
 	//三、 城市信息聚合统计
 	{
 		var resultCitys []CountCityResult
-		global.GWAF_LOCAL_LOG_DB.Raw("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host,country,province,city  FROM \"web_logs\" where task_flag = ?  and unix_add_time > ? GROUP BY host_code, user_code,action,tenant_id,day,host,country,province,city",
-			1, currenyDayMillisecondsBak).Scan(&resultCitys)
+		global.GWAF_LOCAL_LOG_DB.Raw("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host,country,province,city  FROM \"web_logs\" where task_flag = ?  and unix_add_time > ?  and tenant_id = ? and user_code =? GROUP BY host_code, user_code,action,tenant_id,day,host,country,province,city",
+			1, currenyDayMillisecondsBak, global.GWAF_TENANT_ID, global.GWAF_USER_CODE).Scan(&resultCitys)
 		/****
 		1.如果不存在则创建
 		2.如果存在则累加这个周期的统计数
@@ -235,116 +232,54 @@ func TaskCounter() {
 			}
 		}
 	}
-	global.GWAF_LAST_UPDATE_TIME = currenyDayBak
-	global.GWAF_SWITCH_TASK_COUNTER = false
-}
 
-func TaskWechatAccessToken() {
-	zlog.Debug("TaskWechatAccessToken")
-	wr, err := wechat.GetAppAccessToken("wx8640c6a135dc4b55", "eb57b4a6c445d3624bac7fa3e85efbaf")
-	if err != nil {
-		zlog.Error("请求错误GetAppAccessToken")
-	} else if wr.ErrCode != 0 {
-		zlog.Error("Wechat Server:", wr.ErrMsg)
-	} else {
-		global.GCACHE_WECHAT_ACCESS = wr.AccessToken
-		zlog.Debug("TaskWechatAccessToken获取到最新token:" + global.GCACHE_WECHAT_ACCESS)
-	}
-
-}
-
-func TaskStatusNotify() {
-	zlog.Debug("TaskStatusNotify")
-	statHomeInfo, err := waf_service.WafStatServiceApp.StatHomeSumDayApi()
-	if err == nil {
-		noticeStr := fmt.Sprintf("今日访问量：%d 今天恶意访问量:%d 昨日恶意访问量:%d", statHomeInfo.VisitCountOfToday, statHomeInfo.AttackCountOfToday, statHomeInfo.AttackCountOfYesterday)
-
-		global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
-			BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "汇总通知"},
-			OperaCnt:        noticeStr,
-		})
-	} else {
-		zlog.Error("TaskStatusNotifyerror", err)
-	}
-
-}
-
-/*
-*
-定时删除指定历史信息 通过开关操作
-*/
-func TaskDeleteHistoryInfo() {
-	zlog.Debug("TaskDeleteHistoryInfo")
-	deleteBeforeDay := time.Now().AddDate(0, 0, -int(global.GDATA_DELETE_INTERVAL)).Format("2006-01-02 15:04")
-	waf_service.WafLogServiceApp.DeleteHistory(deleteBeforeDay)
-}
-
-/*
-*
-定时发送延迟信息
-*/
-func TaskDelayInfo() {
-	zlog.Debug("TaskDelayInfo")
-	models, count, err := waf_service.WafDelayMsgServiceApp.GetAllList()
-	if err == nil {
-		if count > 0 {
-			for i := 0; i < len(models); i++ {
-				msg := models[i]
-				sendSuccess := 0
-				//发送websocket
-				for _, ws := range global.GWebSocket.GetAllWebSocket() {
-					if ws != nil {
-
-						cmdType := "Info"
-						if msg.DelayType == "升级结果" {
-							cmdType = "RELOAD_PAGE"
-						}
-						msgBody, _ := json.Marshal(model.MsgDataPacket{
-							MessageId:           uuid.NewV4().String(),
-							MessageType:         msg.DelayType,
-							MessageData:         msg.DelayContent,
-							MessageAttach:       nil,
-							MessageDateTime:     time.Now().Format("2006-01-02 15:04:05"),
-							MessageUnReadStatus: true,
-						})
-						encryptStr, _ := wafsec.AesEncrypt(msgBody, global.GWAF_COMMUNICATION_KEY)
-						//写入ws数据
-						msgBytes, err := json.Marshal(
-							model.MsgPacket{
-								MsgCode:       "200",
-								MsgDataPacket: encryptStr,
-								MsgCmdType:    cmdType,
-							})
-						err = ws.WriteMessage(1, msgBytes)
-						if err != nil {
-							continue
-						} else {
-							sendSuccess = sendSuccess + 1
-						}
-					}
+	//第四 给IP打标签 开始
+	{
+		var resultIPRule []CountIPRuleResult
+		global.GWAF_LOCAL_LOG_DB.Raw("SELECT src_ip as ip ,rule,count(src_ip) as cnt  FROM \"web_logs\" where task_flag = ?  and unix_add_time > ?  and tenant_id = ? and user_code =? GROUP BY user_code,tenant_id, rule,src_ip",
+			1, currenyDayMillisecondsBak, global.GWAF_TENANT_ID, global.GWAF_USER_CODE).Scan(&resultIPRule)
+		/****
+		1.如果不存在则创建
+		2.如果存在则累加这个IP这个rule的统计数
+		*/
+		for _, value := range resultIPRule {
+			if value.Rule == "" {
+				value.Rule = "正常"
+			}
+			var ipTag model.IPTag
+			global.GWAF_LOCAL_DB.Where("tenant_id = ? and user_code = ? and ip=? and rule = ?",
+				global.GWAF_TENANT_ID, global.GWAF_USER_CODE, value.Ip, value.Rule).Find(&ipTag)
+			if ipTag.IP == "" {
+				insertIpTag := &model.IPTag{
+					BaseOrm: baseorm.BaseOrm{
+						Id:          uuid.NewV4().String(),
+						USER_CODE:   global.GWAF_USER_CODE,
+						Tenant_ID:   global.GWAF_TENANT_ID,
+						CREATE_TIME: customtype.JsonTime(time.Now()),
+						UPDATE_TIME: customtype.JsonTime(time.Now()),
+					},
+					IP:      value.Ip,
+					IPTag:   value.Rule,
+					Cnt:     value.Cnt,
+					Remarks: "",
 				}
-
-				if sendSuccess > 0 {
-					waf_service.WafDelayMsgServiceApp.DelApi(msg.Id)
+				global.GQEQUE_DB.Enqueue(insertIpTag)
+			} else {
+				ipTagUpdateMap := map[string]interface{}{
+					"Cnt":         value.Cnt + ipTag.Cnt,
+					"UPDATE_TIME": customtype.JsonTime(currenyDayBak),
 				}
-
+				updateBean := innerbean.UpdateModel{
+					Model:  model.IPTag{},
+					Query:  "tenant_id = ? and user_code= ? and ip=? and rule = ?",
+					Update: ipTagUpdateMap,
+				}
+				updateBean.Args = append(updateBean.Args, global.GWAF_TENANT_ID, global.GWAF_USER_CODE, value.Ip, value.Rule)
+				global.GQEQUE_DB.Enqueue(updateBean)
 			}
 		}
-	}
-}
 
-// 删除老旧数据
-func TaskHistoryDownload() {
-	currentDir := utils.GetCurrentDir()
-	downLoadDir := currentDir + "/download"
-	// 判断备份目录是否存在，不存在则创建
-	if _, err := os.Stat(downLoadDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(downLoadDir, os.ModePerm); err != nil {
-			zlog.Error("创建下载目录失败:", err)
-			return
-		}
-	}
-	//处理老旧数据
-	duration := 30 * time.Minute
-	utils.DeleteOldFiles(downLoadDir, duration)
+	} //给IP打标签结束
+	global.GWAF_LAST_UPDATE_TIME = currenyDayBak
+	global.GWAF_SWITCH_TASK_COUNTER = false
 }

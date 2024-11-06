@@ -104,12 +104,38 @@ func (receiver *WafStatService) StatHomeSumDayRangeApi(req request.WafStatsDayRa
 }
 func (receiver *WafStatService) StatHomeSumDayTopIPRangeApi(req request.WafStatsDayRangeReq) (response2.WafIPStats, error) {
 	var AttackCountOfRange []model.StatsIPCount
-	global.GWAF_LOCAL_STATS_DB.Model(&model.StatsIPDay{}).Where("day between ? and ? and type = ? ",
-		req.StartDay, req.EndDay, "阻止").Select("ip,sum(count) as count").Group("ip").Order("sum(count) desc").Limit(10).Scan(&AttackCountOfRange)
-	var NormalCountOfRange []model.StatsIPCount
-	global.GWAF_LOCAL_STATS_DB.Model(&model.StatsIPDay{}).Where("day between ? and ? and type = ? ",
-		req.StartDay, req.EndDay, "放行").Select("ip,sum(count) as count").Group("ip").Order("sum(count) desc").Limit(10).Scan(&NormalCountOfRange)
+	global.GWAF_LOCAL_STATS_DB.Model(&model.StatsIPDay{}).
+		Where("day between ? and ? and type = ? ", req.StartDay, req.EndDay, "阻止").
+		Select("ip,sum(count) as count").Group("ip").Order("sum(count) desc").
+		Limit(10).
+		Scan(&AttackCountOfRange)
+	for i := range AttackCountOfRange {
+		region := utils.GetCountry(AttackCountOfRange[i].IP)
+		AttackCountOfRange[i].IPBelong = region[0]
+		//查询IP标签
+		var ipTags []model.IPTag
+		global.GWAF_LOCAL_DB.Where("tenant_id = ? and user_code = ? and ip=?",
+			global.GWAF_TENANT_ID, global.GWAF_USER_CODE, AttackCountOfRange[i].IP).Find(&ipTags)
+		AttackCountOfRange[i].IPTag = ipTags
+	}
 
+	var NormalCountOfRange []model.StatsIPCount
+	global.GWAF_LOCAL_STATS_DB.Model(&model.StatsIPDay{}).
+		Where("day between ? and ? and type = ? ",
+			req.StartDay, req.EndDay, "放行").Select("ip,sum(count) as count").
+		Group("ip").Order("sum(count) desc").
+		Limit(10).
+		Scan(&NormalCountOfRange)
+	for i := range NormalCountOfRange {
+		region := utils.GetCountry(NormalCountOfRange[i].IP)
+		NormalCountOfRange[i].IPBelong = region[0]
+
+		//查询IP标签
+		var ipTags []model.IPTag
+		global.GWAF_LOCAL_DB.Where("tenant_id = ? and user_code = ? and ip=?",
+			global.GWAF_TENANT_ID, global.GWAF_USER_CODE, NormalCountOfRange[i].IP).Find(&ipTags)
+		NormalCountOfRange[i].IPTag = ipTags
+	}
 	return response2.WafIPStats{
 			AttackIPOfRange: AttackCountOfRange,
 			NormalIPOfRange: NormalCountOfRange,

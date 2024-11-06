@@ -17,28 +17,28 @@ func pathLogSql(db *gorm.DB) {
 	zlog.Info("ready create index maybe use a few minutes ")
 	err := db.Exec("CREATE INDEX IF NOT EXISTS idx_web_logs_task_flag_time ON web_logs (task_flag, unix_add_time)").Error
 	if err != nil {
-		panic("failed to create index: " + err.Error())
+		panic("failed to create index: idx_web_logs_task_flag_time " + err.Error())
 	} else {
 		zlog.Info("db", "idx_web_logs_task_flag_time created")
 	}
 	// 创建联合索引
 	err = db.Exec("CREATE INDEX IF NOT EXISTS idx_web_time_tenant_user_code ON web_logs (unix_add_time, tenant_id,user_code)").Error
 	if err != nil {
-		panic("failed to create index: " + err.Error())
+		panic("failed to create index: idx_web_time_tenant_user_code " + err.Error())
 	} else {
 		zlog.Info("db", "idx_web_time_tenant_user_code created")
 	}
 	// 详情索引
 	err = db.Exec("CREATE INDEX IF NOT EXISTS idx_req_uuid_web_logs ON web_logs (REQ_UUID, tenant_id, user_code)").Error
 	if err != nil {
-		panic("failed to create index: " + err.Error())
+		panic("failed to create index:idx_req_uuid_web_logs " + err.Error())
 	} else {
 		zlog.Info("db", "idx_unique_req_uuid_web_logs created")
 	}
 	// 整体索引
 	err = db.Exec("CREATE INDEX IF NOT EXISTS idx_tenant_usercode_web_logs ON web_logs ( tenant_id, user_code)").Error
 	if err != nil {
-		panic("failed to create index: " + err.Error())
+		panic("failed to create index: idx_tenant_usercode_web_logs " + err.Error())
 	} else {
 		zlog.Info("db", "idx_tenant_usercode_web_logs created")
 	}
@@ -67,5 +67,19 @@ func pathCoreSql(db *gorm.DB) {
 		panic("failed to hosts :start_status " + err.Error())
 	} else {
 		zlog.Info("db", "hosts :start_status init successfully")
+	}
+	//20241106 创建iptagtag索引
+	err = db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS uni_iptags_full ON ip_tags (user_code, tenant_id, ip, ip_tag)").Error
+	if err != nil {
+		panic("failed to create index : uni_iptags_full " + err.Error())
+	} else {
+		zlog.Info("db", "uni_iptags_full created")
+	}
+	// 创建iptag ip索引
+	err = db.Exec("CREATE INDEX IF NOT EXISTS idx_iptag_ip ON ip_tags ( user_code, tenant_id, ip)").Error
+	if err != nil {
+		panic("failed to create index: idx_iptag_ip " + err.Error())
+	} else {
+		zlog.Info("db", "idx_iptag_ip created")
 	}
 }

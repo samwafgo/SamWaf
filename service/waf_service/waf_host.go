@@ -1,6 +1,7 @@
 package waf_service
 
 import (
+	"SamWaf/common/validfield"
 	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/model"
@@ -8,6 +9,7 @@ import (
 	"SamWaf/model/request"
 	"errors"
 	uuid "github.com/satori/go.uuid"
+	"strings"
 	"time"
 )
 
@@ -114,6 +116,10 @@ func (receiver *WafHostService) GetDetailByCodeApi(code string) model.Hosts {
 func (receiver *WafHostService) GetListApi(req request.WafHostSearchReq) ([]model.Hosts, int64, error) {
 	var list []model.Hosts
 	var total int64 = 0
+
+	splitFilterBys := strings.Split(req.FilterBy, "|")
+	splitFilterValues := strings.Split(req.FilterValue, "|")
+
 	/*where条件*/
 	var whereField = ""
 	var whereValues []interface{}
@@ -124,18 +130,26 @@ func (receiver *WafHostService) GetListApi(req request.WafHostSearchReq) ([]mode
 		}
 		whereField = whereField + " code=? "
 	}
-	if len(req.REMARKS) > 0 {
-		if len(whereField) > 0 {
-			whereField = whereField + " and "
+	for _, by := range splitFilterBys {
+
+		if len(by) > 0 {
+			if !validfield.IsValidHostFilterField(by) {
+				return nil, 0, errors.New("输入过滤字段不合法")
+			}
+			if len(whereField) > 0 {
+				whereField = whereField + " and "
+			}
+			whereField = whereField + " " + by + " like ? "
 		}
-		whereField = whereField + " remarks like ? "
 	}
 	//where字段赋值
 	if len(req.Code) > 0 {
 		whereValues = append(whereValues, req.Code)
 	}
-	if len(req.REMARKS) > 0 {
-		whereValues = append(whereValues, "%"+req.REMARKS+"%")
+	for _, val := range splitFilterValues {
+		if len(val) > 0 {
+			whereValues = append(whereValues, "%"+val+"%")
+		}
 	}
 
 	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where(whereField, whereValues...).Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&list)

@@ -1,6 +1,7 @@
 package waf_service
 
 import (
+	"SamWaf/common/validfield"
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model/request"
@@ -85,7 +86,7 @@ func (receiver *WafLogService) GetListApi(req request.WafAttackLogSearch) ([]inn
 		for _, by := range splitFilterBys {
 
 			if len(by) > 0 {
-				if !receiver.isValidFilterField(by) {
+				if !validfield.IsValidWebLogFilterField(by) {
 					return nil, 0, errors.New("输入过滤字段不合法")
 				}
 				if len(whereField) > 0 {
@@ -181,21 +182,6 @@ func (receiver *WafLogService) isValidSortField(field string) bool {
 	var allowedSortFields = []string{"time_spent", "create_time"}
 
 	for _, allowedField := range allowedSortFields {
-		if field == allowedField {
-			return true
-		}
-	}
-	return false
-}
-
-/*
-*
-判断where是否合法
-*/
-func (receiver *WafLogService) isValidFilterField(field string) bool {
-	var allowedFilterFields = []string{"header", "guest_identification"}
-
-	for _, allowedField := range allowedFilterFields {
 		if field == allowedField {
 			return true
 		}

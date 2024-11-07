@@ -63,8 +63,10 @@ type WafHostGuardStatusReq struct {
 }
 
 type WafHostSearchReq struct {
-	Code    string `json:"code" `   //主机码
-	REMARKS string `json:"remarks"` //备注
+	Code        string `json:"code" `                            //主机码
+	REMARKS     string `json:"remarks"`                          //备注
+	FilterBy    string `json:"filter_by" form:"filter_by"`       //筛选字段
+	FilterValue string `json:"filter_value" form:"filter_value"` //筛选值
 	request.PageInfo
 }
 

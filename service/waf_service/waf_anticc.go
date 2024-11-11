@@ -24,11 +24,12 @@ func (receiver *WafAntiCCService) AddApi(req request.WafAntiCCAddReq) error {
 			CREATE_TIME: customtype.JsonTime(time.Now()),
 			UPDATE_TIME: customtype.JsonTime(time.Now()),
 		},
-		HostCode: req.HostCode,
-		Rate:     req.Rate,
-		Limit:    req.Limit,
-		Url:      req.Url,
-		Remarks:  req.Remarks,
+		HostCode:      req.HostCode,
+		Rate:          req.Rate,
+		Limit:         req.Limit,
+		LockIPMinutes: req.LockIPMinutes,
+		Url:           req.Url,
+		Remarks:       req.Remarks,
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
 	return nil
@@ -46,12 +47,13 @@ func (receiver *WafAntiCCService) ModifyApi(req request.WafAntiCCEditReq) error 
 		return errors.New("当前网站和url已经存在")
 	}
 	ipWhiteMap := map[string]interface{}{
-		"Host_Code":   req.HostCode,
-		"Url":         req.Url,
-		"Rate":        req.Rate,
-		"Limit":       req.Limit,
-		"Remarks":     req.Remarks,
-		"UPDATE_TIME": customtype.JsonTime(time.Now()),
+		"Host_Code":     req.HostCode,
+		"Url":           req.Url,
+		"Rate":          req.Rate,
+		"Limit":         req.Limit,
+		"LockIPMinutes": req.LockIPMinutes,
+		"Remarks":       req.Remarks,
+		"UPDATE_TIME":   customtype.JsonTime(time.Now()),
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.AntiCC{}).Where("id = ?", req.Id).Updates(ipWhiteMap).Error
 
@@ -82,18 +84,9 @@ func (receiver *WafAntiCCService) GetListApi(req request.WafAntiCCSearchReq) ([]
 		}
 		whereField = whereField + " host_code=? "
 	}
-	if len(req.Url) > 0 {
-		if len(whereField) > 0 {
-			whereField = whereField + " and "
-		}
-		whereField = whereField + " url =? "
-	}
 	//where字段赋值
 	if len(req.HostCode) > 0 {
 		whereValues = append(whereValues, req.HostCode)
-	}
-	if len(req.Url) > 0 {
-		whereValues = append(whereValues, req.Url)
 	}
 
 	global.GWAF_LOCAL_DB.Model(&model.AntiCC{}).Where(whereField, whereValues...).Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&list)

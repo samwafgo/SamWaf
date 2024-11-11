@@ -16,4 +16,6 @@ func (receiver *AntiCCRouter) InitAntiCCRouter(group *gin.RouterGroup) {
 	router.POST("/samwaf/wafhost/anticc/add", api.AddApi)
 	router.GET("/samwaf/wafhost/anticc/del", api.DelAntiCCApi)
 	router.POST("/samwaf/wafhost/anticc/edit", api.ModifyAntiCCApi)
+	router.GET("/samwaf/wafhost/anticc/baniplist", api.GetBanIpListApi)
+	router.POST("/samwaf/wafhost/anticc/removebanip", api.RemoveCCBanIPApi)
 }

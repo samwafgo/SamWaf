@@ -26,6 +26,7 @@ type HostSafe struct {
 	UrlBlockLists      []model.URLBlockList //url 黑名单
 	LoadBalanceLists   []model.LoadBalance  //负载均衡
 	LoadBalanceRuntime *LoadBalanceRuntime  //负载运行时
+	AntiCCBean         model.AntiCC         //抵御CC
 }
 
 // 负载处理运行对象

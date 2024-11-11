@@ -239,6 +239,19 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		region := utils.GetCountry(clientIP)
+
+		// 检测是否已经被CC封禁
+		ccCacheKey := enums.CACHE_CCVISITBAN_PRE + clientIP
+		if global.GCACHE_WAFCACHE.IsKeyExist(ccCacheKey) {
+			visitIPError := fmt.Sprintf("当前IP已经被CC封禁，IP:%s 归属地区：%s", clientIP, region)
+			global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
+				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "CC封禁提醒"},
+				OperaCnt:        visitIPError,
+			})
+			EchoErrorInfoNoLog(w, r, "当前IP由于访问频次太高暂时无法访问")
+			return
+		}
+
 		currentDay, _ := strconv.Atoi(time.Now().Format("20060102"))
 
 		//URL 解码
@@ -522,6 +535,18 @@ func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean innerbean.
 	weblogbean.TASK_FLAG = 1
 	weblogbean.GUEST_IDENTIFICATION = "可疑用户"
 	global.GQEQUE_LOG_DB.Enqueue(weblogbean)
+}
+
+// EchoErrorInfoNoLog 屏蔽不记录日志
+func EchoErrorInfoNoLog(w http.ResponseWriter, r *http.Request, blockInfo string) {
+
+	resBytes := []byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>" + blockInfo + "</h1> </h3></center></body> </html>")
+	w.WriteHeader(403)
+	_, err := w.Write(resBytes)
+	if err != nil {
+		zlog.Debug("write fail:", zap.Any("", err))
+		return
+	}
 }
 func (waf *WafEngine) errorResponse() func(http.ResponseWriter, *http.Request, error) {
 	return func(w http.ResponseWriter, req *http.Request, err error) {

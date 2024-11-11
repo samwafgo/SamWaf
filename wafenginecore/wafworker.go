@@ -169,6 +169,7 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) innerbean.ServerRunTime {
 		LdpUrlLists:         ldpurls,
 		IPBlockLists:        ipblocklist,
 		UrlBlockLists:       urlblocklist,
+		AntiCCBean:          anticcBean,
 	}
 	hostsafe.Mux.Lock()
 	defer hostsafe.Mux.Unlock()

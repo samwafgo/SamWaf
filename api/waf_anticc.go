@@ -6,10 +6,14 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
+	response2 "SamWaf/model/response"
 	"SamWaf/model/spec"
+	"SamWaf/utils"
 	"errors"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	"strings"
 )
 
 type WafAntiCCApi struct {
@@ -60,6 +64,55 @@ func (w *WafAntiCCApi) GetListApi(c *gin.Context) {
 			PageIndex: req.PageIndex,
 			PageSize:  req.PageSize,
 		}, "获取成功", c)
+	} else {
+		response.FailWithMessage("解析失败", c)
+	}
+}
+
+func (w *WafAntiCCApi) GetBanIpListApi(c *gin.Context) {
+	banIpList := global.GCACHE_WAFCACHE.ListAvailableKeysWithPrefix(enums.CACHE_CCVISITBAN_PRE)
+	beans := make([]response2.CcIpRep, 0, len(banIpList))
+
+	// 遍历 banIpList，将每个 IP 信息添加到 beans 中
+	for banIp, duration := range banIpList {
+		// 去掉 IP 的前缀
+		banIp := strings.TrimPrefix(banIp, enums.CACHE_CCVISITBAN_PRE)
+
+		// 将剩余时间格式化为 "hours:minutes:seconds" 格式
+		remainTime := fmt.Sprintf("%02d时%02d分", int(duration.Hours()), int(duration.Minutes())%60)
+
+		region := utils.GetCountry(banIp)
+		// 将信息添加到 beans 中
+		beans = append(beans, response2.CcIpRep{
+			IP:         banIp,
+			RemainTime: remainTime,
+			Region:     fmt.Sprintf("%v", region),
+		})
+	}
+
+	// 计算总条目数
+	total := len(beans)
+	// 返回带分页信息的响应（假设 req.PageIndex 和 req.PageSize 已在请求中解析）
+	response.OkWithDetailed(response.PageResult{
+		List:      beans,
+		Total:     int64(total),
+		PageIndex: 1,
+		PageSize:  999999,
+	}, "获取成功", c)
+}
+
+// RemoveCCBanIPApi 移除被封禁的IP
+func (w *WafAntiCCApi) RemoveCCBanIPApi(c *gin.Context) {
+	var req request.WafAntiCCRemoveBanIpReq
+	err := c.ShouldBindJSON(&req)
+	if err == nil {
+		ccCacheKey := enums.CACHE_CCVISITBAN_PRE + req.Ip
+		if global.GCACHE_WAFCACHE.IsKeyExist(ccCacheKey) {
+			global.GCACHE_WAFCACHE.Remove(ccCacheKey)
+			response.OkWithMessage(req.Ip+" 移除成功", c)
+		} else {
+			response.FailWithMessage("键值未找到或以过期", c)
+		}
 	} else {
 		response.FailWithMessage("解析失败", c)
 	}

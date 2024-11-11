@@ -1,10 +1,12 @@
 package wafenginecore
 
 import (
+	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model/detection"
 	"net/url"
+	"time"
 )
 
 /*
@@ -26,6 +28,9 @@ func (waf *WafEngine) CheckCC(weblogbean *innerbean.WebLog, formValue url.Values
 			result.IsBlock = true
 			result.Title = "触发IP频次访问限制1"
 			result.Content = "您的访问被阻止超量了1"
+			cacheKey := enums.CACHE_CCVISITBAN_PRE + weblogbean.SRC_IP
+			//将该IP添加到封禁里
+			global.GCACHE_WAFCACHE.SetWithTTl(cacheKey, 1, time.Duration(waf.HostTarget[weblogbean.HOST].AntiCCBean.LockIPMinutes)*time.Minute)
 			return result
 		}
 	}
@@ -37,6 +42,9 @@ func (waf *WafEngine) CheckCC(weblogbean *innerbean.WebLog, formValue url.Values
 			result.IsBlock = true
 			result.Title = "【全局】触发IP频次访问限制"
 			result.Content = "您的访问被阻止超量了"
+			cacheKey := enums.CACHE_CCVISITBAN_PRE + weblogbean.SRC_IP
+			//将该IP添加到封禁里
+			global.GCACHE_WAFCACHE.SetWithTTl(cacheKey, 1, time.Duration(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].AntiCCBean.LockIPMinutes)*time.Minute)
 			return result
 		}
 	}

@@ -2,6 +2,7 @@ package cache
 
 import (
 	"errors"
+	"strings"
 	"sync"
 	"time"
 )
@@ -123,4 +124,42 @@ func (wafCache *WafCache) ClearExpirationCacheRoutine() {
 	for range ticker.C {
 		wafCache.ClearExpirationCache()
 	}
+}
+
+// ListAvailableKeys 列出所有可用的键和剩余时间
+func (wafCache *WafCache) ListAvailableKeys() map[string]time.Duration {
+	wafCache.mu.Lock()
+	defer wafCache.mu.Unlock()
+	now := time.Now()
+	availableKeys := make(map[string]time.Duration)
+
+	for key, item := range wafCache.cache {
+		remainingTime := item.ttl - now.Sub(item.createTime)
+		if remainingTime > 0 {
+			availableKeys[key] = remainingTime
+		} else {
+			delete(wafCache.cache, key) // 删除过期项
+		}
+	}
+	return availableKeys
+}
+
+// ListAvailableKeysWithPrefix 列出指定前缀的可用键和剩余时间
+func (wafCache *WafCache) ListAvailableKeysWithPrefix(prefix string) map[string]time.Duration {
+	wafCache.mu.Lock()
+	defer wafCache.mu.Unlock()
+	now := time.Now()
+	availableKeys := make(map[string]time.Duration)
+
+	for key, item := range wafCache.cache {
+		if strings.HasPrefix(key, prefix) {
+			remainingTime := item.ttl - now.Sub(item.createTime)
+			if remainingTime > 0 {
+				availableKeys[key] = remainingTime
+			} else {
+				delete(wafCache.cache, key) // 删除过期项
+			}
+		}
+	}
+	return availableKeys
 }

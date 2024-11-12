@@ -36,15 +36,15 @@ func (receiver *WafAntiCCService) AddApi(req request.WafAntiCCAddReq) error {
 }
 
 func (receiver *WafAntiCCService) CheckIsExistApi(req request.WafAntiCCAddReq) error {
-	return global.GWAF_LOCAL_DB.First(&model.AntiCC{}, "host_code = ? and url= ?", req.HostCode,
+	return global.GWAF_LOCAL_DB.First(&model.AntiCC{}, "host_code = ?", req.HostCode,
 		req.Url).Error
 }
 func (receiver *WafAntiCCService) ModifyApi(req request.WafAntiCCEditReq) error {
 	var ipWhite model.AntiCC
-	global.GWAF_LOCAL_DB.Where("host_code = ? and url= ?", req.HostCode,
+	global.GWAF_LOCAL_DB.Where("host_code = ? ", req.HostCode,
 		req.Url).Find(&ipWhite)
 	if ipWhite.Id != "" && ipWhite.Url != req.Url {
-		return errors.New("当前网站和url已经存在")
+		return errors.New("当前网站已经存在")
 	}
 	ipWhiteMap := map[string]interface{}{
 		"Host_Code":     req.HostCode,

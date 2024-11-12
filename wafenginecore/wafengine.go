@@ -339,10 +339,11 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 				return false
 			}
-			detectionResult := waf.CheckAllowIP(&weblogbean, formValues)
-			detectionResult = waf.CheckAllowURL(weblogbean, formValues)
-
-			if detectionResult.JumpGuardResult == false {
+			detectionWhiteResult := waf.CheckAllowIP(&weblogbean, formValues)
+			if detectionWhiteResult.JumpGuardResult == false {
+				detectionWhiteResult = waf.CheckAllowURL(weblogbean, formValues)
+			}
+			if detectionWhiteResult.JumpGuardResult == false {
 
 				if handleBlock(waf.CheckDenyIP) {
 					return

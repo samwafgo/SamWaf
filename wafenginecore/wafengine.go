@@ -1,6 +1,7 @@
 package wafenginecore
 
 import (
+	"SamWaf/common/domaintool"
 	"SamWaf/common/zlog"
 	"SamWaf/customtype"
 	"SamWaf/enums"
@@ -188,8 +189,21 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		host = target
 	}
 
+	// 是否匹配到网站信息
+	findHost := false
+	target, ok := waf.HostTarget[host]
+	if !ok {
+		// 看看是不是泛域名情况
+		target, ok = waf.HostTarget[domaintool.MaskSubdomain(host)]
+		if ok {
+			host = domaintool.MaskSubdomain(host)
+			findHost = true
+		}
+	} else {
+		findHost = true
+	}
 	// 检查域名是否已经注册
-	if target, ok := waf.HostTarget[host]; ok {
+	if findHost == true {
 		//检测网站是否已关闭
 		if waf.HostTarget[host].Host.START_STATUS == 1 {
 			resBytes := []byte("<html><head><title>网站已关闭</title></head><body><center><h1>当前访问网站已关闭</h1> <br><h3></h3></center></body> </html>")
@@ -594,6 +608,22 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 			//检测是否是不检测端口的情况
 			if target, ok := waf.HostTargetNoPort[utils.GetPureDomain(host)]; ok {
 				host = target
+			}
+			// 是否匹配到网站信息
+			findHost := false
+			_, ok := waf.HostTarget[host]
+			if !ok {
+				// 看看是不是泛域名情况
+				_, ok = waf.HostTarget[domaintool.MaskSubdomain(host)]
+				if ok {
+					host = domaintool.MaskSubdomain(host)
+				}
+			} else {
+				findHost = true
+			}
+			if !findHost {
+				zlog.Error("主机未匹配到", host)
+				return nil
 			}
 			ldpFlag := false
 			//隐私保护（局部）

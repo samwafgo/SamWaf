@@ -582,8 +582,6 @@ func (waf *WafEngine) errorResponse() func(http.ResponseWriter, *http.Request, e
 }
 func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 	return func(resp *http.Response) error {
-		resp.Header.Set("WAF", "SamWAF")
-		resp.Header.Set("Server", "SamWAFServer")
 		resp.Header.Set("X-Xss-Protection", "1; mode=block")
 
 		r := resp.Request

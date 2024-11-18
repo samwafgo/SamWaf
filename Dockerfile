@@ -12,11 +12,25 @@ RUN apk update && \
     ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime && \
     echo "${TZ}" > /etc/timezone
 
-# 复制 release/SamWafLinux64 到镜像中		# 复制适用架构的二进制文件到镜像
-COPY dist/samwaf_linux_linux_amd64_v1/SamWafLinux64 ./SamWafLinux64
+# 定义构建参数（由 Buildx 提供）
+ARG TARGETARCH
+
+# 根据架构动态复制对应的二进制文件
+# 只包含当前架构的文件
+ADD dist/samwaf_linux_linux_amd64_v1/SamWafLinux64 /app/SamWafLinux64.amd64
+ADD dist/samwaf_linux_arm64_linux_arm64/SamWafLinuxArm64 /app/SamWafLinux64.arm64
+
+# 动态选择文件
+RUN if [ "${TARGETARCH}" = "amd64" ]; then \
+        mv /app/SamWafLinux64.amd64 /app/SamWafLinux64 && rm -f /app/SamWafLinux64.arm64; \
+    elif [ "${TARGETARCH}" = "arm64" ]; then \
+        mv /app/SamWafLinux64.arm64 /app/SamWafLinux64 && rm -f /app/SamWafLinux64.amd64; \
+    else \
+        echo "Unsupported architecture: ${TARGETARCH}" && exit 1; \
+    fi
 
 # 设置执行权限
-RUN chmod +x SamWafLinux64
+RUN chmod +x /app/SamWafLinux64
 
 # 挂载 conf, data, logs 和 ssl 目录
 VOLUME ["/app/conf", "/app/data", "/app/logs", "/app/ssl"]

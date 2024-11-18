@@ -43,36 +43,30 @@ jobs:
           ls
       - name: Get current tag
         run: echo "IMAGE_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-      - name: Login to Docker Hub
+      # Login to Docker Hub
+      - name: Login to Docker Registry
         uses: docker/login-action@v3
         with:
+          registry: ${{ env.REGISTRY }}
           username: ${{ secrets.DOCKER_HUB_USER }}
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
-
+      # Set up Docker Buildx
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      - name: Build and Push Multi-Arch Docker Image
-        run: | 
-          docker buildx create --use 
-          docker buildx build \
-            --platform linux/amd64 \
-            --push \
-            --tag samwaf/samwaf:latest \
-            --tag samwaf/samwaf:${{ env.IMAGE_TAG }} \
-            --file Dockerfile \
-            .
-
-          
-          docker buildx build \
-            --platform linux/arm64 \
-            --push \
-            --tag samwaf/samwaf:latest \
-            --tag samwaf/samwaf:${{ env.IMAGE_TAG }} \
-            --file DockerfileArm \
-            .
+        uses: docker/setup-buildx-action@v2
+      # Build and Push Docker Image for Multi-Arch
+      - name: Build and Push Docker Image for Multi-Arch
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64  # Support for both architectures
+          push: true  # Push to Docker Hub
+          tags: |
+            samwaf/samwaf:latest
+            samwaf/samwaf:${{ env.IMAGE_TAG }}
       # Test the Docker Image
       - name: Test Docker Image
         run: |
+          # Print 
           # Start the Docker container
           docker run -d --name=samwaf-instance \
             -p 26666:26666 \

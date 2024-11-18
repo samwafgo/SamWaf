@@ -1,0 +1,42 @@
+# 使用 Ubuntu 作为基础镜像
+FROM ubuntu:20.04
+
+# 设置环境变量，防止一些提示
+ENV DEBIAN_FRONTEND=noninteractive
+
+# 使用阿里云的 Ubuntu 镜像源
+RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.aliyun.com/ubuntu/|g' /etc/apt/sources.list && \
+    sed -i 's|http://security.ubuntu.com/ubuntu|http://mirrors.aliyun.com/ubuntu|g' /etc/apt/sources.list
+
+# 更新系统并安装必要的软件包，确保使用阿里云镜像源
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y \
+    gcc-mingw-w64-x86-64 \
+    gcc-mingw-w64-i686 \
+    gcc-aarch64-linux-gnu \
+    g++-aarch64-linux-gnu \
+    build-essential \
+    wget \
+    curl \
+    unzip \
+    git \
+    golang-1.21-go && \
+    apt-get clean
+
+# 安装 Go 1.21.4
+RUN wget https://go.dev/dl/go1.21.4.linux-amd64.tar.gz && \
+    tar -C /usr/local -xzf go1.21.4.linux-amd64.tar.gz && \
+    rm go1.21.4.linux-amd64.tar.gz
+
+# 设置 Go 环境变量
+ENV PATH=$PATH:/usr/local/go/bin
+
+# 安装 Goreleaser
+RUN curl -sSL https://github.com/goreleaser/goreleaser/releases/download/v2.4.4/goreleaser_Linux_x86_64.tar.gz | tar -xz -C /usr/local/bin
+
+# 设置工作目录
+WORKDIR /workspace
+
+# 默认命令：运行并自动编译项目，使用 Goreleaser
+CMD ["bash", "-c", "goreleaser release --snapshot"]

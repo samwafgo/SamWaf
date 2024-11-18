@@ -183,6 +183,7 @@ func (m *wafSystenService) run() {
 	if global.GWAF_RUNTIME_WIN7_VERSION == "true" {
 		rversion = rversion + " Win7内核版本"
 	}
+	rversion = rversion + " plat:" + runtime.GOOS + "-" + runtime.GOARCH
 	zlog.Info(rversion)
 	zlog.Info("OutIp", global.GWAF_RUNTIME_IP)
 

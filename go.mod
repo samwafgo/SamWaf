@@ -10,8 +10,6 @@ require (
 	github.com/bytedance/godlp v1.2.15
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/dsnet/compress v0.0.1
-	github.com/edwingeng/deque v1.0.3
-	github.com/emirpasic/gods v1.18.1
 	github.com/gin-gonic/gin v1.8.1
 	github.com/go-co-op/gocron v1.17.1
 	github.com/gorilla/websocket v1.5.0
@@ -40,6 +38,7 @@ require (
 	github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20220527190237-ee62e23da966 // indirect
 	github.com/bmatcuk/doublestar v1.3.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect

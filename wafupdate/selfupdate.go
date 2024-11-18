@@ -2,6 +2,7 @@ package wafupdate
 
 import (
 	"SamWaf/binarydist"
+	"SamWaf/global"
 	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
@@ -303,10 +304,10 @@ func fromStream(updateWith io.Reader) (err error, errRecover error) {
 	return
 }
 
-// fetchInfo fetches the update JSON manifest at u.ApiURL/appname/platform.json
+// fetchInfo fetches the update JSON manifest at u.ApiURL/appname/platform.json?v=currentVersion
 // and updates u.Info.
 func (u *Updater) fetchInfo() error {
-	r, err := u.fetch(u.ApiURL + url.QueryEscape(u.CmdName) + "/" + url.QueryEscape(plat) + ".json")
+	r, err := u.fetch(u.ApiURL + url.QueryEscape(u.CmdName) + "/" + url.QueryEscape(plat) + ".json?v=" + global.GWAF_RELEASE_VERSION)
 	if err != nil {
 		return err
 	}

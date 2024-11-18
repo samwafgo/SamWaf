@@ -74,6 +74,16 @@ linux
 
 ```
 
+ubuntu docker 测试
+
+```
+docker build -f UbuntuDockerfile -t samwaflocalcompile .
+
+docker run --rm samwaflocalcompile
+docker run --rm -v $(pwd):/workspace samwaflocalcompile
+docker run --rm -v %cd%:/workspace samwaflocalcompile
+
+```
 ## 集成的三方库
 前端: 使用TDesign Vue Starter
 后端: gorm,excelize(360EntSecGroup-Skylar),godlp(bytedance),gin,gocron,

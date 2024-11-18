@@ -14,18 +14,15 @@ RUN apk update && \
 
 # 复制适用架构的二进制文件到镜像
 ARG TARGETARCH
-ENV BINARY_PATH=""
+RUN echo "Building for architecture: ${TARGETARCH}"
+# 使用RUN指令和if语句根据架构选择文件
 RUN if [ "${TARGETARCH}" = "amd64" ]; then \
-        export BINARY_PATH="dist/samwaf_linux_linux_amd64_v1/SamWafLinux64"; \
+        cp dist/samwaf_linux_linux_amd64_v1/SamWafLinux64 ./SamWafLinux64; \
     elif [ "${TARGETARCH}" = "arm64" ]; then \
-        export BINARY_PATH="dist/samwaf_linux_arm64_linux_arm64_v8.0/SamWafLinuxArm64"; \
+        cp dist/samwaf_linux_arm64_linux_arm64/SamWafLinuxArm64 ./SamWafLinux64; \
     else \
         echo "Unknown architecture: ${TARGETARCH}" && exit 1; \
     fi
-
-# 复制文件到镜像中
-COPY ${BINARY_PATH} ./SamWafLinux64
-
 
 # 设置执行权限
 RUN chmod +x SamWafLinux64

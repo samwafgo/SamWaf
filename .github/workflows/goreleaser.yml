@@ -60,8 +60,8 @@ jobs:
           platforms: linux/amd64,linux/arm64  # Support for both architectures
           push: true  # Push to Docker Hub
           tags: |
-            samwaf/samwaf:latest  # Tag the image as 'latest'
-            samwaf/samwaf:${{ env.IMAGE_TAG }}  # Tag the image with the current git tag
+            samwaf/samwaf:latest
+            samwaf/samwaf:${{ env.IMAGE_TAG }}
       # Test the Docker Image
       - name: Test Docker Image
         run: |

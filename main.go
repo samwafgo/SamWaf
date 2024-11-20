@@ -316,7 +316,7 @@ func (m *wafSystenService) run() {
 	})
 
 	//每天凌晨5点执行批量任务执行
-	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(30).Minutes().Do(func() {
+	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Day().At("05:00").Do(func() {
 		go waftask.BatchTask()
 
 	})

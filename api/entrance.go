@@ -28,6 +28,7 @@ type APIGroup struct {
 	WafSensitiveApi
 	WafLoadBalanceApi
 	WafSslConfigApi
+	WafBatchTaskApi
 }
 
 var APIGroupAPP = new(APIGroup)
@@ -62,5 +63,7 @@ var (
 
 	wafLoadBalanceService = waf_service.WafLoadBalanceServiceApp
 
-	wafSslConfigService = waf_service.WafSslConfigService{}
+	wafSslConfigService = waf_service.WafSslConfigServiceApp
+
+	wafBatchTaskService = waf_service.WafBatchServiceApp
 )

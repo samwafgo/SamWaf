@@ -56,6 +56,7 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitSensitiveRouter(RouterGroup)
 		router.ApiGroupApp.InitLoadBalanceRouter(RouterGroup)
 		router.ApiGroupApp.InitSslConfigRouter(RouterGroup)
+		router.ApiGroupApp.InitBatchTaskRouter(RouterGroup)
 	}
 	//r.Use(middleware.GinGlobalExceptionMiddleWare())
 	if global.GWAF_RELEASE == "true" {

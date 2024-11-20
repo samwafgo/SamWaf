@@ -143,6 +143,9 @@ func InitCoreDb(currentDir string) {
 		//IPTag
 		db.AutoMigrate(&model.IPTag{})
 
+		//自动任务
+		db.AutoMigrate(&model.BatchTask{})
+
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
 

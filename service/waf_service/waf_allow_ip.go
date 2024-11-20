@@ -63,6 +63,11 @@ func (receiver *WafWhiteIpService) GetDetailByIdApi(id string) model.IPAllowList
 	global.GWAF_LOCAL_DB.Where("id=?", id).Find(&ipWhite)
 	return ipWhite
 }
+func (receiver *WafWhiteIpService) GetDetailByIPApi(ip string, hostCode string) model.IPAllowList {
+	var ipWhite model.IPAllowList
+	global.GWAF_LOCAL_DB.Where("ip=? and host_code=?", ip, hostCode).Find(&ipWhite)
+	return ipWhite
+}
 func (receiver *WafWhiteIpService) GetListApi(req request.WafAllowIpSearchReq) ([]model.IPAllowList, int64, error) {
 	var ipWhites []model.IPAllowList
 	var total int64 = 0

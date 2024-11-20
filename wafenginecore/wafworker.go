@@ -59,6 +59,9 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) innerbean.ServerRunTime {
 		waf.AllCertificate.LoadSSL(inHost.Host, inHost.Certfile, inHost.Keyfile)
 
 	}
+	if inHost.GLOBAL_HOST == 1 {
+		global.GWAF_GLOBAL_HOST_CODE = inHost.Code
+	}
 	onlineServer, ok := waf.ServerOnline[inHost.Port]
 	if ok == false && inHost.GLOBAL_HOST == 0 {
 		if inHost.START_STATUS == 0 {

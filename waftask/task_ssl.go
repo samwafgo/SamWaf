@@ -10,7 +10,7 @@ import (
 
 var (
 	wafHostService      = waf_service.WafHostServiceApp
-	wafSslConfigService = waf_service.SslConfigServiceApp
+	wafSslConfigService = waf_service.WafSslConfigServiceApp
 )
 
 /*

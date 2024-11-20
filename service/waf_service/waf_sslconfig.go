@@ -20,7 +20,7 @@ import (
 
 type WafSslConfigService struct{}
 
-var SslConfigServiceApp = new(WafSslConfigService)
+var WafSslConfigServiceApp = new(WafSslConfigService)
 
 func (receiver *WafSslConfigService) AddApi(req request.SslConfigAddReq) error {
 	block, _ := pem.Decode([]byte(req.CertContent))

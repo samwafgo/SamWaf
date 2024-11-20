@@ -205,6 +205,22 @@ func CheckIPInCIDR(ip string, ipRange string) bool {
 	}
 }
 
+// IsValidIPOrNetwork 检查给定的字符串是否为有效的 IP 地址或 IP 段（CIDR）
+func IsValidIPOrNetwork(input string) (bool, string) {
+	// 尝试解析为 IP 地址
+	if ip := net.ParseIP(input); ip != nil {
+		return true, "valid IP address"
+	}
+
+	// 尝试解析为 IP 段（CIDR）
+	_, _, err := net.ParseCIDR(input)
+	if err == nil {
+		return true, "valid IP network (CIDR)"
+	}
+
+	return false, "not a valid IP or IP network (CIDR)"
+}
+
 // 检查 JSON 字符串是否为有效的 UTF-8 编码
 func CheckJSONValidity(jsonStr []byte) bool {
 	for i := 0; i < len(jsonStr); {

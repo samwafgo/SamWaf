@@ -46,8 +46,8 @@ var (
 	*/
 	GWAF_MEASURE_PROCESS_DEQUEENGINE cache.WafOnlyLockWriteData //遥测数据-队列处理时间
 
-	GWAF_GLOBAL_HOST_NAME string = "全局网站:0" //全局网站
-
+	GWAF_GLOBAL_HOST_NAME        string              = "全局网站:0"    //全局网站
+	GWAF_GLOBAL_HOST_CODE        string              = "0"         //全局网站代码
 	GWAF_LOCAL_DB                *gorm.DB                          //通用本地数据库，尊重用户隐私
 	GWAF_LOCAL_LOG_DB            *gorm.DB                          //通用本地数据库存日志数据，尊重用户隐私
 	GWAF_LOCAL_STATS_DB          *gorm.DB                          //通用本地数据库存放统计数据，尊重用户隐私

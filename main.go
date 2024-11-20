@@ -315,6 +315,12 @@ func (m *wafSystenService) run() {
 		go waftask.SSLReload()
 	})
 
+	//每天凌晨5点执行批量任务执行
+	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(30).Minutes().Do(func() {
+		go waftask.BatchTask()
+
+	})
+
 	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.StartAsync()
 
 	//脱敏处理初始化

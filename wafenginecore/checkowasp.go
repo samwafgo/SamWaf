@@ -24,6 +24,7 @@ func (waf *WafEngine) CheckOwasp(r *http.Request, weblogbean *innerbean.WebLog, 
 		result.IsBlock = true
 		result.Title = "OWASP:" + strconv.Itoa(interruption.RuleID)
 		result.Content = "访问不合法"
+		weblogbean.RISK_LEVEL = 2
 	}
 	return result
 }

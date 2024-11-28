@@ -239,6 +239,10 @@ How to compile
 - [github issues](https://github.com/samwafgo/SamWaf/issues)
 - 邮件反馈:samwafgo@gmail.com
 
+## Star 历史趋势
+
+[![Star History Chart](https://api.star-history.com/svg?repos=samwafgo/samwaf&type=Date)](https://star-history.com/#samwafgo/samwaf&Date)
+
 # 许可证书
 SamWaf 采用 Apache 2.0 license. 详细见 [LICENSE](./LICENSE) .
 

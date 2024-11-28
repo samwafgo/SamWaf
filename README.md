@@ -242,6 +242,11 @@ SamWaf is continuously iterating. We welcome feedback and suggestions.
 - [GitHub Issues](https://github.com/samwafgo/SamWaf/issues)
 - Email feedback: samwafgo@gmail.com
 
+## Star history
+
+[![Star History Chart](https://api.star-history.com/svg?repos=samwafgo/samwaf&type=Date)](https://star-history.com/#samwafgo/samwaf&Date)
+
+
 #  License
 SamWaf is licensed under the Apache License 2.0. Refer to [LICENSE](./LICENSE) for more details.
 

@@ -136,7 +136,12 @@ func GetCountry(ip string) []string {
 
 	zlog.Debug("{region: %s, took: %s}\n", region, time.Since(tStart))
 	regions := strings.Split(region, "|")
-
+	//如果是内网IP情况下显示内网的内容
+	if regions[4] == "内网IP" {
+		regions[0] = "内网"
+		regions[1] = "内网"
+		regions[2] = "内网"
+	}
 	return regions
 }
 

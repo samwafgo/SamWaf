@@ -7,6 +7,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/spec"
 	"SamWaf/wafnotify"
+	"SamWaf/wafowasp"
 	"SamWaf/wafsnowflake"
 	"github.com/bytedance/godlp/dlpheader"
 	"gorm.io/gorm"
@@ -66,6 +67,7 @@ var (
 	GWAF_DLP                     dlpheader.EngineAPI               // 脱敏引擎
 	GWAF_DLP_CONFIG              string                            // 脱敏引擎配置数据
 
+	GWAF_OWASP *wafowasp.WafOWASP //owasp引擎
 	/**链聚合**/
 	GWAF_CHAN_HOST      = make(chan model.Hosts, 10)         //主机链
 	GWAF_CHAN_ENGINE    = make(chan int, 10)                 //引擎链

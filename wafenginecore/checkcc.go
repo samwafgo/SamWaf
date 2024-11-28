@@ -5,6 +5,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model/detection"
+	"net/http"
 	"net/url"
 	"time"
 )
@@ -13,7 +14,7 @@ import (
 *
 检测cc
 */
-func (waf *WafEngine) CheckCC(weblogbean *innerbean.WebLog, formValue url.Values) detection.Result {
+func (waf *WafEngine) CheckCC(r *http.Request, weblogbean *innerbean.WebLog, formValue url.Values) detection.Result {
 	result := detection.Result{
 		JumpGuardResult: false,
 		IsBlock:         false,

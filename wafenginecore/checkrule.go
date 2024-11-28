@@ -5,6 +5,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model/detection"
+	"net/http"
 	"net/url"
 )
 
@@ -12,7 +13,7 @@ import (
 *
 检测rule
 */
-func (waf *WafEngine) CheckRule(weblogbean *innerbean.WebLog, formValue url.Values) detection.Result {
+func (waf *WafEngine) CheckRule(r *http.Request, weblogbean *innerbean.WebLog, formValue url.Values) detection.Result {
 	result := detection.Result{
 		JumpGuardResult: false,
 		IsBlock:         false,

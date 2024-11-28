@@ -14,8 +14,10 @@ import (
 	"SamWaf/wafconfig"
 	"SamWaf/wafdb"
 	"SamWaf/wafenginecore"
+	"SamWaf/wafinit"
 	"SamWaf/wafmangeweb"
 	"SamWaf/wafnotify"
+	"SamWaf/wafowasp"
 	"SamWaf/wafqueue"
 	"SamWaf/wafreg"
 	"SamWaf/wafsafeclear"
@@ -23,6 +25,7 @@ import (
 	"SamWaf/waftask"
 	"SamWaf/webplugin"
 	"crypto/tls"
+	"embed"
 	_ "embed"
 	"fmt"
 	dlp "github.com/bytedance/godlp"
@@ -57,6 +60,9 @@ var ldpConfig string //隐私防护ldp
 
 //go:embed exedata/public_key.pem
 var publicKey string //公钥key
+
+//go:embed exedata/owasp
+var owaspAssets embed.FS
 
 // wafSystenService 实现了 service.Service 接口
 type wafSystenService struct{}
@@ -130,6 +136,15 @@ func (m *wafSystenService) run() {
 	global.GWAF_DLP_CONFIG = ldpConfig
 	global.GWAF_REG_PUBLIC_KEY = publicKey
 
+	//方式owasp资源
+	//设置目标目录（当前路径下的 data/owasp）
+	targetDir := utils.GetCurrentDir() + "/data/owasp"
+
+	// 调用 wafinit 包中的方法检查并释放数据集
+	err = wafinit.CheckAndReleaseDataset(owaspAssets, targetDir)
+	if err != nil {
+		zlog.Error("owasp", err.Error())
+	}
 	/*// 启动一个 goroutine 来处理信号
 	go func() {
 		// 创建一个通道来接收信号
@@ -159,6 +174,10 @@ func (m *wafSystenService) run() {
 	global.GWAF_MEASURE_PROCESS_DEQUEENGINE = cache.InitWafOnlyLockWrite()
 	// 创建 Snowflake 实例
 	global.GWAF_SNOWFLAKE_GEN = wafsnowflake.NewSnowflake(1609459200000, 1, 1) // 设置epoch时间、机器ID和数据中心ID
+
+	// 创建owasp
+	global.GWAF_OWASP = wafowasp.NewWafOWASP(true, utils.GetCurrentDir())
+
 	//提前初始化
 	global.GDATA_CURRENT_LOG_DB_MAP = map[string]*gorm.DB{}
 	rversion := "初始化系统 编译器版本:" + runtime.Version() + " 程序版本号：" + global.GWAF_RELEASE_VERSION_NAME + "(" + global.GWAF_RELEASE_VERSION + ")"

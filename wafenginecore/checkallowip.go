@@ -5,6 +5,7 @@ import (
 	"SamWaf/innerbean"
 	"SamWaf/model/detection"
 	"SamWaf/utils"
+	"net/http"
 	"net/url"
 )
 
@@ -12,7 +13,7 @@ import (
 *
 检测白名单 ip
 */
-func (waf *WafEngine) CheckAllowIP(weblogbean *innerbean.WebLog, formValue url.Values) detection.Result {
+func (waf *WafEngine) CheckAllowIP(r *http.Request, weblogbean *innerbean.WebLog, formValue url.Values) detection.Result {
 	result := detection.Result{
 		JumpGuardResult: false,
 		IsBlock:         false,

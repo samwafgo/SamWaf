@@ -331,17 +331,17 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		if waf.HostTarget[host].Host.GUARD_STATUS == 1 {
 			//一系列检测逻辑
-			handleBlock := func(checkFunc func(*innerbean.WebLog, url.Values) detection.Result) bool {
-				detectionResult := checkFunc(&weblogbean, formValues)
+			handleBlock := func(checkFunc func(*http.Request, *innerbean.WebLog, url.Values) detection.Result) bool {
+				detectionResult := checkFunc(r, &weblogbean, formValues)
 				if detectionResult.IsBlock {
 					EchoErrorInfo(w, r, weblogbean, detectionResult.Title, detectionResult.Content)
 					return true
 				}
 				return false
 			}
-			detectionWhiteResult := waf.CheckAllowIP(&weblogbean, formValues)
+			detectionWhiteResult := waf.CheckAllowIP(r, &weblogbean, formValues)
 			if detectionWhiteResult.JumpGuardResult == false {
-				detectionWhiteResult = waf.CheckAllowURL(weblogbean, formValues)
+				detectionWhiteResult = waf.CheckAllowURL(r, weblogbean, formValues)
 			}
 			if detectionWhiteResult.JumpGuardResult == false {
 
@@ -407,6 +407,10 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					if handleBlock(waf.CheckSensitive) {
 						return
 					}
+				}
+				//检测OWASP
+				if handleBlock(waf.CheckOwasp) {
+					return
 				}
 
 			}
@@ -520,6 +524,8 @@ func (waf *WafEngine) getClientIP(r *http.Request, headers ...string) (error, st
 
 	return nil, ip, port
 }
+
+// EchoErrorInfo  ruleName 对内记录  blockInfo 对外展示
 func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean innerbean.WebLog, ruleName string, blockInfo string) {
 
 	go func() {

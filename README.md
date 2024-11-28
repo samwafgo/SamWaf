@@ -101,6 +101,8 @@ SamWaf is a lightweight, open-source web application firewall for small companie
 - Encrypted log storage
 - Encrypted communication logs
 - Data obfuscation
+- Supports global one-click configuration
+- Supports OWASP CRS
 
 # Usage Instructions
 **It is strongly recommended to conduct thorough testing in a test environment before deploying to production. If any issues arise, please provide feedback promptly.**

@@ -4,6 +4,7 @@ import (
 	"SamWaf/innerbean"
 	"SamWaf/model/detection"
 	"SamWaf/wafbot"
+	"net/http"
 	"net/url"
 )
 
@@ -11,7 +12,7 @@ import (
 *
 检测爬虫
 */
-func (waf *WafEngine) CheckBot(weblogbean *innerbean.WebLog, formValue url.Values) detection.Result {
+func (waf *WafEngine) CheckBot(r *http.Request, weblogbean *innerbean.WebLog, formValue url.Values) detection.Result {
 	result := detection.Result{
 		JumpGuardResult: false,
 		IsBlock:         false,

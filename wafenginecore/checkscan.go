@@ -4,6 +4,7 @@ import (
 	"SamWaf/innerbean"
 	"SamWaf/libinjection-go"
 	"SamWaf/model/detection"
+	"net/http"
 	"net/url"
 )
 
@@ -11,7 +12,7 @@ import (
 *
 检测扫描工具
 */
-func (waf *WafEngine) CheckSan(weblogbean *innerbean.WebLog, formValue url.Values) detection.Result {
+func (waf *WafEngine) CheckSan(r *http.Request, weblogbean *innerbean.WebLog, formValue url.Values) detection.Result {
 	result := detection.Result{
 		JumpGuardResult: false,
 		IsBlock:         false,

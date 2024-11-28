@@ -61,7 +61,7 @@ func (w *WafAccountApi) GetListApi(c *gin.Context) {
 }
 func (w *WafAccountApi) DelAccountApi(c *gin.Context) {
 	var req request.WafAccountDelReq
-	err := c.ShouldBindJSON(&req)
+	err := c.ShouldBind(&req)
 	if err == nil {
 		err = wafAccountService.DelApi(req)
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {

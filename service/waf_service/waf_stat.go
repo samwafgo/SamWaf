@@ -147,12 +147,12 @@ func (receiver *WafStatService) StatHomeSumDayTopIPRangeApi(req request.WafStats
 func (receiver *WafStatService) StatAnalysisDayCountryRangeApi(req request.WafStatsAnalysisDayRangeCountryReq) []response2.WafAnalysisDayStats {
 	var CountOfRange []response2.WafAnalysisDayStats
 	if req.AttackType == "" {
-		global.GWAF_LOCAL_STATS_DB.Model(&model.StatsIPCityDay{}).Where("day between ? and ?",
-			req.StartDay, req.EndDay).Select(" country as Name ,sum(count) as Value").Group("country").Order("sum(count) desc").Scan(&CountOfRange)
+		global.GWAF_LOCAL_STATS_DB.Model(&model.StatsIPCityDay{}).Where("day between ? and ? and country<>? and country<>? ",
+			req.StartDay, req.EndDay, "0", "内网").Select(" country as Name ,sum(count) as Value").Group("country").Order("sum(count) desc").Scan(&CountOfRange)
 
 	} else {
-		global.GWAF_LOCAL_STATS_DB.Model(&model.StatsIPCityDay{}).Where("day between ? and ? and type = ? ",
-			req.StartDay, req.EndDay, req.AttackType).Select(" country as Name ,sum(count) as Value").Group("country").Order("sum(count) desc").Scan(&CountOfRange)
+		global.GWAF_LOCAL_STATS_DB.Model(&model.StatsIPCityDay{}).Where("day between ? and ? and type = ?  and country<>? and country<>? ",
+			req.StartDay, req.EndDay, req.AttackType, "0", "内网").Select(" country as Name ,sum(count) as Value").Group("country").Order("sum(count) desc").Scan(&CountOfRange)
 
 	}
 	return CountOfRange

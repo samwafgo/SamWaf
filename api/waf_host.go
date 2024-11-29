@@ -11,6 +11,7 @@ import (
 	response2 "SamWaf/model/response"
 	"SamWaf/model/spec"
 	"SamWaf/utils"
+	"SamWaf/wafenginecore"
 	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
@@ -71,8 +72,18 @@ func (w *WafHostAPi) GetListApi(c *gin.Context) {
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		wafHosts, total, _ := wafHostService.GetListApi(req)
+		// 初始化返回结果列表
+		var repList []response2.HostRep
+		for _, srcHost := range wafHosts {
+			rep := response2.HostRep{
+				Hosts:              srcHost,
+				RealTimeConnectCnt: wafenginecore.GetActiveConnectCnt(srcHost.Code),
+				RealTimeQps:        wafenginecore.GetQPS(srcHost.Code),
+			}
+			repList = append(repList, rep)
+		}
 		response.OkWithDetailed(response.PageResult{
-			List:      wafHosts,
+			List:      repList,
 			Total:     total,
 			PageIndex: req.PageIndex,
 			PageSize:  req.PageSize,

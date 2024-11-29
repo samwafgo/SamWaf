@@ -247,7 +247,7 @@ func TaskCounter() {
 				value.Rule = "正常"
 			}
 			var ipTag model.IPTag
-			global.GWAF_LOCAL_DB.Where("tenant_id = ? and user_code = ? and ip=? and rule = ?",
+			global.GWAF_LOCAL_DB.Where("tenant_id = ? and user_code = ? and ip=? and ip_tag = ?",
 				global.GWAF_TENANT_ID, global.GWAF_USER_CODE, value.Ip, value.Rule).Find(&ipTag)
 			if ipTag.IP == "" {
 				insertIpTag := &model.IPTag{
@@ -271,11 +271,11 @@ func TaskCounter() {
 				}
 				updateBean := innerbean.UpdateModel{
 					Model:  model.IPTag{},
-					Query:  "tenant_id = ? and user_code= ? and ip=? and rule = ?",
+					Query:  "tenant_id = ? and user_code= ? and ip=? and ip_tag = ?",
 					Update: ipTagUpdateMap,
 				}
 				updateBean.Args = append(updateBean.Args, global.GWAF_TENANT_ID, global.GWAF_USER_CODE, value.Ip, value.Rule)
-				global.GQEQUE_DB.Enqueue(updateBean)
+				global.GQEQUE_UPDATE_DB.Enqueue(updateBean)
 			}
 		}
 

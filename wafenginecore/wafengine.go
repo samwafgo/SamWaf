@@ -61,100 +61,6 @@ type WafEngine struct {
 	Sensitive        []model.Sensitive //敏感词
 	SensitiveManager *goahocorasick.Machine
 }
-type AllCertificate struct {
-	Mux sync.Mutex
-	Map map[string]*tls.Certificate
-}
-
-// LoadSSL 加载证书
-func (ac *AllCertificate) LoadSSL(domain string, cert string, key string) error {
-	ac.Mux.Lock()
-	defer ac.Mux.Unlock()
-	domain = strings.ToLower(domain)
-	// 加载新的证书
-	newCert, err := tls.X509KeyPair([]byte(cert), []byte(key))
-	if err != nil {
-		return err
-	}
-	certificate, ok := ac.Map[domain]
-	if !ok {
-		ac.Map[domain] = &newCert
-		return nil
-	} else {
-		if certificate == nil {
-			ac.Map[domain] = &newCert
-			return nil
-		}
-		if certificate != nil && certificate.Certificate[0] != nil {
-			zlog.Debug("需要重新加载证书")
-			ac.Map[domain] = &newCert
-		}
-	}
-
-	// 检查域名是否已存在，如果存在则替换
-	ac.Map[domain] = &newCert
-	return nil
-}
-
-// LoadSSLByFilePath 加载证书从文件
-func (ac *AllCertificate) LoadSSLByFilePath(domain string, certPath string, keyPath string) error {
-	ac.Mux.Lock()
-	defer ac.Mux.Unlock()
-	domain = strings.ToLower(domain)
-	// 加载新的证书
-	newCert, err := tls.LoadX509KeyPair(certPath, keyPath)
-	if err != nil {
-		return err
-	}
-	certificate, ok := ac.Map[domain]
-	if !ok {
-		ac.Map[domain] = &newCert
-		return nil
-	} else {
-		if certificate != nil && certificate.Certificate[0] != nil {
-			zlog.Debug("需要重新加载证书")
-			ac.Map[domain] = &newCert
-		}
-	}
-
-	// 检查域名是否已存在，如果存在则替换
-	ac.Map[domain] = &newCert
-	return nil
-}
-
-// RemoveSSL 移除证书
-func (ac *AllCertificate) RemoveSSL(domain string) error {
-	ac.Mux.Lock()
-	defer ac.Mux.Unlock()
-	domain = strings.ToLower(domain)
-	_, ok := ac.Map[domain]
-	if ok {
-		ac.Map[domain] = nil
-	}
-	return nil
-}
-
-// GetSSL 加载证书
-func (ac *AllCertificate) GetSSL(domain string) *tls.Certificate {
-	ac.Mux.Lock()
-	defer ac.Mux.Unlock()
-	domain = strings.ToLower(domain)
-	certificate, ok := ac.Map[domain]
-	if ok {
-		return certificate
-	}
-	return nil
-}
-
-// GetCertificateFunc 获取证书的函数
-func (waf *WafEngine) GetCertificateFunc(clientInfo *tls.ClientHelloInfo) (*tls.Certificate, error) {
-	zlog.Debug("GetCertificate ", clientInfo.ServerName)
-	x509Cert := waf.AllCertificate.GetSSL(clientInfo.ServerName)
-	if x509Cert != nil {
-		return x509Cert, nil
-	}
-	return nil, errors.New("config error")
-}
 
 func (waf *WafEngine) Error() string {
 	fs := "HTTP: %d, HostCode: %d, Message: %s"
@@ -204,6 +110,8 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	// 检查域名是否已经注册
 	if findHost == true {
+
+		incrementMonitor(waf.HostTarget[host].Host.Code)
 		//检测网站是否已关闭
 		if waf.HostTarget[host].Host.START_STATUS == 1 {
 			resBytes := []byte("<html><head><title>网站已关闭</title></head><body><center><h1>当前访问网站已关闭</h1> <br><h3></h3></center></body> </html>")
@@ -334,6 +242,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			handleBlock := func(checkFunc func(*http.Request, *innerbean.WebLog, url.Values) detection.Result) bool {
 				detectionResult := checkFunc(r, &weblogbean, formValues)
 				if detectionResult.IsBlock {
+					decrementMonitor(waf.HostTarget[host].Host.Code)
 					EchoErrorInfo(w, r, weblogbean, detectionResult.Title, detectionResult.Content)
 					return true
 				}
@@ -429,6 +338,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), "weblog", weblogbean)
 		// 代理请求
 		waf.ProxyHTTP(w, r, host, remoteUrl, clientIP, ctx, weblogbean)
+		decrementMonitor(waf.HostTarget[host].Host.Code)
 		return
 	} else {
 		resBytes := []byte("403: Host forbidden " + host)

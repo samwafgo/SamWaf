@@ -11,6 +11,7 @@ import (
 */
 func InitDequeEngine() {
 	global.GQEQUE_DB = queue.NewQueue()
+	global.GQEQUE_UPDATE_DB = queue.NewQueue()
 	global.GQEQUE_LOG_DB = queue.NewQueue()
 	global.GQEQUE_STATS_DB = queue.NewQueue()
 	global.GQEQUE_STATS_UPDATE_DB = queue.NewQueue()

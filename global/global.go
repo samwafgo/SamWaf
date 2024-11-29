@@ -84,6 +84,7 @@ var (
 
 	/****队列相关*****/
 	GQEQUE_DB              *queue.Queue //正常DB队列
+	GQEQUE_UPDATE_DB       *queue.Queue //正常DB 更新队列
 	GQEQUE_LOG_DB          *queue.Queue //日志DB队列
 	GQEQUE_STATS_DB        *queue.Queue //统计DB队列
 	GQEQUE_STATS_UPDATE_DB *queue.Queue //统计更新DB队列

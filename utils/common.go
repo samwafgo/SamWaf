@@ -6,6 +6,7 @@ import (
 	"SamWaf/model"
 	"fmt"
 	"github.com/lionsoul2014/ip2region/binding/golang/xdb"
+	"github.com/oschwald/geoip2-golang"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -115,20 +116,47 @@ func GetPublicIP() string {
 }
 
 func GetCountry(ip string) []string {
-	// 2、用全局的 cBuff 创建完全基于内存的查询对象。
-	searcher, err := xdb.NewWithBuffer(global.GCACHE_IP_CBUFF)
-	if err != nil {
-		fmt.Printf("failed to create searcher with content: %s\n", err)
+	if IsValidIPv6(ip) {
+		a := "ipv6|ipv6|ipv6|ipv6|ipv6"
+		if global.GCACHE_IPV6_SEARCHER == nil {
+			db, err := geoip2.FromBytes(global.GCACHE_IP_V6_COUNTRY_CBUFF)
+			if err != nil {
+				zlog.Error("Failed to open GeoLite2-Country.mmdb:", err)
+				return strings.Split(a, "|")
+			}
+			global.GCACHE_IPV6_SEARCHER = db
+		}
+		ipv6 := net.ParseIP(ip)
+		record, err := global.GCACHE_IPV6_SEARCHER.Country(ipv6)
+		if err != nil {
+			zlog.Error("Failed to Search GeoLite2-Country.mmdb:", err)
+			return strings.Split(a, "|")
+		}
+		if record.Country.Names == nil {
+			a = "内网" + "||||"
+		} else {
+			a = record.Country.Names["zh-CN"] + "||||"
+		}
 
+		return strings.Split(a, "|")
 	}
 
-	defer searcher.Close()
+	//IPV4得查询逻辑
+	if global.GCACHE_IPV4_SEARCHER == nil {
+		// 2、用全局的 cBuff 创建完全基于内存的查询对象。
+		searcher, err := xdb.NewWithBuffer(global.GCACHE_IP_CBUFF)
+		if err != nil {
+			fmt.Printf("failed to create searcher with content: %s\n", err)
+
+		}
+		global.GCACHE_IPV4_SEARCHER = searcher
+	}
 
 	// do the search
 	var tStart = time.Now()
 
 	// 备注：并发使用，每个 goroutine 需要创建一个独立的 searcher 对象。
-	region, err := searcher.SearchByStr(ip)
+	region, err := global.GCACHE_IPV4_SEARCHER.SearchByStr(ip)
 	if err != nil {
 		fmt.Printf("failed to SearchIP(%s): %s\n", ip, err)
 		return []string{"无", "无"}
@@ -143,6 +171,19 @@ func GetCountry(ip string) []string {
 		regions[2] = "内网"
 	}
 	return regions
+}
+
+// CloseIPDatabase 关闭IP数据库
+func CloseIPDatabase() {
+	if global.GCACHE_IPV4_SEARCHER != nil {
+		global.GCACHE_IPV4_SEARCHER.Close()
+	}
+	if global.GCACHE_IPV6_SEARCHER != nil {
+		err := global.GCACHE_IPV6_SEARCHER.Close()
+		if err != nil {
+			return
+		}
+	}
 }
 
 // PortCheck 检查端口是否可用，可用-true 不可用-false
@@ -281,6 +322,13 @@ func DeleteOldFiles(dir string, duration time.Duration) error {
 func IsValidIPv4(ip string) bool {
 	parsedIP := net.ParseIP(ip)
 	return parsedIP != nil && parsedIP.To4() != nil
+}
+
+// 验证IPv6地址是否有效
+func IsValidIPv6(ip string) bool {
+	parsedIP := net.ParseIP(ip)
+	// 如果解析出的 IP 类型是 IPv6 且不是 IPv4 映射地址（IPv4-mapped IPv6 addresses）
+	return parsedIP != nil && strings.Contains(ip, ":") && parsedIP.To4() == nil
 }
 
 // 获取纯域名

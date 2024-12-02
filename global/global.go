@@ -10,6 +10,8 @@ import (
 	"SamWaf/wafowasp"
 	"SamWaf/wafsnowflake"
 	"github.com/bytedance/godlp/dlpheader"
+	"github.com/lionsoul2014/ip2region/binding/golang/xdb"
+	"github.com/oschwald/geoip2-golang"
 	"gorm.io/gorm"
 	"strconv"
 	"time"
@@ -78,7 +80,12 @@ var (
 	/*****CACHE相关*********/
 	GCACHE_WAFCACHE      *cache.WafCache      //cache
 	GCACHE_WECHAT_ACCESS string          = "" //微信访问密钥
-	GCACHE_IP_CBUFF      []byte               // IP相关缓存
+
+	/*********IP相关**************/
+	GCACHE_IP_CBUFF            []byte         // IP相关缓存
+	GCACHE_IP_V6_COUNTRY_CBUFF []byte         // IPv6国家相关缓存
+	GCACHE_IPV4_SEARCHER       *xdb.Searcher  //IPV4得查询器
+	GCACHE_IPV6_SEARCHER       *geoip2.Reader // IPV6得查询器
 
 	GDATA_DELETE_INTERVAL int64 = 180 // 删除180天前的数据
 

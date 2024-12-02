@@ -15,6 +15,7 @@ require (
 	github.com/hyperjumptech/grule-rule-engine v1.11.0
 	github.com/kardianos/service v1.2.2
 	github.com/lionsoul2014/ip2region/binding/golang v0.0.0-20220907060842-b2ba5d58e48d
+	github.com/oschwald/geoip2-golang v1.11.0
 	github.com/pengge/go-wxsqlite3 v0.0.0-20231127082057-d869bc67f783
 	github.com/pengge/sqlitedriver v0.0.0-20231127095117-b0f000e40c2c
 	github.com/satori/go.uuid v1.2.0
@@ -65,6 +66,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
+	github.com/oschwald/maxminddb-golang v1.13.0 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.5 // indirect
 	github.com/petar-dambovaliev/aho-corasick v0.0.0-20240411101913-e07a1f0e8eb4 // indirect

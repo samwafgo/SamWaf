@@ -23,8 +23,6 @@ rule R1ca0bf1c409e4c1b823c995afe7733b0 "禁止一些robotahrefs" salience 10 {
 } `
 	var ruleconfigs []model.Rules
 	rule := model.Rules{
-		Id:              0,
-		TenantId:        "",
 		HostCode:        "",
 		RuleCode:        "",
 		RuleName:        "",
@@ -32,7 +30,6 @@ rule R1ca0bf1c409e4c1b823c995afe7733b0 "禁止一些robotahrefs" salience 10 {
 		RuleContentJSON: "",
 		RuleVersionName: "",
 		RuleVersion:     0,
-		UserCode:        "",
 		IsPublicRule:    0,
 		IsManualRule:    0,
 		RuleStatus:      0,

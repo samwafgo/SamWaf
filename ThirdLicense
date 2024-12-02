@@ -95,3 +95,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 corazawaf
 
 This project includes components from [corazawaf], which is licensed under the Apache License 2.0.
+
+GeoLite2-Country.mmdb
+This project includes ipv6 data from [maxmind]

@@ -419,6 +419,9 @@ func (waf *WafEngine) getClientIP(r *http.Request, headers ...string) (error, st
 			if utils.IsValidIPv4(trimmedIP) {
 				return nil, trimmedIP, "0"
 			}
+			if utils.IsValidIPv6(ip) {
+				return nil, ip, "0"
+			}
 			return errors.New("invalid IPv4 address from header: " + header + " value:" + ip), "", ""
 		}
 	}
@@ -428,11 +431,25 @@ func (waf *WafEngine) getClientIP(r *http.Request, headers ...string) (error, st
 	if err != nil {
 		return err, "", ""
 	}
-	if !utils.IsValidIPv4(ip) {
-		return errors.New("invalid IPv4 address from RemoteAddr" + " value:" + ip), "", ""
+
+	// 验证 IPv4 地址
+	if utils.IsValidIPv4(ip) {
+		return nil, ip, port
 	}
 
-	return nil, ip, port
+	// 如果是 IPv6 地址，进一步检查是否是有效的 IPv6 地址
+	if strings.Contains(ip, ":") {
+		// 如果是 IPv6 地址，进一步检查是否是有效的 IPv6 地址
+		if strings.Contains(ip, ":") {
+			if utils.IsValidIPv6(ip) {
+				return nil, ip, port
+			} else {
+				return errors.New("invalid IPv6 address from RemoteAddr: " + ip), "", ""
+			}
+		}
+	}
+
+	return errors.New("invalid IP address (not IPv4 or IPv6): " + ip), "", ""
 }
 
 // EchoErrorInfo  ruleName 对内记录  blockInfo 对外展示

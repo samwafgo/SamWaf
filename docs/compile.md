@@ -88,7 +88,8 @@ docker run --rm -v %cd%:/workspace samwaflocalcompile
 前端: 使用TDesign Vue Starter
 后端: gorm,excelize(360EntSecGroup-Skylar),godlp(bytedance),gin,gocron,
      grule-rule-engine,ip2region,sqlitedriver,viper,libinjection-go,corazawaf
-
+数据：
+ipv6(GeoLite2-Country.mmdb) by maxmind 
 ## TODO List
  
 - 完善对应功能test 

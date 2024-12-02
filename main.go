@@ -55,6 +55,9 @@ import (
 //go:embed exedata/ip2region.xdb
 var Ip2regionBytes []byte // 当前目录，解析为[]byte类型
 
+//go:embed exedata/GeoLite2-Country.mmdb
+var Ipv6CountryBytes []byte // IPv6国家解析
+
 //go:embed exedata/ldpconfig.yml
 var ldpConfig string //隐私防护ldp
 
@@ -133,6 +136,21 @@ func (m *wafSystenService) run() {
 		zlog.Info("IP database ip2region.xdb loaded into cache, size: ", len(global.GCACHE_IP_CBUFF), ip2RegionFilePath)
 	}
 
+	//检测是否存在IPV6得数据包
+	ipv6RegionFilePath := filepath.Join(utils.GetCurrentDir(), "data", "GeoLite2-Country.mmdb")
+	// 检查文件是否存在
+	if _, err := os.Stat(ipv6RegionFilePath); os.IsNotExist(err) {
+		global.GCACHE_IP_V6_COUNTRY_CBUFF = Ipv6CountryBytes
+	} else {
+		// 读取文件内容
+		fileBytes, err := ioutil.ReadFile(ipv6RegionFilePath)
+		if err != nil {
+			log.Fatalf("Failed to read IPv6 database file GeoLite2-Country.mmdb: %v", err)
+		}
+		global.GCACHE_IP_V6_COUNTRY_CBUFF = fileBytes
+		// 检查是否成功读取
+		zlog.Info("IPv6 database file GeoLite2-Country.mmdb loaded into cache, size: ", len(global.GCACHE_IP_V6_COUNTRY_CBUFF), ipv6RegionFilePath)
+	}
 	global.GWAF_DLP_CONFIG = ldpConfig
 	global.GWAF_REG_PUBLIC_KEY = publicKey
 
@@ -619,6 +637,9 @@ func (m *wafSystenService) stopSamWaf() {
 	webmanager.CloseLocalServer()
 	zlog.Debug("Shutdown SamWaf WebManager finished")
 
+	zlog.Debug("Shutdown SamWaf IPDatabase...")
+	utils.CloseIPDatabase()
+	zlog.Debug("Shutdown SamWaf IPDatabase finished")
 }
 
 // 优雅升级

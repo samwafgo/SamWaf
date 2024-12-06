@@ -4,6 +4,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model/detection"
+	"SamWaf/model/wafenginmodel"
 	"net/http"
 	"net/url"
 	"strings"
@@ -14,7 +15,7 @@ import (
 检测允许的URL
 返回是否满足条件
 */
-func (waf *WafEngine) CheckAllowURL(r *http.Request, weblogbean innerbean.WebLog, formValue url.Values) detection.Result {
+func (waf *WafEngine) CheckAllowURL(r *http.Request, weblogbean innerbean.WebLog, formValue url.Values, hostTarget *wafenginmodel.HostSafe) detection.Result {
 	result := detection.Result{
 		JumpGuardResult: false,
 		IsBlock:         false,
@@ -22,12 +23,12 @@ func (waf *WafEngine) CheckAllowURL(r *http.Request, weblogbean innerbean.WebLog
 		Content:         "",
 	}
 	//url白名单策略（局部）
-	if waf.HostTarget[weblogbean.HOST].UrlWhiteLists != nil {
-		for i := 0; i < len(waf.HostTarget[weblogbean.HOST].UrlWhiteLists); i++ {
-			if (waf.HostTarget[weblogbean.HOST].UrlWhiteLists[i].CompareType == "等于" && waf.HostTarget[weblogbean.HOST].UrlWhiteLists[i].Url == weblogbean.URL) ||
-				(waf.HostTarget[weblogbean.HOST].UrlWhiteLists[i].CompareType == "前缀匹配" && strings.HasPrefix(weblogbean.URL, waf.HostTarget[weblogbean.HOST].UrlWhiteLists[i].Url)) ||
-				(waf.HostTarget[weblogbean.HOST].UrlWhiteLists[i].CompareType == "后缀匹配" && strings.HasSuffix(weblogbean.URL, waf.HostTarget[weblogbean.HOST].UrlWhiteLists[i].Url)) ||
-				(waf.HostTarget[weblogbean.HOST].UrlWhiteLists[i].CompareType == "包含匹配" && strings.Contains(weblogbean.URL, waf.HostTarget[weblogbean.HOST].UrlWhiteLists[i].Url)) {
+	if hostTarget.UrlWhiteLists != nil {
+		for i := 0; i < len(hostTarget.UrlWhiteLists); i++ {
+			if (hostTarget.UrlWhiteLists[i].CompareType == "等于" && hostTarget.UrlWhiteLists[i].Url == weblogbean.URL) ||
+				(hostTarget.UrlWhiteLists[i].CompareType == "前缀匹配" && strings.HasPrefix(weblogbean.URL, hostTarget.UrlWhiteLists[i].Url)) ||
+				(hostTarget.UrlWhiteLists[i].CompareType == "后缀匹配" && strings.HasSuffix(weblogbean.URL, hostTarget.UrlWhiteLists[i].Url)) ||
+				(hostTarget.UrlWhiteLists[i].CompareType == "包含匹配" && strings.Contains(weblogbean.URL, hostTarget.UrlWhiteLists[i].Url)) {
 				result.JumpGuardResult = true
 				break
 			}

@@ -26,6 +26,7 @@ type Hosts struct {
 	UnrestrictedPort    int    `json:"unrestricted_port"`      //不限来源匹配端口 0 限制 1，不限制
 	BindSslId           string `json:"bind_ssl_id"`            //绑定SSL的ID
 	AutoJumpHTTPS       int    `json:"auto_jump_https"`        //是否自动跳转https  0 不自动 1 强制80跳转https
+	BindMoreHost        string `json:"bind_more_host"`         //绑定多域名
 }
 
 type HostsDefense struct {

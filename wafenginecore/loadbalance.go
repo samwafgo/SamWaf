@@ -2,22 +2,23 @@ package wafenginecore
 
 import (
 	"SamWaf/common/zlog"
+	"SamWaf/model/wafenginmodel"
 	"strconv"
 )
 
-func (waf *WafEngine) getProxyIndex(host string, ip string) int {
+func (waf *WafEngine) getProxyIndex(host string, ip string, hostTarget *wafenginmodel.HostSafe) int {
 	bestAddr := -1
 	// 根据负载均衡策略处理请求
-	switch waf.HostTarget[host].Host.LoadBalanceStage {
+	switch hostTarget.Host.LoadBalanceStage {
 	case 1: // 加权轮询（WRR）
-		addrIndex, err := waf.HostTarget[host].LoadBalanceRuntime.WeightRoundRobinBalance.Get()
+		addrIndex, err := hostTarget.LoadBalanceRuntime.WeightRoundRobinBalance.Get()
 		if err != nil {
 			zlog.Error("Invalid Load Balance")
 		}
 		bestAddr = addrIndex
 
 	case 2: // IP Hash
-		addrIndexString, err := waf.HostTarget[host].LoadBalanceRuntime.IpHashBalance.Get(ip)
+		addrIndexString, err := hostTarget.LoadBalanceRuntime.IpHashBalance.Get(ip)
 		if err != nil {
 			zlog.Error("Invalid Load Balance")
 		}

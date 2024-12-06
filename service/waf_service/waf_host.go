@@ -54,6 +54,7 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 		UnrestrictedPort:    wafHostAddReq.UnrestrictedPort,
 		BindSslId:           wafHostAddReq.BindSslId,
 		AutoJumpHTTPS:       wafHostAddReq.AutoJumpHTTPS,
+		BindMoreHost:        wafHostAddReq.BindMoreHost,
 	}
 	global.GWAF_LOCAL_DB.Create(wafHost)
 	return wafHost.Code, nil
@@ -98,6 +99,7 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 		"UnrestrictedPort":    wafHostEditReq.UnrestrictedPort,
 		"BindSslId":           wafHostEditReq.BindSslId,
 		"AutoJumpHTTPS":       wafHostEditReq.AutoJumpHTTPS,
+		"BindMoreHost":        wafHostEditReq.BindMoreHost,
 	}
 	err := global.GWAF_LOCAL_DB.Debug().Model(model.Hosts{}).Where("CODE=?", wafHostEditReq.CODE).Updates(hostMap).Error
 

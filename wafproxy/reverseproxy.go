@@ -180,6 +180,14 @@ func NewSingleHostReverseProxyCustomHeader(target *url.URL, customHeaders map[st
 		for key, value := range customHeaders {
 			req.Header.Set(key, value)
 		}
+		// 拆分主机名和端口
+		hostPort := strings.Split(target.Host, ":")
+		if len(hostPort) == 2 {
+			if req.Host != hostPort[0] {
+				req.Host = hostPort[0]
+			}
+		}
+
 	}
 	return &ReverseProxy{Director: director}
 }

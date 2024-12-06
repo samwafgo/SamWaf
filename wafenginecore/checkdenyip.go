@@ -4,6 +4,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model/detection"
+	"SamWaf/model/wafenginmodel"
 	"SamWaf/utils"
 	"net/http"
 	"net/url"
@@ -14,7 +15,7 @@ import (
 检测不允许访问的 ip
 返回是否满足条件
 */
-func (waf *WafEngine) CheckDenyIP(r *http.Request, weblogbean *innerbean.WebLog, formValue url.Values) detection.Result {
+func (waf *WafEngine) CheckDenyIP(r *http.Request, weblogbean *innerbean.WebLog, formValue url.Values, hostTarget *wafenginmodel.HostSafe) detection.Result {
 	result := detection.Result{
 		JumpGuardResult: false,
 		IsBlock:         false,
@@ -22,9 +23,9 @@ func (waf *WafEngine) CheckDenyIP(r *http.Request, weblogbean *innerbean.WebLog,
 		Content:         "",
 	}
 	//ip黑名单策略  （局部）
-	if waf.HostTarget[weblogbean.HOST].IPBlockLists != nil {
-		for i := 0; i < len(waf.HostTarget[weblogbean.HOST].IPBlockLists); i++ {
-			if utils.CheckIPInCIDR(weblogbean.SRC_IP, waf.HostTarget[weblogbean.HOST].IPBlockLists[i].Ip) {
+	if hostTarget.IPBlockLists != nil {
+		for i := 0; i < len(hostTarget.IPBlockLists); i++ {
+			if utils.CheckIPInCIDR(weblogbean.SRC_IP, hostTarget.IPBlockLists[i].Ip) {
 				weblogbean.RISK_LEVEL = 1
 				result.IsBlock = true
 				result.Title = "IP黑名单"

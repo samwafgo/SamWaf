@@ -5,6 +5,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model/detection"
+	"SamWaf/model/wafenginmodel"
 	"net/http"
 	"net/url"
 	"time"
@@ -14,7 +15,7 @@ import (
 *
 检测cc
 */
-func (waf *WafEngine) CheckCC(r *http.Request, weblogbean *innerbean.WebLog, formValue url.Values) detection.Result {
+func (waf *WafEngine) CheckCC(r *http.Request, weblogbean *innerbean.WebLog, formValue url.Values, hostTarget *wafenginmodel.HostSafe) detection.Result {
 	result := detection.Result{
 		JumpGuardResult: false,
 		IsBlock:         false,
@@ -22,8 +23,8 @@ func (waf *WafEngine) CheckCC(r *http.Request, weblogbean *innerbean.WebLog, for
 		Content:         "",
 	}
 	// cc 防护 (局部检测 )
-	if waf.HostTarget[weblogbean.HOST].PluginIpRateLimiter != nil {
-		limiter := waf.HostTarget[weblogbean.HOST].PluginIpRateLimiter.GetLimiter(weblogbean.SRC_IP)
+	if hostTarget.PluginIpRateLimiter != nil {
+		limiter := hostTarget.PluginIpRateLimiter.GetLimiter(weblogbean.SRC_IP)
 		if !limiter.Allow() {
 			weblogbean.RISK_LEVEL = 1
 			result.IsBlock = true
@@ -31,7 +32,7 @@ func (waf *WafEngine) CheckCC(r *http.Request, weblogbean *innerbean.WebLog, for
 			result.Content = "您的访问被阻止超量了1"
 			cacheKey := enums.CACHE_CCVISITBAN_PRE + weblogbean.SRC_IP
 			//将该IP添加到封禁里
-			global.GCACHE_WAFCACHE.SetWithTTl(cacheKey, 1, time.Duration(waf.HostTarget[weblogbean.HOST].AntiCCBean.LockIPMinutes)*time.Minute)
+			global.GCACHE_WAFCACHE.SetWithTTl(cacheKey, 1, time.Duration(hostTarget.AntiCCBean.LockIPMinutes)*time.Minute)
 			return result
 		}
 	}

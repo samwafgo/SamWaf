@@ -4,6 +4,7 @@ import (
 	"SamWaf/common/zlog"
 	"SamWaf/innerbean"
 	"SamWaf/model"
+	"SamWaf/model/wafenginmodel"
 	"SamWaf/wafproxy"
 	"context"
 	"crypto/tls"
@@ -14,43 +15,44 @@ import (
 	"time"
 )
 
-func (waf *WafEngine) ProxyHTTP(w http.ResponseWriter, r *http.Request, host string, remoteUrl *url.URL, clientIp string, ctx context.Context, weblog innerbean.WebLog) {
+func (waf *WafEngine) ProxyHTTP(w http.ResponseWriter, r *http.Request, host string, remoteUrl *url.URL, clientIp string, ctx context.Context, weblog innerbean.WebLog, hostTarget *wafenginmodel.HostSafe) {
+
 	//检测是否启动负载
-	if waf.HostTarget[host].Host.IsEnableLoadBalance > 0 {
-		lb := &waf.HostTarget[host].LoadBalanceRuntime
+	if hostTarget.Host.IsEnableLoadBalance > 0 {
+		lb := &hostTarget.LoadBalanceRuntime
 		(*lb).Mux.Lock()
 		defer (*lb).Mux.Unlock()
 
-		if len(waf.HostTarget[host].LoadBalanceLists) > 0 && len(waf.HostTarget[host].LoadBalanceRuntime.RevProxies) == 0 {
-			for addrIndex, loadBalance := range waf.HostTarget[host].LoadBalanceLists {
+		if len(hostTarget.LoadBalanceLists) > 0 && len(hostTarget.LoadBalanceRuntime.RevProxies) == 0 {
+			for addrIndex, loadBalance := range hostTarget.LoadBalanceLists {
 				//初始化后端负载
 				zlog.Debug("HTTP REQUEST", weblog.REQ_UUID, weblog.URL, "未初始化")
-				transport, customHeaders := waf.createTransport(r, host, 1, loadBalance)
+				transport, customHeaders := waf.createTransport(r, host, 1, loadBalance, hostTarget)
 				proxy := wafproxy.NewSingleHostReverseProxyCustomHeader(remoteUrl, customHeaders)
 				proxy.Transport = transport
 				proxy.ModifyResponse = waf.modifyResponse()
 				proxy.ErrorHandler = waf.errorResponse()
-				waf.HostTarget[host].LoadBalanceRuntime.RevProxies = append(waf.HostTarget[host].LoadBalanceRuntime.RevProxies, proxy)
+				hostTarget.LoadBalanceRuntime.RevProxies = append(hostTarget.LoadBalanceRuntime.RevProxies, proxy)
 
 				// 初始化策略相关信息
-				switch waf.HostTarget[host].Host.LoadBalanceStage {
+				switch hostTarget.Host.LoadBalanceStage {
 				case 1: // 加权轮询（WRR）
-					waf.HostTarget[host].LoadBalanceRuntime.WeightRoundRobinBalance.Add(addrIndex, loadBalance.Weight)
+					hostTarget.LoadBalanceRuntime.WeightRoundRobinBalance.Add(addrIndex, loadBalance.Weight)
 					break
 				case 2: // IPHash
-					waf.HostTarget[host].LoadBalanceRuntime.IpHashBalance.Add(strconv.Itoa(addrIndex), 1)
+					hostTarget.LoadBalanceRuntime.IpHashBalance.Add(strconv.Itoa(addrIndex), 1)
 					break
 				default:
 					http.Error(w, "Invalid Load Balance Stage", http.StatusBadRequest)
 				}
 			}
 		}
-		proxyIndex := waf.getProxyIndex(host, clientIp)
+		proxyIndex := waf.getProxyIndex(host, clientIp, hostTarget)
 		if proxyIndex == -1 {
 			http.Error(w, "No Available BackServer", http.StatusBadRequest)
 			return
 		}
-		proxy := waf.HostTarget[host].LoadBalanceRuntime.RevProxies[proxyIndex]
+		proxy := hostTarget.LoadBalanceRuntime.RevProxies[proxyIndex]
 		if proxy != nil {
 			proxy.ServeHTTP(w, r.WithContext(ctx))
 		} else {
@@ -58,7 +60,7 @@ func (waf *WafEngine) ProxyHTTP(w http.ResponseWriter, r *http.Request, host str
 		}
 
 	} else {
-		transport, customHeaders := waf.createTransport(r, host, 0, model.LoadBalance{})
+		transport, customHeaders := waf.createTransport(r, host, 0, model.LoadBalance{}, hostTarget)
 		proxy := wafproxy.NewSingleHostReverseProxyCustomHeader(remoteUrl, customHeaders)
 		proxy.Transport = transport
 		proxy.ModifyResponse = waf.modifyResponse()
@@ -67,7 +69,7 @@ func (waf *WafEngine) ProxyHTTP(w http.ResponseWriter, r *http.Request, host str
 	}
 }
 
-func (waf *WafEngine) createTransport(r *http.Request, host string, isEnableLoadBalance int, loadBalance model.LoadBalance) (*http.Transport, map[string]string) {
+func (waf *WafEngine) createTransport(r *http.Request, host string, isEnableLoadBalance int, loadBalance model.LoadBalance, hostTarget *wafenginmodel.HostSafe) (*http.Transport, map[string]string) {
 	customHeaders := map[string]string{}
 	var transport *http.Transport
 	dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -81,8 +83,8 @@ func (waf *WafEngine) createTransport(r *http.Request, host string, isEnableLoad
 				return conn, nil
 			}
 		} else {
-			if waf.HostTarget[host].Host.Remote_ip != "" {
-				conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(waf.HostTarget[host].Host.Remote_ip, strconv.Itoa(waf.HostTarget[host].Host.Remote_port)))
+			if hostTarget.Host.Remote_ip != "" {
+				conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(hostTarget.Host.Remote_ip, strconv.Itoa(hostTarget.Host.Remote_port)))
 				if err == nil {
 					return conn, nil
 				}

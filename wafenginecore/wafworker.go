@@ -15,6 +15,7 @@ import (
 	goahocorasick "github.com/anknown/ahocorasick"
 	"golang.org/x/time/rate"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -196,6 +197,13 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) innerbean.ServerRunTime {
 			delete(waf.HostTargetNoPort, inHost.Host)
 		}
 
+	}
+	//如果存在一个主机绑定了多个域名的情况
+	if inHost.BindMoreHost != "" {
+		lines := strings.Split(inHost.BindMoreHost, "\n")
+		for _, line := range lines {
+			waf.HostTargetMoreDomain[line+":"+strconv.Itoa(inHost.Port)] = inHost.Code
+		}
 	}
 
 	return waf.ServerOnline[inHost.Port]

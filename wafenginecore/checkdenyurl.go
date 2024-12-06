@@ -4,6 +4,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model/detection"
+	"SamWaf/model/wafenginmodel"
 	"net/http"
 	"net/url"
 	"strings"
@@ -14,7 +15,7 @@ import (
 检测不允许访问的 url
 返回是否满足条件
 */
-func (waf *WafEngine) CheckDenyURL(r *http.Request, weblogbean *innerbean.WebLog, formValue url.Values) detection.Result {
+func (waf *WafEngine) CheckDenyURL(r *http.Request, weblogbean *innerbean.WebLog, formValue url.Values, hostTarget *wafenginmodel.HostSafe) detection.Result {
 	result := detection.Result{
 		JumpGuardResult: false,
 		IsBlock:         false,
@@ -22,12 +23,12 @@ func (waf *WafEngine) CheckDenyURL(r *http.Request, weblogbean *innerbean.WebLog
 		Content:         "",
 	}
 	//url黑名单策略-(局部) （待优化性能）
-	if waf.HostTarget[weblogbean.HOST].UrlBlockLists != nil {
-		for i := 0; i < len(waf.HostTarget[weblogbean.HOST].UrlBlockLists); i++ {
-			if (waf.HostTarget[weblogbean.HOST].UrlBlockLists[i].CompareType == "等于" && waf.HostTarget[weblogbean.HOST].UrlBlockLists[i].Url == weblogbean.URL) ||
-				(waf.HostTarget[weblogbean.HOST].UrlBlockLists[i].CompareType == "前缀匹配" && strings.HasPrefix(weblogbean.URL, waf.HostTarget[weblogbean.HOST].UrlBlockLists[i].Url)) ||
-				(waf.HostTarget[weblogbean.HOST].UrlBlockLists[i].CompareType == "后缀匹配" && strings.HasSuffix(weblogbean.URL, waf.HostTarget[weblogbean.HOST].UrlBlockLists[i].Url)) ||
-				(waf.HostTarget[weblogbean.HOST].UrlBlockLists[i].CompareType == "包含匹配" && strings.Contains(weblogbean.URL, waf.HostTarget[weblogbean.HOST].UrlBlockLists[i].Url)) {
+	if hostTarget.UrlBlockLists != nil {
+		for i := 0; i < len(hostTarget.UrlBlockLists); i++ {
+			if (hostTarget.UrlBlockLists[i].CompareType == "等于" && hostTarget.UrlBlockLists[i].Url == weblogbean.URL) ||
+				(hostTarget.UrlBlockLists[i].CompareType == "前缀匹配" && strings.HasPrefix(weblogbean.URL, hostTarget.UrlBlockLists[i].Url)) ||
+				(hostTarget.UrlBlockLists[i].CompareType == "后缀匹配" && strings.HasSuffix(weblogbean.URL, hostTarget.UrlBlockLists[i].Url)) ||
+				(hostTarget.UrlBlockLists[i].CompareType == "包含匹配" && strings.Contains(weblogbean.URL, hostTarget.UrlBlockLists[i].Url)) {
 				weblogbean.RISK_LEVEL = 1
 				result.IsBlock = true
 				result.Title = "URL黑名单"

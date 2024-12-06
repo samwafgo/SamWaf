@@ -5,6 +5,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model/detection"
+	"SamWaf/model/wafenginmodel"
 	"net/http"
 	"net/url"
 )
@@ -13,7 +14,7 @@ import (
 *
 检测rule
 */
-func (waf *WafEngine) CheckRule(r *http.Request, weblogbean *innerbean.WebLog, formValue url.Values) detection.Result {
+func (waf *WafEngine) CheckRule(r *http.Request, weblogbean *innerbean.WebLog, formValue url.Values, hostTarget *wafenginmodel.HostSafe) detection.Result {
 	result := detection.Result{
 		JumpGuardResult: false,
 		IsBlock:         false,
@@ -21,9 +22,9 @@ func (waf *WafEngine) CheckRule(r *http.Request, weblogbean *innerbean.WebLog, f
 		Content:         "",
 	}
 	//规则判断 （局部）
-	if waf.HostTarget[weblogbean.HOST].Rule != nil {
-		if waf.HostTarget[weblogbean.HOST].Rule.KnowledgeBase != nil {
-			ruleMatchs, err := waf.HostTarget[weblogbean.HOST].Rule.Match("MF", weblogbean)
+	if hostTarget.Rule != nil {
+		if hostTarget.Rule.KnowledgeBase != nil {
+			ruleMatchs, err := hostTarget.Rule.Match("MF", weblogbean)
 			if err == nil {
 				if len(ruleMatchs) > 0 {
 					rulestr := ""

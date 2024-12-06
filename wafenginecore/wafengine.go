@@ -51,6 +51,8 @@ type WafEngine struct {
 	HostCode map[string]string
 	//主机域名和配置防护关系 (key:主机域名,value:主机的hostCode)
 	HostTargetNoPort map[string]string
+	//更多域名和配置防护关系 (key:主机域名,value:主机的hostCode)  一个主机绑定很多域名的情况
+	HostTargetMoreDomain map[string]string
 	//服务在线情况（key：端口，value :服务情况）
 	ServerOnline map[int]innerbean.ServerRunTime
 
@@ -89,13 +91,11 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		}
 	}()
-
+	targetCode := ""
 	//检测是否是不检测端口的情况
-	if target, ok := waf.HostTargetNoPort[utils.GetPureDomain(host)]; ok {
-		host = target
+	if targetHost, ok := waf.HostTargetNoPort[utils.GetPureDomain(host)]; ok {
+		host = targetHost
 	}
-
-	// 是否匹配到网站信息
 	findHost := false
 	target, ok := waf.HostTarget[host]
 	if !ok {
@@ -104,16 +104,29 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if ok {
 			host = domaintool.MaskSubdomain(host)
 			findHost = true
+			targetCode = target.Host.Code
 		}
 	} else {
+		targetCode = target.Host.Code
 		findHost = true
 	}
+
+	if !findHost {
+		// 绑定更多域名的信息
+		targetCode, ok = waf.HostTargetMoreDomain[host]
+		if ok {
+			findHost = true
+		}
+	}
+
 	// 检查域名是否已经注册
 	if findHost == true {
+		hostTarget := waf.HostTarget[waf.HostCode[targetCode]]
+		hostCode := hostTarget.Host.Code
 
-		incrementMonitor(waf.HostTarget[host].Host.Code)
+		incrementMonitor(hostCode)
 		//检测网站是否已关闭
-		if waf.HostTarget[host].Host.START_STATUS == 1 {
+		if hostTarget.Host.START_STATUS == 1 {
 			resBytes := []byte("<html><head><title>网站已关闭</title></head><body><center><h1>当前访问网站已关闭</h1> <br><h3></h3></center></body> </html>")
 
 			w.WriteHeader(http.StatusServiceUnavailable)
@@ -130,9 +143,9 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			zlog.Error("get client error", ipErr.Error())
 			return
 		}
-		_, ok := waf.ServerOnline[waf.HostTarget[host].Host.Remote_port]
+		_, ok := waf.ServerOnline[hostTarget.Host.Remote_port]
 		//检测如果访问IP和远程IP是同一个IP，且远程端口在本地Server已存在则显示配置错误
-		if clientIP == waf.HostTarget[host].Host.Remote_ip && ok == true {
+		if clientIP == hostTarget.Host.Remote_ip && ok == true {
 			resBytes := []byte("500: 配置有误" + host + " 当前IP和访问远端IP一样，且端口也一样，会造成循环问题")
 			_, err := w.Write(resBytes)
 			if err != nil {
@@ -198,7 +211,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			BODY:                 string(bodyByte),
 			REQ_UUID:             uuid.NewV4().String(),
 			USER_CODE:            global.GWAF_USER_CODE,
-			HOST_CODE:            waf.HostTarget[host].Host.Code,
+			HOST_CODE:            hostCode,
 			TenantId:             global.GWAF_TENANT_ID,
 			RULE:                 "",
 			ACTION:               "通过",
@@ -221,11 +234,11 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				fmt.Println("解码失败:", weblogbean.BODY)
 			}
 		}
-		if host == waf.HostTarget[host].Host.Host+":80" && waf.HostTarget[host].Host.AutoJumpHTTPS == 1 && waf.HostTarget[host].Host.Ssl == 1 {
+		if host == hostTarget.Host.Host+":80" && hostTarget.Host.AutoJumpHTTPS == 1 && hostTarget.Host.Ssl == 1 {
 			// 重定向到 HTTPS 版本的 URL
 			targetHttpsUrl := fmt.Sprintf("%s%s%s", "https://", r.Host, r.URL.Path)
-			if waf.HostTarget[host].Host.Port != 443 {
-				targetHttpsUrl = fmt.Sprintf("%s%s:%d%s", "https://", r.Host, waf.HostTarget[host].Host.Port, r.URL.Path)
+			if hostTarget.Host.Port != 443 {
+				targetHttpsUrl = fmt.Sprintf("%s%s:%d%s", "https://", r.Host, hostTarget.Host.Port, r.URL.Path)
 			}
 			if r.URL.RawQuery != "" {
 				targetHttpsUrl += "?" + r.URL.RawQuery
@@ -237,20 +250,20 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		r.Header.Add("waf_req_uuid", weblogbean.REQ_UUID)
 
-		if waf.HostTarget[host].Host.GUARD_STATUS == 1 {
+		if hostTarget.Host.GUARD_STATUS == 1 {
 			//一系列检测逻辑
-			handleBlock := func(checkFunc func(*http.Request, *innerbean.WebLog, url.Values) detection.Result) bool {
-				detectionResult := checkFunc(r, &weblogbean, formValues)
+			handleBlock := func(checkFunc func(*http.Request, *innerbean.WebLog, url.Values, *wafenginmodel.HostSafe) detection.Result) bool {
+				detectionResult := checkFunc(r, &weblogbean, formValues, hostTarget)
 				if detectionResult.IsBlock {
-					decrementMonitor(waf.HostTarget[host].Host.Code)
+					decrementMonitor(hostCode)
 					EchoErrorInfo(w, r, weblogbean, detectionResult.Title, detectionResult.Content)
 					return true
 				}
 				return false
 			}
-			detectionWhiteResult := waf.CheckAllowIP(r, &weblogbean, formValues)
+			detectionWhiteResult := waf.CheckAllowIP(r, &weblogbean, formValues, hostTarget)
 			if detectionWhiteResult.JumpGuardResult == false {
-				detectionWhiteResult = waf.CheckAllowURL(r, weblogbean, formValues)
+				detectionWhiteResult = waf.CheckAllowURL(r, weblogbean, formValues, hostTarget)
 			}
 			if detectionWhiteResult.JumpGuardResult == false {
 
@@ -269,7 +282,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					DEFENSE_RCE:       1,
 					DEFENSE_SENSITIVE: 1,
 				}
-				err := json.Unmarshal([]byte(waf.HostTarget[host].Host.DEFENSE_JSON), &hostDefense)
+				err := json.Unmarshal([]byte(hostTarget.Host.DEFENSE_JSON), &hostDefense)
 				if err != nil {
 					zlog.Error("解析defense json失败")
 				}
@@ -329,16 +342,21 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if weblogbean.BODY != "" {
 			weblogbean.BODY = utils.DeSenTextByCustomMark(enums.DLP_MARK_RULE_LoginSensitiveInfoMaskRule, weblogbean.BODY)
 		}
-		remoteUrl, err := url.Parse(target.TargetHost)
+		remoteUrl, err := url.Parse(hostTarget.TargetHost)
 		if err != nil {
 			zlog.Debug("target parse fail:", zap.Any("", err))
 			return
 		}
+
 		// 在请求上下文中存储自定义数据
-		ctx := context.WithValue(r.Context(), "weblog", weblogbean)
+		ctx := context.WithValue(r.Context(), "waf_context", innerbean.WafHttpContextData{
+			Weblog:   &weblogbean,
+			HostCode: hostCode,
+		})
+
 		// 代理请求
-		waf.ProxyHTTP(w, r, host, remoteUrl, clientIP, ctx, weblogbean)
-		decrementMonitor(waf.HostTarget[host].Host.Code)
+		waf.ProxyHTTP(w, r, host, remoteUrl, clientIP, ctx, weblogbean, hostTarget)
+		decrementMonitor(hostCode)
 		return
 	} else {
 		resBytes := []byte("403: Host forbidden " + host)
@@ -519,44 +537,14 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 
 		r := resp.Request
 
-		if weblogfrist, ok := r.Context().Value("weblog").(innerbean.WebLog); ok {
-			fmt.Sprintf("weblogfrist: %v", weblogfrist)
+		if wafHttpContext, ok := r.Context().Value("waf_context").(innerbean.WafHttpContextData); ok {
+			weblogfrist := wafHttpContext.Weblog
 
+			host := waf.HostCode[wafHttpContext.HostCode]
 			weblogfrist.ACTION = "放行"
 			weblogfrist.STATUS = resp.Status
 			weblogfrist.STATUS_CODE = resp.StatusCode
 
-			host := resp.Request.Host
-			if !strings.Contains(host, ":") {
-				// 检查请求是否使用了HTTPS
-				if resp.Request.TLS != nil {
-					// 请求使用了HTTPS
-					host = host + ":443"
-				} else {
-					// 请求使用了HTTP
-					host = host + ":80"
-				}
-			}
-			//检测是否是不检测端口的情况
-			if target, ok := waf.HostTargetNoPort[utils.GetPureDomain(host)]; ok {
-				host = target
-			}
-			// 是否匹配到网站信息
-			findHost := false
-			_, ok := waf.HostTarget[host]
-			if !ok {
-				// 看看是不是泛域名情况
-				_, ok = waf.HostTarget[domaintool.MaskSubdomain(host)]
-				if ok {
-					host = domaintool.MaskSubdomain(host)
-				}
-			} else {
-				findHost = true
-			}
-			if !findHost {
-				zlog.Error("主机未匹配到", host)
-				return nil
-			}
 			ldpFlag := false
 			//隐私保护（局部）
 			for i := 0; i < len(waf.HostTarget[host].LdpUrlLists); i++ {

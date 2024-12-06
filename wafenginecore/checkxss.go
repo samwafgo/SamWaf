@@ -4,6 +4,7 @@ import (
 	"SamWaf/innerbean"
 	"SamWaf/libinjection-go"
 	"SamWaf/model/detection"
+	"SamWaf/model/wafenginmodel"
 	"net/http"
 	"net/url"
 )
@@ -12,7 +13,7 @@ import (
 *
 检测xss
 */
-func (waf *WafEngine) CheckXss(r *http.Request, weblogbean *innerbean.WebLog, formValue url.Values) detection.Result {
+func (waf *WafEngine) CheckXss(r *http.Request, weblogbean *innerbean.WebLog, formValue url.Values, hostTarget *wafenginmodel.HostSafe) detection.Result {
 	result := detection.Result{
 		JumpGuardResult: false,
 		IsBlock:         false,

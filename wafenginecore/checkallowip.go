@@ -4,6 +4,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model/detection"
+	"SamWaf/model/wafenginmodel"
 	"SamWaf/utils"
 	"net/http"
 	"net/url"
@@ -13,7 +14,7 @@ import (
 *
 检测白名单 ip
 */
-func (waf *WafEngine) CheckAllowIP(r *http.Request, weblogbean *innerbean.WebLog, formValue url.Values) detection.Result {
+func (waf *WafEngine) CheckAllowIP(r *http.Request, weblogbean *innerbean.WebLog, formValue url.Values, hostTarget *wafenginmodel.HostSafe) detection.Result {
 	result := detection.Result{
 		JumpGuardResult: false,
 		IsBlock:         false,
@@ -21,9 +22,9 @@ func (waf *WafEngine) CheckAllowIP(r *http.Request, weblogbean *innerbean.WebLog
 		Content:         "",
 	}
 	//ip白名单策略（局部）
-	if waf.HostTarget[weblogbean.HOST].IPWhiteLists != nil {
-		for i := 0; i < len(waf.HostTarget[weblogbean.HOST].IPWhiteLists); i++ {
-			if utils.CheckIPInCIDR(weblogbean.SRC_IP, waf.HostTarget[weblogbean.HOST].IPWhiteLists[i].Ip) {
+	if hostTarget.IPWhiteLists != nil {
+		for i := 0; i < len(hostTarget.IPWhiteLists); i++ {
+			if utils.CheckIPInCIDR(weblogbean.SRC_IP, hostTarget.IPWhiteLists[i].Ip) {
 				result.JumpGuardResult = true
 				break
 			}

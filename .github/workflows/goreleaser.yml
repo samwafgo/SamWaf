@@ -43,6 +43,16 @@ jobs:
           ls
       - name: Get current tag
         run: echo "IMAGE_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Check if the tag contains "beta"
+        id: check_beta
+        run: |
+          echo "Is the tag beta? ${GITHUB_REF}" 
+          if [[ "${GITHUB_REF}" == *"beta"* ]]; then
+            echo "is_beta=true" >> $GITHUB_ENV
+          else
+            echo "is_beta=false" >> $GITHUB_ENV
+          fi
       # Login to Docker Hub
       - name: Login to Docker Registry
         uses: docker/login-action@v3
@@ -61,26 +71,41 @@ jobs:
           platforms: linux/amd64,linux/arm64  # Support for both architectures
           push: true  # Push to Docker Hub
           tags: |
-            samwaf/samwaf:latest
             samwaf/samwaf:${{ env.IMAGE_TAG }}
-      # Test the Docker Image
-      - name: Test Docker Image
+            ${{ env.is_beta == 'false' && 'samwaf/samwaf:latest' || '' }}
+      # Test the Docker Image  (latest)
+      - name: Test Docker Image (latest)
         run: |
-          # Print 
-          # Start the Docker container
-          docker run -d --name=samwaf-instance \
+          echo "Testing Docker image with 'latest' tag..."
+          docker run -d --name=samwaf-latest-instance \
             -p 26666:26666 \
             samwaf/samwaf:latest
 
-          # Wait for a few seconds to allow the application to start
+          # 等待服务启动
           sleep 5
 
-          # Test the application by sending a request
-          curl -f http://localhost:26666 || (echo "Test failed" && exit 1)
+          # 测试服务是否正常运行
+          curl -f http://localhost:26666 || (echo "Test for 'latest' tag failed" && exit 1)
 
-          # Optionally, stop and remove the container after testing
-          docker stop samwaf-instance
-          docker rm samwaf-instance
+          # 停止并移除容器
+          docker stop samwaf-latest-instance
+          docker rm samwaf-latest-instance
+      - name: Test Docker Image (current tag)
+        run: |
+          echo "Testing Docker image with tag '${{ env.IMAGE_TAG }}'..."
+          docker run -d --name=samwaf-current-instance \
+            -p 26666:26666 \
+            samwaf/samwaf:${{ env.IMAGE_TAG }}
+          
+          # 等待服务启动
+          sleep 5
+          
+          # 测试服务是否正常运行
+          curl -f http://localhost:26666 || (echo "Test for current tag '${{ env.IMAGE_TAG }}' failed" && exit 1)
+          
+          # 停止并移除容器
+          docker stop samwaf-current-instance
+          docker rm samwaf-current-instance
   win7win2008r2:
     runs-on: ubuntu-latest
     steps:

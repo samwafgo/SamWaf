@@ -160,8 +160,8 @@ func NewSingleHostReverseProxy(target *url.URL) *ReverseProxy {
 	return &ReverseProxy{Director: director}
 }
 
-// NewSingleHostReverseProxy 自定义header
-func NewSingleHostReverseProxyCustomHeader(target *url.URL, customHeaders map[string]string) *ReverseProxy {
+// NewSingleHostReverseProxy 自定义header  传递参数
+func NewSingleHostReverseProxyCustomHeader(target *url.URL, customHeaders map[string]string, customConfig map[string]string) *ReverseProxy {
 	targetQuery := target.RawQuery
 	director := func(req *http.Request) {
 		req.URL.Scheme = target.Scheme
@@ -180,11 +180,13 @@ func NewSingleHostReverseProxyCustomHeader(target *url.URL, customHeaders map[st
 		for key, value := range customHeaders {
 			req.Header.Set(key, value)
 		}
-		// 拆分主机名和端口
-		hostPort := strings.Split(target.Host, ":")
-		if len(hostPort) == 2 {
-			if req.Host != hostPort[0] {
-				req.Host = hostPort[0]
+		if customConfig["IsTransBackDomain"] == "1" {
+			// 拆分主机名和端口
+			hostPort := strings.Split(target.Host, ":")
+			if len(hostPort) == 2 {
+				if req.Host != hostPort[0] {
+					req.Host = hostPort[0]
+				}
 			}
 		}
 

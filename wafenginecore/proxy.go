@@ -28,7 +28,9 @@ func (waf *WafEngine) ProxyHTTP(w http.ResponseWriter, r *http.Request, host str
 				//初始化后端负载
 				zlog.Debug("HTTP REQUEST", weblog.REQ_UUID, weblog.URL, "未初始化")
 				transport, customHeaders := waf.createTransport(r, host, 1, loadBalance, hostTarget)
-				proxy := wafproxy.NewSingleHostReverseProxyCustomHeader(remoteUrl, customHeaders)
+				customConfig := map[string]string{}
+				customConfig["IsTransBackDomain"] = strconv.Itoa(hostTarget.Host.IsTransBackDomain)
+				proxy := wafproxy.NewSingleHostReverseProxyCustomHeader(remoteUrl, customHeaders, customConfig)
 				proxy.Transport = transport
 				proxy.ModifyResponse = waf.modifyResponse()
 				proxy.ErrorHandler = waf.errorResponse()
@@ -61,7 +63,9 @@ func (waf *WafEngine) ProxyHTTP(w http.ResponseWriter, r *http.Request, host str
 
 	} else {
 		transport, customHeaders := waf.createTransport(r, host, 0, model.LoadBalance{}, hostTarget)
-		proxy := wafproxy.NewSingleHostReverseProxyCustomHeader(remoteUrl, customHeaders)
+		customConfig := map[string]string{}
+		customConfig["IsTransBackDomain"] = strconv.Itoa(hostTarget.Host.IsTransBackDomain)
+		proxy := wafproxy.NewSingleHostReverseProxyCustomHeader(remoteUrl, customHeaders, customConfig)
 		proxy.Transport = transport
 		proxy.ModifyResponse = waf.modifyResponse()
 		proxy.ErrorHandler = waf.errorResponse()

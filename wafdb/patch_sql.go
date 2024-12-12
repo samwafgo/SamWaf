@@ -82,4 +82,11 @@ func pathCoreSql(db *gorm.DB) {
 	} else {
 		zlog.Info("db", "idx_iptag_ip created")
 	}
+	//20241209 是否传递后端域名到后端服务器侧
+	err = db.Exec("UPDATE hosts SET is_trans_back_domain=0 WHERE is_trans_back_domain IS NULL ").Error
+	if err != nil {
+		panic("failed to hosts :is_trans_back_domain " + err.Error())
+	} else {
+		zlog.Info("db", "hosts :is_trans_back_domain init successfully")
+	}
 }

@@ -156,7 +156,24 @@ func (receiver *WafHostService) GetListApi(req request.WafHostSearchReq) ([]mode
 		}
 	}
 
-	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where(whereField, whereValues...).Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&list)
+	orderInfo := ""
+
+	/**
+	排序
+	*/
+	if req.SortBy != "" {
+		if receiver.isValidSortField(req.SortBy) {
+			if req.SortDescending == "desc" {
+				orderInfo = req.SortBy + " desc"
+			} else {
+				orderInfo = req.SortBy + " asc"
+			}
+		} else {
+			return nil, 0, errors.New("输入排序字段不合法")
+		}
+	}
+
+	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where(whereField, whereValues...).Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Order(orderInfo).Find(&list)
 	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where(whereField, whereValues...).Count(&total)
 
 	return list, total, nil
@@ -252,4 +269,19 @@ func (receiver *WafHostService) UpdateSSLInfo(certContent string, keyContent str
 	}
 	err := global.GWAF_LOCAL_DB.Debug().Model(model.Hosts{}).Where("CODE=?", hostCode).Updates(hostMap).Error
 	return err
+}
+
+/*
+*
+判断是否合法
+*/
+func (receiver *WafHostService) isValidSortField(field string) bool {
+	var allowedSortFields = []string{"create_time"}
+
+	for _, allowedField := range allowedSortFields {
+		if field == allowedField {
+			return true
+		}
+	}
+	return false
 }

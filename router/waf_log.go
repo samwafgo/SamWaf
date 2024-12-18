@@ -17,5 +17,5 @@ func (receiver *LogRouter) InitLogRouter(group *gin.RouterGroup) {
 	wafLogRouter.GET("/samwaf/waflog/attack/download", logApi.DownloadApi)
 	wafLogRouter.GET("/samwaf/waflog/attack/detail", logApi.GetDetailApi)
 	wafLogRouter.GET("/samwaf/waflog/attack/allsharedb", logApi.GetAllShareDbApi)
-
+	wafLogRouter.GET("/samwaf/waflog/attack/httpcopymask", logApi.GetHttpCopyMaskApi)
 }

@@ -2,6 +2,15 @@ package request
 
 import "SamWaf/model/common/request"
 
+type WafAttackLogDetailReq struct {
+	CurrrentDbName string `json:"current_db_name"`
+	REQ_UUID       string `json:"req_uuid"`
+}
+
+type WafAttackLogDoExport struct {
+	CurrrentDbName string `json:"current_db_name"`
+	HostCode       string `json:"host_code" form:"host_code"` //主机码
+}
 type WafAttackLogSearch struct {
 	CurrrentDbName   string `json:"current_db_name"`
 	HostCode         string `json:"host_code" form:"host_code"`                     //主机码

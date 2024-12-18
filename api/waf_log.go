@@ -14,6 +14,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"time"
 )
 
@@ -175,4 +177,62 @@ func (w *WafLogAPi) GetAllShareDbApi(c *gin.Context) {
 
 	}
 	response.OkWithDetailed(allShareDbRep, "获取成功", c)
+}
+
+// http 原始请求并进行脱敏处理
+func (w *WafLogAPi) GetHttpCopyMaskApi(c *gin.Context) {
+	var req request.WafAttackLogDetailReq
+	err := c.ShouldBind(&req)
+	if err == nil {
+		if global.GDATA_CURRENT_CHANGE {
+			//如果正在切换库 跳过
+			response.FailWithMessage("正在切换数据库请等待", c)
+			return
+		}
+		wafLog, _ := wafLogService.GetDetailApi(req)
+
+		response.OkWithDetailed(GenerateCurlRequest(wafLog), "获取成功", c)
+	} else {
+		response.FailWithMessage("解析失败", c)
+	}
+}
+func GenerateCurlRequest(weblog innerbean.WebLog) string {
+
+	headers := strings.Split(weblog.HEADER, "\n")
+	maskedHeaders := maskSensitiveHeader(weblog.HEADER)
+	headers = strings.Split(maskedHeaders, "\n")
+	headerStrings := ""
+	for _, header := range headers {
+		headerStrings += fmt.Sprintf("-H '%s' ", strings.TrimSpace(header))
+	}
+
+	maskedCookies := maskSensitiveCookies(weblog.COOKIES)
+
+	curlCommand := fmt.Sprintf(
+		"curl -X %s %s \\\n	--url '%s' \\\n	--cookie '%s' \\\n	--data '%s'",
+		weblog.METHOD,
+		headerStrings,
+		weblog.URL,
+		maskedCookies,
+		weblog.BODY,
+	)
+
+	return curlCommand
+}
+func maskSensitiveHeader(header string) string {
+	sensitiveKeys := []string{
+		"Authorization", "Token", "Api-Key", "Secret", "Access-Token", "X-Api-Key",
+		"X-Access-Token", "X-Secret", "Session-Key", "Set-Cookie",
+	}
+	maskedHeader := header
+	for _, key := range sensitiveKeys {
+		regex := regexp.MustCompile(fmt.Sprintf(`(?i)(%s):\s*[^\\n]+`, key))
+		maskedHeader = regex.ReplaceAllString(maskedHeader, "$1: [MASKED]")
+	}
+	return maskedHeader
+}
+
+func maskSensitiveCookies(cookies string) string {
+	cookieRegex := regexp.MustCompile(`(?i)(sessionid|auth|token|key|secret)=[^;]+`)
+	return cookieRegex.ReplaceAllString(cookies, "$1=[MASKED]")
 }

@@ -1,11 +1,17 @@
 package wafowasp
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/innerbean"
+	"encoding/json"
 	"fmt"
 	"github.com/corazawaf/coraza/v3"
+	"github.com/corazawaf/coraza/v3/collection"
+	"github.com/corazawaf/coraza/v3/experimental/plugins/plugintypes"
 	"github.com/corazawaf/coraza/v3/types"
+	"github.com/corazawaf/coraza/v3/types/variables"
 	"net/http"
+	"strconv"
 	"testing"
 )
 
@@ -77,6 +83,52 @@ func (w *WafOWASP) ProcessRequest(r *http.Request, weblog innerbean.WebLog) (boo
 		}
 		interrupted := tx.IsInterrupted()
 		if interrupted {
+			//显示详细信息
+			txState := tx.(plugintypes.TransactionState)
+			collections := make([][]string, 0)
+			// we transform this into collection, key, index, value
+			txState.Variables().All(func(_ variables.RuleVariable, v collection.Collection) bool {
+				for index, md := range v.FindAll() {
+					collections = append(collections, []string{
+						v.Name(),
+						md.Key(),
+						strconv.Itoa(index),
+						md.Value(),
+					})
+				}
+				return true
+			})
+			jsdata, err := json.Marshal(collections)
+			if err != nil {
+				fmt.Printf("Error marshaling %s\n", err)
+			}
+			md := [][]string{}
+			for _, m := range tx.MatchedRules() {
+				msg := m.Message()
+				if msg == "" {
+					continue
+				}
+				md = append(md, []string{strconv.Itoa(m.Rule().ID()), msg})
+			}
+			matchedData, err := json.Marshal(md)
+			if err != nil {
+				fmt.Printf("Error marshaling %s\n", err)
+			}
+			result := map[string]interface{}{
+				"transaction_id":      tx.ID(),
+				"collections":         string(jsdata),
+				"matched_data":        string(matchedData),
+				"rules_matched_total": strconv.Itoa(len(tx.MatchedRules())),
+				"audit_log":           `{"error": "not implemented"}`,
+				"disruptive_action":   "none",
+				"disruptive_rule":     "-",
+				"duration":            0,
+			}
+			zlog.Error("OWASP Detail", result)
+			if it := tx.Interruption(); it != nil {
+				result["disruptive_action"] = it.Action
+				result["disruptive_rule"] = it.RuleID
+			}
 			return interrupted, tx.Interruption(), nil
 		} else {
 			return interrupted, nil, fmt.Errorf("request body processing error: %v")

@@ -27,6 +27,10 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 	if chanType == enums.ChanSslOrderSubmitted {
 		//发起申请
 		filePath := utils.GetCurrentDir() + "/data/vhost/" + bean.HostCode
+		filePathErr := utils.CheckPathAndCreate(filePath)
+		if filePathErr != nil {
+			zlog.Error("ApplySSLOrder", filePathErr.Error())
+		}
 		updateSSLOrder, err := ssl.RegistrationSSL(bean, filePath)
 		if err == nil {
 			zlog.Error("证书首次申请处理", err)
@@ -55,6 +59,10 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 	} else if chanType == enums.ChanSslOrderrenew {
 		//发起申请
 		filePath := utils.GetCurrentDir() + "/data/vhost/" + bean.HostCode
+		filePathErr := utils.CheckPathAndCreate(filePath)
+		if filePathErr != nil {
+			zlog.Error("ApplySSLOrder", filePathErr.Error())
+		}
 		updateSSLOrder, err := ssl.ReNewSSL(bean, filePath)
 		if err == nil {
 			zlog.Error("证书续期申请处理", err)

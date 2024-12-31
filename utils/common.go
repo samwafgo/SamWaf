@@ -4,6 +4,7 @@ import (
 	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/model"
+	"errors"
 	"fmt"
 	"github.com/lionsoul2014/ip2region/binding/golang/xdb"
 	"github.com/oschwald/geoip2-golang"
@@ -376,4 +377,23 @@ func IsValidChallengeFile(challengeFile string) bool {
 
 	// 判断文件名是否符合正则表达式
 	return re.MatchString(challengeFile)
+}
+
+// CheckPathAndCreate 检测路径如果不存在则创建
+func CheckPathAndCreate(path string) error {
+	// 检测目录是否存在
+	_, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		// 目录不存在，创建目录
+		err := os.MkdirAll(path, os.ModePerm)
+		if err != nil {
+			return errors.New("创建目录失败" + err.Error())
+		}
+		return nil
+	} else if err != nil {
+		// 发生其他错误
+		return errors.New("检查目录失败" + err.Error())
+	} else {
+		return nil
+	}
 }

@@ -234,7 +234,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				fmt.Println("解码失败:", weblogbean.BODY)
 			}
 		}
-		if host == hostTarget.Host.Host+":80" && hostTarget.Host.AutoJumpHTTPS == 1 && hostTarget.Host.Ssl == 1 {
+		if host == hostTarget.Host.Host+":80" && !strings.HasPrefix(weblogbean.URL, global.GSSL_HTTP_CHANGLE_PATH) && hostTarget.Host.AutoJumpHTTPS == 1 && hostTarget.Host.Ssl == 1 {
 			// 重定向到 HTTPS 版本的 URL
 			targetHttpsUrl := fmt.Sprintf("%s%s%s", "https://", r.Host, r.URL.Path)
 			if hostTarget.Host.Port != 443 {
@@ -536,7 +536,6 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 		resp.Header.Set("X-Xss-Protection", "1; mode=block")
 
 		r := resp.Request
-
 		if wafHttpContext, ok := r.Context().Value("waf_context").(innerbean.WafHttpContextData); ok {
 			weblogfrist := wafHttpContext.Weblog
 
@@ -636,32 +635,69 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 					weblogfrist.RES_BODY = string(orgContentBytes)
 				}
 			}
-
+			zlog.Debug("TESTChanllage", weblogfrist.HOST, weblogfrist.URL)
 			if !isStaticAssist {
 				datetimeNow := time.Now()
 				weblogfrist.TimeSpent = datetimeNow.UnixNano()/1e6 - weblogfrist.UNIX_ADD_TIME
-				weblogfrist.ACTION = "放行"
-				weblogfrist.STATUS = resp.Status
-				weblogfrist.STATUS_CODE = resp.StatusCode
-				weblogfrist.TASK_FLAG = 1
-				if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "all" {
-					if waf.HostTarget[host].Host.EXCLUDE_URL_LOG == "" {
-						global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
-					} else {
-						lines := strings.Split(waf.HostTarget[host].Host.EXCLUDE_URL_LOG, "\n")
-						isRecordLog := true
-						// 检查每一行
-						for _, line := range lines {
-							if strings.HasPrefix(weblogfrist.URL, line) {
-								isRecordLog = false
-							}
+
+				if strings.HasPrefix(weblogfrist.URL, global.GSSL_HTTP_CHANGLE_PATH) && resp.StatusCode == 404 {
+					//如果远端HTTP01不存在挑战验证文件，那么我们映射到走本地再试一下
+
+					//Challenge /.well-known/acme-challenge/2NKiiETgQdPmmjlM88mH5uo6jM98PrgWwsDslaN8
+					urls := strings.Split(weblogfrist.URL, "/")
+					if len(urls) == 4 {
+						challengeFile := urls[3]
+						//检测challengeFile是否合法
+						if !utils.IsValidChallengeFile(challengeFile) {
+							return nil
 						}
-						if isRecordLog {
+						//当前路径 data/vhost/domain code 变量下
+						// 需要读取的文件路径
+						filePath := utils.GetCurrentDir() + "/data/vhost/" + weblogfrist.HOST_CODE + "/.well-known/acme-challenge/" + challengeFile
+
+						// 调用读取文件的函数
+						content, err := utils.ReadFile(filePath)
+						if err != nil {
+							zlog.Error("Error reading file: %v", err.Error())
+						}
+						if content != "" {
+							resp.StatusCode = http.StatusOK
+							resp.Status = http.StatusText(http.StatusOK)
+							resp.Body = io.NopCloser(bytes.NewBuffer([]byte(content)))
+							resp.ContentLength = int64(len(content))
+							resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(content)), 10))
+
+							weblogfrist.ACTION = "放行"
+							weblogfrist.STATUS = resp.Status
+							weblogfrist.STATUS_CODE = resp.StatusCode
+							weblogfrist.TASK_FLAG = 1
 							global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
 						}
 					}
-				} else if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "abnormal" && weblogfrist.ACTION != "放行" {
-					global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
+				} else {
+					weblogfrist.ACTION = "放行"
+					weblogfrist.STATUS = resp.Status
+					weblogfrist.STATUS_CODE = resp.StatusCode
+					weblogfrist.TASK_FLAG = 1
+					if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "all" {
+						if waf.HostTarget[host].Host.EXCLUDE_URL_LOG == "" {
+							global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
+						} else {
+							lines := strings.Split(waf.HostTarget[host].Host.EXCLUDE_URL_LOG, "\n")
+							isRecordLog := true
+							// 检查每一行
+							for _, line := range lines {
+								if strings.HasPrefix(weblogfrist.URL, line) {
+									isRecordLog = false
+								}
+							}
+							if isRecordLog {
+								global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
+							}
+						}
+					} else if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "abnormal" && weblogfrist.ACTION != "放行" {
+						global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
+					}
 				}
 
 			}

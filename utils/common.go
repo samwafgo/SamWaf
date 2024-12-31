@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -365,4 +366,14 @@ func UpdateFileIsHasNewInfo(filePath, newContent string) error {
 		}
 	}
 	return nil
+}
+
+// IsValidChallengeFile 检查challenge文件是否合法
+func IsValidChallengeFile(challengeFile string) bool {
+	// 定义一个正则表达式：允许字母、数字、连字符、下划线，且长度在 1 到 255 之间
+	// 这里假设合法的文件名不含有特殊字符和空格
+	re := regexp.MustCompile(`^[a-zA-Z0-9_-]{1,255}$`)
+
+	// 判断文件名是否符合正则表达式
+	return re.MatchString(challengeFile)
 }

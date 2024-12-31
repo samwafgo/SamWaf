@@ -13,3 +13,9 @@ type AllShareDbRep struct {
 	FileName  string              `json:"file_name"`  //文件名
 	Cnt       int64               `json:"cnt"`        //当前数量
 }
+
+// AllDomainRep 域名信息
+type AllDomainRep struct {
+	Code string `json:"value"` //唯一码
+	Host string `json:"label"` //域名
+}

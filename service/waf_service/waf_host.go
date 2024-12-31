@@ -56,6 +56,7 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 		AutoJumpHTTPS:       wafHostAddReq.AutoJumpHTTPS,
 		BindMoreHost:        wafHostAddReq.BindMoreHost,
 		IsTransBackDomain:   wafHostAddReq.IsTransBackDomain,
+		BindMorePort:        wafHostAddReq.BindMorePort,
 	}
 	global.GWAF_LOCAL_DB.Create(wafHost)
 	return wafHost.Code, nil
@@ -102,6 +103,7 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 		"AutoJumpHTTPS":       wafHostEditReq.AutoJumpHTTPS,
 		"BindMoreHost":        wafHostEditReq.BindMoreHost,
 		"IsTransBackDomain":   wafHostEditReq.IsTransBackDomain,
+		"BindMorePort":        wafHostEditReq.BindMorePort,
 	}
 	err := global.GWAF_LOCAL_DB.Debug().Model(model.Hosts{}).Where("CODE=?", wafHostEditReq.CODE).Updates(hostMap).Error
 
@@ -271,6 +273,18 @@ func (receiver *WafHostService) UpdateSSLInfo(certContent string, keyContent str
 	return err
 }
 
+// UpdateSSLInfoAndBindId 更新ssl证书信息 有绑定ID 说明是新来的
+func (receiver *WafHostService) UpdateSSLInfoAndBindId(certContent string, keyContent string, hostCode string, bindId string) error {
+	hostMap := map[string]interface{}{
+		"BindSslId":   bindId,
+		"Certfile":    certContent,
+		"Keyfile":     keyContent,
+		"UPDATE_TIME": customtype.JsonTime(time.Now()),
+	}
+	err := global.GWAF_LOCAL_DB.Debug().Model(model.Hosts{}).Where("CODE=?", hostCode).Updates(hostMap).Error
+	return err
+}
+
 /*
 *
 判断是否合法
@@ -284,4 +298,18 @@ func (receiver *WafHostService) isValidSortField(field string) bool {
 		}
 	}
 	return false
+}
+
+// 查询所有SSL证书的
+func (receiver *WafHostService) GetAllSSLHost() ([]model.Hosts, int64, error) {
+	var list []model.Hosts
+	var total int64 = 0
+
+	/**排序*/
+	orderInfo := "create_time desc"
+
+	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where("ssl =? and bind_ssl_id <> ?", 1, "").Order(orderInfo).Find(&list)
+	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where("ssl =? and bind_ssl_id <> ?", 1, "").Count(&total)
+
+	return list, total, nil
 }

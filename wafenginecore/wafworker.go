@@ -30,7 +30,7 @@ func (waf *WafEngine) LoadAllHost() {
 }
 
 // 加载指定host
-func (waf *WafEngine) LoadHost(inHost model.Hosts) innerbean.ServerRunTime {
+func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 
 	//检测https
 	if inHost.Ssl == 1 {
@@ -105,7 +105,38 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) innerbean.ServerRunTime {
 			}
 		}
 	}
+	//定义一个port int数组
+	var ports = []int{}
+	//如果存在一个主机绑定了多个Port的情况
+	if inHost.BindMorePort != "" && inHost.GLOBAL_HOST == 0 {
+		lines := strings.Split(inHost.BindMorePort, ",")
+		for _, portStr := range lines {
+			port, err := strconv.Atoi(strings.TrimSpace(portStr))
+			if err != nil {
+				continue
+			}
+			ports = append(ports, port)
+			_, ok := waf.ServerOnline[port]
+			if ok == false {
+				if inHost.START_STATUS == 0 {
+					if port == 443 {
+						waf.ServerOnline[port] = innerbean.ServerRunTime{
+							ServerType: "https",
+							Port:       port,
+							Status:     1,
+						}
+					} else {
+						waf.ServerOnline[port] = innerbean.ServerRunTime{
+							ServerType: "http",
+							Port:       port,
+							Status:     1,
+						}
+					}
 
+				}
+			}
+		}
+	}
 	//加载主机对于的规则
 	ruleHelper := &utils.RuleHelper{}
 	ruleHelper.InitRuleEngine()
@@ -182,6 +213,15 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) innerbean.ServerRunTime {
 	//赋值到对照表里面
 	waf.HostCode[inHost.Code] = inHost.Host + ":" + strconv.Itoa(inHost.Port)
 
+	if len(ports) > 0 {
+		for _, port := range ports {
+			//目标关系情况
+			waf.HostTarget[inHost.Host+":"+strconv.Itoa(port)] = hostsafe
+			//赋值到对照表里面
+			waf.HostCode[inHost.Code] = inHost.Host + ":" + strconv.Itoa(port)
+		}
+	}
+
 	//如果存在强制跳转
 	if inHost.AutoJumpHTTPS == 1 {
 		waf.HostTarget[inHost.Host+":80"] = hostsafe
@@ -206,7 +246,15 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) innerbean.ServerRunTime {
 		}
 	}
 
-	return waf.ServerOnline[inHost.Port]
+	var serverOnlines = []innerbean.ServerRunTime{}
+	serverOnlines = append(serverOnlines, waf.ServerOnline[inHost.Port])
+	for _, port := range ports {
+		_, ok := waf.ServerOnline[port]
+		if ok == true {
+			serverOnlines = append(serverOnlines, waf.ServerOnline[port])
+		}
+	}
+	return serverOnlines
 }
 
 // RemovePortServer 检测如果没有端口在占用了，可以关闭相应端口

@@ -114,3 +114,60 @@ func (s *SslConfig) CheckKeyAndCertFileLoad() (error, SslConfig, SslConfig) {
 
 	return nil, updateSslConfig, backSslConfig
 }
+
+// FillByCertAndKey 通过证书和密钥填写证书夹内容
+func (s *SslConfig) FillByCertAndKey(certContent, keyContent string) error {
+
+	block, _ := pem.Decode([]byte(certContent))
+	if block == nil {
+		return errors.New("无法解码PEM数据")
+	}
+
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return errors.New("解析证书失败")
+	}
+	serialNo := cert.SerialNumber.String()
+
+	subject := cert.Subject.String()
+	issuer := cert.Issuer.String()
+	validFrom := cert.NotBefore
+	validTo := cert.NotAfter
+
+	domains := ""
+	if len(cert.DNSNames) > 0 {
+		for _, domain := range cert.DNSNames {
+			if domains != "" {
+				domains += ", "
+			}
+			domains += domain
+		}
+	} else {
+		domains = "未指定域名"
+	}
+	s.KeyContent = keyContent
+	s.CertContent = certContent
+	s.SerialNo = serialNo
+	s.Subject = subject
+	s.Issuer = issuer
+	s.Domains = domains
+	s.ValidFrom = validFrom
+	s.ValidTo = validTo
+	return nil
+}
+
+// CompareSSLNeedUpdate 比较ssl证书是否能检测
+func (s *SslConfig) CompareSSLNeedUpdate(current SslConfig, old SslConfig) bool {
+	ret := true
+	//如果证书编码相同 则不更
+	if current.SerialNo == old.SerialNo {
+		ret = false
+	}
+	now := time.Now()
+	daysLeft := current.ValidTo.Sub(now).Hours() / 24
+	//如果当前证书已经到期了 则不更新
+	if daysLeft <= 0 {
+		ret = false
+	}
+	return ret
+}

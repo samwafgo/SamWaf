@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	"strings"
 )
 
 type WafHostAPi struct {
@@ -111,6 +112,43 @@ func (w *WafHostAPi) GetAllListApi(c *gin.Context) {
 
 	}
 	response.OkWithDetailed(allHostRep, "获取成功", c)
+}
+
+// GetDomainsByHostCodeApi 通过主机code获取所有关联的域名信息
+func (w *WafHostAPi) GetDomainsByHostCodeApi(c *gin.Context) {
+	var req request.WafHostAllDomainsReq
+	err := c.ShouldBind(&req)
+	if err == nil {
+		if req.CODE == "" {
+			response.FailWithMessage("请传入正确的主机信息", c)
+			return
+		}
+		wafHostBean := wafHostService.GetDetailByCodeApi(req.CODE)
+		if wafHostBean.Code == "" {
+			response.FailWithMessage("未找到该主机信息", c)
+			return
+		}
+		allHostRep := make([]response2.AllDomainRep, 0) // 创建数组
+
+		allHostRep = append(allHostRep, response2.AllDomainRep{
+			Host: fmt.Sprintf("%s", wafHostBean.Host),
+			Code: req.CODE,
+		})
+		//如果存在一个主机绑定了多个域名的情况
+		if wafHostBean.BindMoreHost != "" {
+			lines := strings.Split(wafHostBean.BindMoreHost, "\n")
+			for _, line := range lines {
+				allHostRep = append(allHostRep, response2.AllDomainRep{
+					Host: fmt.Sprintf("%s", line),
+					Code: req.CODE,
+				})
+			}
+		}
+		response.OkWithDetailed(allHostRep, "获取成功", c)
+	} else {
+		response.FailWithMessage("解析失败", c)
+	}
+
 }
 func (w *WafHostAPi) DelHostApi(c *gin.Context) {
 	var req request.WafHostDelReq

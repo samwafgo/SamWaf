@@ -39,6 +39,12 @@ func setConfigIntValue(name string, value int64, change int) {
 	case "enable_owasp":
 		global.GCONFIG_RECORD_ENABLE_OWASP = value
 		break
+	case "enable_http_80":
+		global.GCONFIG_RECORD_ENABLE_HTTP_80 = value
+		break
+	case "sslorder_expire_day":
+		global.GCONFIG_RECORD_SSLOrder_EXPIRE_DAY = value
+		break
 	default:
 		zlog.Warn("Unknown config item:", name)
 	}
@@ -132,5 +138,8 @@ func TaskLoadSetting(initLoad bool) {
 	updateConfigIntItem(initLoad, "system", "login_max_error_time", global.GCONFIG_RECORD_LOGIN_MAX_ERROR_TIME, "登录周期里错误最大次数 请大于0 ", "int", "")
 	updateConfigIntItem(initLoad, "system", "login_limit_mintutes", global.GCONFIG_RECORD_LOGIN_LIMIT_MINTUTES, "登录错误记录周期 单位分钟数，默认1分钟", "int", "")
 	updateConfigIntItem(initLoad, "system", "enable_owasp", global.GCONFIG_RECORD_ENABLE_OWASP, "启动OWASP数据检测（1启动 0关闭）", "int", "")
+
+	updateConfigIntItem(initLoad, "ssl", "enable_http_80", global.GCONFIG_RECORD_ENABLE_HTTP_80, "启动80端口服务（为自动申请证书使用 HTTP文件验证类型需要，DNS验证不需要）", "int", "")
+	updateConfigIntItem(initLoad, "ssl", "sslorder_expire_day", global.GCONFIG_RECORD_SSLOrder_EXPIRE_DAY, "自动续期检测小于多少天开始发起自动申请 默认30天", "int", "")
 
 }

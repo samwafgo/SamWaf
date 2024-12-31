@@ -15,5 +15,7 @@ var (
 	GCONFIG_RECORD_LOGIN_MAX_ERROR_TIME int64 = 3 //登录周期里错误最大次数
 	GCONFIG_RECORD_LOGIN_LIMIT_MINTUTES int64 = 1 //登录错误记录周期 单位分钟最小1
 
-	GCONFIG_RECORD_ENABLE_OWASP int64 = 0 //启动OWASP数据检测
+	GCONFIG_RECORD_ENABLE_OWASP        int64 = 0  //启动OWASP数据检测
+	GCONFIG_RECORD_ENABLE_HTTP_80      int64 = 0  //启动80端口服务（为自动申请证书使用 HTTP文件验证类型，DNS验证不需要）
+	GCONFIG_RECORD_SSLOrder_EXPIRE_DAY int64 = 30 // 提前多少天进行自动申请
 )

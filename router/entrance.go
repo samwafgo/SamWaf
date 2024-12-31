@@ -27,6 +27,7 @@ type ApiGroup struct {
 	LoadBalanceRouter
 	SslConfigRouter
 	BatchTaskRouter
+	SslOrderRouter
 }
 type PublicApiGroup struct {
 	LoginRouter

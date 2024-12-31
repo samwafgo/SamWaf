@@ -25,6 +25,7 @@ type WafHostAddReq struct {
 	AutoJumpHTTPS       int    `json:"auto_jump_https"`        //是否自动跳转https  0 不自动 1 强制80跳转https
 	BindMoreHost        string `json:"bind_more_host"`         //绑定多域名
 	IsTransBackDomain   int    `json:"is_trans_back_domain"`   //是否传递后端域名到后端服务器侧
+	BindMorePort        string `json:"bind_more_port"`         //是否绑定多个端口
 }
 type WafHostDelReq struct {
 	CODE string `json:"code"`
@@ -57,7 +58,7 @@ type WafHostEditReq struct {
 	AutoJumpHTTPS       int    `json:"auto_jump_https"`        //是否自动跳转https  0 不自动 1 强制80跳转https
 	BindMoreHost        string `json:"bind_more_host"`         //绑定多域名
 	IsTransBackDomain   int    `json:"is_trans_back_domain"`   //是否传递后端域名到后端服务器侧
-
+	BindMorePort        string `json:"bind_more_port"`         //是否绑定多个端口
 }
 
 type WafHostGuardStatusReq struct {
@@ -78,4 +79,8 @@ type WafHostSearchReq struct {
 type WafHostStartStatusReq struct {
 	CODE         string `json:"code"`
 	START_STATUS int    `json:"start_status"` //启动状态
+}
+
+type WafHostAllDomainsReq struct {
+	CODE string `json:"code" form:"code"`
 }

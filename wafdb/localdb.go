@@ -146,6 +146,9 @@ func InitCoreDb(currentDir string) {
 		//自动任务
 		db.AutoMigrate(&model.BatchTask{})
 
+		//SSL证书申请订单
+		db.AutoMigrate(&model.SslOrder{})
+
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
 

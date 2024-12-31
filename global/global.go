@@ -77,6 +77,7 @@ var (
 	GWAF_CHAN_UPDATE    = make(chan int, 10)                 //升级后处理链
 	GWAF_CHAN_SENSITIVE = make(chan int, 10)                 //敏感词处理链
 	GWAF_CHAN_SSL       = make(chan string, 10)              //证书处理链
+	GWAF_CHAN_SSLOrder  = make(chan spec.ChanSslOrder, 10)   //SSL证书申请
 	/*****CACHE相关*********/
 	GCACHE_WAFCACHE      *cache.WafCache      //cache
 	GCACHE_WECHAT_ACCESS string          = "" //微信访问密钥
@@ -100,6 +101,9 @@ var (
 	/*******通知相关*************/
 	GNOTIFY_KAKFA_SERVICE           *wafnotify.WafNotifyService                                  //通知服务
 	GNOTIFY_SEND_MAX_LIMIT_MINTUTES                             = time.Duration(5) * time.Minute // 规则相关信息最大发送抑止 默认5分钟
+
+	/*********SSL相关*************/
+	GSSL_HTTP_CHANGLE_PATH string = "/.well-known/acme-challenge/" // http01证书验证路径
 
 	/******数据库处理参数*****/
 	GDATA_BATCH_INSERT       int                 = 1000        //最大批量插入

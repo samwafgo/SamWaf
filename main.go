@@ -359,6 +359,11 @@ func (m *wafSystenService) run() {
 		go waftask.SSLReload()
 	})
 
+	//每天早晨02:13进行执行ssl申请证书的处理
+	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Day().At("02:13").Do(func() {
+		go waftask.SSLOrderReload()
+	})
+
 	//每天凌晨5点执行批量任务执行
 	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Day().At("05:00").Do(func() {
 		go waftask.BatchTask()
@@ -553,7 +558,10 @@ func (m *wafSystenService) run() {
 					hosts := msg.Content.([]model.Hosts)
 					if len(hosts) == 1 {
 						hostRunTimeBean := globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.LoadHost(hosts[0])
-						globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartProxyServer(hostRunTimeBean)
+						for _, runTime := range hostRunTimeBean {
+							globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartProxyServer(runTime)
+						}
+
 					}
 					break
 				}
@@ -617,6 +625,10 @@ func (m *wafSystenService) run() {
 		case sensitive := <-global.GWAF_CHAN_SENSITIVE:
 			zlog.Debug("远程配置", sensitive)
 			globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ReLoadSensitive()
+			break
+		case sslOrderChan := <-global.GWAF_CHAN_SSLOrder:
+			zlog.Debug("ssl证书申请", sslOrderChan)
+			globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ApplySSLOrder(sslOrderChan.Type, sslOrderChan.Content.(model.SslOrder))
 			break
 		}
 

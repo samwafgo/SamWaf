@@ -30,7 +30,7 @@ func TaskShareDbInfo() {
 	}
 	//获取当前日志数量
 	var total int64 = 0
-	global.GWAF_LOCAL_LOG_DB.Model(&innerbean.WebLog{}).Count(&total)
+	global.GWAF_LOCAL_LOG_DB.Table("web_logs INDEXED BY  idx_tenant_usercode_web_logs").Count(&total)
 	if total > global.GDATA_SHARE_DB_SIZE {
 		global.GDATA_CURRENT_CHANGE = true
 		oldDBFilename := "local_log.db"

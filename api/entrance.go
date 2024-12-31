@@ -29,6 +29,7 @@ type APIGroup struct {
 	WafLoadBalanceApi
 	WafSslConfigApi
 	WafBatchTaskApi
+	WafSslOrderApi
 }
 
 var APIGroupAPP = new(APIGroup)
@@ -66,4 +67,6 @@ var (
 	wafSslConfigService = waf_service.WafSslConfigServiceApp
 
 	wafBatchTaskService = waf_service.WafBatchServiceApp
+
+	wafSslOrderService = waf_service.WafSSLOrderServiceApp
 )

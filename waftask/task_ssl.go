@@ -11,11 +11,12 @@ import (
 var (
 	wafHostService      = waf_service.WafHostServiceApp
 	wafSslConfigService = waf_service.WafSslConfigServiceApp
+	wafSslOrderService  = waf_service.WafSSLOrderServiceApp
 )
 
 /*
 *
-SSL证书自动续期
+SSL路径自动加载—_证书自动续期
 */
 func SSLReload() {
 	innerLogName := "TaskSSL"
@@ -68,5 +69,43 @@ func SSLReload() {
 		}
 	} else {
 		zlog.Info(innerLogName, "自动加载ssl开关:关闭")
+	}
+}
+
+/*
+*
+SSL证书自动续期 远程申请
+*/
+func SSLOrderReload() {
+	innerLogName := "TaskSSLOrder"
+	zlog.Info(innerLogName, "准备进行ssl证书自动续期检测")
+	//1.找出来所有得SSL得主机 2.查询是否存在自动SSL订单得最新得数据 3.查询没有到期得最后一条信息来申请延期
+	allSSLHost, _, err := wafHostService.GetAllSSLHost()
+	if err == nil {
+		for _, hostBean := range allSSLHost {
+			lastSslOrderInfo, err := wafSslOrderService.GetLastedInfo(hostBean.Code)
+			if err != nil {
+				zlog.Error(innerLogName, "ssl order get lasted info:", err.Error())
+			} else {
+				if lastSslOrderInfo.Id == "" {
+					//未找到关联信息
+					continue
+				}
+				isExpire, availDay, msg, err := lastSslOrderInfo.ExpirationMessage()
+				if err != nil {
+					zlog.Error(innerLogName, "ssl order get lasted info:", err.Error())
+				} else {
+					zlog.Info(innerLogName, "ssl order expire:", isExpire, availDay, msg)
+					if isExpire && availDay <= int(global.GCONFIG_RECORD_SSLOrder_EXPIRE_DAY) {
+						//没过期 且是知单天数 就才处理
+						var chanInfo = spec.ChanSslOrder{
+							Type:    enums.ChanSslOrderrenew,
+							Content: lastSslOrderInfo,
+						}
+						global.GWAF_CHAN_SSLOrder <- chanInfo
+					}
+				}
+			}
+		}
 	}
 }

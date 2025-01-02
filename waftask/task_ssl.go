@@ -20,19 +20,20 @@ SSL路径自动加载—_证书自动续期
 */
 func SSLReload() {
 	innerLogName := "TaskSSL"
-	zlog.Info(innerLogName, "准备进行ssl证书自动加载")
+	zlog.Info(innerLogName, "准备进行ssl证书文件路径自动加载")
 	if global.GCONFIG_RECORD_AUTO_LOAD_SSL == 1 {
 		zlog.Info(innerLogName, "自动加载ssl开关:开启")
 		//1.遍历所有证书夹得内容
 		//2.如果对应得位置有内容
 		//3.就开始判断数据是否是正常的，如果正常则备份现有，然后现有的证书替换掉
 		//4.重新查询让关联的主机信息重新加载
-		sslConfigReps, sslConfigSize, err := wafSslConfigService.GetAllListInner()
+		sslConfigReps, err := wafSslConfigService.GetAllListInner()
 		if err != nil {
 			zlog.Error(innerLogName, "ssl config:", err)
 			return
 		}
-		if sslConfigSize <= 0 {
+
+		if len(sslConfigReps) <= 0 {
 			zlog.Info(innerLogName, "没有ssl证书")
 			return
 		}

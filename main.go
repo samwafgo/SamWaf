@@ -353,7 +353,6 @@ func (m *wafSystenService) run() {
 		go waftask.TaskHistoryDownload()
 
 	})
-
 	//每天早晨3点进行执行ssl证书的处理
 	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Day().At("03:00").Do(func() {
 		go waftask.SSLReload()

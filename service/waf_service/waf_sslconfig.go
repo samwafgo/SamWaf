@@ -245,14 +245,13 @@ func (receiver *WafSslConfigService) GetListApi(req request.SslConfigSearchReq) 
 	return repList, total, nil
 }
 
-func (receiver *WafSslConfigService) GetAllListInner() ([]response.WafSslConfigRep, int64, error) {
+func (receiver *WafSslConfigService) GetAllListInner() ([]response.WafSslConfigRep, error) {
 	var list []model.SslConfig
-	var total int64 = 0
-	var whereField = ""
-	var whereValues []interface{}
 
-	global.GWAF_LOCAL_DB.Model(&model.SslConfig{}).Where(whereField, whereValues...).Order("valid_to desc").Find(&list)
-	global.GWAF_LOCAL_DB.Model(&model.SslConfig{}).Where(whereField, whereValues...).Count(&total)
+	var bindSslIDs []string
+	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Select("bind_ssl_id").Where("ssl =? and bind_ssl_id <> ?", 1, "").Find(&bindSslIDs)
+
+	global.GWAF_LOCAL_DB.Model(&model.SslConfig{}).Where("id IN ?", bindSslIDs).Order("valid_to desc").Find(&list)
 
 	// 初始化返回结果列表
 	var repList []response.WafSslConfigRep
@@ -272,7 +271,7 @@ func (receiver *WafSslConfigService) GetAllListInner() ([]response.WafSslConfigR
 		repList = append(repList, rep)
 	}
 
-	return repList, total, nil
+	return repList, nil
 }
 
 func (receiver *WafSslConfigService) DelApi(req request.SslConfigDeleteReq) error {

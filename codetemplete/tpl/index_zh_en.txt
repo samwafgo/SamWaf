@@ -1,0 +1,34 @@
+/**
+ *  SamWaf 中文语言包
+ *
+ * common 放置一些公共字段
+ * menu  左侧菜单
+ * page 里面放置对应功能页面的字段
+ */
+export default {
+  [[ .EntityName | snakeCase]]:{
+    alert_message: "SamWaf 本页面提示信息",
+    button_add_[[ .EntityName | snakeCase]]: "新建",
+    [[- range .Fields -]]  [[- if not (or (eq .Name "Id") (eq .Name "USER_CODE") (eq .Name "Tenant_ID") (eq .Name "CREATE_TIME")  (eq .Name "UPDATE_TIME")) -]] [[- .Name | snakeCase]]: "[[.Name]]", [[end]][[end]]
+  }
+}
+
+
+
+
+
+/**
+ *  SamWaf English Language Pack
+ *
+ * common - Common fields
+ * menu - Left menu
+ * page - Fields for specific functional pages
+ */
+export default {
+   [[ .EntityName | snakeCase]]:{
+      alert_message: "SamWaf Page Tips",
+      button_add_[[ $.EntityName | snakeCase]]: "New",
+      [[- range .Fields -]]  [[- if not (or (eq .Name "Id") (eq .Name "USER_CODE") (eq .Name "Tenant_ID") (eq .Name "CREATE_TIME")  (eq .Name "UPDATE_TIME")) -]]  [[- .Name | snakeCase]]: "[[.Name]]",
+      [[end]][[end]]
+    }
+}

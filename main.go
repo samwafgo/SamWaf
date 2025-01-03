@@ -339,10 +339,6 @@ func (m *wafSystenService) run() {
 
 		})
 	}
-	// 每天早晚8点进行数据汇总通知
-	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Day().At("08:00;20:00").Do(func() {
-		go waftask.TaskStatusNotify()
-	})
 
 	// 每天早5点删除历史信息
 	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Day().At("05:00").Do(func() {
@@ -353,20 +349,30 @@ func (m *wafSystenService) run() {
 		go waftask.TaskHistoryDownload()
 
 	})
-	//每天早晨3点进行执行ssl证书的处理
-	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Day().At("03:00").Do(func() {
-		go waftask.SSLReload()
-	})
 
 	//每天早晨02:13进行执行ssl申请证书的处理
 	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Day().At("02:13").Do(func() {
 		go waftask.SSLOrderReload()
 	})
 
+	//每天早晨3点进行执行ssl证书的处理
+	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Day().At("03:00").Do(func() {
+		go waftask.SSLReload()
+	})
+
 	//每天凌晨5点执行批量任务执行
 	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Day().At("05:00").Do(func() {
 		go waftask.BatchTask()
+	})
 
+	//每天凌晨6点执行批量任务执行
+	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Day().At("06:00").Do(func() {
+		go waftask.SSLExpireCheck()
+	})
+
+	//每天早晚8点进行数据汇总通知
+	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Day().At("08:00;20:00").Do(func() {
+		go waftask.TaskStatusNotify()
 	})
 
 	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.StartAsync()
@@ -628,6 +634,14 @@ func (m *wafSystenService) run() {
 		case sslOrderChan := <-global.GWAF_CHAN_SSLOrder:
 			zlog.Debug("ssl证书申请", sslOrderChan)
 			globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ApplySSLOrder(sslOrderChan.Type, sslOrderChan.Content.(model.SslOrder))
+			break
+		case sslExpireCheck := <-global.GWAF_CHAN_SSL_EXPIRE_CHECK:
+			zlog.Debug("ssl证书到期检测", sslExpireCheck)
+			waftask.SSLExpireCheck()
+			break
+		case syncHostToSslExpire := <-global.GWAF_CHAN_SYNC_HOST_TO_SSL_EXPIRE:
+			zlog.Debug("同步已存在主机到SSL证书检测任务里", syncHostToSslExpire)
+			waftask.SyncHostToSslCheck()
 			break
 		}
 

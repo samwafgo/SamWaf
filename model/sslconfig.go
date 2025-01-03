@@ -25,7 +25,7 @@ type SslConfig struct {
 	CertPath    string    `json:"cert_path"`    //crt文件配置
 }
 
-// 获取到期提示信息
+// ExpirationMessage 获取到期提示信息
 func (s *SslConfig) ExpirationMessage() string {
 	now := time.Now()
 	daysLeft := s.ValidTo.Sub(now).Hours() / 24

@@ -4,6 +4,7 @@ import (
 	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/model"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"github.com/lionsoul2014/ip2region/binding/golang/xdb"
@@ -396,4 +397,20 @@ func CheckPathAndCreate(path string) error {
 	} else {
 		return nil
 	}
+}
+
+// CheckSSLCertificateExpiry 检查指定主机的 SSL 证书到期情况
+// host: 需要检查的主机地址，格式为 "ssl.samwaf.com:443"
+func CheckSSLCertificateExpiry(host string) (time.Time, error) {
+	conn, err := tls.Dial("tcp", host, nil)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("无法连接到主机 %s: %v", host, err)
+	}
+	defer conn.Close()
+
+	// 获取 SSL 证书的到期时间
+	cert := conn.ConnectionState().PeerCertificates[0]
+	expiryDate := cert.NotAfter
+	// 返回到期时间
+	return expiryDate, nil
 }

@@ -1,0 +1,41 @@
+import request from '@/utils/request'
+//列表
+export function waf{{.EntityName}}ListApi(params) {
+  return request({
+    url: '/wafhost/{{.EntityName | lower}}/list',
+    method: 'post',
+    data: params
+  })
+}
+//删除
+export function waf{{.EntityName}}DelApi(params) {
+  return request({
+    url: '/wafhost/{{.EntityName | lower}}/del',
+    method: 'get',
+    params: params
+  })
+}
+//编辑
+export function waf{{.EntityName}}EditApi(params) {
+  return request({
+    url: '/wafhost/{{.EntityName | lower}}/edit',
+    method: 'post',
+    data: params
+  })
+}
+//添加
+export function waf{{.EntityName}}AddApi(params) {
+  return request({
+    url: '/wafhost/{{.EntityName | lower}}/add',
+    method: 'post',
+    data: params
+  })
+}
+//详细
+export function waf{{.EntityName}}DetailApi(params) {
+  return request({
+    url: '/wafhost/{{.EntityName | lower}}/detail',
+    method: 'get',
+    params: params
+  })
+}

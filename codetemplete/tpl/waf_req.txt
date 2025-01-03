@@ -1,0 +1,26 @@
+package request
+
+import "SamWaf/model/common/request"
+
+type Waf{{.EntityName}}AddReq struct {
+  {{range .Fields}}
+    {{- if not (or (eq .Name "Id") (eq .Name "USER_CODE") (eq .Name "Tenant_ID") (eq .Name "CREATE_TIME")  (eq .Name "UPDATE_TIME"))}}{{.Name}} {{.Type}} `{{.Tag}} {{.Tag | addForm}}`
+    {{- else}} {{- end}}
+  {{end}}
+}
+type Waf{{.EntityName}}EditReq struct {
+	Id          string `json:"id"`
+  {{range .Fields}}
+    {{- if not (or (eq .Name "Id") (eq .Name "USER_CODE") (eq .Name "Tenant_ID") (eq .Name "CREATE_TIME")  (eq .Name "UPDATE_TIME"))}}{{.Name}} {{.Type}} `{{.Tag}} {{.Tag | addForm}}`
+    {{- else}} {{- end}}
+  {{end}}
+}
+type Waf{{.EntityName}}DetailReq struct {
+	Id string `json:"id"   form:"id"`
+}
+type Waf{{.EntityName}}DeleteReq struct {
+	Id string `json:"id"   form:"id"`
+}
+type Waf{{.EntityName}}SearchReq struct {
+	request.PageInfo
+}

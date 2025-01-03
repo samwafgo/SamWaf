@@ -28,6 +28,7 @@ type ApiGroup struct {
 	SslConfigRouter
 	BatchTaskRouter
 	SslOrderRouter
+	WafSslExpireRouter
 }
 type PublicApiGroup struct {
 	LoginRouter

@@ -308,6 +308,20 @@ func (receiver *WafHostService) GetAllSSLHost() ([]model.Hosts, int64, error) {
 	/**排序*/
 	orderInfo := "create_time desc"
 
+	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where("ssl =? ", 1).Order(orderInfo).Find(&list)
+	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where("ssl =? ", 1).Count(&total)
+
+	return list, total, nil
+}
+
+// 查询所有SSL证书的(只看绑定过的主机信息)
+func (receiver *WafHostService) GetAllSSLBindHost() ([]model.Hosts, int64, error) {
+	var list []model.Hosts
+	var total int64 = 0
+
+	/**排序*/
+	orderInfo := "create_time desc"
+
 	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where("ssl =? and bind_ssl_id <> ?", 1, "").Order(orderInfo).Find(&list)
 	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where("ssl =? and bind_ssl_id <> ?", 1, "").Count(&total)
 

@@ -6,12 +6,16 @@ import (
 	"SamWaf/global"
 	"SamWaf/model/spec"
 	"SamWaf/service/waf_service"
+	"SamWaf/utils"
+	"fmt"
+	"time"
 )
 
 var (
 	wafHostService      = waf_service.WafHostServiceApp
 	wafSslConfigService = waf_service.WafSslConfigServiceApp
 	wafSslOrderService  = waf_service.WafSSLOrderServiceApp
+	wafSslExpireService = waf_service.WafSslExpireServiceApp
 )
 
 /*
@@ -81,7 +85,7 @@ func SSLOrderReload() {
 	innerLogName := "TaskSSLOrder"
 	zlog.Info(innerLogName, "准备进行ssl证书自动续期检测")
 	//1.找出来所有得SSL得主机 2.查询是否存在自动SSL订单得最新得数据 3.查询没有到期得最后一条信息来申请延期
-	allSSLHost, _, err := wafHostService.GetAllSSLHost()
+	allSSLHost, _, err := wafHostService.GetAllSSLBindHost()
 	if err == nil {
 		for _, hostBean := range allSSLHost {
 			lastSslOrderInfo, err := wafSslOrderService.GetLastedInfo(hostBean.Code)
@@ -109,4 +113,61 @@ func SSLOrderReload() {
 			}
 		}
 	}
+}
+
+/*
+*
+SSL证书过期检测
+*/
+func SSLExpireCheck() {
+	innerLogName := "SSLExpireCheck"
+	zlog.Info(innerLogName, "准备进行SSL证书过期检测")
+	sslExpires, cnt, err := wafSslExpireService.GetAllList()
+	if err != nil {
+		zlog.Error(innerLogName, "ssl expire list:", err.Error())
+		return
+	}
+	if cnt == 0 {
+		zlog.Error(innerLogName, "无检测数据任务")
+		return
+	}
+	for _, expireBean := range sslExpires {
+
+		zlog.Info(innerLogName, fmt.Sprintf("正在检测域名: %s:%d", expireBean.Domain, expireBean.Port))
+		host := fmt.Sprintf("%s:%d", expireBean.Domain, expireBean.Port)
+		expiryTime, err := utils.CheckSSLCertificateExpiry(host)
+		expireBean.LastDetect = time.Now()
+		if err != nil {
+			expireBean.VisitLog = err.Error()
+		} else {
+			expireBean.ValidTo = expiryTime
+			expireBean.VisitLog = ""
+		}
+		//更新数据
+		wafSslExpireService.Modify(expireBean)
+	}
+	global.GWAF_RUNTIME_SSL_EXPIRE_CHECK = false
+}
+
+// SyncHostToSslCheck 同步已存在主机到SSL证书检测任务里
+func SyncHostToSslCheck() {
+	innerLogName := "SyncHostToSslCheck"
+	zlog.Info(innerLogName, "准备进行同步已存在主机到SSL证书检测任务里")
+	//检测信息 如果主机和端口不存在 则新增
+	sslHost, sslHostCnt, err := wafHostService.GetAllSSLHost()
+	if err != nil {
+		zlog.Error(innerLogName, "sync host to ssl expire:", err.Error())
+		return
+	}
+	if sslHostCnt == 0 {
+		zlog.Error(innerLogName, "sync host not find ssl host")
+		return
+	}
+	for _, hostBean := range sslHost {
+		if wafSslExpireService.CheckIsExist(hostBean.Host, hostBean.Port) == 0 {
+			//插入新的数据
+			wafSslExpireService.Add(hostBean.Host, hostBean.Port)
+		}
+	}
+	global.GWAF_RUNTIME_SSL_SYNC_HOST = false
 }

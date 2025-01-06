@@ -12,8 +12,10 @@ import (
 	"SamWaf/wafproxy"
 	"SamWaf/webplugin"
 	"context"
+	"encoding/base64"
 	goahocorasick "github.com/anknown/ahocorasick"
 	"golang.org/x/time/rate"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -184,6 +186,10 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 	//查询负载均衡
 	var loadBalanceList []model.LoadBalance
 	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&loadBalanceList)
+
+	//查询HTTP AUTH
+	var httpAuthList []model.HttpAuthBase
+	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&httpAuthList)
 	//初始化主机host
 	hostsafe := &wafenginmodel.HostSafe{
 		LoadBalanceRuntime: &wafenginmodel.LoadBalanceRuntime{
@@ -205,6 +211,7 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 		IPBlockLists:        ipblocklist,
 		UrlBlockLists:       urlblocklist,
 		AntiCCBean:          anticcBean,
+		HttpAuthBases:       httpAuthList,
 	}
 	hostsafe.Mux.Lock()
 	defer hostsafe.Mux.Unlock()
@@ -318,4 +325,76 @@ func (waf *WafEngine) ReLoadSensitive() {
 	}
 	waf.SensitiveManager = m
 
+}
+
+// DoHttpAuthBase Http auth base 检测
+func (waf *WafEngine) DoHttpAuthBase(hostSafe *wafenginmodel.HostSafe, w http.ResponseWriter, r *http.Request) (bool, string) {
+	isStop := false
+
+	// 获取 Authorization 头部
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		tip := "当前网站需要授权方可访问"
+		// 如果没有 Authorization 头部，返回 401
+		w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
+		http.Error(w, tip, http.StatusUnauthorized)
+		isStop = true
+		return isStop, tip
+	}
+
+	// 验证 Authorization 头部格式
+	// "Basic base64(username:password)"
+	authParts := strings.SplitN(authHeader, " ", 2)
+	if len(authParts) != 2 || authParts[0] != "Basic" {
+		tip := "密码格式不正确 Invalid authorization header format"
+		http.Error(w, tip, http.StatusBadRequest)
+		isStop = true
+		return isStop, tip
+	}
+
+	// 解码 base64 编码的用户名和密码
+	decoded, err := base64.StdEncoding.DecodeString(authParts[1])
+	if err != nil {
+		tip := "Invalid base64 encoding"
+		http.Error(w, tip, http.StatusBadRequest)
+		isStop = true
+		return isStop, tip
+	}
+
+	// 解码后的结果是 "username:password"
+	credentials := strings.SplitN(string(decoded), ":", 2)
+	if len(credentials) != 2 {
+		tip := "密码格式不正确 Invalid authorization format"
+		http.Error(w, tip, http.StatusBadRequest)
+		isStop = true
+		return isStop, tip
+	}
+
+	// 校验用户名和密码
+	username, password := credentials[0], credentials[1]
+	if !waf.checkCredentials(hostSafe, username, password) {
+		tip := "密码错误"
+		// 如果验证失败，返回 401
+		w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
+		http.Error(w, tip, http.StatusUnauthorized)
+		isStop = true
+		return isStop, tip
+	}
+
+	return isStop, ""
+}
+
+// checkCredentials 验证用户名和密码
+func (waf *WafEngine) checkCredentials(hostSafe *wafenginmodel.HostSafe, username, password string) bool {
+	// 这里硬编码了一个用户名和密码，实际使用中可以替换成数据库验证或其他方式
+	baseList := hostSafe.HttpAuthBases
+	if baseList == nil || len(baseList) == 0 {
+		return false
+	}
+	for _, bean := range baseList {
+		if bean.UserName == username && bean.Password == password {
+			return true
+		}
+	}
+	return false
 }

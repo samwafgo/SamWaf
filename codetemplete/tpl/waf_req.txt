@@ -18,7 +18,7 @@ type Waf{{.EntityName}}EditReq struct {
 type Waf{{.EntityName}}DetailReq struct {
 	Id string `json:"id"   form:"id"`
 }
-type Waf{{.EntityName}}DeleteReq struct {
+type Waf{{.EntityName}}DelReq struct {
 	Id string `json:"id"   form:"id"`
 }
 type Waf{{.EntityName}}SearchReq struct {

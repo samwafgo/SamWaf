@@ -151,6 +151,9 @@ func InitCoreDb(currentDir string) {
 
 		//SSL到期检测
 		db.AutoMigrate(&model.SslExpire{})
+
+		//HTTP AUTH
+		db.AutoMigrate(&model.HttpAuthBase{})
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
 

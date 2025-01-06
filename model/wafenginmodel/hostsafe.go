@@ -27,6 +27,7 @@ type HostSafe struct {
 	LoadBalanceLists   []model.LoadBalance  //负载均衡
 	LoadBalanceRuntime *LoadBalanceRuntime  //负载运行时
 	AntiCCBean         model.AntiCC         //抵御CC
+	HttpAuthBases      []model.HttpAuthBase //HTTP AUTH校验
 }
 
 // 负载处理运行对象

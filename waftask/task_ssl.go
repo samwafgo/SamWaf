@@ -88,6 +88,7 @@ func SSLOrderReload() {
 	allSSLHost, _, err := wafHostService.GetAllSSLBindHost()
 	if err == nil {
 		for _, hostBean := range allSSLHost {
+			zlog.Info(innerLogName, fmt.Sprintf("正在检测域名: %s:%d", hostBean.Host, hostBean.Port))
 			lastSslOrderInfo, err := wafSslOrderService.GetLastedInfo(hostBean.Code)
 			if err != nil {
 				zlog.Error(innerLogName, "ssl order get lasted info:", err.Error())
@@ -101,7 +102,7 @@ func SSLOrderReload() {
 					zlog.Error(innerLogName, "ssl order get lasted info:", err.Error())
 				} else {
 					zlog.Info(innerLogName, "ssl order expire:", isExpire, availDay, msg)
-					if isExpire && availDay <= int(global.GCONFIG_RECORD_SSLOrder_EXPIRE_DAY) {
+					if isExpire == false && availDay <= int(global.GCONFIG_RECORD_SSLOrder_EXPIRE_DAY) {
 						//没过期 且是知单天数 就才处理
 						var chanInfo = spec.ChanSslOrder{
 							Type:    enums.ChanSslOrderrenew,

@@ -89,4 +89,11 @@ func pathCoreSql(db *gorm.DB) {
 	} else {
 		zlog.Info("db", "hosts :is_trans_back_domain init successfully")
 	}
+	//20250103 初始化一次HTTP Auth Base 状态信息
+	err = db.Exec("UPDATE hosts SET is_enable_http_auth_base=0 WHERE is_enable_http_auth_base IS NULL ").Error
+	if err != nil {
+		panic("failed to hosts :is_enable_http_auth_base " + err.Error())
+	} else {
+		zlog.Info("db", "hosts :is_enable_http_auth_base init successfully")
+	}
 }

@@ -338,6 +338,18 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 		}
+		//基本验证是否开关是否开启
+		if hostTarget.Host.IsEnableHttpAuthBase == 1 {
+			bHttpAuthBaseResult, sHttpAuthBaseResult := waf.DoHttpAuthBase(hostTarget, w, r)
+			if bHttpAuthBaseResult == true {
+				// 记录日志
+				weblogbean.RES_BODY = sHttpAuthBaseResult
+				weblogbean.ACTION = "禁止"
+				global.GQEQUE_LOG_DB.Enqueue(weblogbean)
+				return
+			}
+		}
+
 		// 日志保存时候也是脱敏保存防止，数据库密码被破解，遭到敏感信息遭到泄露
 		if weblogbean.BODY != "" {
 			weblogbean.BODY = utils.DeSenTextByCustomMark(enums.DLP_MARK_RULE_LoginSensitiveInfoMaskRule, weblogbean.BODY)

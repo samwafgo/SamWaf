@@ -13,4 +13,5 @@ const (
 	ChanTypeSensitive
 	ChanTypeLoadBalance
 	ChanTypeSSL
+	ChanTypeHttpauth
 )

@@ -51,12 +51,14 @@ func (receiver *Waf{{.EntityName}}Service) CheckIsExistApi(req request.Waf{{.Ent
     	}
     	{{end}}
     	//where字段赋值
-    	if len(req.Domain) > 0 {
-    		whereValues = append(whereValues, req.Domain)
-    	}
-    	if req.Port > 0 {
-    		whereValues = append(whereValues, req.Port)
-    	}
+
+    	{{range .UniFields}}
+            if  {{if eq .SqlType "string"}} len(req.{{.Name}}) > 0  {{else}} req.{{.Name}} > 0 {{end}} {
+                if len(whereField) > 0 {
+                    whereValues = append(whereValues, req.{{.Name}})
+                }
+            }
+       {{end}}
     	global.GWAF_LOCAL_DB.Model(&model.{{.EntityName}}{}).Where(whereField, whereValues...).Count(&total)
     	return int(total)
 }
@@ -80,13 +82,12 @@ func (receiver *Waf{{.EntityName}}Service) ModifyApi(req request.Waf{{.EntityNam
                 whereField = whereField + " {{.SqlField}}=? "
             }
             {{end}}
-            //where字段赋值
-            if len(req.Domain) > 0 {
-                whereValues = append(whereValues, req.Domain)
-            }
-            if req.Port > 0 {
-                whereValues = append(whereValues, req.Port)
-            }
+             //where字段赋值
+            {{range .UniFields}}
+                if  {{if eq .SqlType "string"}} len(req.{{.Name}}) > 0  {{else}} req.{{.Name}} > 0 {{end}} {
+                    whereValues = append(whereValues, req.{{.Name}})
+                }
+            {{end}} 
             global.GWAF_LOCAL_DB.Model(&model.{{.EntityName}}{}).Where(whereField, whereValues...).Count(&total)
             // 查询是否已存在记录
             var bean model.{{.EntityName}}

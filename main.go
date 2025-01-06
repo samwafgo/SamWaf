@@ -489,6 +489,12 @@ func (m *wafSystenService) run() {
 					zlog.Debug("远程配置", zap.Any("Anticc", msg.Content.(model.AntiCC)))
 					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Unlock()
 					break
+				case enums.ChanTypeHttpauth:
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Lock()
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].HttpAuthBases = msg.Content.([]model.HttpAuthBase)
+					zlog.Debug("远程配置", zap.Any("Http Auth", msg.Content.([]model.HttpAuthBase)))
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Unlock()
+					break
 				case enums.ChanTypeHost:
 					hosts := msg.Content.([]model.Hosts)
 					if len(hosts) == 1 {

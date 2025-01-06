@@ -284,7 +284,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 				err := json.Unmarshal([]byte(hostTarget.Host.DEFENSE_JSON), &hostDefense)
 				if err != nil {
-					zlog.Error("解析defense json失败")
+					zlog.Debug("解析defense json失败")
 				}
 				//检测爬虫bot
 				if hostDefense.DEFENSE_BOT == 1 {

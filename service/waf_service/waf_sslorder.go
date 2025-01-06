@@ -163,7 +163,7 @@ func (receiver *WafSSLOrderService) RenewAdd(orderId string) (model.SslOrder, er
 func (receiver *WafSSLOrderService) GetLastedInfo(hostCode string) (model.SslOrder, error) {
 	var bean model.SslOrder
 
-	global.GWAF_LOCAL_DB.Model(&model.SslOrder{}).Where("host_code=?", hostCode).Where("result_certificate is null").Order("create_time desc").Limit(1).First(&bean)
+	global.GWAF_LOCAL_DB.Model(&model.SslOrder{}).Where("host_code=?", hostCode).Where("result_certificate is not null").Order("create_time desc").Limit(1).First(&bean)
 
 	return bean, nil
 }

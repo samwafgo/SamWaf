@@ -45,7 +45,7 @@ func GetCurrentDir() string {
 		zlog.Error("Failed to get executable path:", err)
 		return ""
 	}
-	zlog.Info("当前程序所在文件位置", exePath)
+	zlog.Debug("当前程序所在文件位置", exePath)
 	exeDir := filepath.Dir(exePath)
 	return exeDir
 }

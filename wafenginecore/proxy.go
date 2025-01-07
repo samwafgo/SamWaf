@@ -2,6 +2,7 @@ package wafenginecore
 
 import (
 	"SamWaf/common/zlog"
+	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/model/wafenginmodel"
@@ -78,8 +79,8 @@ func (waf *WafEngine) createTransport(r *http.Request, host string, isEnableLoad
 	var transport *http.Transport
 	dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
 		dialer := net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
+			Timeout:   time.Duration(global.GCONFIG_RECORD_CONNECT_TIME_OUT) * time.Second,
+			KeepAlive: time.Duration(global.GCONFIG_RECORD_KEEPALIVE_TIME_OUT) * time.Second,
 		}
 		if isEnableLoadBalance > 0 {
 			conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(loadBalance.Remote_ip, strconv.Itoa(loadBalance.Remote_port)))
@@ -113,5 +114,6 @@ func (waf *WafEngine) createTransport(r *http.Request, host string, isEnableLoad
 			DialContext: dialContext,
 		}
 	}
+	transport.ResponseHeaderTimeout = time.Duration(hostTarget.Host.ResponseTimeOut) * time.Second
 	return transport, customHeaders
 }

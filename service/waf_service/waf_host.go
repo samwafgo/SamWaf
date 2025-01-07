@@ -58,6 +58,7 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 		IsTransBackDomain:    wafHostAddReq.IsTransBackDomain,
 		BindMorePort:         wafHostAddReq.BindMorePort,
 		IsEnableHttpAuthBase: wafHostAddReq.IsEnableHttpAuthBase,
+		ResponseTimeOut:      wafHostAddReq.ResponseTimeOut,
 	}
 	global.GWAF_LOCAL_DB.Create(wafHost)
 	return wafHost.Code, nil
@@ -106,6 +107,7 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 		"IsTransBackDomain":    wafHostEditReq.IsTransBackDomain,
 		"BindMorePort":         wafHostEditReq.BindMorePort,
 		"IsEnableHttpAuthBase": wafHostEditReq.IsEnableHttpAuthBase,
+		"ResponseTimeOut":      wafHostEditReq.ResponseTimeOut,
 	}
 	err := global.GWAF_LOCAL_DB.Debug().Model(model.Hosts{}).Where("CODE=?", wafHostEditReq.CODE).Updates(hostMap).Error
 

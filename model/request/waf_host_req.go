@@ -27,6 +27,7 @@ type WafHostAddReq struct {
 	IsTransBackDomain    int    `json:"is_trans_back_domain"`     //是否传递后端域名到后端服务器侧
 	BindMorePort         string `json:"bind_more_port"`           //是否绑定多个端口
 	IsEnableHttpAuthBase int    `json:"is_enable_http_auth_base"` //是否 HTTPAuthBase  1 激活  非1 没有激活
+	ResponseTimeOut      int    `json:"response_time_out"`        //响应超时时间
 }
 type WafHostDelReq struct {
 	CODE string `json:"code"`
@@ -61,6 +62,7 @@ type WafHostEditReq struct {
 	IsTransBackDomain    int    `json:"is_trans_back_domain"`     //是否传递后端域名到后端服务器侧
 	BindMorePort         string `json:"bind_more_port"`           //是否绑定多个端口
 	IsEnableHttpAuthBase int    `json:"is_enable_http_auth_base"` //是否 HTTPAuthBase  1 激活  非1 没有激活
+	ResponseTimeOut      int    `json:"response_time_out"`        //响应超时时间
 }
 
 type WafHostGuardStatusReq struct {

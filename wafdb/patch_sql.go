@@ -96,4 +96,11 @@ func pathCoreSql(db *gorm.DB) {
 	} else {
 		zlog.Info("db", "hosts :is_enable_http_auth_base init successfully")
 	}
+	//20250106 初始化一次站点超时状态信息
+	err = db.Exec("UPDATE hosts SET response_time_out=60 WHERE response_time_out IS NULL ").Error
+	if err != nil {
+		panic("failed to hosts :response_time_out " + err.Error())
+	} else {
+		zlog.Info("db", "hosts :response_time_out init successfully")
+	}
 }

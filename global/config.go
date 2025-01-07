@@ -18,4 +18,8 @@ var (
 	GCONFIG_RECORD_ENABLE_OWASP        int64 = 0  //启动OWASP数据检测
 	GCONFIG_RECORD_ENABLE_HTTP_80      int64 = 0  //启动80端口服务（为自动申请证书使用 HTTP文件验证类型，DNS验证不需要）
 	GCONFIG_RECORD_SSLOrder_EXPIRE_DAY int64 = 30 // 提前多少天进行自动申请
+	GCONFIG_RECORD_CONNECT_TIME_OUT    int64 = 30 // 连接超时 默认30s
+	GCONFIG_RECORD_KEEPALIVE_TIME_OUT  int64 = 30 // 保持活动超时 默认30s
+	//GCONFIG_RECORD_PATCH_VERSION_CORE  int64 = 20250106 // 核心数据库补丁日期
+	//GCONFIG_RECORD_PATCH_VERSION_LOG   int64 = 20250106 // 日志数据库补丁日期
 )

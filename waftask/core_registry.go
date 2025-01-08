@@ -2,6 +2,7 @@ package waftask
 
 import (
 	"SamWaf/common/zlog"
+	"SamWaf/utils"
 	"fmt"
 	"runtime/debug"
 	"sync"
@@ -40,7 +41,9 @@ func (tr *TaskRegistry) ExecuteTask(taskName string) {
 	if taskFunc, exists := tr.Tasks[taskName]; exists {
 
 		go func() {
-			zlog.Debug("正在执行任务", taskName)
+			if utils.CheckDebugEnvInfo() {
+				zlog.Debug("正在执行任务", taskName)
+			}
 			// 获取当前任务的锁
 			taskMutex, exists := tr.mutexes[taskName]
 			if !exists {

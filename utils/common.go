@@ -49,6 +49,17 @@ func GetCurrentDir() string {
 	exeDir := filepath.Dir(exePath)
 	return exeDir
 }
+
+// CheckDebugEnvInfo 检测是否打印debug信息
+func CheckDebugEnvInfo() bool {
+	// 检测环境变量是否存在
+	envVar := "SamWafIDEDebugLog"
+	if _, exists := os.LookupEnv(envVar); exists {
+		return true
+	}
+
+	return false
+}
 func GetServerByHosts(hosts model.Hosts) string {
 	if hosts.Ssl == 1 {
 		return "https"

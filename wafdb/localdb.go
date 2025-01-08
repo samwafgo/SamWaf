@@ -85,7 +85,7 @@ func InitCoreDb(currentDir string) {
 		// 启用 WAL 模式
 		_ = db.Exec("PRAGMA journal_mode=WAL;")
 
-		if global.GWAF_RELEASE == "false" {
+		if global.GWAF_RELEASE == "false" && utils.CheckDebugEnvInfo() {
 			// 启用调试模式
 			db = db.Session(&gorm.Session{
 				Logger: logger.Default.LogMode(logger.Info), // 设置为Info表示启用调试模式
@@ -181,7 +181,7 @@ func InitLogDb(currentDir string) {
 		}
 		// 启用 WAL 模式
 		_ = db.Exec("PRAGMA journal_mode=WAL;")
-		if global.GWAF_RELEASE == "false" {
+		if global.GWAF_RELEASE == "false" && utils.CheckDebugEnvInfo() {
 			// 启用调试模式
 			db = db.Session(&gorm.Session{
 				Logger: logger.Default.LogMode(logger.Info), // 设置为Info表示启用调试模式
@@ -282,7 +282,7 @@ func InitStatsDb(currentDir string) {
 		}
 		// 启用 WAL 模式
 		_ = db.Exec("PRAGMA journal_mode=WAL;")
-		if global.GWAF_RELEASE == "false" {
+		if global.GWAF_RELEASE == "false" && utils.CheckDebugEnvInfo() {
 			// 启用调试模式
 			db = db.Session(&gorm.Session{
 				Logger: logger.Default.LogMode(logger.Info), // 设置为Info表示启用调试模式

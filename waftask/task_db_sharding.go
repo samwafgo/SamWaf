@@ -19,11 +19,13 @@ import (
 func TaskShareDbInfo() {
 	innerLogName := "TaskDBSharding"
 	zlog.Info(innerLogName, "检测是否需要进行分库")
+
 	if global.GDATA_CURRENT_CHANGE {
 		//如果正在切换库 跳过
 		zlog.Debug(innerLogName, "切库状态")
 		return
 	}
+
 	if global.GWAF_LOCAL_DB == nil || global.GWAF_LOCAL_LOG_DB == nil {
 		zlog.Debug(innerLogName, "数据库没有初始化完成呢")
 		return

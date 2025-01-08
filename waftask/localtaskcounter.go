@@ -64,6 +64,9 @@ func TaskCounter() {
 		zlog.Debug("数据库没有初始化完成呢")
 		return
 	}
+	if global.GWAF_SWITCH_TASK_COUNTER == true {
+		zlog.Debug("统计还没完成，调度任务PASS")
+	}
 	global.GWAF_SWITCH_TASK_COUNTER = true
 	/*dateTime, err := time.Parse("2006-01-02", "2023-01-01")
 	if err != nil {

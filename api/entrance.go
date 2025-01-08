@@ -32,6 +32,7 @@ type APIGroup struct {
 	WafSslOrderApi
 	WafSslExpireApi
 	WafHttpAuthBaseApi
+	WafTaskApi
 }
 
 var APIGroupAPP = new(APIGroup)
@@ -75,4 +76,6 @@ var (
 	wafSslExpireService = waf_service.WafSslExpireServiceApp
 
 	wafHttpAuthBaseService = waf_service.WafHttpAuthBaseServiceApp
+
+	TaskService = waf_service.WafTaskServiceApp
 )

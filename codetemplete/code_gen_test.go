@@ -9,8 +9,7 @@ import (
 func TestCodeGeneration(t *testing.T) {
 	// 定义字段信息的字符串
 	fieldDefs := []string{
-		"HostCode:host_code:string",
-		"UserName:user_name:string",
+		"TaskName:task_name:string",
 	}
 
 	// 构造 `uniFields` 列表
@@ -28,6 +27,6 @@ func TestCodeGeneration(t *testing.T) {
 		}
 	}
 
-	fields := GetStructFields(model.HttpAuthBase{})
-	CodeGeneration("HttpAuthBase", fields, uniFields)
+	fields := GetStructFields(model.Task{})
+	CodeGeneration("Task", fields, uniFields)
 }

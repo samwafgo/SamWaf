@@ -8,6 +8,9 @@ import (
 
 // TaskWechatAccessToken 初始化access token
 func TaskWechatAccessToken() {
+	if global.GWAF_NOTICE_ENABLE == false {
+		return
+	}
 	zlog.Debug("TaskWechatAccessToken")
 	wr, err := wechat.GetAppAccessToken("wx*********", "eb57************")
 	if err != nil {

@@ -484,6 +484,7 @@ func (m *wafSystenService) run() {
 					break
 				case enums.ChanTypeSSL:
 					host := msg.Content.(model.Hosts)
+					zlog.Info(fmt.Sprintf("服务端准备为 %s 主机刷新 SSL证书 ，证书信息：%v", host.Host, utils.PrintSSLCert(host.Certfile)))
 					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(host)
 					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.LoadHost(host)
 					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartAllProxyServer()

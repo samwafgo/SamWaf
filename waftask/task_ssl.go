@@ -98,7 +98,8 @@ func SSLOrderReload() {
 				if err != nil {
 					zlog.Error(innerLogName, "ssl order get lasted info:", err.Error())
 				} else {
-					zlog.Info(innerLogName, "ssl order expire:", isExpire, availDay, msg)
+					zlog.Info(fmt.Sprintf("%s 域名%s 是否过期 %v 天数：%v 信息 %v ，系统检测超期天数 %v 天",
+						innerLogName, hostBean.Host, isExpire, availDay, msg, global.GCONFIG_RECORD_SSLOrder_EXPIRE_DAY))
 					if isExpire == false && availDay <= int(global.GCONFIG_RECORD_SSLOrder_EXPIRE_DAY) {
 						//没过期 且是知单天数 就才处理
 						var chanInfo = spec.ChanSslOrder{

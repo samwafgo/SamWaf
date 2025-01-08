@@ -29,7 +29,6 @@ import (
 	_ "embed"
 	"fmt"
 	dlp "github.com/bytedance/godlp"
-	"github.com/go-co-op/gocron"
 	"github.com/kardianos/service"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
@@ -46,7 +45,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 	_ "time/tzdata"
@@ -91,7 +89,7 @@ func (m *wafSystenService) Stop(s service.Service) error {
 func NeverExit(name string, f func()) {
 	defer func() {
 		if v := recover(); v != nil {
-			zlog.Info(fmt.Sprintf("协程%s崩溃了，准备重启一个。 : %v, Stack Trace: %s", name, v, debug.Stack()))
+			zlog.Error(fmt.Sprintf("协程%s崩溃了，准备重启一个。 : %v, Stack Trace: %s", name, v, debug.Stack()))
 			if global.GWAF_RELEASE == "false" {
 				debug.PrintStack()
 			}
@@ -265,7 +263,6 @@ func (m *wafSystenService) run() {
 			Mux: sync.Mutex{},
 			Map: map[string]*tls.Certificate{},
 		},
-
 		EngineCurrentStatus: 0, // 当前waf引擎状态
 		Sensitive:           make([]model.Sensitive, 0),
 	}
@@ -282,100 +279,35 @@ func (m *wafSystenService) run() {
 	global.GWebSocket = gwebsocket.InitWafWebSocket()
 	//定时取规则并更新（考虑后期定时拉取公共规则 待定，可能会影响实际生产）
 
-	//定时器 （后期考虑是否独立包处理）
-	timezone, _ := time.LoadLocation("Asia/Shanghai")
-	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON = gocron.NewScheduler(timezone)
+	// 创建任务调度器
 
 	global.GWAF_LAST_UPDATE_TIME = time.Now()
-	// 每1秒执行qps清空
-	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Seconds().Do(func() {
-		// 清零计数器
-		atomic.StoreUint64(&global.GWAF_RUNTIME_QPS, 0)
-		atomic.StoreUint64(&global.GWAF_RUNTIME_LOG_PROCESS, 0)
-	})
 
-	// 重置QPS数据
-	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Seconds().Do(func() {
-		go wafenginecore.ResetQPS()
-	})
-
+	//开始 需要添加到任务注册器里面的
+	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry = waftask.NewTaskRegistry()
+	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_RUNTIME_QPS_CLEAN, waftask.TaskLogQpsClean)
+	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_HOST_QPS_CLEAN, waftask.TaskHostQpsClean)
+	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_SHARE_DB, waftask.TaskShareDbInfo)
+	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_COUNTER, waftask.TaskCounter)
+	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_DELAY_INFO, waftask.TaskDelayInfo)
+	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_LOAD_CONFIG, waftask.TaskLoadSettingCron)
+	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_REFLUSH_WECHAT_ACCESS_TOKEN, waftask.TaskWechatAccessToken)
+	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_DELETE_HISTORY_INFO, waftask.TaskDeleteHistoryInfo)
+	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_DELETE_HISTORY_DOWNLOAD_FILE, waftask.TaskHistoryDownload)
+	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_SSL_ORDER_RENEW, waftask.SSLOrderReload)
+	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_SSL_PATH_LOAD, waftask.SSLReload)
+	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_BATCH, waftask.BatchTask)
+	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_SSL_EXPIRE_CHECK, waftask.SSLExpireCheck)
+	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_NOTICE, waftask.TaskStatusNotify)
 	go waftask.TaskShareDbInfo()
-	// 执行分库操作 （每天凌晨3点进行数据归档操作）
-	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Day().At("03:00").Do(func() {
-		if global.GDATA_CURRENT_CHANGE == false {
-			go waftask.TaskShareDbInfo()
-		} else {
-			zlog.Debug("执行分库操作没完成，调度任务PASS")
-		}
-	})
 
-	// 每10秒执行一次
-	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(10).Seconds().Do(func() {
-		if global.GWAF_SWITCH_TASK_COUNTER == false {
-			go waftask.TaskCounter()
-		} else {
-			zlog.Debug("统计还没完成，调度任务PASS")
-		}
-	})
-	// 获取延迟信息
-	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Minutes().Do(func() {
-		go waftask.TaskDelayInfo()
-
-	})
-	// 获取参数
-	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Minutes().Do(func() {
-		go waftask.TaskLoadSetting(false)
-
-	})
-
-	if global.GWAF_NOTICE_ENABLE {
-		// 获取最近token
-		globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Hour().Do(func() {
-			//defer func() {
-			//	 zlog.Info("token errr")
-			//}()
-			zlog.Debug("获取最新token")
-			go waftask.TaskWechatAccessToken()
-
-		})
+	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler = waftask.NewTaskScheduler(globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry)
+	taskDbList := waftask.InitTaskDb()
+	for _, task := range taskDbList {
+		globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler.ScheduleTask(task.TaskUnit, task.TaskValue, task.TaskAt, task.TaskMethod)
 	}
-
-	// 每天早5点删除历史信息
-	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Day().At("05:00").Do(func() {
-		go waftask.TaskDeleteHistoryInfo()
-	})
-	// 每30分钟进行历史文件的删除
-	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(30).Minutes().Do(func() {
-		go waftask.TaskHistoryDownload()
-
-	})
-
-	//每天早晨02:13进行执行ssl申请证书的处理
-	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Day().At("02:13").Do(func() {
-		go waftask.SSLOrderReload()
-	})
-
-	//每天早晨3点进行执行ssl证书的处理
-	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Day().At("03:00").Do(func() {
-		go waftask.SSLReload()
-	})
-
-	//每天凌晨5点执行批量任务执行
-	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Day().At("05:00").Do(func() {
-		go waftask.BatchTask()
-	})
-
-	//每天凌晨6点执行批量任务执行
-	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Day().At("06:00").Do(func() {
-		go waftask.SSLExpireCheck()
-	})
-
-	//每天早晚8点进行数据汇总通知
-	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Day().At("08:00;20:00").Do(func() {
-		go waftask.TaskStatusNotify()
-	})
-
-	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.StartAsync()
+	//结束 需要添加到任务注册器里面的
+	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler.Start()
 
 	//脱敏处理初始化
 	global.GWAF_DLP, _ = dlp.NewEngine("wafDlp")
@@ -428,10 +360,7 @@ func (m *wafSystenService) run() {
 	} else {
 		zlog.Info("regInfo", err)
 	}
-	// 上传客户端信息到中心节点
-	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Every(1).Minutes().Do(func() {
-		go waftask.TaskClientToCenter()
-	})
+
 	zlog.Info("SamWaf has started successfully.You can open http://127.0.0.1:" + strconv.Itoa(global.GWAF_LOCAL_SERVER_PORT) + " in your Browser")
 	for {
 		select {
@@ -572,11 +501,9 @@ func (m *wafSystenService) run() {
 						for _, runTime := range hostRunTimeBean {
 							globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartProxyServer(runTime)
 						}
-
 					}
 					break
 				}
-
 			}
 			break
 		case engineStatus := <-global.GWAF_CHAN_ENGINE:
@@ -649,6 +576,10 @@ func (m *wafSystenService) run() {
 			zlog.Debug("同步已存在主机到SSL证书检测任务里", syncHostToSslExpire)
 			waftask.SyncHostToSslCheck()
 			break
+		case taskMethod := <-global.GWAF_CHAN_TASK:
+			zlog.Debug("需要执行的方法", taskMethod)
+			globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler.RunManual(taskMethod)
+			break
 		}
 
 	}
@@ -662,7 +593,7 @@ func (m *wafSystenService) stopSamWaf() {
 	zlog.Debug("Shutdown SamWaf Engine finished")
 
 	zlog.Debug("Shutdown SamWaf Cron...")
-	globalobj.GWAF_RUNTIME_OBJ_WAF_CRON.Stop()
+	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler.Stop()
 	zlog.Debug("Shutdown SamWaf Cron finished")
 
 	zlog.Debug("Shutdown SamWaf WebManager...")

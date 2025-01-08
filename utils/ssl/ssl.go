@@ -113,6 +113,14 @@ func RegistrationSSL(order model.SslOrder, savePath string) (model.SslOrder, err
 	order.ResultCSR = certificates.CSR
 	order.ResultDomain = certificates.Domain
 	order.ResultIssuerCertificate = certificates.IssuerCertificate
+	block, _ := pem.Decode(order.ResultCertificate)
+	if block != nil {
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err == nil {
+			order.ResultValidTo = cert.NotAfter
+		}
+	}
+
 	return order, nil
 }
 
@@ -203,6 +211,13 @@ func ReNewSSL(order model.SslOrder, savePath string) (model.SslOrder, error) {
 	order.ResultCSR = certificates.CSR
 	order.ResultDomain = certificates.Domain
 	order.ResultIssuerCertificate = certificates.IssuerCertificate
+	block, _ := pem.Decode(order.ResultCertificate)
+	if block != nil {
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err == nil {
+			order.ResultValidTo = cert.NotAfter
+		}
+	}
 	return order, nil
 }
 

@@ -20,6 +20,7 @@ var (
 	wafTokenInfoService = waf_service.WafTokenInfoServiceApp
 )
 
+// TaskClientToCenter TODO 暂时无调用，待后面建设完毕后再考虑
 func TaskClientToCenter() {
 	zlog.Debug("TaskClientToCenter")
 

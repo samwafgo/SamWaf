@@ -77,10 +77,7 @@ func SSLReload() {
 	}
 }
 
-/*
-*
-SSL证书自动续期 远程申请
-*/
+// SSLOrderReload SSL证书自动续期 远程申请
 func SSLOrderReload() {
 	innerLogName := "TaskSSLOrder"
 	zlog.Info(innerLogName, "准备进行ssl证书自动续期检测")

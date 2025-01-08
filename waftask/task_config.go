@@ -120,7 +120,14 @@ func updateConfigStringItem(initLoad bool, itemClass string, itemName string, de
 	}
 }
 
-// 加载配置数据
+// TaskLoadSettingCron 不是初始化加载
+func TaskLoadSettingCron() {
+	TaskLoadSetting(false)
+}
+
+// TaskLoadSetting 加载配置数据
+//
+//	initLoad true 是初始化加载，false不是初始化加载
 func TaskLoadSetting(initLoad bool) {
 	zlog.Debug("TaskLoadSetting")
 	updateConfigIntItem(initLoad, "system", "record_max_req_body_length", global.GCONFIG_RECORD_MAX_BODY_LENGTH, "记录请求最大报文", "int", "")

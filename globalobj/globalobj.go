@@ -2,14 +2,14 @@ package globalobj
 
 import (
 	"SamWaf/wafenginecore"
-	"github.com/go-co-op/gocron"
+	"SamWaf/waftask"
 )
 
 var (
 	/***
 	本地对象映射关系
 	*/
-	GWAF_RUNTIME_OBJ_WAF_ENGINE *wafenginecore.WafEngine //当前引擎对象
-	GWAF_RUNTIME_OBJ_WAF_CRON   *gocron.Scheduler        //定时器
-
+	GWAF_RUNTIME_OBJ_WAF_ENGINE        *wafenginecore.WafEngine //当前引擎对象
+	GWAF_RUNTIME_OBJ_WAF_TaskRegistry  *waftask.TaskRegistry    // 任务执行器
+	GWAF_RUNTIME_OBJ_WAF_TaskScheduler *waftask.TaskScheduler   // 任务计划
 )

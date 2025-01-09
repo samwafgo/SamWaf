@@ -2,6 +2,7 @@ package api
 
 import (
 	"SamWaf/global"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"net/http/httptest"
@@ -36,4 +37,14 @@ func TestExportExcelApi(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Errorf("期望的状态码：%d，实际状态码：%d", http.StatusOK, rec.Code)
 	}
+}
+
+func TestGetColumnName(t *testing.T) {
+	colIdx := 500
+	colName := ""
+	for colIdx >= 0 {
+		colName = fmt.Sprintf("%c", 'A'+colIdx%26) + colName
+		colIdx = colIdx/26 - 1
+	}
+	fmt.Println(colName)
 }

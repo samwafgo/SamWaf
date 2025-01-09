@@ -219,8 +219,6 @@ func processImportData(dataType interface{}, tableName string, rows [][]string, 
 		// 动态创建结构体实例，并映射数据
 		newInstance := reflect.New(dataValue.Type()).Elem()
 
-		//TODO 插入之前校验一下 数据是否已经存在
-
 		for fieldIdx := 0; fieldIdx < dataTypeFields.NumField(); fieldIdx++ {
 			field := dataTypeFields.Field(fieldIdx)
 			fieldName := field.Name

@@ -455,6 +455,10 @@ func (m *wafSystenService) run() {
 								if hosts[0].Ssl != hostsOld.Ssl || hosts[0].Keyfile != hostsOld.Keyfile || hosts[0].Certfile != hostsOld.Certfile {
 									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hosts[0])
 								}
+								//绑定更多域名变更了
+								if hosts[0].BindMoreHost != hostsOld.BindMoreHost {
+									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hosts[0])
+								}
 								globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.LoadHost(hosts[0])
 								globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartAllProxyServer()
 							} else if hosts[0].Host == hostsOld.Host && hosts[0].Port != hostsOld.Port {

@@ -102,7 +102,6 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// 看看是不是泛域名情况
 		target, ok = waf.HostTarget[domaintool.MaskSubdomain(host)]
 		if ok {
-			host = domaintool.MaskSubdomain(host)
 			findHost = true
 			targetCode = target.Host.Code
 		}
@@ -116,6 +115,12 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		targetCode, ok = waf.HostTargetMoreDomain[host]
 		if ok {
 			findHost = true
+		} else {
+			// 看看是不是泛域名情况
+			targetCode, ok = waf.HostTargetMoreDomain[domaintool.MaskSubdomain(host)]
+			if ok {
+				findHost = true
+			}
 		}
 	}
 

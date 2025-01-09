@@ -272,6 +272,12 @@ func (waf *WafEngine) RemoveHost(host model.Hosts) {
 	delete(waf.HostTarget, host.Host+":"+strconv.Itoa(host.Port))
 	//c.移除某个端口下的证书数据
 	waf.AllCertificate.RemoveSSL(host.Host)
+	//d.删除更多内容里面域名信息
+	for moreHost, hostCode := range waf.HostTargetMoreDomain {
+		if hostCode == host.Code {
+			delete(waf.HostTargetMoreDomain, moreHost)
+		}
+	}
 	//检测如果端口已经没有关联服务就直接关闭掉
 	waf.RemovePortServer()
 }

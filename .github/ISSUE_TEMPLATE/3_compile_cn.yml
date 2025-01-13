@@ -1,0 +1,49 @@
+name: '⭐️ 编译问题'
+description: '关于代码编译和调试相关问题'
+title: '[Compile Issue] '
+labels: ['⭐️ Compile Issue']
+assignees:
+  - samwafgo
+body:
+  - type: input
+    attributes:
+      label: '编译环境'
+      description: |
+        请提供详细的编译环境信息（如操作系统、编译器版本等）。
+    validations:
+      required: true
+
+  - type: checkboxes
+    attributes:
+      label: '问题类型'
+      options:
+        - label: '编译错误'
+        - label: '链接错误'
+        - label: '运行时错误'
+        - label: '性能优化'
+        - label: '其他问题'
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: '⭐️ 问题描述'
+      description: |
+        请详细描述您遇到的编译问题，包括错误日志、复现步骤等。<br/>
+        针对不完整或模糊的描述信息可能无法有效处理。
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: '复现步骤'
+      description: |
+        请提供能够重现问题的步骤列表，以及可能的最小代码示例。
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: '补充信息'
+      description: |
+        在这里添加关于问题的其他背景信息或相关链接，例如可能的解决尝试。

@@ -219,6 +219,9 @@ PS:windows服务形式升级时候貌似会触发360、火绒规则导致无法�
 How to compile
 [编译说明](./docs/compile.md)
 
+在线编译手册：
+[https://doc.samwaf.com/dev/](https://doc.samwaf.com/dev/)
+
 ## 已测试支持的平台
 [已测试支持的平台](./docs/Tested_supported_systems.md)
 

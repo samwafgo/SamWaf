@@ -222,6 +222,9 @@ Linux: ./SamWafLinux64 start
 How to Compile
 [Compilation Instructions](./docs/compile.md)
 
+Compile Online Manual：
+[https://doc.samwaf.com/en/dev/](https://doc.samwaf.com/en/dev/)
+
 ## Tested and Supported Platforms
 [Tested and Supported Platforms](./docs/Tested_supported_systems.md)
 

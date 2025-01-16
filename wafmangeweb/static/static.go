@@ -27,7 +27,11 @@ func initIndex() {
 		zlog.Error("failed to read index.html: %v", err)
 	}
 	defer func() {
-		_ = indexFile.Close()
+		if indexFile != nil {
+			_ = indexFile.Close()
+		} else {
+			zlog.Error("index.html not exist, you may forget to put dist of frontend to public/dist .Download from https://github.com/samwafgo/SamWafWeb/releases")
+		}
 	}()
 	index, err := io.ReadAll(indexFile)
 	if err != nil {

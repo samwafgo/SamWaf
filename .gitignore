@@ -13,7 +13,6 @@
 registration_data.bin
 dist/
 .idea/
-/public/dist/*
 !/public/dist/.gitkeep
 /logs/*
 /ssl/

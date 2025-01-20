@@ -174,6 +174,14 @@ func (receiver *WafLogService) DeleteHistory(day string) {
 	global.GWAF_LOCAL_LOG_DB.Where("create_time < ?", day).Delete(&innerbean.WebLog{})
 }
 
+// GetUnixTimeByCounter 依据开始时间和到期时间获取一个最新的时间戳
+func (receiver *WafLogService) GetUnixTimeByCounter(lastStartCreateUnix int64, lastEndCreateUnix int64) innerbean.WebLog {
+	var weblog innerbean.WebLog
+	global.GWAF_LOCAL_LOG_DB.Where("unix_add_time>=? and unix_add_time<?", lastStartCreateUnix, lastEndCreateUnix).Order("unix_add_time desc").Limit(1).Find(&weblog)
+
+	return weblog
+}
+
 /*
 *
 判断是否合法

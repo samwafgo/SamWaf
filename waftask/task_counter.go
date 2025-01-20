@@ -8,6 +8,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
 	"SamWaf/service/waf_service"
+	"fmt"
 	uuid "github.com/satori/go.uuid"
 	"time"
 )
@@ -15,8 +16,12 @@ import (
 var (
 	wafSysLogService       = waf_service.WafSysLogServiceApp
 	wafSystemConfigService = waf_service.WafSystemConfigServiceApp
+	wafLogService          = waf_service.WafLogServiceApp
 )
 
+type LastCounter struct {
+	UNIX_ADD_TIME int64 `json:"unix_add_time" gorm:"index"` //添加日期unix
+}
 type CountHostResult struct {
 	UserCode string `json:"user_code"` //用户码（主要键）
 	TenantId string `json:"tenant_id"` //租户ID（主要键）
@@ -68,12 +73,6 @@ func TaskCounter() {
 		zlog.Debug("统计还没完成，调度任务PASS")
 	}
 	global.GWAF_SWITCH_TASK_COUNTER = true
-	/*dateTime, err := time.Parse("2006-01-02", "2023-01-01")
-	if err != nil {
-		fmt.Println("解析日期出错:", err)
-		return
-	}
-	currenyDayBak := dateTime*/
 
 	/**
 	1.首次是当前日期，查询当前时间以后的所有数据，备份当前日期
@@ -87,14 +86,31 @@ func TaskCounter() {
 		global.GWAF_SWITCH_TASK_COUNTER = false
 		return
 	}
-	currenyDayBak := time.Now()
-	currenyDayMillisecondsBak := (global.GWAF_LAST_UPDATE_TIME.Add(-10 * time.Second).UnixNano()) / 1e6 //倒退10秒
 
+	if global.GWAF_LAST_TIME_UNIX == 0 {
+		global.GWAF_LAST_TIME_UNIX = (global.GWAF_LAST_UPDATE_TIME.UnixNano()) / 1e6
+		global.GWAF_SWITCH_TASK_COUNTER = false
+		return
+	}
+	//取大于上次时间的时
+	statTimeUnix := global.GWAF_LAST_TIME_UNIX
+	endTimeUnix := (time.Now().Add(-5 * time.Second).UnixNano()) / 1e6
+	//打印 statTimeUnix，endTimeUnix
+	zlog.Debug(fmt.Sprintf("counter statTimeUnix = %v endTimeUnix=%v", statTimeUnix, endTimeUnix))
+	lastWebLogDbBean := wafLogService.GetUnixTimeByCounter(statTimeUnix, endTimeUnix)
+	if lastWebLogDbBean.REQ_UUID == "" {
+		zlog.Debug("当前期间没有符合条件的数据")
+		global.GWAF_LAST_TIME_UNIX = endTimeUnix
+		global.GWAF_SWITCH_TASK_COUNTER = false
+		return
+	} else {
+		global.GWAF_LAST_TIME_UNIX = endTimeUnix
+	}
 	//一、 主机聚合统计
 	{
 		var resultHosts []CountHostResult
-		global.GWAF_LOCAL_LOG_DB.Raw("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host FROM \"web_logs\" where task_flag = ?  and unix_add_time > ?  and tenant_id = ? and user_code =?  GROUP BY host_code, user_code,action,tenant_id,day,host",
-			1, currenyDayMillisecondsBak, global.GWAF_TENANT_ID, global.GWAF_USER_CODE).Scan(&resultHosts)
+		global.GWAF_LOCAL_LOG_DB.Raw("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host FROM \"web_logs\" where task_flag = ?  and unix_add_time >= ?  and unix_add_time < ? and tenant_id = ? and user_code =?  GROUP BY host_code, user_code,action,tenant_id,day,host",
+			1, statTimeUnix, endTimeUnix, global.GWAF_TENANT_ID, global.GWAF_USER_CODE).Scan(&resultHosts)
 		/****
 		1.如果不存在则创建
 		2.如果存在则累加这个周期的统计数
@@ -123,7 +139,7 @@ func TaskCounter() {
 			} else {
 				statDayMap := map[string]interface{}{
 					"Count":       value.Count + statDay.Count,
-					"UPDATE_TIME": customtype.JsonTime(currenyDayBak),
+					"UPDATE_TIME": customtype.JsonTime(time.Now()),
 				}
 				updateBean := innerbean.UpdateModel{
 					Model:  model.StatsDay{},
@@ -139,8 +155,8 @@ func TaskCounter() {
 	//二、 IP聚合统计
 	{
 		var resultIP []CountIPResult
-		global.GWAF_LOCAL_LOG_DB.Raw("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host,src_ip as ip FROM \"web_logs\" where task_flag = ?  and unix_add_time > ?  and tenant_id = ? and user_code =?  GROUP BY host_code, user_code,action,tenant_id,day,host,ip",
-			1, currenyDayMillisecondsBak, global.GWAF_TENANT_ID, global.GWAF_USER_CODE).Scan(&resultIP)
+		global.GWAF_LOCAL_LOG_DB.Raw("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host,src_ip as ip FROM \"web_logs\" where task_flag = ?  and unix_add_time >= ?  and unix_add_time < ?  and tenant_id = ? and user_code =?  GROUP BY host_code, user_code,action,tenant_id,day,host,ip",
+			1, statTimeUnix, endTimeUnix, global.GWAF_TENANT_ID, global.GWAF_USER_CODE).Scan(&resultIP)
 		/****
 		1.如果不存在则创建
 		2.如果存在则累加这个周期的统计数
@@ -170,7 +186,7 @@ func TaskCounter() {
 			} else {
 				statDayMap := map[string]interface{}{
 					"Count":       value.Count + statDay.Count,
-					"UPDATE_TIME": customtype.JsonTime(currenyDayBak),
+					"UPDATE_TIME": customtype.JsonTime(time.Now()),
 				}
 
 				updateBean := innerbean.UpdateModel{
@@ -188,8 +204,8 @@ func TaskCounter() {
 	//三、 城市信息聚合统计
 	{
 		var resultCitys []CountCityResult
-		global.GWAF_LOCAL_LOG_DB.Raw("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host,country,province,city  FROM \"web_logs\" where task_flag = ?  and unix_add_time > ?  and tenant_id = ? and user_code =? GROUP BY host_code, user_code,action,tenant_id,day,host,country,province,city",
-			1, currenyDayMillisecondsBak, global.GWAF_TENANT_ID, global.GWAF_USER_CODE).Scan(&resultCitys)
+		global.GWAF_LOCAL_LOG_DB.Raw("SELECT host_code, user_code,tenant_id ,action,count(req_uuid) as count,day,host,country,province,city  FROM \"web_logs\" where task_flag = ?  and unix_add_time >= ?   and unix_add_time < ? and tenant_id = ? and user_code =? GROUP BY host_code, user_code,action,tenant_id,day,host,country,province,city",
+			1, statTimeUnix, endTimeUnix, global.GWAF_TENANT_ID, global.GWAF_USER_CODE).Scan(&resultCitys)
 		/****
 		1.如果不存在则创建
 		2.如果存在则累加这个周期的统计数
@@ -221,7 +237,7 @@ func TaskCounter() {
 			} else {
 				statDayMap := map[string]interface{}{
 					"Count":       value.Count + statDay.Count,
-					"UPDATE_TIME": customtype.JsonTime(currenyDayBak),
+					"UPDATE_TIME": customtype.JsonTime(time.Now()),
 				}
 
 				updateBean := innerbean.UpdateModel{
@@ -239,8 +255,8 @@ func TaskCounter() {
 	//第四 给IP打标签 开始
 	{
 		var resultIPRule []CountIPRuleResult
-		global.GWAF_LOCAL_LOG_DB.Raw("SELECT src_ip as ip ,rule,count(src_ip) as cnt  FROM \"web_logs\" where task_flag = ?  and unix_add_time > ?  and tenant_id = ? and user_code =? GROUP BY user_code,tenant_id, rule,src_ip",
-			1, currenyDayMillisecondsBak, global.GWAF_TENANT_ID, global.GWAF_USER_CODE).Scan(&resultIPRule)
+		global.GWAF_LOCAL_LOG_DB.Raw("SELECT src_ip as ip ,rule,count(src_ip) as cnt  FROM \"web_logs\" where task_flag = ?  and unix_add_time >= ?  and unix_add_time < ?  and tenant_id = ? and user_code =? GROUP BY user_code,tenant_id, rule,src_ip",
+			1, statTimeUnix, endTimeUnix, global.GWAF_TENANT_ID, global.GWAF_USER_CODE).Scan(&resultIPRule)
 		/****
 		1.如果不存在则创建
 		2.如果存在则累加这个IP这个rule的统计数
@@ -270,7 +286,7 @@ func TaskCounter() {
 			} else {
 				ipTagUpdateMap := map[string]interface{}{
 					"Cnt":         value.Cnt + ipTag.Cnt,
-					"UPDATE_TIME": customtype.JsonTime(currenyDayBak),
+					"UPDATE_TIME": customtype.JsonTime(time.Now()),
 				}
 				updateBean := innerbean.UpdateModel{
 					Model:  model.IPTag{},
@@ -283,6 +299,5 @@ func TaskCounter() {
 		}
 
 	} //给IP打标签结束
-	global.GWAF_LAST_UPDATE_TIME = currenyDayBak
 	global.GWAF_SWITCH_TASK_COUNTER = false
 }

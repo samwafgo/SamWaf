@@ -73,6 +73,16 @@ type StatsDayCount struct {
 域名对应的数量[临时]
 */
 type StatsIPCount struct {
+	IP       string `json:"ip"`        //ip
+	IPBelong string `json:"ip_belong"` //归属地
+	Count    int64  `json:"count"`     //数量
+}
+
+/*
+*
+域名对应的数量丰富的标签内容
+*/
+type StatsIPCountMore struct {
 	IP       string  `json:"ip"`        //ip
 	IPBelong string  `json:"ip_belong"` //归属地
 	IPTag    []IPTag `json:"ip_tags"`   //IP标签

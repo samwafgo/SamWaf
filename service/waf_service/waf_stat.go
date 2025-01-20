@@ -109,14 +109,22 @@ func (receiver *WafStatService) StatHomeSumDayTopIPRangeApi(req request.WafStats
 		Select("ip,sum(count) as count").Group("ip").Order("sum(count) desc").
 		Limit(10).
 		Scan(&AttackCountOfRange)
+
+	var AttackCountOfRangeMore []model.StatsIPCountMore
 	for i := range AttackCountOfRange {
 		region := utils.GetCountry(AttackCountOfRange[i].IP)
-		AttackCountOfRange[i].IPBelong = region[0]
 		//查询IP标签
 		var ipTags []model.IPTag
 		global.GWAF_LOCAL_DB.Where("tenant_id = ? and user_code = ? and ip=?",
 			global.GWAF_TENANT_ID, global.GWAF_USER_CODE, AttackCountOfRange[i].IP).Find(&ipTags)
-		AttackCountOfRange[i].IPTag = ipTags
+
+		statMore := model.StatsIPCountMore{
+			IP:       AttackCountOfRange[i].IP,
+			IPBelong: region[0],
+			IPTag:    ipTags,
+			Count:    AttackCountOfRange[i].Count,
+		}
+		AttackCountOfRangeMore = append(AttackCountOfRangeMore, statMore)
 	}
 
 	var NormalCountOfRange []model.StatsIPCount
@@ -126,6 +134,8 @@ func (receiver *WafStatService) StatHomeSumDayTopIPRangeApi(req request.WafStats
 		Group("ip").Order("sum(count) desc").
 		Limit(10).
 		Scan(&NormalCountOfRange)
+
+	var NormalCountOfRangeMore []model.StatsIPCountMore
 	for i := range NormalCountOfRange {
 		region := utils.GetCountry(NormalCountOfRange[i].IP)
 		NormalCountOfRange[i].IPBelong = region[0]
@@ -134,11 +144,18 @@ func (receiver *WafStatService) StatHomeSumDayTopIPRangeApi(req request.WafStats
 		var ipTags []model.IPTag
 		global.GWAF_LOCAL_DB.Where("tenant_id = ? and user_code = ? and ip=?",
 			global.GWAF_TENANT_ID, global.GWAF_USER_CODE, NormalCountOfRange[i].IP).Find(&ipTags)
-		NormalCountOfRange[i].IPTag = ipTags
+
+		statMore := model.StatsIPCountMore{
+			IP:       NormalCountOfRange[i].IP,
+			IPBelong: region[0],
+			IPTag:    ipTags,
+			Count:    NormalCountOfRange[i].Count,
+		}
+		NormalCountOfRangeMore = append(NormalCountOfRangeMore, statMore)
 	}
 	return response2.WafIPStats{
-			AttackIPOfRange: AttackCountOfRange,
-			NormalIPOfRange: NormalCountOfRange,
+			AttackIPOfRange: AttackCountOfRangeMore,
+			NormalIPOfRange: NormalCountOfRangeMore,
 		},
 		nil
 }

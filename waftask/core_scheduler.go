@@ -1,6 +1,7 @@
 package waftask
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/enums"
 	"fmt"
 	"github.com/go-co-op/gocron"
@@ -55,7 +56,7 @@ func (ts *TaskScheduler) ScheduleTask(unit string, interval int, at string, task
 	if err != nil {
 		return fmt.Errorf("failed to schedule task: %v", err)
 	}
-	fmt.Printf("Task scheduled: %v every %d %s\n", job, interval, unit)
+	zlog.Debug(fmt.Sprintf("Task scheduled: %v every %d %s\n", job, interval, unit))
 	return nil
 }
 func (ts *TaskScheduler) Start() {

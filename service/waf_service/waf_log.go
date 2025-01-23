@@ -8,6 +8,8 @@ import (
 	"SamWaf/model/request"
 	"SamWaf/wafdb"
 	"errors"
+	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -103,14 +105,29 @@ func (receiver *WafLogService) GetListApi(req request.WafAttackLogSearch) ([]inn
 	//强制索引
 	{
 		if strings.Contains(whereField, "unix_add_time") {
-			forceIndex = "web_logs INDEXED BY  idx_web_time_tenant_user_code"
+			forceIndex = "web_logs INDEXED BY  idx_web_time_desc_tenant_user_code"
+		} else if strings.Contains(whereField, "src_ip") {
+			forceIndex = "web_logs INDEXED BY  idx_web_time_desc_tenant_user_code_ip"
 		}
+	}
+
+	// 将字符串转换为 int64 类型
+	unixBegin, err := strconv.ParseInt(req.UnixAddTimeBegin, 10, 64)
+	if err != nil {
+		fmt.Println("Error converting UnixAddTimeBegin to int64:", err)
+
+	}
+
+	unixEnd, err := strconv.ParseInt(req.UnixAddTimeEnd, 10, 64)
+	if err != nil {
+		fmt.Println("Error converting UnixAddTimeEnd to int64:", err)
+
 	}
 
 	//where字段赋值
 	{
-		whereValues = append(whereValues, req.UnixAddTimeBegin)
-		whereValues = append(whereValues, req.UnixAddTimeEnd)
+		whereValues = append(whereValues, unixBegin)
+		whereValues = append(whereValues, unixEnd)
 		if len(req.HostCode) > 0 {
 			whereValues = append(whereValues, req.HostCode)
 		}
@@ -153,9 +170,6 @@ func (receiver *WafLogService) GetListApi(req request.WafAttackLogSearch) ([]inn
 	if len(req.CurrrentDbName) == 0 || req.CurrrentDbName == "local_log.db" {
 		global.GWAF_LOCAL_LOG_DB.Table(forceIndex).Limit(req.PageSize).Where(whereField, whereValues...).Offset(req.PageSize * (req.PageIndex - 1)).Order(orderInfo).Find(&weblogs)
 		global.GWAF_LOCAL_LOG_DB.Table(forceIndex).Where(whereField, whereValues...).Count(&total)
-		/*global.GWAF_LOCAL_LOG_DB.Table("web_logs INDEXED BY idx_web_time_tenant_user_code ").Limit(req.PageSize).Where(whereField, whereValues...).Offset(req.PageSize * (req.PageIndex - 1)).Order(orderInfo).Find(&weblogs)
-		global.GWAF_LOCAL_LOG_DB.Table("web_logs INDEXED BY idx_web_time_tenant_user_code ").Model(&innerbean.WebLog{}).Where(whereField, whereValues...).Count(&total)
-		*/
 	} else {
 		wafdb.InitManaulLogDb("", req.CurrrentDbName)
 		global.GDATA_CURRENT_LOG_DB_MAP[req.CurrrentDbName].Table(forceIndex).Limit(req.PageSize).Where(whereField, whereValues...).Offset(req.PageSize * (req.PageIndex - 1)).Order(orderInfo).Find(&weblogs)
@@ -178,7 +192,8 @@ func (receiver *WafLogService) DeleteHistory(day string) {
 // GetUnixTimeByCounter 依据开始时间和到期时间获取一个最新的时间戳
 func (receiver *WafLogService) GetUnixTimeByCounter(lastStartCreateUnix int64, lastEndCreateUnix int64) innerbean.WebLog {
 	var weblog innerbean.WebLog
-	global.GWAF_LOCAL_LOG_DB.Where("unix_add_time>=? and unix_add_time<?", lastStartCreateUnix, lastEndCreateUnix).Order("unix_add_time desc").Limit(1).Find(&weblog)
+	forceIndex := "web_logs INDEXED BY  idx_web_time_desc_tenant_user_code"
+	global.GWAF_LOCAL_LOG_DB.Table(forceIndex).Where("unix_add_time>=? and unix_add_time<?", lastStartCreateUnix, lastEndCreateUnix).Order("unix_add_time desc").Limit(1).Find(&weblog)
 
 	return weblog
 }
@@ -323,7 +338,7 @@ order by  sum(cnt) desc
 判断是否合法
 */
 func (receiver *WafLogService) isValidSortField(field string) bool {
-	var allowedSortFields = []string{"time_spent", "create_time"}
+	var allowedSortFields = []string{"time_spent", "create_time", "unix_add_time"}
 
 	for _, allowedField := range allowedSortFields {
 		if field == allowedField {

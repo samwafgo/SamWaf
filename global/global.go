@@ -108,6 +108,8 @@ var (
 	GNOTIFY_KAKFA_SERVICE           *wafnotify.WafNotifyService                                  //通知服务
 	GNOTIFY_SEND_MAX_LIMIT_MINTUTES                             = time.Duration(5) * time.Minute // 规则相关信息最大发送抑止 默认5分钟
 
+	/*******日志记录相关*************/
+	GWEBLOG_VERSION = 20250112 //weblog 日志版本号
 	/*********SSL相关*************/
 	GSSL_HTTP_CHANGLE_PATH string = "/.well-known/acme-challenge/" // http01证书验证路径
 

@@ -425,3 +425,14 @@ func CheckSSLCertificateExpiry(host string) (time.Time, error) {
 	// 返回到期时间
 	return expiryDate, nil
 }
+
+// GetSourceClientIP 获取原始IP
+func GetSourceClientIP(ipAndPort string) string {
+	ip, _, err := net.SplitHostPort(ipAndPort)
+	if err != nil {
+		return ""
+	} else {
+		return ip
+	}
+
+}

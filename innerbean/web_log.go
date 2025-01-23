@@ -33,6 +33,10 @@ type WebLog struct {
 	RISK_LEVEL           int    `json:"risk_level"`                        //危险等级 0:正常 1:轻微 2:有害 3:严重 4:特别严重
 	GUEST_IDENTIFICATION string `json:"guest_identification"`              //访客身份识别
 	TimeSpent            int64  `json:"time_spent"`                        //用时
+	NetSrcIp             string `json:"net_src_ip"`                        //获取的原始IP
+	SrcByteBody          []byte `json:"src_byte_body"`                     //原始body信息
+	SrcByteResBody       []byte `json:"src_byte_res_body"`                 //返回body bytes信息
+	WebLogVersion        int    `json:"web_log_version"`                   //日志版本信息早期的是空和0，后期实时增加
 }
 
 // 在 GORM 的 Model 方法中定义复合索引

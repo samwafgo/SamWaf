@@ -28,3 +28,9 @@ type WafAttackLogSearch struct {
 	FilterValue    string `json:"filter_value" form:"filter_value"`       //筛选值
 	request.PageInfo
 }
+
+type WafAttackIpTagSearch struct {
+	Rule  string `json:"rule" form:"rule"`     //规则名
+	SrcIp string `json:"src_ip" form:"src_ip"` //请求IP
+	request.PageInfo
+}

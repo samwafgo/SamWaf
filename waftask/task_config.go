@@ -51,6 +51,9 @@ func setConfigIntValue(name string, value int64, change int) {
 	case "keepalive_time_out":
 		global.GCONFIG_RECORD_KEEPALIVE_TIME_OUT = value
 		break
+	case "record_all_src_byte_info":
+		global.GCONFIG_RECORD_ALL_SRC_BYTE_INFO = value
+		break
 	default:
 		zlog.Warn("Unknown config item:", name)
 	}
@@ -157,5 +160,7 @@ func TaskLoadSetting(initLoad bool) {
 
 	updateConfigIntItem(initLoad, "network", "connect_time_out", global.GCONFIG_RECORD_CONNECT_TIME_OUT, "连接超时（默认30s）", "int", "")
 	updateConfigIntItem(initLoad, "network", "keepalive_time_out", global.GCONFIG_RECORD_KEEPALIVE_TIME_OUT, "保持活动超时（默认30s）", "int", "")
+
+	updateConfigIntItem(initLoad, "system", "record_all_src_byte_info", global.GCONFIG_RECORD_ALL_SRC_BYTE_INFO, "启动记录原始请求BODY报文（1启动 0关闭）", "int", "")
 
 }

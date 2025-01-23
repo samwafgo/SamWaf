@@ -196,6 +196,39 @@ func (w *WafLogAPi) GetHttpCopyMaskApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// GetAttackIPListApi 获取风险数据列表
+func (w *WafLogAPi) GetAttackIPListApi(c *gin.Context) {
+	var req request.WafAttackIpTagSearch
+	err := c.ShouldBindJSON(&req)
+	if err == nil {
+		ipAttackTags, total, err2 := wafLogService.GetAttackIpListApi(req)
+		if err2 != nil {
+			response.FailWithMessage("访问列表失败:"+err2.Error(), c)
+		} else {
+			response.OkWithDetailed(response.PageResult{
+				List:      ipAttackTags,
+				Total:     total,
+				PageIndex: req.PageIndex,
+				PageSize:  req.PageSize,
+			}, "获取成功", c)
+		}
+
+	} else {
+		response.FailWithMessage("解析失败", c)
+	}
+}
+
+// GetAllIpTagApi 获取所有ip tag
+func (w *WafLogAPi) GetAllIpTagApi(c *gin.Context) {
+
+	ipAttackTags, err2 := wafLogService.GetAllAttackIPTagListApi()
+	if err2 != nil {
+		response.FailWithMessage("访问ip tag 失败:"+err2.Error(), c)
+	} else {
+		response.OkWithDetailed(ipAttackTags, "获取成功", c)
+	}
+}
 func GenerateCurlRequest(weblog innerbean.WebLog) string {
 
 	headers := strings.Split(weblog.HEADER, "\n")

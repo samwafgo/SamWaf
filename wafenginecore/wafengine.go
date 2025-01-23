@@ -226,6 +226,9 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			RISK_LEVEL:           0,      //危险等级
 			GUEST_IDENTIFICATION: "正常访客", //访客身份识别
 			TimeSpent:            0,
+			NetSrcIp:             utils.GetSourceClientIP(r.RemoteAddr),
+			SrcByteBody:          bodyByte,
+			WebLogVersion:        global.GWEBLOG_VERSION,
 		}
 
 		formValues := url.Values{}
@@ -343,6 +346,10 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 		}
+		//如果正常的流量不记录请求原始包
+		if global.GCONFIG_RECORD_ALL_SRC_BYTE_INFO == 0 {
+			weblogbean.SrcByteBody = nil
+		}
 		//基本验证是否开关是否开启
 		if hostTarget.Host.IsEnableHttpAuthBase == 1 {
 			bHttpAuthBaseResult, sHttpAuthBaseResult := waf.DoHttpAuthBase(hostTarget, w, r)
@@ -436,6 +443,8 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			RISK_LEVEL:           1,       //危险等级
 			GUEST_IDENTIFICATION: "未解析域名", //访客身份识别
 			TimeSpent:            0,
+			NetSrcIp:             utils.GetSourceClientIP(r.RemoteAddr),
+			WebLogVersion:        global.GWEBLOG_VERSION,
 		}
 
 		//记录响应body
@@ -613,7 +622,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 			}
 			//文本资源
 			if respContentType == "text/html" || respContentType == "application/html" ||
-				respContentType == "application/json" || respContentType == "application/xml" {
+				respContentType == "application/json" || respContentType == "application/xml" || respContentType == "text/plain" {
 				contentType = "text"
 			}
 			//记录静态日志
@@ -650,6 +659,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 				resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalCompressBytes)), 10))
 				if resp.ContentLength < global.GCONFIG_RECORD_MAX_RES_BODY_LENGTH {
 					weblogfrist.RES_BODY = string(orgContentBytes)
+					weblogfrist.SrcByteResBody = orgContentBytes
 				}
 			}
 			zlog.Debug("TESTChanllage", weblogfrist.HOST, weblogfrist.URL)

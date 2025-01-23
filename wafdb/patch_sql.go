@@ -42,6 +42,22 @@ func pathLogSql(db *gorm.DB) {
 	} else {
 		zlog.Info("db", "idx_tenant_usercode_web_logs created")
 	}
+
+	// 20250123 创建联合索引
+	err = db.Exec("CREATE INDEX IF NOT EXISTS idx_web_time_desc_tenant_user_code ON web_logs (unix_add_time desc, tenant_id,user_code)").Error
+	if err != nil {
+		panic("failed to create index: idx_web_time_desc_tenant_user_code " + err.Error())
+	} else {
+		zlog.Info("db", "idx_web_time_desc_tenant_user_code created")
+	}
+	//20250123 建立带IP得
+	err = db.Exec("CREATE INDEX IF NOT EXISTS idx_web_time_desc_tenant_user_code_ip ON web_logs (unix_add_time desc, tenant_id,user_code,src_ip)").Error
+	if err != nil {
+		panic("failed to create index: idx_web_time_desc_tenant_user_code_ip " + err.Error())
+	} else {
+		zlog.Info("db", "idx_web_time_desc_tenant_user_code_ip created")
+	}
+
 	// 记录结束时间并计算耗时
 	duration := time.Since(startTime)
 	zlog.Info("create index completely", "duration", duration.String())

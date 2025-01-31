@@ -61,6 +61,13 @@ func (receiver *WafTokenInfoService) GetInfoByLoginAccount(loginAccount string) 
 	return bean
 }
 
+// GetAllTokenInfoByLoginAccount 通过登录account获取账号信息
+func (receiver *WafTokenInfoService) GetAllTokenInfoByLoginAccount(loginAccount string) []model.TokenInfo {
+	var bean []model.TokenInfo
+	global.GWAF_LOCAL_DB.Where("login_account=? ", loginAccount).Find(&bean)
+	return bean
+}
+
 /*
 *
 获取一个可用的token TODO 将来应该是一个

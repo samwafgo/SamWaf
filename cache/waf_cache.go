@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"SamWaf/common/zlog"
 	"errors"
 	"strings"
 	"sync"
@@ -107,6 +108,7 @@ func (wafCache *WafCache) GetLastTime(key string) (time.Time, error) {
 	if time.Since(item.createTime) <= item.ttl {
 		return item.lastTime, nil
 	}
+	zlog.Debug("GetLastTime CLEAR CACHE EXPIRE :" + key)
 	delete(wafCache.cache, key)
 	return time.Time{}, errors.New("数据已过期")
 }
@@ -114,6 +116,7 @@ func (wafCache *WafCache) ClearExpirationCache() {
 	now := time.Now()
 	for key, item := range wafCache.cache {
 		if now.Sub(item.createTime) > item.ttl {
+			zlog.Debug("ClearExpirationCache CLEAR CACHE EXPIRE :" + key)
 			delete(wafCache.cache, key)
 		}
 	}

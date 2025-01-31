@@ -89,14 +89,25 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 			}
 			// 密码正确，清除错误计数
 			global.GCACHE_WAFCACHE.Remove(cacheKey)
-			//如果存在旧的状态删除
-			oldTokenInfo := wafTokenInfoService.GetInfoByLoginAccount(req.LoginAccount)
-			if oldTokenInfo.Id != "" {
-				wafTokenInfoService.DelApiByAccount(oldTokenInfo.LoginAccount)
+
+			//如果存在旧的状态删除 相同帐号 只允许一个
+			allTokenInfo := wafTokenInfoService.GetAllTokenInfoByLoginAccount(req.LoginAccount)
+			if allTokenInfo != nil {
+				for i := 0; i < len(allTokenInfo); i++ {
+					oldTokenInfo := allTokenInfo[i]
+					if oldTokenInfo.Id != "" {
+						wafTokenInfoService.DelApiByAccount(oldTokenInfo.LoginAccount)
+						global.GCACHE_WAFCACHE.Remove(enums.CACHE_TOKEN + oldTokenInfo.AccessToken)
+					}
+				}
 			}
+
 			//记录状态
 			accessToken := utils.Md5String(uuid.NewV4().String())
 			tokenInfo := wafTokenInfoService.AddApi(bean.LoginAccount, accessToken, c.ClientIP())
+
+			//令牌记录到cache里
+			global.GCACHE_WAFCACHE.SetWithTTl(enums.CACHE_TOKEN+accessToken, *tokenInfo, time.Duration(global.GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES)*time.Minute)
 
 			//通知信息
 			noticeStr := fmt.Sprintf("登录IP:%s 归属地区：%s", clientIP, clientCountry)

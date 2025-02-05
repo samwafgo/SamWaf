@@ -230,14 +230,6 @@ func (m *wafSystenService) run() {
 
 	if global.GWAF_RELEASE == "false" {
 		global.GUPDATE_VERSION_URL = "http://127.0.0.1:8111/"
-		/*runtime.GOMAXPROCS(1)              // 限制 CPU 使用数，避免过载
-		runtime.SetMutexProfileFraction(1) // 开启对锁调用的跟踪
-		runtime.SetBlockProfileRate(1)     // 开启对阻塞操作的跟踪*/
-		go func() {
-
-			err2 := http.ListenAndServe("0.0.0.0:16060", nil)
-			zlog.Error("调试报错", err2)
-		}()
 	}
 
 	//初始化本地数据库

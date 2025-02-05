@@ -17,7 +17,7 @@ func ReverseDNSLookup(ipAddress string) ([]string, error) {
 			return net.Dial("udp", global.GWAF_RUNTIME_DNS_SERVER+":53")
 		},
 	}}
-	//TODO 请注意此处得时间
+
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, time.Duration(global.GWAF_RUNTIME_DNS_TIMEOUT)*time.Millisecond)
 	defer cancel()
 	names, err := d.Resolver.LookupAddr(ctxWithTimeout, ipAddress)

@@ -44,7 +44,11 @@ func (waf *WafEngine) CheckBot(r *http.Request, weblogbean *innerbean.WebLog, fo
 			weblogbean.GUEST_IDENTIFICATION = botResult.BotName
 			weblogbean.RISK_LEVEL = 1
 
-			result.IsBlock = true
+			if global.GCONFIG_RECORD_SPIDER_DENY == 1 {
+				result.IsBlock = true
+			} else {
+				result.IsBlock = false
+			}
 			result.Title = botResult.BotName
 			result.Content = "请正确访问"
 			return result

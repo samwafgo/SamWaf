@@ -51,12 +51,14 @@ func (waf *WafEngine) CheckBot(r *http.Request, weblogbean *innerbean.WebLog, fo
 			}
 			result.Title = botResult.BotName
 			result.Content = "请正确访问"
+
+			if !isBotCacheExist {
+				//如果是bot 加入cache里面
+				global.GCACHE_WAFCACHE.SetWithTTl(enums.CACHE_DNS_BOT_IP+weblogbean.SRC_IP, botResult, time.Duration(global.GCONFIG_RECORD_DNS_BOT_EXPIRE_HOURS)*time.Hour)
+			}
 			return result
 		}
-		if !isBotCacheExist {
-			//如果是bot 加入cache里面
-			global.GCACHE_WAFCACHE.SetWithTTl(enums.CACHE_DNS_BOT_IP+weblogbean.SRC_IP, botResult, time.Duration(global.GCONFIG_RECORD_DNS_BOT_EXPIRE_HOURS)*time.Hour)
-		}
+
 	} else {
 		//如果不是bot 加入到正常cache里面
 		global.GCACHE_WAFCACHE.SetWithTTl(enums.CACHE_DNS_NORMAL_IP+weblogbean.SRC_IP, weblogbean.SRC_IP, time.Duration(global.GCONFIG_RECORD_DNS_NORMAL_EXPIRE_HOURS)*time.Hour)

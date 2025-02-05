@@ -2,6 +2,8 @@ package wafbot
 
 import (
 	"SamWaf/utils"
+	"errors"
+	"net"
 	"strings"
 )
 
@@ -42,6 +44,11 @@ func DetermineNormalSearch(userAgent, ip string) BotResult {
 func baiduSpider(ip string) BotResult {
 	//先查询本地库
 	//然后远端查询
+	fakeSpiderResult := BotResult{
+		IsBot:       true,
+		IsNormalBot: false,
+		BotName:     "伪装百度爬虫",
+	}
 	lookup, err := ReverseDNSLookup(ip)
 	if err == nil {
 		if len(lookup) > 0 {
@@ -52,24 +59,35 @@ func baiduSpider(ip string) BotResult {
 					BotName:     "百度爬虫",
 				}
 			} else {
+				return fakeSpiderResult
+			}
+		} else {
+			return fakeSpiderResult
+		}
+	} else {
+		var dnsErr *net.DNSError
+		if errors.As(err, &dnsErr) {
+			if dnsErr.IsTimeout {
 				return BotResult{
 					IsBot:       true,
-					IsNormalBot: false,
-					BotName:     "可能不是百度爬虫",
+					IsNormalBot: true,
+					BotName:     "查询超时",
+				}
+			} else if dnsErr.IsNotFound {
+				return fakeSpiderResult
+			} else {
+				return BotResult{
+					IsBot:       true,
+					IsNormalBot: true,
+					BotName:     "查询失败",
 				}
 			}
 		} else {
 			return BotResult{
 				IsBot:       true,
-				IsNormalBot: false,
-				BotName:     "可能不是百度爬虫",
+				IsNormalBot: true,
+				BotName:     "查询失败",
 			}
-		}
-	} else {
-		return BotResult{
-			IsBot:       true,
-			IsNormalBot: true,
-			BotName:     "查询超时",
 		}
 	}
 }
@@ -81,6 +99,11 @@ func baiduSpider(ip string) BotResult {
 func googleSpider(ip string) BotResult {
 	//先查询本地库
 	//然后远端查询
+	fakeSpiderResult := BotResult{
+		IsBot:       true,
+		IsNormalBot: false,
+		BotName:     "伪装Google爬虫",
+	}
 	lookup, err := ReverseDNSLookup(ip)
 	if err == nil {
 		if len(lookup) > 0 {
@@ -103,24 +126,35 @@ func googleSpider(ip string) BotResult {
 					BotName:     "Google爬虫(用户触发)",
 				}
 			} else {
+				return fakeSpiderResult
+			}
+		} else {
+			return fakeSpiderResult
+		}
+	} else {
+		var dnsErr *net.DNSError
+		if errors.As(err, &dnsErr) {
+			if dnsErr.IsTimeout {
 				return BotResult{
 					IsBot:       true,
-					IsNormalBot: false,
-					BotName:     "可能不是Google爬虫",
+					IsNormalBot: true,
+					BotName:     "查询超时",
+				}
+			} else if dnsErr.IsNotFound {
+				return fakeSpiderResult
+			} else {
+				return BotResult{
+					IsBot:       true,
+					IsNormalBot: true,
+					BotName:     "查询失败",
 				}
 			}
 		} else {
 			return BotResult{
 				IsBot:       true,
-				IsNormalBot: false,
-				BotName:     "可能不是Google爬虫",
+				IsNormalBot: true,
+				BotName:     "查询失败",
 			}
-		}
-	} else {
-		return BotResult{
-			IsBot:       true,
-			IsNormalBot: true,
-			BotName:     "查询超时",
 		}
 	}
 }
@@ -132,6 +166,11 @@ bing的蜘蛛
 func bingSpider(ip string) BotResult {
 	//先查询本地库
 	//然后远端查询
+	fakeSpiderResult := BotResult{
+		IsBot:       true,
+		IsNormalBot: false,
+		BotName:     "伪装Bing爬虫",
+	}
 	lookup, err := ReverseDNSLookup(ip)
 	if err == nil {
 		if len(lookup) > 0 {
@@ -142,24 +181,35 @@ func bingSpider(ip string) BotResult {
 					BotName:     "Bing爬虫",
 				}
 			} else {
+				return fakeSpiderResult
+			}
+		} else {
+			return fakeSpiderResult
+		}
+	} else {
+		var dnsErr *net.DNSError
+		if errors.As(err, &dnsErr) {
+			if dnsErr.IsTimeout {
 				return BotResult{
 					IsBot:       true,
-					IsNormalBot: false,
-					BotName:     "可能不是Bing爬虫",
+					IsNormalBot: true,
+					BotName:     "查询超时",
+				}
+			} else if dnsErr.IsNotFound {
+				return fakeSpiderResult
+			} else {
+				return BotResult{
+					IsBot:       true,
+					IsNormalBot: true,
+					BotName:     "查询失败",
 				}
 			}
 		} else {
 			return BotResult{
 				IsBot:       true,
-				IsNormalBot: false,
-				BotName:     "可能不是Bing爬虫",
+				IsNormalBot: true,
+				BotName:     "查询失败",
 			}
-		}
-	} else {
-		return BotResult{
-			IsBot:       true,
-			IsNormalBot: true,
-			BotName:     "可能不是Bing爬虫",
 		}
 	}
 }
@@ -171,6 +221,11 @@ sogou蜘蛛
 func sogouSpider(ip string) BotResult {
 	//先查询本地库
 	//然后远端查询
+	fakeSpiderResult := BotResult{
+		IsBot:       true,
+		IsNormalBot: false,
+		BotName:     "伪装搜狗爬虫",
+	}
 	lookup, err := ReverseDNSLookup(ip)
 	if err == nil {
 		if len(lookup) > 0 {
@@ -181,24 +236,35 @@ func sogouSpider(ip string) BotResult {
 					BotName:     "搜狗爬虫",
 				}
 			} else {
+				return fakeSpiderResult
+			}
+		} else {
+			return fakeSpiderResult
+		}
+	} else {
+		var dnsErr *net.DNSError
+		if errors.As(err, &dnsErr) {
+			if dnsErr.IsTimeout {
 				return BotResult{
 					IsBot:       true,
-					IsNormalBot: false,
-					BotName:     "可能不是搜狗爬虫",
+					IsNormalBot: true,
+					BotName:     "查询超时",
+				}
+			} else if dnsErr.IsNotFound {
+				return fakeSpiderResult
+			} else {
+				return BotResult{
+					IsBot:       true,
+					IsNormalBot: true,
+					BotName:     "查询失败",
 				}
 			}
 		} else {
 			return BotResult{
 				IsBot:       true,
-				IsNormalBot: false,
-				BotName:     "可能不是搜狗爬虫",
+				IsNormalBot: true,
+				BotName:     "查询失败",
 			}
-		}
-	} else {
-		return BotResult{
-			IsBot:       true,
-			IsNormalBot: true,
-			BotName:     "查询超时",
 		}
 	}
 }
@@ -265,6 +331,12 @@ UC 搜索
 func yisouSpider(ip string) BotResult {
 	//先查询本地库
 	//然后远端查询
+
+	fakeSpiderResult := BotResult{
+		IsBot:       true,
+		IsNormalBot: false,
+		BotName:     "伪装神马搜索爬虫",
+	}
 	lookup, err := ReverseDNSLookup(ip)
 	if err == nil {
 		if len(lookup) > 0 {
@@ -275,24 +347,35 @@ func yisouSpider(ip string) BotResult {
 					BotName:     "神马搜索爬虫",
 				}
 			} else {
+				return fakeSpiderResult
+			}
+		} else {
+			return fakeSpiderResult
+		}
+	} else {
+		var dnsErr *net.DNSError
+		if errors.As(err, &dnsErr) {
+			if dnsErr.IsTimeout {
 				return BotResult{
 					IsBot:       true,
-					IsNormalBot: false,
-					BotName:     "可能不是神马搜索爬虫",
+					IsNormalBot: true,
+					BotName:     "查询超时",
+				}
+			} else if dnsErr.IsNotFound {
+				return fakeSpiderResult
+			} else {
+				return BotResult{
+					IsBot:       true,
+					IsNormalBot: true,
+					BotName:     "查询失败",
 				}
 			}
 		} else {
 			return BotResult{
 				IsBot:       true,
-				IsNormalBot: false,
-				BotName:     "可能不是神马搜索爬虫",
+				IsNormalBot: true,
+				BotName:     "查询失败",
 			}
-		}
-	} else {
-		return BotResult{
-			IsBot:       true,
-			IsNormalBot: true,
-			BotName:     "查询超时",
 		}
 	}
 }

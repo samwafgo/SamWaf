@@ -1,0 +1,65 @@
+{
+  "BotDesc": "These Json files are collected by SamWaf",
+  "BotList": [
+    {
+      "ip": "110.249.201.0/24",
+      "updatetime": "2024-01-26 03:50:51 UTC",
+      "iptype": "ipv4cidr",
+      "remark": "offical"
+    },
+    {
+      "ip": "110.249.202.0/24",
+      "updatetime": "2024-01-26 03:50:51 UTC",
+      "iptype": "ipv4cidr",
+      "remark": "offical"
+    },
+    {
+      "ip": "111.225.148.0/24",
+      "updatetime": "2024-01-26 03:50:51 UTC",
+      "iptype": "ipv4cidr",
+      "remark": "offical"
+    },
+    {
+      "ip": "111.225.149.0/24",
+      "updatetime": "2024-01-26 03:50:51 UTC",
+      "iptype": "ipv4cidr",
+      "remark": "offical"
+    },
+    {
+      "ip": "220.243.135.0/24",
+      "updatetime": "2024-01-26 03:50:51 UTC",
+      "iptype": "ipv4cidr",
+      "remark": "offical"
+    },
+    {
+      "ip": "220.243.136.0/24",
+      "updatetime": "2024-01-26 03:50:51 UTC",
+      "iptype": "ipv4cidr",
+      "remark": "offical"
+    },
+    {
+      "ip": "220.243.188.0/24",
+      "updatetime": "2024-01-26 03:50:51 UTC",
+      "iptype": "ipv4cidr",
+      "remark": "offical"
+    },
+    {
+      "ip": "220.243.189.0/24",
+      "updatetime": "2024-01-26 03:50:51 UTC",
+      "iptype": "ipv4cidr",
+      "remark": "offical"
+    },
+    {
+      "ip": "60.8.123.0/24",
+      "updatetime": "2024-01-26 03:50:51 UTC",
+      "iptype": "ipv4cidr",
+      "remark": "offical"
+    },
+    {
+      "ip": "60.8.151.0/24",
+      "updatetime": "2024-01-26 03:50:51 UTC",
+      "iptype": "ipv4cidr",
+      "remark": "offical"
+    }
+  ]
+}

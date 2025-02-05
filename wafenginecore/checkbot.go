@@ -1,12 +1,15 @@
 package wafenginecore
 
 import (
+	"SamWaf/enums"
+	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model/detection"
 	"SamWaf/model/wafenginmodel"
 	"SamWaf/wafbot"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 /*
@@ -20,19 +23,41 @@ func (waf *WafEngine) CheckBot(r *http.Request, weblogbean *innerbean.WebLog, fo
 		Title:           "",
 		Content:         "",
 	}
-	isBot, isNormalBot, BotName := wafbot.DetermineNormalSearch(weblogbean.USER_AGENT, weblogbean.SRC_IP)
-	if isBot == true {
-		if isNormalBot {
-			weblogbean.GUEST_IDENTIFICATION = BotName
+	//检查是否是正常IP已经cache
+	isNormalCacheExist := global.GCACHE_WAFCACHE.IsKeyExist(enums.CACHE_DNS_NORMAL_IP + weblogbean.SRC_IP)
+
+	if isNormalCacheExist {
+		return result
+	}
+	//检查是否是bot已经cache
+	isBotCacheExist := global.GCACHE_WAFCACHE.IsKeyExist(enums.CACHE_DNS_BOT_IP + weblogbean.SRC_IP)
+	botResult := wafbot.BotResult{}
+	if !isBotCacheExist {
+		botResult = wafbot.DetermineNormalSearch(weblogbean.USER_AGENT, weblogbean.SRC_IP)
+	} else {
+		botResult = global.GCACHE_WAFCACHE.Get(enums.CACHE_DNS_BOT_IP + weblogbean.SRC_IP).(wafbot.BotResult)
+	}
+	if botResult.IsBot == true {
+		if botResult.IsNormalBot {
+			weblogbean.GUEST_IDENTIFICATION = botResult.BotName
 		} else {
-			weblogbean.GUEST_IDENTIFICATION = BotName
+			weblogbean.GUEST_IDENTIFICATION = botResult.BotName
 			weblogbean.RISK_LEVEL = 1
 
 			result.IsBlock = true
-			result.Title = BotName
+			result.Title = botResult.BotName
 			result.Content = "请正确访问"
 			return result
 		}
+		if !isBotCacheExist {
+			//如果是bot 加入cache里面
+			global.GCACHE_WAFCACHE.SetWithTTl(enums.CACHE_DNS_BOT_IP+weblogbean.SRC_IP, botResult, time.Duration(global.GCONFIG_RECORD_DNS_BOT_EXPIRE_HOURS)*time.Hour)
+		}
+	} else {
+		//如果不是bot 加入到正常cache里面
+		global.GCACHE_WAFCACHE.SetWithTTl(enums.CACHE_DNS_NORMAL_IP+weblogbean.SRC_IP, weblogbean.SRC_IP, time.Duration(global.GCONFIG_RECORD_DNS_NORMAL_EXPIRE_HOURS)*time.Hour)
+
 	}
+
 	return result
 }

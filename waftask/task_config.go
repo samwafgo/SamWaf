@@ -60,6 +60,9 @@ func setConfigIntValue(name string, value int64, change int) {
 	case "spider_deny":
 		global.GCONFIG_RECORD_SPIDER_DENY = value
 		break
+	case "enable_debug":
+		global.GCONFIG_RECORD_DEBUG_ENABLE = value
+		break
 	default:
 		zlog.Warn("Unknown config item:", name)
 	}
@@ -82,6 +85,9 @@ func setConfigStringValue(name string, value string, change int) {
 		global.GCONFIG_RECORD_KAFKA_URL = value
 	case "kafka_topic":
 		global.GCONFIG_RECORD_KAFKA_TOPIC = value
+	case "debug_pwd":
+		global.GCONFIG_RECORD_DEBUG_PWD = value
+
 	default:
 		zlog.Warn("Unknown config item:", name)
 	}
@@ -170,5 +176,7 @@ func TaskLoadSetting(initLoad bool) {
 	updateConfigIntItem(initLoad, "system", "record_all_src_byte_info", global.GCONFIG_RECORD_ALL_SRC_BYTE_INFO, "启动记录原始请求BODY报文（1启动 0关闭）", "int", "")
 	updateConfigIntItem(initLoad, "system", "token_expire_time", global.GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES, "管理平台令牌有效期，单位分钟（默认5分钟）", "int", "")
 	updateConfigIntItem(initLoad, "system", "spider_deny", global.GCONFIG_RECORD_SPIDER_DENY, "爬虫禁止访问开关 默认 0 只检测不阻止访问 1 检测并阻止访问）", "int", "")
+	updateConfigIntItem(initLoad, "debug", "enable_debug", global.GCONFIG_RECORD_DEBUG_ENABLE, "调试开关 默认关闭", "int", "")
+	updateConfigStringItem(initLoad, "debug", "debug_pwd", global.GCONFIG_RECORD_DEBUG_PWD, "调试密码 如果未空则不需要密码", "string", "")
 
 }

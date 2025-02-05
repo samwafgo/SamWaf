@@ -17,7 +17,7 @@ func TestReverseGoogleDNSLookup(t *testing.T) {
 }
 
 func TestReverseDNSLookup(t *testing.T) {
-	lookup, err := ReverseDNSLookup("3.3.77.3")
+	lookup, err := ReverseDNSLookup("106.8.139.201")
 	if err == nil {
 		for _, s := range lookup {
 			fmt.Println(s)

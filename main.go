@@ -65,6 +65,9 @@ var publicKey string //公钥key
 //go:embed exedata/owasp
 var owaspAssets embed.FS
 
+//go:embed exedata/spiderbot
+var spiderBotAssets embed.FS
+
 // wafSystenService 实现了 service.Service 接口
 type wafSystenService struct{}
 
@@ -161,6 +164,9 @@ func (m *wafSystenService) run() {
 	if err != nil {
 		zlog.Error("owasp", err.Error())
 	}
+
+	//TODO 准备释放最新spider bot
+
 	/*// 启动一个 goroutine 来处理信号
 	go func() {
 		// 创建一个通道来接收信号

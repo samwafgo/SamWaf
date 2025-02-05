@@ -25,4 +25,9 @@ var (
 	GCONFIG_RECORD_ALL_SRC_BYTE_INFO int64 = 0 //记录原始信息(默认不开启)
 
 	GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES int64 = 5 //令牌有效期 单位分钟
+
+	GCONFIG_RECORD_DNS_BOT_EXPIRE_HOURS    int64 = 24     //DNS bot有效期 单位小时 默认1天
+	GCONFIG_RECORD_DNS_NORMAL_EXPIRE_HOURS int64 = 7 * 24 //DNS 正常有效期 单位小时 默认7天
+	GCONFIG_RECORD_SPIDER_DENY             int64 = 0      //爬虫禁止访问开关 默认 0 只检测不阻止访问 1 检测并阻止访问
+
 )

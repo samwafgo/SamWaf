@@ -5,11 +5,18 @@ import (
 	"strings"
 )
 
+// BotResult 检测结果
+type BotResult struct {
+	IsBot       bool   //是否是爬虫
+	IsNormalBot bool   //是否是正常爬虫 false 会拦截
+	BotName     string //爬虫名称
+}
+
 /*
 *
 判断是否正确的搜索引擎 返回值： 是否是爬虫，是否是正常爬虫， 爬虫名称
 */
-func DetermineNormalSearch(userAgent, ip string) (bool, bool, string) {
+func DetermineNormalSearch(userAgent, ip string) BotResult {
 	if strings.Contains(userAgent, "Baiduspider") {
 		return baiduSpider(ip)
 	} else if strings.Contains(userAgent, "google") {
@@ -25,29 +32,45 @@ func DetermineNormalSearch(userAgent, ip string) (bool, bool, string) {
 	} else if strings.Contains(userAgent, "Bytespider") {
 		return byteSpider(ip)
 	}
-	return false, false, "未知"
+	return BotResult{false, false, ""}
 }
 
 /*
 *
 百度的蜘蛛
 */
-func baiduSpider(ip string) (bool, bool, string) {
+func baiduSpider(ip string) BotResult {
 	//先查询本地库
 	//然后远端查询
 	lookup, err := ReverseDNSLookup(ip)
 	if err == nil {
 		if len(lookup) > 0 {
 			if strings.HasSuffix(lookup[0], ".baidu.com.") || strings.HasSuffix(lookup[0], ".baidu.jp.") {
-				return true, true, "百度爬虫"
+				return BotResult{
+					IsBot:       true,
+					IsNormalBot: true,
+					BotName:     "百度爬虫",
+				}
 			} else {
-				return true, false, "可能不是百度爬虫"
+				return BotResult{
+					IsBot:       true,
+					IsNormalBot: false,
+					BotName:     "可能不是百度爬虫",
+				}
 			}
 		} else {
-			return true, false, "可能不是百度爬虫"
+			return BotResult{
+				IsBot:       true,
+				IsNormalBot: false,
+				BotName:     "可能不是百度爬虫",
+			}
 		}
 	} else {
-		return true, false, "伪装百度爬虫"
+		return BotResult{
+			IsBot:       true,
+			IsNormalBot: true,
+			BotName:     "查询超时",
+		}
 	}
 }
 
@@ -55,26 +78,50 @@ func baiduSpider(ip string) (bool, bool, string) {
 *
 谷歌的蜘蛛
 */
-func googleSpider(ip string) (bool, bool, string) {
+func googleSpider(ip string) BotResult {
 	//先查询本地库
 	//然后远端查询
 	lookup, err := ReverseDNSLookup(ip)
 	if err == nil {
 		if len(lookup) > 0 {
 			if strings.HasSuffix(lookup[0], ".googlebot.com.") {
-				return true, true, "Google爬虫"
+				return BotResult{
+					IsBot:       true,
+					IsNormalBot: true,
+					BotName:     "Google爬虫",
+				}
 			} else if strings.HasSuffix(lookup[0], ".google.com.") {
-				return true, true, "Google爬虫(特殊)"
+				return BotResult{
+					IsBot:       true,
+					IsNormalBot: true,
+					BotName:     "Google爬虫(特殊)",
+				}
 			} else if strings.HasSuffix(lookup[0], ".googleusercontent.com.") {
-				return true, true, "Google爬虫(用户触发)"
+				return BotResult{
+					IsBot:       true,
+					IsNormalBot: true,
+					BotName:     "Google爬虫(用户触发)",
+				}
 			} else {
-				return true, false, "可能不是Google爬虫"
+				return BotResult{
+					IsBot:       true,
+					IsNormalBot: false,
+					BotName:     "可能不是Google爬虫",
+				}
 			}
 		} else {
-			return true, false, "可能不是Google爬虫"
+			return BotResult{
+				IsBot:       true,
+				IsNormalBot: false,
+				BotName:     "可能不是Google爬虫",
+			}
 		}
 	} else {
-		return true, false, "伪装Google爬虫"
+		return BotResult{
+			IsBot:       true,
+			IsNormalBot: true,
+			BotName:     "查询超时",
+		}
 	}
 }
 
@@ -82,22 +129,38 @@ func googleSpider(ip string) (bool, bool, string) {
 *
 bing的蜘蛛
 */
-func bingSpider(ip string) (bool, bool, string) {
+func bingSpider(ip string) BotResult {
 	//先查询本地库
 	//然后远端查询
 	lookup, err := ReverseDNSLookup(ip)
 	if err == nil {
 		if len(lookup) > 0 {
 			if strings.HasSuffix(lookup[0], ".msn.com.") {
-				return true, true, "Bing爬虫"
+				return BotResult{
+					IsBot:       true,
+					IsNormalBot: true,
+					BotName:     "Bing爬虫",
+				}
 			} else {
-				return true, false, "可能不是Bing爬虫"
+				return BotResult{
+					IsBot:       true,
+					IsNormalBot: false,
+					BotName:     "可能不是Bing爬虫",
+				}
 			}
 		} else {
-			return true, false, "可能不是Bing爬虫"
+			return BotResult{
+				IsBot:       true,
+				IsNormalBot: false,
+				BotName:     "可能不是Bing爬虫",
+			}
 		}
 	} else {
-		return true, false, "伪装Bing爬虫"
+		return BotResult{
+			IsBot:       true,
+			IsNormalBot: true,
+			BotName:     "可能不是Bing爬虫",
+		}
 	}
 }
 
@@ -105,22 +168,38 @@ func bingSpider(ip string) (bool, bool, string) {
 *
 sogou蜘蛛
 */
-func sogouSpider(ip string) (bool, bool, string) {
+func sogouSpider(ip string) BotResult {
 	//先查询本地库
 	//然后远端查询
 	lookup, err := ReverseDNSLookup(ip)
 	if err == nil {
 		if len(lookup) > 0 {
 			if strings.HasSuffix(lookup[0], ".sogou.com.") {
-				return true, true, "搜狗爬虫"
+				return BotResult{
+					IsBot:       true,
+					IsNormalBot: true,
+					BotName:     "搜狗爬虫",
+				}
 			} else {
-				return true, false, "可能不是搜狗爬虫"
+				return BotResult{
+					IsBot:       true,
+					IsNormalBot: false,
+					BotName:     "可能不是搜狗爬虫",
+				}
 			}
 		} else {
-			return true, false, "可能不是搜狗爬虫"
+			return BotResult{
+				IsBot:       true,
+				IsNormalBot: false,
+				BotName:     "可能不是搜狗爬虫",
+			}
 		}
 	} else {
-		return true, false, "伪装搜狗爬虫"
+		return BotResult{
+			IsBot:       true,
+			IsNormalBot: true,
+			BotName:     "查询超时",
+		}
 	}
 }
 
@@ -128,7 +207,7 @@ func sogouSpider(ip string) (bool, bool, string) {
 *
 360 搜索引擎
 */
-func spider360(ip string) (bool, bool, string) {
+func spider360(ip string) BotResult {
 	// 将要检查的 IP 地址段转换成数组
 	ipRanges := []string{
 		"180.153.232.",
@@ -165,9 +244,17 @@ func spider360(ip string) (bool, bool, string) {
 		}
 	}
 	if isInRange {
-		return true, true, "360爬虫"
+		return BotResult{
+			IsBot:       true,
+			IsNormalBot: true,
+			BotName:     "360爬虫",
+		}
 	} else {
-		return true, false, "伪装360爬虫"
+		return BotResult{
+			IsBot:       true,
+			IsNormalBot: false,
+			BotName:     "伪装360爬虫",
+		}
 	}
 }
 
@@ -175,22 +262,38 @@ func spider360(ip string) (bool, bool, string) {
 *
 UC 搜索
 */
-func yisouSpider(ip string) (bool, bool, string) {
+func yisouSpider(ip string) BotResult {
 	//先查询本地库
 	//然后远端查询
 	lookup, err := ReverseDNSLookup(ip)
 	if err == nil {
 		if len(lookup) > 0 {
 			if strings.HasSuffix(lookup[0], ".sm.cn.") {
-				return true, true, "神马搜索爬虫"
+				return BotResult{
+					IsBot:       true,
+					IsNormalBot: true,
+					BotName:     "神马搜索爬虫",
+				}
 			} else {
-				return true, false, "可能不是神马搜索爬虫"
+				return BotResult{
+					IsBot:       true,
+					IsNormalBot: false,
+					BotName:     "可能不是神马搜索爬虫",
+				}
 			}
 		} else {
-			return true, false, "可能不是神马搜索爬虫"
+			return BotResult{
+				IsBot:       true,
+				IsNormalBot: false,
+				BotName:     "可能不是神马搜索爬虫",
+			}
 		}
 	} else {
-		return true, false, "伪装神马搜索爬虫"
+		return BotResult{
+			IsBot:       true,
+			IsNormalBot: true,
+			BotName:     "查询超时",
+		}
 	}
 }
 
@@ -198,7 +301,7 @@ func yisouSpider(ip string) (bool, bool, string) {
 *
 字节跳动的爬虫
 */
-func byteSpider(ip string) (bool, bool, string) {
+func byteSpider(ip string) BotResult {
 	ipRanges := []string{
 		"110.249.201.0/24",
 		"110.249.202.0/24",
@@ -214,8 +317,16 @@ func byteSpider(ip string) (bool, bool, string) {
 
 	isInRanges := utils.CheckIPInRanges(ip, ipRanges)
 	if isInRanges {
-		return true, true, "字节跳动爬虫"
+		return BotResult{
+			IsBot:       true,
+			IsNormalBot: true,
+			BotName:     "字节跳动爬虫",
+		}
 	} else {
-		return true, false, "伪装字节跳动爬虫"
+		return BotResult{
+			IsBot:       true,
+			IsNormalBot: false,
+			BotName:     "伪装字节跳动爬虫",
+		}
 	}
 }

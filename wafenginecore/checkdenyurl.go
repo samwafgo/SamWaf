@@ -15,7 +15,7 @@ import (
 检测不允许访问的 url
 返回是否满足条件
 */
-func (waf *WafEngine) CheckDenyURL(r *http.Request, weblogbean *innerbean.WebLog, formValue url.Values, hostTarget *wafenginmodel.HostSafe) detection.Result {
+func (waf *WafEngine) CheckDenyURL(r *http.Request, weblogbean *innerbean.WebLog, formValue url.Values, hostTarget *wafenginmodel.HostSafe, globalHostTarget *wafenginmodel.HostSafe) detection.Result {
 	result := detection.Result{
 		JumpGuardResult: false,
 		IsBlock:         false,

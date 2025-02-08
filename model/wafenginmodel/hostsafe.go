@@ -22,12 +22,14 @@ type HostSafe struct {
 	UrlWhiteLists       []model.URLAllowList     //url 白名单
 	LdpUrlLists         []model.LDPUrl           //url 隐私保护
 
-	IPBlockLists       []model.IPBlockList  //ip 黑名单
-	UrlBlockLists      []model.URLBlockList //url 黑名单
-	LoadBalanceLists   []model.LoadBalance  //负载均衡
-	LoadBalanceRuntime *LoadBalanceRuntime  //负载运行时
-	AntiCCBean         model.AntiCC         //抵御CC
-	HttpAuthBases      []model.HttpAuthBase //HTTP AUTH校验
+	IPBlockLists       []model.IPBlockList           //ip 黑名单
+	UrlBlockLists      []model.URLBlockList          //url 黑名单
+	LoadBalanceLists   []model.LoadBalance           //负载均衡
+	LoadBalanceRuntime *LoadBalanceRuntime           //负载运行时
+	AntiCCBean         model.AntiCC                  //抵御CC
+	HttpAuthBases      []model.HttpAuthBase          //HTTP AUTH校验
+	BlockingPage       map[string]model.BlockingPage //自定义拦截界面
+
 }
 
 // 负载处理运行对象

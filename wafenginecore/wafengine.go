@@ -180,18 +180,6 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		region := utils.GetCountry(clientIP)
 
-		// 检测是否已经被CC封禁
-		ccCacheKey := enums.CACHE_CCVISITBAN_PRE + clientIP
-		if global.GCACHE_WAFCACHE.IsKeyExist(ccCacheKey) {
-			visitIPError := fmt.Sprintf("当前IP已经被CC封禁，IP:%s 归属地区：%s", clientIP, region)
-			global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
-				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "CC封禁提醒"},
-				OperaCnt:        visitIPError,
-			})
-			EchoErrorInfoNoLog(w, r, "当前IP由于访问频次太高暂时无法访问")
-			return
-		}
-
 		currentDay, _ := strconv.Atoi(time.Now().Format("20060102"))
 
 		//URL 解码
@@ -242,6 +230,19 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				fmt.Println("解码失败:", weblogbean.BODY)
 			}
 		}
+
+		// 检测是否已经被CC封禁
+		ccCacheKey := enums.CACHE_CCVISITBAN_PRE + clientIP
+		if global.GCACHE_WAFCACHE.IsKeyExist(ccCacheKey) {
+			visitIPError := fmt.Sprintf("当前IP已经被CC封禁，IP:%s 归属地区：%s", clientIP, region)
+			global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
+				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "CC封禁提醒"},
+				OperaCnt:        visitIPError,
+			})
+			EchoErrorInfo(w, r, weblogbean, "", "当前IP由于访问频次太高暂时无法访问", hostTarget, waf.HostTarget[waf.HostCode[global.GWAF_GLOBAL_HOST_CODE]], false)
+			return
+		}
+
 		if host == hostTarget.Host.Host+":80" && !strings.HasPrefix(weblogbean.URL, global.GSSL_HTTP_CHANGLE_PATH) && hostTarget.Host.AutoJumpHTTPS == 1 && hostTarget.Host.Ssl == 1 {
 			// 重定向到 HTTPS 版本的 URL
 			targetHttpsUrl := fmt.Sprintf("%s%s%s", "https://", r.Host, r.URL.Path)
@@ -260,18 +261,19 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		if hostTarget.Host.GUARD_STATUS == 1 {
 			//一系列检测逻辑
-			handleBlock := func(checkFunc func(*http.Request, *innerbean.WebLog, url.Values, *wafenginmodel.HostSafe) detection.Result) bool {
-				detectionResult := checkFunc(r, &weblogbean, formValues, hostTarget)
+			handleBlock := func(checkFunc func(*http.Request, *innerbean.WebLog, url.Values, *wafenginmodel.HostSafe, *wafenginmodel.HostSafe) detection.Result) bool {
+				detectionResult := checkFunc(r, &weblogbean, formValues, hostTarget, waf.HostTarget[waf.HostCode[global.GWAF_GLOBAL_HOST_CODE]])
 				if detectionResult.IsBlock {
 					decrementMonitor(hostCode)
-					EchoErrorInfo(w, r, weblogbean, detectionResult.Title, detectionResult.Content)
+					EchoErrorInfo(w, r, weblogbean, detectionResult.Title, detectionResult.Content, hostTarget, waf.HostTarget[waf.HostCode[global.GWAF_GLOBAL_HOST_CODE]], true)
 					return true
 				}
 				return false
 			}
-			detectionWhiteResult := waf.CheckAllowIP(r, &weblogbean, formValues, hostTarget)
+			globalHostSafe := waf.HostTarget[waf.HostCode[global.GWAF_GLOBAL_HOST_CODE]]
+			detectionWhiteResult := waf.CheckAllowIP(r, &weblogbean, formValues, hostTarget, globalHostSafe)
 			if detectionWhiteResult.JumpGuardResult == false {
-				detectionWhiteResult = waf.CheckAllowURL(r, weblogbean, formValues, hostTarget)
+				detectionWhiteResult = waf.CheckAllowURL(r, weblogbean, formValues, hostTarget, globalHostSafe)
 			}
 			if detectionWhiteResult.JumpGuardResult == false {
 
@@ -496,50 +498,6 @@ func (waf *WafEngine) getClientIP(r *http.Request, headers ...string) (error, st
 	return errors.New("invalid IP address (not IPv4 or IPv6): " + ip), "", ""
 }
 
-// EchoErrorInfo  ruleName 对内记录  blockInfo 对外展示
-func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean innerbean.WebLog, ruleName string, blockInfo string) {
-
-	go func() {
-		//发送推送消息
-		global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.RuleMessageInfo{
-			BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "命中保护规则", Server: global.GWAF_CUSTOM_SERVER_NAME},
-			Domain:          weblogbean.HOST,
-			RuleInfo:        ruleName,
-			Ip:              fmt.Sprintf("%s (%s)", weblogbean.SRC_IP, utils.GetCountry(weblogbean.SRC_IP)),
-		})
-	}()
-
-	resBytes := []byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>" + blockInfo + "</h1> <br> 访问识别码：<h3>" + weblogbean.REQ_UUID + "</h3></center></body> </html>")
-	w.WriteHeader(403)
-	_, err := w.Write(resBytes)
-	if err != nil {
-		zlog.Debug("write fail:", zap.Any("", err))
-		return
-	}
-	datetimeNow := time.Now()
-	weblogbean.TimeSpent = datetimeNow.UnixNano()/1e6 - weblogbean.UNIX_ADD_TIME
-	//记录响应body
-	weblogbean.RES_BODY = string(resBytes)
-	weblogbean.RULE = ruleName
-	weblogbean.ACTION = "阻止"
-	weblogbean.STATUS = "阻止访问"
-	weblogbean.STATUS_CODE = 403
-	weblogbean.TASK_FLAG = 1
-	weblogbean.GUEST_IDENTIFICATION = "可疑用户"
-	global.GQEQUE_LOG_DB.Enqueue(weblogbean)
-}
-
-// EchoErrorInfoNoLog 屏蔽不记录日志
-func EchoErrorInfoNoLog(w http.ResponseWriter, r *http.Request, blockInfo string) {
-
-	resBytes := []byte("<html><head><title>您的访问被阻止</title></head><body><center><h1>" + blockInfo + "</h1> </h3></center></body> </html>")
-	w.WriteHeader(403)
-	_, err := w.Write(resBytes)
-	if err != nil {
-		zlog.Debug("write fail:", zap.Any("", err))
-		return
-	}
-}
 func (waf *WafEngine) errorResponse() func(http.ResponseWriter, *http.Request, error) {
 	return func(w http.ResponseWriter, req *http.Request, err error) {
 

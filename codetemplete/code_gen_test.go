@@ -7,9 +7,11 @@ import (
 )
 
 func TestCodeGeneration(t *testing.T) {
-	// 定义字段信息的字符串
+	// 唯一校验定义字段信息的字符串
 	fieldDefs := []string{
-		"TaskName:task_name:string",
+		"BlockingPageName:blocking_page_name:string",
+		"BlockingType:blocking_type:string",
+		"HostCode:host_code:string",
 	}
 
 	// 构造 `uniFields` 列表
@@ -27,6 +29,6 @@ func TestCodeGeneration(t *testing.T) {
 		}
 	}
 
-	fields := GetStructFields(model.Task{})
-	CodeGeneration("Task", fields, uniFields)
+	fields := GetStructFields(model.BlockingPage{})
+	CodeGeneration("BlockingPage", fields, uniFields)
 }

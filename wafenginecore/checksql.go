@@ -13,7 +13,7 @@ import (
 *
 检测sqli
 */
-func (waf *WafEngine) CheckSql(r *http.Request, weblogbean *innerbean.WebLog, formValue url.Values, hostTarget *wafenginmodel.HostSafe) detection.Result {
+func (waf *WafEngine) CheckSql(r *http.Request, weblogbean *innerbean.WebLog, formValue url.Values, hostTarget *wafenginmodel.HostSafe, globalHostTarget *wafenginmodel.HostSafe) detection.Result {
 	result := detection.Result{
 		JumpGuardResult: false,
 		IsBlock:         false,

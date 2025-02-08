@@ -493,6 +493,12 @@ func (m *wafSystenService) run() {
 					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.LoadHost(host)
 					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartAllProxyServer()
 					break
+				case enums.ChanTypeBlockingPage:
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Lock()
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].BlockingPage = msg.Content.(map[string]model.BlockingPage)
+					zlog.Debug("远程配置", zap.Any("配置自定义拦截界面信息", msg.Content.(map[string]model.BlockingPage)))
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Unlock()
+					break
 				}
 
 				//end switch

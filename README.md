@@ -103,7 +103,11 @@ SamWaf is a lightweight, open-source web application firewall for small companie
 - Data obfuscation
 - Supports global one-click configuration
 - Supports OWASP CRS
-
+- Automatic SSL certificate application and renewal
+- Bulk SSL certificate expiration check
+- IPv6 support
+- Customizable blocking page
+- 
 # Usage Instructions
 **It is strongly recommended to conduct thorough testing in a test environment before deploying to production. If any issues arise, please provide feedback promptly.**
 ## Download the Latest Version

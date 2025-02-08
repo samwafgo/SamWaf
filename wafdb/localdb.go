@@ -157,6 +157,10 @@ func InitCoreDb(currentDir string) {
 
 		//任务
 		db.AutoMigrate(&model.Task{})
+
+		//自定义拦截界面
+		db.AutoMigrate(&model.BlockingPage{})
+
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
 

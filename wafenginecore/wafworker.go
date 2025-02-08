@@ -166,6 +166,21 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 	//查询HTTP AUTH
 	var httpAuthList []model.HttpAuthBase
 	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&httpAuthList)
+
+	//查询自定义拦截界面
+	var blockingPageList []model.BlockingPage
+	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&blockingPageList)
+	blockingPageMap := map[string]model.BlockingPage{}
+	if len(blockingPageList) > 0 {
+		for i := 0; i < len(blockingPageList); i++ {
+			if blockingPageList[i].BlockingType == "not_match_website" {
+				blockingPageMap["not_match_website"] = blockingPageList[i]
+			} else if blockingPageList[i].BlockingType == "other_block" {
+				blockingPageMap["other_block"] = blockingPageList[i]
+			}
+		}
+	}
+
 	//初始化主机host
 	hostsafe := &wafenginmodel.HostSafe{
 		LoadBalanceRuntime: &wafenginmodel.LoadBalanceRuntime{
@@ -188,6 +203,7 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 		UrlBlockLists:       urlblocklist,
 		AntiCCBean:          anticcBean,
 		HttpAuthBases:       httpAuthList,
+		BlockingPage:        blockingPageMap,
 	}
 	hostsafe.Mux.Lock()
 	defer hostsafe.Mux.Unlock()

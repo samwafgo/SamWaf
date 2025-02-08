@@ -61,6 +61,8 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitWafSslExpireRouter(RouterGroup)
 		router.ApiGroupApp.InitWafHttpAuthBaseRouter(RouterGroup)
 		router.ApiGroupApp.InitWafTaskRouter(RouterGroup)
+		router.ApiGroupApp.InitWafBlockingPageRouter(RouterGroup)
+
 	}
 	//r.Use(middleware.GinGlobalExceptionMiddleWare())
 	if global.GWAF_RELEASE == "true" {

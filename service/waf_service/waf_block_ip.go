@@ -63,6 +63,11 @@ func (receiver *WafBlockIpService) GetDetailByIdApi(id string) model.IPBlockList
 	global.GWAF_LOCAL_DB.Where("id=?", id).Find(&bean)
 	return bean
 }
+func (receiver *WafBlockIpService) GetDetailByIPApi(ip string, hostCode string) model.IPBlockList {
+	var ipBlocks model.IPBlockList
+	global.GWAF_LOCAL_DB.Where("ip=? and host_code=?", ip, hostCode).Find(&ipBlocks)
+	return ipBlocks
+}
 func (receiver *WafBlockIpService) GetListApi(req request.WafBlockIpSearchReq) ([]model.IPBlockList, int64, error) {
 	var list []model.IPBlockList
 	var total int64 = 0

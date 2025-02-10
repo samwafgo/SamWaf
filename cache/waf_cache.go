@@ -3,6 +3,7 @@ package cache
 import (
 	"SamWaf/common/zlog"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -15,7 +16,7 @@ type WafCache struct {
 type WafCacheItem struct {
 	value      interface{}
 	createTime time.Time
-	lastTime   time.Time
+	expireTime time.Time
 	ttl        time.Duration
 }
 
@@ -28,10 +29,11 @@ func InitWafCache() *WafCache {
 	return wafcache
 }
 func (wafCache *WafCache) Set(key string, value interface{}) {
-	wafCache.SetWithTTl(key, value, -1)
+	wafCache.SetWithTTl(key, value, 100*365*24*time.Hour)
 }
 
 func (wafCache *WafCache) SetWithTTl(key string, value interface{}, ttl time.Duration) {
+	fmt.Println(ttl)
 	wafCache.mu.Lock()
 	defer wafCache.mu.Unlock()
 	createTime := time.Now()
@@ -43,7 +45,21 @@ func (wafCache *WafCache) SetWithTTl(key string, value interface{}, ttl time.Dur
 	wafCache.cache[key] = WafCacheItem{
 		value:      value,
 		createTime: createTime,
-		lastTime:   time.Now(),
+		expireTime: createTime.Add(ttl),
+		ttl:        ttl,
+	}
+}
+
+// SetWithTTlRenewTime 并重置时间
+func (wafCache *WafCache) SetWithTTlRenewTime(key string, value interface{}, ttl time.Duration) {
+	wafCache.mu.Lock()
+	defer wafCache.mu.Unlock()
+	createTime := time.Now()
+
+	wafCache.cache[key] = WafCacheItem{
+		value:      value,
+		createTime: createTime,
+		expireTime: createTime.Add(ttl), // 计算过期时间
 		ttl:        ttl,
 	}
 }
@@ -98,7 +114,7 @@ func (wafCache *WafCache) Remove(key string) interface{} {
 	delete(wafCache.cache, key)
 	return nil
 }
-func (wafCache *WafCache) GetLastTime(key string) (time.Time, error) {
+func (wafCache *WafCache) GetExpireTime(key string) (time.Time, error) {
 	wafCache.mu.Lock()
 	defer wafCache.mu.Unlock()
 	item, found := wafCache.cache[key]
@@ -106,9 +122,9 @@ func (wafCache *WafCache) GetLastTime(key string) (time.Time, error) {
 		return time.Time{}, errors.New("数据不存在")
 	}
 	if time.Since(item.createTime) <= item.ttl {
-		return item.lastTime, nil
+		return item.expireTime, nil
 	}
-	zlog.Debug("GetLastTime CLEAR CACHE EXPIRE :" + key)
+	zlog.Debug("GetExpireTime CLEAR CACHE EXPIRE :" + key)
 	delete(wafCache.cache, key)
 	return time.Time{}, errors.New("数据已过期")
 }

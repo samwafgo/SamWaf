@@ -16,15 +16,23 @@ func TestWafCache_SetWithTTl(t *testing.T) {
 	time.Sleep(65 * time.Second)
 
 }
-func TestWafCache_GetLastTime(t *testing.T) {
+func TestWafCache_GetExpireTime(t *testing.T) {
 	wafcache := InitWafCache()
-	wafcache.SetWithTTl("KEY1", "我是key1的值", 5*time.Second)
-	key1Value, err := wafcache.GetLastTime("KEY1")
+	wafcache.SetWithTTl("KEY1", "我是key1的值", 5*time.Minute)
+	key1Value, err := wafcache.GetExpireTime("KEY1")
 	if err == nil {
 		println(key1Value.String())
 	}
 }
 
+func TestWafCache_GetExpireTimeForever(t *testing.T) {
+	wafcache := InitWafCache()
+	wafcache.Set("KEY1", "我是key1的值")
+	key1Value, err := wafcache.GetExpireTime("KEY1")
+	if err == nil {
+		println(key1Value.String())
+	}
+}
 func TestWafCache_GetString(t *testing.T) {
 	wafcache := InitWafCache()
 	wafcache.SetWithTTl("KEY1", "我是key1的值字符串", 5*time.Second)

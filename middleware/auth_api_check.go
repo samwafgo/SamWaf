@@ -19,6 +19,7 @@ var (
 
 // Auth 鉴权中间件
 func Auth() gin.HandlerFunc {
+	innerName := "Auth"
 	return func(c *gin.Context) {
 		// 获取请求头中 token，实际是一个完整被签名过的 token；a complete, signed token
 		tokenStr := ""
@@ -39,7 +40,7 @@ func Auth() gin.HandlerFunc {
 			//检查是否存在
 			isTokenExist := global.GCACHE_WAFCACHE.IsKeyExist(enums.CACHE_TOKEN + tokenStr)
 			if !isTokenExist {
-				response.AuthFailWithMessage("非法口令", c)
+				response.AuthFailWithMessage("令牌过期", c)
 				c.Abort()
 				return
 			} else {
@@ -52,7 +53,23 @@ func Auth() gin.HandlerFunc {
 					return
 				} else {
 					//刷新token时间
-					global.GCACHE_WAFCACHE.SetWithTTl(enums.CACHE_TOKEN+tokenStr, tokenInfo, time.Duration(global.GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES)*time.Minute)
+					if global.GWAF_RELEASE == "false" {
+						tokenList := global.GCACHE_WAFCACHE.ListAvailableKeysWithPrefix(enums.CACHE_TOKEN)
+
+						for _, duration := range tokenList {
+							remainTime := fmt.Sprintf("%02d时%02d分", int(duration.Hours()), int(duration.Minutes())%60)
+							zlog.Debug(fmt.Sprintf("%v 当前token有效缓存剩余时间 %v", innerName, remainTime))
+						}
+					}
+					expireTime, err := global.GCACHE_WAFCACHE.GetExpireTime(enums.CACHE_TOKEN + tokenStr)
+					if err == nil {
+						remainingTime := time.Until(expireTime) // 计算剩余有效时间
+						if remainingTime > 0 && remainingTime < 2*time.Minute {
+							zlog.Debug(fmt.Sprintf("%v 当前token有效缓存剩余时间 %v  小于2分钟进行缓存可用时间延期处理", innerName, expireTime))
+							global.GCACHE_WAFCACHE.SetWithTTlRenewTime(enums.CACHE_TOKEN+tokenStr, tokenInfo, time.Duration(global.GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES)*time.Minute)
+						}
+					}
+
 				}
 			}
 		}

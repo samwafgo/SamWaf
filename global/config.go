@@ -32,4 +32,8 @@ var (
 
 	GCONFIG_RECORD_DEBUG_ENABLE int64  = 0  //调试开关 默认关闭
 	GCONFIG_RECORD_DEBUG_PWD    string = "" //调试密码 如果未空则不需要密码
+
+	GCONFIG_RECORD_GPT_URL   string = "https://api.deepseek.com" //GPT远程地址 DeepSeek ChatGpt 以及使用one-api封装好的接口
+	GCONFIG_RECORD_GPT_TOKEN string = "SamWaf提示请输入密钥"            //GPT远程授权密钥
+	GCONFIG_RECORD_GPT_MODEL string = "deepseek-chat"            //GPT 模型名称
 )

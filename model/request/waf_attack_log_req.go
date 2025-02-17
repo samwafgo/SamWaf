@@ -5,6 +5,7 @@ import "SamWaf/model/common/request"
 type WafAttackLogDetailReq struct {
 	CurrrentDbName string `json:"current_db_name"`
 	REQ_UUID       string `json:"req_uuid"`
+	OutputFormat   string `json:"output_format"` //输出格式 raw,curl
 }
 
 type WafAttackLogDoExport struct {

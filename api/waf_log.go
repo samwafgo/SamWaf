@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -191,7 +192,12 @@ func (w *WafLogAPi) GetHttpCopyMaskApi(c *gin.Context) {
 		}
 		wafLog, _ := wafLogService.GetDetailApi(req)
 
-		response.OkWithDetailed(GenerateCurlRequest(wafLog), "获取成功", c)
+		if req.OutputFormat == "curl" {
+			response.OkWithDetailed(GenerateCurlRequest(wafLog), "获取成功", c)
+		} else {
+			response.OkWithDetailed(GenerateRawHTTPRequest(wafLog), "获取成功", c)
+		}
+
 	} else {
 		response.FailWithMessage("解析失败", c)
 	}
@@ -228,6 +234,86 @@ func (w *WafLogAPi) GetAllIpTagApi(c *gin.Context) {
 	} else {
 		response.OkWithDetailed(ipAttackTags, "获取成功", c)
 	}
+}
+func GenerateRawHTTPRequest(weblog innerbean.WebLog) string {
+	parsedURL, err := url.Parse(weblog.URL)
+	if err != nil {
+		return ""
+	}
+
+	// 构建请求行
+	pathWithQuery := parsedURL.Path
+	if parsedURL.RawQuery != "" {
+		pathWithQuery += "?" + parsedURL.RawQuery
+	}
+
+	// 根据协议确定 HTTP 版本
+	httpVersion := "HTTP/1.1"
+	if weblog.Scheme != "" {
+		httpVersion = weblog.Scheme
+	}
+
+	// 处理敏感头信息
+	maskedHeaders := maskSensitiveHeader(weblog.HEADER)
+	headers := strings.Split(maskedHeaders, "\n")
+
+	// 处理 Cookie
+	maskedCookies := maskSensitiveCookies(weblog.COOKIES)
+	if maskedCookies != "" {
+		cookieHeader := fmt.Sprintf("Cookie: %s", maskedCookies)
+		// 替换或添加 Cookie 头
+		cookieFound := false
+		for i, h := range headers {
+			if strings.HasPrefix(strings.TrimSpace(h), "Cookie:") {
+				headers[i] = cookieHeader
+				cookieFound = true
+				break
+			}
+		}
+		if !cookieFound {
+			headers = append(headers, cookieHeader)
+		}
+	}
+
+	// 确保 Host 头存在
+	host := parsedURL.Host
+	if host != "" {
+		hostExists := false
+		for _, h := range headers {
+			if strings.HasPrefix(strings.TrimSpace(strings.ToLower(h)), "host:") {
+				hostExists = true
+				break
+			}
+		}
+		if !hostExists {
+			headers = append(headers, fmt.Sprintf("Host: %s", host))
+		}
+	}
+
+	// 构建最终 header
+	var cleanHeaders []string
+	for _, h := range headers {
+		if trimmed := strings.TrimSpace(h); trimmed != "" {
+			cleanHeaders = append(cleanHeaders, trimmed)
+		}
+	}
+
+	// 构建完整请求
+	requestLines := []string{
+		fmt.Sprintf("%s %s %s",
+			weblog.METHOD,
+			pathWithQuery,
+			httpVersion,
+		),
+	}
+	requestLines = append(requestLines, cleanHeaders...)
+
+	// 添加 body（如果有）
+	if weblog.BODY != "" {
+		requestLines = append(requestLines, "", weblog.BODY)
+	}
+
+	return strings.Join(requestLines, "\n")
 }
 func GenerateCurlRequest(weblog innerbean.WebLog) string {
 

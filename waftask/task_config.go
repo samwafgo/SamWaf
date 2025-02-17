@@ -12,21 +12,28 @@ func setConfigIntValue(name string, value int64, change int) {
 	switch name {
 	case "record_max_req_body_length":
 		global.GCONFIG_RECORD_MAX_BODY_LENGTH = value
+		break
 	case "record_max_res_body_length":
 		global.GCONFIG_RECORD_MAX_RES_BODY_LENGTH = value
+		break
 	case "record_resp":
 		global.GCONFIG_RECORD_RESP = value
+		break
 	case "delete_history_log_day":
 		global.GDATA_DELETE_INTERVAL = value
+		break
 	case "log_db_size":
 		global.GDATA_SHARE_DB_SIZE = value
+		break
 	case "auto_load_ssl_file":
 		global.GCONFIG_RECORD_AUTO_LOAD_SSL = value
+		break
 	case "kafka_enable":
 		if global.GCONFIG_RECORD_KAFKA_ENABLE != value && global.GNOTIFY_KAKFA_SERVICE != nil {
 			global.GNOTIFY_KAKFA_SERVICE.ChangeEnable(value)
 		}
 		global.GCONFIG_RECORD_KAFKA_ENABLE = value
+		break
 	case "redirect_https_code":
 		global.GCONFIG_RECORD_REDIRECT_HTTPS_CODE = value
 		break
@@ -76,21 +83,37 @@ func setConfigStringValue(name string, value string, change int) {
 	switch name {
 	case "dns_server":
 		global.GWAF_RUNTIME_DNS_SERVER = value
+		break
 	case "record_log_type":
 		global.GWAF_RUNTIME_RECORD_LOG_TYPE = value
+		break
 	case "gwaf_center_enable":
 		global.GWAF_CENTER_ENABLE = value
+		break
 	case "gwaf_center_url":
 		global.GWAF_CENTER_URL = value
+		break
 	case "gwaf_proxy_header":
 		global.GCONFIG_RECORD_PROXY_HEADER = value
+		break
 	case "kafka_url":
 		global.GCONFIG_RECORD_KAFKA_URL = value
+		break
 	case "kafka_topic":
 		global.GCONFIG_RECORD_KAFKA_TOPIC = value
+		break
 	case "debug_pwd":
 		global.GCONFIG_RECORD_DEBUG_PWD = value
-
+		break
+	case "gpt_url":
+		global.GCONFIG_RECORD_GPT_URL = value
+		break
+	case "gpt_token":
+		global.GCONFIG_RECORD_GPT_TOKEN = value
+		break
+	case "gpt_model":
+		global.GCONFIG_RECORD_GPT_MODEL = value
+		break
 	default:
 		zlog.Warn("Unknown config item:", name)
 	}
@@ -183,5 +206,9 @@ func TaskLoadSetting(initLoad bool) {
 	updateConfigIntItem(initLoad, "system", "spider_deny", global.GCONFIG_RECORD_SPIDER_DENY, "爬虫禁止访问开关 默认 0 只检测不阻止访问 1 检测并阻止访问）", "int", "")
 	updateConfigIntItem(initLoad, "debug", "enable_debug", global.GCONFIG_RECORD_DEBUG_ENABLE, "调试开关 默认关闭", "int", "")
 	updateConfigStringItem(initLoad, "debug", "debug_pwd", global.GCONFIG_RECORD_DEBUG_PWD, "调试密码 如果未空则不需要密码", "string", "")
+
+	updateConfigStringItem(initLoad, "gpt", "gpt_url", global.GCONFIG_RECORD_GPT_URL, "GPT远程地址 默认：DeepSeek ，符合ChatGpt或者使用one-api封装好的接口都可以", "string", "")
+	updateConfigStringItem(initLoad, "gpt", "gpt_token", global.GCONFIG_RECORD_GPT_TOKEN, "GPT远程授权密钥", "string", "")
+	updateConfigStringItem(initLoad, "gpt", "gpt_model", global.GCONFIG_RECORD_GPT_MODEL, "GPT模型名称", "string", "")
 
 }

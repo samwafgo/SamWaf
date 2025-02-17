@@ -217,6 +217,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			NetSrcIp:             utils.GetSourceClientIP(r.RemoteAddr),
 			SrcByteBody:          bodyByte,
 			WebLogVersion:        global.GWEBLOG_VERSION,
+			Scheme:               r.Proto,
 		}
 
 		formValues := url.Values{}
@@ -447,6 +448,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			TimeSpent:            0,
 			NetSrcIp:             utils.GetSourceClientIP(r.RemoteAddr),
 			WebLogVersion:        global.GWEBLOG_VERSION,
+			Scheme:               r.Proto,
 		}
 
 		//记录响应body

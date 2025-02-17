@@ -63,10 +63,7 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitWafHttpAuthBaseRouter(RouterGroup)
 		router.ApiGroupApp.InitWafTaskRouter(RouterGroup)
 		router.ApiGroupApp.InitWafBlockingPageRouter(RouterGroup)
-
-		gptRouterGroup := r.Group("")
-		gptRouterGroup.Use(middleware.StreamMiddleware())
-		router.ApiGroupApp.InitGPTRouter(gptRouterGroup)
+		router.ApiGroupApp.InitGPTRouter(RouterGroup)
 	}
 
 	if global.GWAF_RELEASE == "true" {

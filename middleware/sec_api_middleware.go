@@ -35,6 +35,9 @@ func SecApi() gin.HandlerFunc {
 			//fmt.Println("Raw body解密:", string(deBytes))
 			// Store the modified body back in the request
 			c.Request.Body = ioutil.NopCloser(bytes.NewBuffer(decryptBytes))
+		} else if c.Request.Header.Get("accept") == ", text/event-stream" {
+			decryptBytes, _ := wafsec.AesDecrypt(string(bodyBytes), global.GWAF_COMMUNICATION_KEY)
+			c.Request.Body = ioutil.NopCloser(bytes.NewBuffer(decryptBytes))
 		}
 		c.Next()
 	}

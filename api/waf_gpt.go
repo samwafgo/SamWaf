@@ -4,6 +4,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/model/request"
+	"SamWaf/wafsec"
 	"bufio"
 	"bytes"
 	"encoding/json"
@@ -53,10 +54,10 @@ func SendDeltaMessage(messageChan chan<- string, content string, role ...string)
 	if len(role) > 0 {
 		r = role[0]
 	}
-
+	encryptStr, _ := wafsec.AesEncrypt([]byte(content), global.GWAF_COMMUNICATION_KEY)
 	// 创建消息结构
 	msg := Delta{
-		Content: content,
+		Content: encryptStr,
 		Role:    &r,
 	}
 

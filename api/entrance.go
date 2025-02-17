@@ -34,6 +34,7 @@ type APIGroup struct {
 	WafHttpAuthBaseApi
 	WafTaskApi
 	WafBlockingPageApi
+	WafGPTApi
 }
 
 var APIGroupAPP = new(APIGroup)

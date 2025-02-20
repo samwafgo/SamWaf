@@ -13,7 +13,7 @@ import (
 	"SamWaf/webplugin"
 	"context"
 	"encoding/base64"
-	goahocorasick "github.com/anknown/ahocorasick"
+	goahocorasick "github.com/samwafgo/ahocorasick"
 	"golang.org/x/time/rate"
 	"net/http"
 	"strconv"
@@ -310,19 +310,45 @@ func (waf *WafEngine) ReLoadSensitive() {
 	}
 	// 提取 content 字段并转换为 [][]rune
 	var keywords [][]rune
+	var customData map[string]interface{}
+	customData = make(map[string]interface{})
 	for _, sensitive := range waf.Sensitive {
-		// 将 content 转换为 []rune 并追加到 keywords
 		keywords = append(keywords, []rune(sensitive.Content))
+		customData[sensitive.Content] = sensitive
 	}
 
 	m := new(goahocorasick.Machine)
-	err := m.Build(keywords)
+	err := m.BuildByCustom(keywords, customData)
 	if err != nil {
 		zlog.Error("load sensitive error", err)
 		return
 	}
 	waf.SensitiveManager = m
 
+}
+
+// CheckRequestSensitive 检查是否需要请求敏感词检测
+func (waf *WafEngine) CheckRequestSensitive() bool {
+	var bean model.Sensitive
+	//只要不是检测返回的，那说明是检查请求的
+	global.GWAF_LOCAL_DB.Where("check_direction!=?", "out").Find(&bean).Limit(1)
+	if len(bean.Id) > 0 {
+		return true
+	} else {
+		return false
+	}
+}
+
+// CheckResponseSensitive 检查是否需要响应敏感词检测
+func (waf *WafEngine) CheckResponseSensitive() bool {
+	var bean model.Sensitive
+	//只要不是检测请求的，那说明是检查返回的
+	global.GWAF_LOCAL_DB.Where("check_direction!=?", "in").Find(&bean).Limit(1)
+	if len(bean.Id) > 0 {
+		return true
+	} else {
+		return false
+	}
 }
 
 // DoHttpAuthBase Http auth base 检测

@@ -24,30 +24,32 @@ func (receiver *WafSensitiveService) AddApi(req request.WafSensitiveAddReq) erro
 			CREATE_TIME: customtype.JsonTime(time.Now()),
 			UPDATE_TIME: customtype.JsonTime(time.Now()),
 		},
-		Type:    req.Type,
-		Content: req.Content,
-		Remarks: req.Remarks,
+		CheckDirection: req.CheckDirection,
+		Action:         req.Action,
+		Content:        req.Content,
+		Remarks:        req.Remarks,
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
 	return nil
 }
 
 func (receiver *WafSensitiveService) CheckIsExistApi(req request.WafSensitiveAddReq) error {
-	return global.GWAF_LOCAL_DB.First(&model.Sensitive{}, "type = ? and content= ?", req.Type,
+	return global.GWAF_LOCAL_DB.First(&model.Sensitive{}, "content= ?",
 		req.Content).Error
 }
 func (receiver *WafSensitiveService) ModifyApi(req request.WafSensitiveEditReq) error {
 	var bean model.Sensitive
-	global.GWAF_LOCAL_DB.Where("type = ? and content= ?", req.Type,
+	global.GWAF_LOCAL_DB.Where("and content= ?",
 		req.Content).Find(&bean)
-	if bean.Id != "" && bean.Type != req.Type && bean.Content != req.Content {
+	if bean.Id != "" && bean.Content != req.Content {
 		return errors.New("当前敏感词已经存在")
 	}
 	beanMap := map[string]interface{}{
-		"Type":        req.Type,
-		"Content":     req.Content,
-		"Remarks":     req.Remarks,
-		"UPDATE_TIME": customtype.JsonTime(time.Now()),
+		"CheckDirection": req.CheckDirection,
+		"Action":         req.Action,
+		"Content":        req.Content,
+		"Remarks":        req.Remarks,
+		"UPDATE_TIME":    customtype.JsonTime(time.Now()),
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.Sensitive{}).Where("id = ?", req.Id).Updates(beanMap).Error
 
@@ -71,12 +73,7 @@ func (receiver *WafSensitiveService) GetListApi(req request.WafSensitiveSearchRe
 	var whereValues []interface{}
 	//where字段
 	whereField = ""
-	if req.Type > 0 {
-		if len(whereField) > 0 {
-			whereField = whereField + " and "
-		}
-		whereField = whereField + " type =? "
-	}
+
 	if len(req.Content) > 0 {
 		if len(whereField) > 0 {
 			whereField = whereField + " and "
@@ -90,9 +87,6 @@ func (receiver *WafSensitiveService) GetListApi(req request.WafSensitiveSearchRe
 		whereField = whereField + " remarks like ? "
 	}
 	//where字段赋值
-	if req.Type > 0 {
-		whereValues = append(whereValues, req.Type)
-	}
 	if len(req.Content) > 0 {
 		whereValues = append(whereValues, "%"+req.Content+"%")
 	}

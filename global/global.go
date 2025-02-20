@@ -89,6 +89,9 @@ var (
 	GCACHE_WAFCACHE      *cache.WafCache      //cache
 	GCACHE_WECHAT_ACCESS string          = "" //微信访问密钥
 
+	/*********HTTP相关**************/
+	GWAF_HTTP_SENSITIVE_REPLACE_STRING = "**" //HTTP 敏感内容替换成
+
 	/*********IP相关**************/
 	GCACHE_IP_CBUFF            []byte         // IP相关缓存
 	GCACHE_IP_V6_COUNTRY_CBUFF []byte         // IPv6国家相关缓存

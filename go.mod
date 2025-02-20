@@ -4,7 +4,6 @@ go 1.22.9
 
 require (
 	github.com/360EntSecGroup-Skylar/excelize v1.4.1
-	github.com/anknown/ahocorasick v0.0.0-20190904063843-d75dbd5169c0
 	github.com/bytedance/godlp v1.2.15
 	github.com/corazawaf/coraza/v3 v3.2.2
 	github.com/corazawaf/libinjection-go v0.2.2
@@ -14,6 +13,7 @@ require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-acme/lego/v4 v4.20.4
 	github.com/go-co-op/gocron v1.17.1
+	github.com/go-playground/assert/v2 v2.2.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/hyperjumptech/grule-rule-engine v1.11.0
 	github.com/kardianos/service v1.2.2
@@ -21,6 +21,7 @@ require (
 	github.com/oschwald/geoip2-golang v1.11.0
 	github.com/pengge/go-wxsqlite3 v0.0.0-20231127082057-d869bc67f783
 	github.com/pengge/sqlitedriver v0.0.0-20231127095117-b0f000e40c2c
+	github.com/samwafgo/ahocorasick v1.0.0
 	github.com/satori/go.uuid v1.2.0
 	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/spf13/viper v1.18.2

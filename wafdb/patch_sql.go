@@ -119,4 +119,11 @@ func pathCoreSql(db *gorm.DB) {
 	} else {
 		zlog.Info("db", "hosts :response_time_out init successfully")
 	}
+	//20250219 初始化敏感词拦截方式和拦截动作
+	err = db.Exec("UPDATE sensitives SET check_direction='in',action='deny' WHERE check_direction IS NULL ").Error
+	if err != nil {
+		panic("failed to sensitives :response_time_out " + err.Error())
+	} else {
+		zlog.Info("db", "sensitives :response_time_out init successfully")
+	}
 }

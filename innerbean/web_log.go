@@ -38,6 +38,7 @@ type WebLog struct {
 	SrcByteResBody       []byte `json:"src_byte_res_body"`                 //返回body bytes信息
 	WebLogVersion        int    `json:"web_log_version"`                   //日志版本信息早期的是空和0，后期实时增加
 	Scheme               string `json:"scheme"`                            //HTTP 协议
+	SrcURL               []byte `json:"src_url"`                           //原始url信息
 }
 
 // 在 GORM 的 Model 方法中定义复合索引

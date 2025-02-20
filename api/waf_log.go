@@ -236,7 +236,12 @@ func (w *WafLogAPi) GetAllIpTagApi(c *gin.Context) {
 	}
 }
 func GenerateRawHTTPRequest(weblog innerbean.WebLog) string {
-	parsedURL, err := url.Parse(weblog.URL)
+
+	reqUrl := weblog.URL
+	if weblog.SrcURL != nil {
+		reqUrl = string(weblog.SrcURL)
+	}
+	parsedURL, err := url.Parse(reqUrl)
 	if err != nil {
 		return ""
 	}
@@ -327,11 +332,16 @@ func GenerateCurlRequest(weblog innerbean.WebLog) string {
 
 	maskedCookies := maskSensitiveCookies(weblog.COOKIES)
 
+	reqUrl := weblog.URL
+	if weblog.SrcURL != nil {
+		reqUrl = string(weblog.SrcURL)
+	}
+
 	curlCommand := fmt.Sprintf(
 		"curl -X %s %s \\\n	--url '%s' \\\n	--cookie '%s' \\\n	--data '%s'",
 		weblog.METHOD,
 		headerStrings,
-		weblog.URL,
+		reqUrl,
 		maskedCookies,
 		weblog.BODY,
 	)

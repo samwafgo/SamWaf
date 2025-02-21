@@ -10,16 +10,20 @@ import (
 )
 
 // 替换Body字符串内容
-func (waf *WafEngine) ReplaceBodyContent(r *http.Request, oldString string, newString string) error {
+func (waf *WafEngine) ReplaceBodyContent(r *http.Request, oldStrings []string, newString string) error {
+	//TODO 如果是文本内容才进行替换
+
 	var bodyByte []byte
 	bodyByte, _ = io.ReadAll(r.Body)
-	bodyByte = bytes.ReplaceAll(bodyByte, []byte(oldString), []byte(newString))
+	for _, oldString := range oldStrings {
+		bodyByte = bytes.ReplaceAll(bodyByte, []byte(oldString), []byte(newString))
+	}
 	r.Body = io.NopCloser(bytes.NewBuffer(bodyByte))
 	return nil
 }
 
 // 替换URL字符串内容
-func (waf *WafEngine) ReplaceURLContent(r *http.Request, oldString string, newString string) error {
+func (waf *WafEngine) ReplaceURLContent(r *http.Request, oldStrings []string, newString string) error {
 	// 深拷贝原始URL
 	originalURL := r.URL
 	newURL, _ := url.Parse(originalURL.String())
@@ -27,11 +31,13 @@ func (waf *WafEngine) ReplaceURLContent(r *http.Request, oldString string, newSt
 	// 处理路径部分
 	decodedPath, err := url.PathUnescape(newURL.Path)
 	if err == nil {
-		modifiedPath := strings.ReplaceAll(decodedPath, oldString, newString)
-		if decodedPath != modifiedPath {
-			newURL.Path = modifiedPath
-		} else {
-			newURL.Path = originalURL.Path
+		for _, oldString := range oldStrings {
+			modifiedPath := strings.ReplaceAll(decodedPath, oldString, newString)
+			if decodedPath != modifiedPath {
+				newURL.Path = modifiedPath
+			} else {
+				newURL.Path = originalURL.Path
+			}
 		}
 
 	}
@@ -54,13 +60,14 @@ func (waf *WafEngine) ReplaceURLContent(r *http.Request, oldString string, newSt
 				// 递归解码
 				decodedValue := wafhttpcore.WafHttpCoreUrlEncode(value, 5)
 				// 执行替换
-				modifiedValue := strings.ReplaceAll(decodedValue, oldString, newString)
-
-				// 判断是否需要重新编码
-				if modifiedValue != decodedValue {
-					value = url.QueryEscape(modifiedValue)
-				} else {
-					value = originalEncoded // 保留原始编码
+				for _, oldString := range oldStrings {
+					modifiedValue := strings.ReplaceAll(decodedValue, oldString, newString)
+					// 判断是否需要重新编码
+					if modifiedValue != decodedValue {
+						value = url.QueryEscape(modifiedValue)
+					} else {
+						value = originalEncoded // 保留原始编码
+					}
 				}
 			}
 			// 重新构建键值对

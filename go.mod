@@ -13,15 +13,14 @@ require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-acme/lego/v4 v4.20.4
 	github.com/go-co-op/gocron v1.17.1
-	github.com/go-playground/assert/v2 v2.2.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/hyperjumptech/grule-rule-engine v1.11.0
 	github.com/kardianos/service v1.2.2
 	github.com/lionsoul2014/ip2region/binding/golang v0.0.0-20220907060842-b2ba5d58e48d
 	github.com/oschwald/geoip2-golang v1.11.0
-	github.com/pengge/go-wxsqlite3 v0.0.0-20231127082057-d869bc67f783
-	github.com/pengge/sqlitedriver v0.0.0-20231127095117-b0f000e40c2c
 	github.com/samwafgo/ahocorasick v1.0.0
+	github.com/samwafgo/go-wxsqlite3 v1.0.1
+	github.com/samwafgo/sqlitedriver v1.0.2
 	github.com/satori/go.uuid v1.2.0
 	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/spf13/viper v1.18.2
@@ -70,7 +69,6 @@ require (
 	github.com/magefile/mage v1.15.1-0.20231118170541-2385abb49a1f // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mattn/go-sqlite3 v1.14.18 // indirect
 	github.com/miekg/dns v1.1.62 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect

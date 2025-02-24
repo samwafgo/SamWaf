@@ -21,8 +21,8 @@ import (
 
 	//"github.com/kangarooxin/gorm-webplugin-crypto"
 	//"github.com/kangarooxin/gorm-webplugin-crypto/strategy"
-	gowxsqlite3 "github.com/pengge/go-wxsqlite3"
-	"github.com/pengge/sqlitedriver"
+	gowxsqlite3 "github.com/samwafgo/go-wxsqlite3"
+	"github.com/samwafgo/sqlitedriver"
 	"gorm.io/gorm"
 )
 

@@ -18,6 +18,7 @@ require (
 	github.com/kardianos/service v1.2.2
 	github.com/lionsoul2014/ip2region/binding/golang v0.0.0-20220907060842-b2ba5d58e48d
 	github.com/oschwald/geoip2-golang v1.11.0
+	github.com/pquerna/otp v1.4.0
 	github.com/samwafgo/ahocorasick v1.0.0
 	github.com/samwafgo/go-wxsqlite3 v1.0.1
 	github.com/samwafgo/sqlitedriver v1.0.2
@@ -40,6 +41,7 @@ require (
 	github.com/anknown/darts v0.0.0-20151216065714-83ff685239e6 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20220527190237-ee62e23da966 // indirect
 	github.com/bmatcuk/doublestar v1.3.2 // indirect
+	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/bytedance/sonic v1.12.6 // indirect
 	github.com/bytedance/sonic/loader v0.2.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect

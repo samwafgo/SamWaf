@@ -3,10 +3,12 @@ package waf_service
 import (
 	"SamWaf/global"
 	"SamWaf/model"
+	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	response2 "SamWaf/model/response"
 	"SamWaf/utils"
 	"fmt"
+	"github.com/gin-gonic/gin"
 	"github.com/shirou/gopsutil/host"
 	"runtime"
 	"strconv"
@@ -176,9 +178,18 @@ func (receiver *WafStatService) StatAnalysisDayCountryRangeApi(req request.WafSt
 }
 
 // 获取系统基本信息
-func (receiver *WafStatService) StatHomeSysinfo() response2.WafHomeSysinfoStat {
-
-	return response2.WafHomeSysinfoStat{IsDefaultAccount: WafAccountServiceApp.IsExistDefaultAccount(), IsEmptyHost: WafHostServiceApp.IsEmptyHost()}
+func (receiver *WafStatService) StatHomeSysinfo(c *gin.Context) response2.WafHomeSysinfoStat {
+	tokenStr := c.GetHeader("X-Token")
+	tokenInfo := WafTokenInfoServiceApp.GetInfoByAccessToken(tokenStr)
+	if tokenInfo.LoginAccount == "" {
+		response.FailWithMessage("token可能已经失效", c)
+		return response2.WafHomeSysinfoStat{}
+	}
+	return response2.WafHomeSysinfoStat{
+		IsDefaultAccount: WafAccountServiceApp.IsExistDefaultAccount(),
+		IsEmptyHost:      WafHostServiceApp.IsEmptyHost(),
+		IsEmptyOtp:       WafOtpServiceApp.IsEmptyOtp(tokenInfo.LoginAccount),
+	}
 }
 
 // 获取运行系统基本信息

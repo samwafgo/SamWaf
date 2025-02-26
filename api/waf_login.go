@@ -13,6 +13,7 @@ import (
 	"SamWaf/utils"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/pquerna/otp/totp"
 	uuid "github.com/satori/go.uuid"
 	"time"
 )
@@ -87,6 +88,16 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 				response.FailWithMessage("登录密码错误", c)
 				return
 			}
+			// 如果开启了二次登录校验 需要进行输入
+			otpBean := wafOtpService.GetDetailByUserNameApi(req.LoginAccount)
+			if otpBean.UserName != "" {
+				valid := totp.Validate(req.LoginOtpSecretCode, otpBean.Secret)
+				if !valid {
+					response.SecretCodeFailWithMessage("请正确输入您的安全码", c)
+					return
+				}
+			}
+
 			// 密码正确，清除错误计数
 			global.GCACHE_WAFCACHE.Remove(cacheKey)
 

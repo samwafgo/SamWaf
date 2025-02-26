@@ -679,6 +679,11 @@ func main() {
 			wafconfig.LoadAndInitConfig()
 			wafdb.InitCoreDb("")
 			wafdb.ResetAdminPwd()
+		case "resetotp": //重置安全码
+			//加载配置
+			wafconfig.LoadAndInitConfig()
+			wafdb.InitCoreDb("")
+			wafdb.ResetAdminOTP()
 		default:
 			fmt.Printf("Command '%s' is not recognized.\n", command)
 		}

@@ -33,6 +33,7 @@ type ApiGroup struct {
 	WafTaskRouter
 	WafBlockingPageRouter
 	WafGPTRouter
+	WafOtpRouter
 }
 type PublicApiGroup struct {
 	LoginRouter

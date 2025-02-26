@@ -9,10 +9,7 @@ import (
 	"time"
 )
 
-/*
-*
-重置密码
-*/
+// ResetAdminPwd 重置密码
 func ResetAdminPwd() {
 	defaultAcount := "admin"
 	randomPassword, _ := utils.GenerateRandomPassword(12)
@@ -31,4 +28,11 @@ func ResetAdminPwd() {
 		fmt.Println("Please keep it safe.")
 	}
 
+}
+
+// ResetAdminOTP 重置OTP
+func ResetAdminOTP() {
+	defaultAcount := "admin"
+	global.GWAF_LOCAL_DB.Where("user_name = ? ", defaultAcount).Delete(model.Otp{})
+	fmt.Println("Reset 2FA is successfully. ")
 }

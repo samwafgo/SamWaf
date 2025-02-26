@@ -1,6 +1,8 @@
 package api
 
 import (
+	"SamWaf/global"
+	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	"errors"
@@ -110,5 +112,31 @@ func (w *WafAccountApi) ResetAccountPwdApi(c *gin.Context) {
 
 	} else {
 		response.FailWithMessage("重置密码失败", c)
+	}
+}
+
+func (w *WafAccountApi) ResetAccountOTPApi(c *gin.Context) {
+	var req request.WafAccountResetOTPReq
+	err := c.ShouldBindJSON(&req)
+	if err == nil {
+		tokenStr := c.GetHeader("X-Token")
+		tokenInfo := wafTokenInfoService.GetInfoByAccessToken(tokenStr)
+		if tokenInfo.LoginAccount == "" {
+			response.FailWithMessage("token可能已经失效", c)
+			return
+		}
+		if tokenInfo.LoginAccount == "admin" {
+			response.FailWithMessage("仅admin用户可以重置2FA", c)
+			return
+		}
+		if req.LoginAccount == "admin" {
+			response.OkWithMessage("admin帐号需要用控制台命令重置详情查看常见问题", c)
+			return
+		}
+		global.GWAF_LOCAL_DB.Where("user_name = ? ", req.LoginAccount).Delete(model.Otp{})
+		response.OkWithMessage("重置2FA成功", c)
+
+	} else {
+		response.FailWithMessage("重置2FA失败", c)
 	}
 }

@@ -17,4 +17,5 @@ func (receiver *AccountRouter) InitAccountRouter(group *gin.RouterGroup) {
 	router.GET("/samwaf/account/del", api.DelAccountApi)
 	router.POST("/samwaf/account/edit", api.ModifyAccountApi)
 	router.POST("/samwaf/account/resetpwd", api.ResetAccountPwdApi)
+	router.POST("/samwaf/account/resetotp", api.ResetAccountOTPApi)
 }

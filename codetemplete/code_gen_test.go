@@ -9,9 +9,7 @@ import (
 func TestCodeGeneration(t *testing.T) {
 	// 唯一校验定义字段信息的字符串
 	fieldDefs := []string{
-		"BlockingPageName:blocking_page_name:string",
-		"BlockingType:blocking_type:string",
-		"HostCode:host_code:string",
+		"UserName:user_name:string",
 	}
 
 	// 构造 `uniFields` 列表
@@ -29,6 +27,6 @@ func TestCodeGeneration(t *testing.T) {
 		}
 	}
 
-	fields := GetStructFields(model.BlockingPage{})
-	CodeGeneration("BlockingPage", fields, uniFields)
+	fields := GetStructFields(model.Otp{})
+	CodeGeneration("Otp", fields, uniFields)
 }

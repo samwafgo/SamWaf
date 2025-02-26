@@ -12,7 +12,7 @@ type WafStatApi struct {
 // 获取系统基本信息
 func (w *WafStatApi) StatSysinfoApi(c *gin.Context) {
 
-	response.OkWithDetailed(wafStatService.StatHomeSysinfo(), "获取成功", c)
+	response.OkWithDetailed(wafStatService.StatHomeSysinfo(c), "获取成功", c)
 }
 
 // 获取运行系统基本信息

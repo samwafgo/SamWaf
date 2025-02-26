@@ -48,6 +48,7 @@ type WafAnalysisDayStats struct {
 type WafHomeSysinfoStat struct {
 	IsDefaultAccount bool `json:"is_default_account"  form:"is_default_account"`
 	IsEmptyHost      bool `json:"is_empty_host"  form:"is_empty_host"`
+	IsEmptyOtp       bool `json:"is_empty_otp"  form:"is_empty_otp"`
 }
 type WafNameValue struct {
 	Name  string `json:"name"  form:"name"`

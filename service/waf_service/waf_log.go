@@ -104,7 +104,7 @@ func (receiver *WafLogService) GetListApi(req request.WafAttackLogSearch) ([]inn
 	}
 	//强制索引
 	{
-		if strings.Contains(whereField, "unix_add_time") {
+		if strings.Contains(whereField, "unix_add_time") && !strings.Contains(whereField, "src_ip") {
 			forceIndex = "web_logs INDEXED BY  idx_web_time_desc_tenant_user_code"
 		} else if strings.Contains(whereField, "src_ip") {
 			forceIndex = "web_logs INDEXED BY  idx_web_time_desc_tenant_user_code_ip"

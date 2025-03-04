@@ -39,6 +39,9 @@ type WebLog struct {
 	WebLogVersion        int    `json:"web_log_version"`                   //日志版本信息早期的是空和0，后期实时增加
 	Scheme               string `json:"scheme"`                            //HTTP 协议
 	SrcURL               []byte `json:"src_url"`                           //原始url信息
+	PreCheckCost         int64  `json:"pre_check_cost"`                    // 前置检查耗时(ms)
+	ForwardCost          int64  `json:"forward_cost"`                      // 转发耗时(ms)
+	BackendCheckCost     int64  `json:"backend_check_cost"`                // 后端处理耗时(ms)
 }
 
 // 在 GORM 的 Model 方法中定义复合索引

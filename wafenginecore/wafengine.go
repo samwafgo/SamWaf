@@ -376,6 +376,9 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// 记录前置校验耗时
+		weblogbean.PreCheckCost = time.Now().UnixNano()/1e6 - weblogbean.UNIX_ADD_TIME
+
 		// 在请求上下文中存储自定义数据
 		ctx := context.WithValue(r.Context(), "waf_context", innerbean.WafHttpContextData{
 			Weblog:   &weblogbean,
@@ -385,6 +388,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// 代理请求
 		waf.ProxyHTTP(w, r, host, remoteUrl, clientIP, ctx, weblogbean, hostTarget)
 		decrementMonitor(hostCode)
+
 		return
 	} else {
 		resBytes := []byte("403: Host forbidden " + host)
@@ -505,15 +509,24 @@ func (waf *WafEngine) getClientIP(r *http.Request, headers ...string) (error, st
 func (waf *WafEngine) errorResponse() func(http.ResponseWriter, *http.Request, error) {
 	return func(w http.ResponseWriter, req *http.Request, err error) {
 
-		requestInfo := fmt.Sprintf("Method: %s, URL: %s, Headers: %v", req.Method, req.URL.String(), req.Header)
-		zlog.Error("服务不可用 response:", zap.Any("err", err.Error()), zap.String("request_info", requestInfo))
+		if wafHttpContext, ok := req.Context().Value("waf_context").(innerbean.WafHttpContextData); ok {
+			weblogReq := wafHttpContext.Weblog
 
-		resBytes := []byte("<html><head><title>服务不可用</title></head><body><center><h1>服务不可用</h1> <br><h3></h3></center></body> </html>")
+			requestInfo := fmt.Sprintf("Method: %s \r\nURL: %s   \r\nHeaders: %v", req.Method, req.URL.String(), req.Header)
+			zlog.Error("服务不可用 response:", zap.Any("err", err.Error()), zap.String("request_info", requestInfo))
 
-		w.WriteHeader(http.StatusServiceUnavailable)
-		if _, writeErr := w.Write(resBytes); writeErr != nil {
-			zlog.Debug("write fail:", zap.Any("err", writeErr))
-			return
+			resBytes := []byte("<html><head><title>服务不可用</title></head><body><center><h1>服务不可用</h1> <br><h3></h3></center></body> </html>")
+
+			weblogReq.STATUS = "Service Unavailable"
+			weblogReq.STATUS_CODE = 503
+			weblogReq.RES_BODY = fmt.Sprintf("请求相关信息:%v \r\n 错误信息:%v \r\n", requestInfo, err.Error())
+			weblogReq.TASK_FLAG = 1
+			global.GQEQUE_LOG_DB.Enqueue(weblogReq)
+			w.WriteHeader(http.StatusServiceUnavailable)
+			if _, writeErr := w.Write(resBytes); writeErr != nil {
+				zlog.Debug("write fail:", zap.Any("err", writeErr))
+				return
+			}
 		}
 
 		return
@@ -524,6 +537,9 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 		resp.Header.Set("X-Xss-Protection", "1; mode=block")
 		r := resp.Request
 		if wafHttpContext, ok := r.Context().Value("waf_context").(innerbean.WafHttpContextData); ok {
+
+			backendCheckStart := time.Now().UnixNano() / 1e6
+
 			weblogfrist := wafHttpContext.Weblog
 
 			host := waf.HostCode[wafHttpContext.HostCode]
@@ -656,6 +672,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 							weblogfrist.STATUS = resp.Status
 							weblogfrist.STATUS_CODE = resp.StatusCode
 							weblogfrist.TASK_FLAG = 1
+							weblogfrist.BackendCheckCost = time.Now().UnixNano()/1e6 - backendCheckStart //响应数据处理时间
 							global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
 						}
 					}
@@ -664,6 +681,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 					weblogfrist.STATUS = resp.Status
 					weblogfrist.STATUS_CODE = resp.StatusCode
 					weblogfrist.TASK_FLAG = 1
+					weblogfrist.BackendCheckCost = time.Now().UnixNano()/1e6 - backendCheckStart //响应数据处理时间
 					if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "all" {
 						if waf.HostTarget[host].Host.EXCLUDE_URL_LOG == "" {
 							global.GQEQUE_LOG_DB.Enqueue(weblogfrist)

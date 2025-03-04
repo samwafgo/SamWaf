@@ -21,7 +21,7 @@ func (waf *WafEngine) CheckXss(r *http.Request, weblogbean *innerbean.WebLog, fo
 		Content:         "",
 	}
 	var xssFlag = false
-	if libinjection.IsXSS(weblogbean.URL) ||
+	if libinjection.IsXSS(weblogbean.RawQuery) ||
 		libinjection.IsXSS(weblogbean.POST_FORM) {
 		xssFlag = true
 	}

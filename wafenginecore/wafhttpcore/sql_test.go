@@ -3,12 +3,22 @@ package wafhttpcore
 import (
 	"SamWaf/libinjection-go"
 	"fmt"
+	"net/url"
 	"testing"
 )
 
 func TestSql(t *testing.T) {
-	payload := "data/index.html?id=1 and (select top 1 count(*) from admin where unicode(substring(a,1,1))=asc%E5%80%BC%20and%20id=1)%3E0"
+	payload := "id=1+and+1=2+union+select+1"
+	decodedValue, err := url.QueryUnescape(payload)
 
-	sqlB, sqlstring := libinjection.IsSQLi(payload)
-	fmt.Println(sqlB, sqlstring)
+	payLoadReturnPrint := libinjection.IsSQLiNotReturnPrint(payload)
+	fmt.Println(fmt.Sprintf("payload=%v   Result:%v", payload, payLoadReturnPrint))
+
+	decodepayLoadReturnPrint := libinjection.IsSQLiNotReturnPrint(decodedValue)
+	if err != nil {
+		fmt.Println(fmt.Sprintf("decodePayload=%v   Result:%v  QueryUnescapeErr:%v", decodedValue, decodepayLoadReturnPrint, err))
+	} else {
+		fmt.Println(fmt.Sprintf("decodePayload=%v   Result:%v ", decodedValue, decodepayLoadReturnPrint))
+
+	}
 }

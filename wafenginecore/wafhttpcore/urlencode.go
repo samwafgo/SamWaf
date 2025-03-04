@@ -3,16 +3,10 @@ package wafhttpcore
 import (
 	"SamWaf/common/zlog"
 	"net/url"
-	"strings"
 )
 
 // 逆向编码处理
 func WafHttpCoreUrlEncode(encoded string, maxDepth int) string {
-	// 如果没有编码格式，直接返回
-	if !strings.Contains(encoded, "%") {
-		return encoded
-	}
-
 	// 限制递归的最大深度，防止无限递归
 	if maxDepth <= 0 {
 		return encoded // 达到最大递归深度时返回原始字符串

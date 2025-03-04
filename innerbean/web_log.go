@@ -4,6 +4,7 @@ type WebLog struct {
 	WafInnerDFlag        string `json:"waf_inner_dflag"` //日志队列处理方式
 	HOST                 string `json:"host"`
 	URL                  string `json:"url"`
+	RawQuery             string `json:"raw_query"` //原始URL查询
 	REFERER              string `json:"referer"`
 	USER_AGENT           string `json:"user_agent"`
 	METHOD               string `json:"method"`

@@ -183,11 +183,12 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		currentDay, _ := strconv.Atoi(time.Now().Format("20060102"))
 
 		//URL 解码
-		enEscapeUrl := wafhttpcore.WafHttpCoreUrlEncode(r.RequestURI, 100)
+		deRawQueryUrl := wafhttpcore.WafHttpCoreUrlEncode(r.URL.RawQuery, 10)
 		datetimeNow := time.Now()
 		weblogbean := innerbean.WebLog{
 			HOST:                 host,
-			URL:                  enEscapeUrl,
+			URL:                  r.RequestURI,
+			RawQuery:             deRawQueryUrl,
 			REFERER:              r.Referer(),
 			USER_AGENT:           r.UserAgent(),
 			METHOD:               r.Method,
@@ -287,12 +288,13 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 
 				hostDefense := model.HostsDefense{
-					DEFENSE_BOT:       1,
-					DEFENSE_SQLI:      1,
-					DEFENSE_XSS:       1,
-					DEFENSE_SCAN:      1,
-					DEFENSE_RCE:       1,
-					DEFENSE_SENSITIVE: 1,
+					DEFENSE_BOT:           1,
+					DEFENSE_SQLI:          1,
+					DEFENSE_XSS:           1,
+					DEFENSE_SCAN:          1,
+					DEFENSE_RCE:           1,
+					DEFENSE_SENSITIVE:     1,
+					DEFENSE_DIR_TRAVERSAL: 1,
 				}
 				err := json.Unmarshal([]byte(hostTarget.Host.DEFENSE_JSON), &hostDefense)
 				if err != nil {
@@ -325,6 +327,12 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				//检测RCE
 				if hostDefense.DEFENSE_RCE == 1 {
 					if handleBlock(waf.CheckRce) {
+						return
+					}
+				}
+				//目录穿越检测
+				if hostDefense.DEFENSE_DIR_TRAVERSAL == 1 {
+					if handleBlock(waf.CheckDirTraversal) {
 						return
 					}
 				}

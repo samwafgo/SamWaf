@@ -22,7 +22,7 @@ func (waf *WafEngine) CheckSql(r *http.Request, weblogbean *innerbean.WebLog, fo
 	}
 	var sqlFlag = false
 	//检测sql注入
-	if libinjection.IsSQLiNotReturnPrint(weblogbean.URL) ||
+	if libinjection.IsSQLiNotReturnPrint(weblogbean.RawQuery) ||
 		libinjection.IsSQLiNotReturnPrint(weblogbean.BODY) ||
 		libinjection.IsSQLiNotReturnPrint(weblogbean.POST_FORM) {
 		sqlFlag = true

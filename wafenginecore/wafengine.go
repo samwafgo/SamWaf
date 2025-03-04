@@ -747,7 +747,7 @@ func (waf *WafEngine) getOrgContent(resp *http.Response) (cntBytes []byte, err e
 	if err != nil {
 		currentEncoding = unicode.UTF8
 	} else {
-		currentEncoding, _, _ = charset.DetermineEncoding(bytes, "")
+		currentEncoding, _, _ = charset.DetermineEncoding(bytes, resp.Header.Get("Content-Type"))
 	}
 	reader := transform.NewReader(newBodyReader, currentEncoding.NewDecoder())
 	resbodyByte, err := io.ReadAll(reader)

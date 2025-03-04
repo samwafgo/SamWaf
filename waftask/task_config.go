@@ -73,6 +73,9 @@ func setConfigIntValue(name string, value int64, change int) {
 	case "dns_timeout":
 		global.GWAF_RUNTIME_DNS_TIMEOUT = value
 		break
+	case "hide_server_header":
+		global.GCONFIG_RECORD_HIDE_SERVER_HEADER = value
+		break
 	default:
 		zlog.Warn("Unknown config item:", name)
 	}
@@ -210,5 +213,5 @@ func TaskLoadSetting(initLoad bool) {
 	updateConfigStringItem(initLoad, "gpt", "gpt_url", global.GCONFIG_RECORD_GPT_URL, "GPT远程地址 默认：DeepSeek ，符合ChatGpt或者使用one-api封装好的接口都可以", "string", "")
 	updateConfigStringItem(initLoad, "gpt", "gpt_token", global.GCONFIG_RECORD_GPT_TOKEN, "GPT远程授权密钥", "string", "")
 	updateConfigStringItem(initLoad, "gpt", "gpt_model", global.GCONFIG_RECORD_GPT_MODEL, "GPT模型名称", "string", "")
-
+	updateConfigIntItem(initLoad, "security", "hide_server_header", global.GCONFIG_RECORD_HIDE_SERVER_HEADER, "是否隐藏Server响应头(1隐藏 0不隐藏)", "int", "")
 }

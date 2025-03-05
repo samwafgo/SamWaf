@@ -15,6 +15,7 @@ import (
 
 var (
 	wafTokenInfoService = waf_service.WafTokenInfoServiceApp
+	wafOtpService       = waf_service.WafOtpServiceApp
 )
 
 // Auth 鉴权中间件
@@ -70,6 +71,16 @@ func Auth() gin.HandlerFunc {
 						}
 					}
 
+					//检测是否强制2Fa绑定
+					if global.GCONFIG_RECORD_FORCE_BIND_2FA == 1 && c.Request.RequestURI != "/samwaf/ws" && c.Request.RequestURI != "/samwaf/logout" {
+						otpBean := wafOtpService.GetDetailByUserNameApi(tokenInfo.LoginAccount)
+						if otpBean.UserName == "" {
+							//需要强制跳转2fa绑定界面
+							response.NeedBind2FAWithMessage("系统已开启强制 【双因素认证】 ，请进行绑定", c)
+							c.Abort()
+							return
+						}
+					}
 				}
 			}
 		}

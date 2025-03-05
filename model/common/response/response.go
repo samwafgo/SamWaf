@@ -18,6 +18,7 @@ const (
 	ERROR             = -1
 	SUCCESS           = 0
 	INPUT_SECRET_CODE = -2
+	NEED_BIND_2FA     = -3
 	AUTHFAIL          = -999
 )
 
@@ -64,4 +65,7 @@ func AuthFailWithMessage(message string, c *gin.Context) {
 }
 func SecretCodeFailWithMessage(message string, c *gin.Context) {
 	Result(INPUT_SECRET_CODE, map[string]interface{}{}, message, c)
+}
+func NeedBind2FAWithMessage(message string, c *gin.Context) {
+	Result(NEED_BIND_2FA, map[string]interface{}{}, message, c)
 }

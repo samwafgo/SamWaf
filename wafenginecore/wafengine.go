@@ -545,6 +545,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 		resp.Header.Set("X-Xss-Protection", "1; mode=block")
 		if global.GCONFIG_RECORD_HIDE_SERVER_HEADER == 1 {
 			resp.Header.Del("Server")
+			resp.Header.Del("X-Powered-By")
 		}
 		r := resp.Request
 		if wafHttpContext, ok := r.Context().Value("waf_context").(innerbean.WafHttpContextData); ok {

@@ -76,6 +76,9 @@ func setConfigIntValue(name string, value int64, change int) {
 	case "hide_server_header":
 		global.GCONFIG_RECORD_HIDE_SERVER_HEADER = value
 		break
+	case "force_bind_2fa":
+		global.GCONFIG_RECORD_FORCE_BIND_2FA = value
+		break
 	default:
 		zlog.Warn("Unknown config item:", name)
 	}
@@ -214,4 +217,5 @@ func TaskLoadSetting(initLoad bool) {
 	updateConfigStringItem(initLoad, "gpt", "gpt_token", global.GCONFIG_RECORD_GPT_TOKEN, "GPT远程授权密钥", "string", "")
 	updateConfigStringItem(initLoad, "gpt", "gpt_model", global.GCONFIG_RECORD_GPT_MODEL, "GPT模型名称", "string", "")
 	updateConfigIntItem(initLoad, "security", "hide_server_header", global.GCONFIG_RECORD_HIDE_SERVER_HEADER, "是否隐藏Server响应头(1隐藏 0不隐藏)", "int", "")
+	updateConfigIntItem(initLoad, "security", "force_bind_2fa", global.GCONFIG_RECORD_FORCE_BIND_2FA, "是否强制绑定双因素认证(1强制 0不强制)", "options", "0|不强制,1|强制")
 }

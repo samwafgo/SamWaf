@@ -653,7 +653,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 				datetimeNow := time.Now()
 				weblogfrist.TimeSpent = datetimeNow.UnixNano()/1e6 - weblogfrist.UNIX_ADD_TIME
 
-				if strings.HasPrefix(weblogfrist.URL, global.GSSL_HTTP_CHANGLE_PATH) && resp.StatusCode == 404 {
+				if strings.HasPrefix(weblogfrist.URL, global.GSSL_HTTP_CHANGLE_PATH) && (resp.StatusCode == 404 || resp.StatusCode == 302) {
 					//如果远端HTTP01不存在挑战验证文件，那么我们映射到走本地再试一下
 
 					//Challenge /.well-known/acme-challenge/2NKiiETgQdPmmjlM88mH5uo6jM98PrgWwsDslaN8

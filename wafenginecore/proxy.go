@@ -17,9 +17,7 @@ import (
 )
 
 func (waf *WafEngine) ProxyHTTP(w http.ResponseWriter, r *http.Request, host string, remoteUrl *url.URL, clientIp string, ctx context.Context, weblog innerbean.WebLog, hostTarget *wafenginmodel.HostSafe) {
-	// 转发阶段计时
-	/*	forwardStart := time.Now().UnixNano() / 1e6
-		weblogbean.ForwardCost = time.Now().UnixNano()/1e6 - forwardStart*/
+
 	//检测是否启动负载
 	if hostTarget.Host.IsEnableLoadBalance > 0 {
 		lb := &hostTarget.LoadBalanceRuntime

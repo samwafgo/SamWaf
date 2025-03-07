@@ -15,4 +15,6 @@ const (
 	TASK_BATCH                        = "task_batch"                        //批量任务
 	TASK_SSL_EXPIRE_CHECK             = "task_ssl_expire_check"             //SSL证书到期检测
 	TASK_NOTICE                       = "task_notice"                       //通知信息
+	TASK_HEALTH                       = "task_health"                       //健康检测
+
 )

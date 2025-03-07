@@ -10,12 +10,15 @@ import (
 	"SamWaf/model/request"
 	response2 "SamWaf/model/response"
 	"SamWaf/model/spec"
+	"SamWaf/model/wafenginmodel"
+	"SamWaf/service/waf_service"
 	"SamWaf/utils"
 	"SamWaf/wafenginecore"
 	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	"strconv"
 	"strings"
 )
 
@@ -76,10 +79,28 @@ func (w *WafHostAPi) GetListApi(c *gin.Context) {
 		// 初始化返回结果列表
 		var repList []response2.HostRep
 		for _, srcHost := range wafHosts {
+			var healthy []wafenginmodel.HostHealthy
+			if srcHost.IsEnableLoadBalance == 0 {
+				backendHealthy := wafenginecore.GetBackendHealthy(srcHost.Code, "single")
+				if backendHealthy != nil {
+					healthy = append(healthy, *backendHealthy)
+				}
+			} else {
+				//获取负载信息
+				loadBalances := waf_service.WafLoadBalanceServiceApp.GetListByHostCodeApi(srcHost.Code)
+				// 检查每个后端服务器
+				for i, _ := range loadBalances {
+					backendHealthy := wafenginecore.GetBackendHealthy(srcHost.Code, strconv.Itoa(i))
+					if backendHealthy != nil {
+						healthy = append(healthy, *backendHealthy)
+					}
+				}
+			}
 			rep := response2.HostRep{
 				Hosts:              srcHost,
 				RealTimeConnectCnt: wafenginecore.GetActiveConnectCnt(srcHost.Code),
 				RealTimeQps:        wafenginecore.GetQPS(srcHost.Code),
+				HealthyStatus:      healthy,
 			}
 			repList = append(repList, rep)
 		}

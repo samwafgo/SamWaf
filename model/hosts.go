@@ -1,6 +1,8 @@
 package model
 
-import "SamWaf/model/baseorm"
+import (
+	"SamWaf/model/baseorm"
+)
 
 type Hosts struct {
 	baseorm.BaseOrm
@@ -31,6 +33,7 @@ type Hosts struct {
 	BindMorePort         string `json:"bind_more_port"`           //是否绑定多个端口
 	IsEnableHttpAuthBase int    `json:"is_enable_http_auth_base"` //是否 HTTPAuthBase  1 激活  非1 没有激活
 	ResponseTimeOut      int    `json:"response_time_out"`        //响应超时时间 默认60秒,为0则无限等待
+	HealthyJSON          string `json:"healthy_json"`             //后端健康度检测 json
 }
 
 type HostsDefense struct {
@@ -41,4 +44,16 @@ type HostsDefense struct {
 	DEFENSE_RCE           int `json:"rce"`       //防御-scan工具扫描
 	DEFENSE_SENSITIVE     int `json:"sensitive"` //敏感词检测
 	DEFENSE_DIR_TRAVERSAL int `json:"traversal"` //目录穿越检测
+}
+
+// HealthyConfig 健康度检测
+type HealthyConfig struct {
+	IsEnableHealthy int    `json:"is_enable_healthy"` // 是否开启健康检查
+	FailCount       int    `json:"fail_count"`        // 连续失败次数
+	SuccessCount    int    `json:"success_count"`     // 连续成功次数
+	ResponseTime    int    `json:"response_time"`     // 响应时间(秒)
+	CheckMethod     string `json:"check_method"`      // 检查方法 GET/HEAD
+	CheckPath       string `json:"check_path"`        // 检查路径
+	ExpectedCodes   string `json:"expected_codes"`    // 预期状态码
+	LastErrorReason string `json:"last_error_reason"` // 最后一次错误原因
 }

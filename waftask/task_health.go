@@ -88,15 +88,10 @@ func checkBackendHealth(host model.Hosts, ip string, port int, config model.Heal
 	if config.CheckPath != "" {
 		checkPath = config.CheckPath
 	}
-	mainHost := host.Host
-	if host.Ssl == 1 {
-		mainHost = "https://" + host.Host
-	} else {
-		mainHost = "http://" + host.Host
-	}
+	mainHost := host.Remote_host + ":" + strconv.Itoa(host.Remote_port)
 
 	// 构建检测URL
-	checkURL := fmt.Sprintf("%s:%d%s", mainHost, port, checkPath)
+	checkURL := fmt.Sprintf("%s%s", mainHost, checkPath)
 
 	// 打印请求信息
 	zlog.Debug("健康检测请求", "主机", host.Host, "后端ID", backendID, "URL", checkURL, "方法", config.CheckMethod)
@@ -110,16 +105,25 @@ func checkBackendHealth(host model.Hosts, ip string, port int, config model.Heal
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true,
 			},
+			ResponseHeaderTimeout: time.Duration(config.ResponseTime) * time.Second,
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				dialer := net.Dialer{
 					Timeout: time.Duration(config.ResponseTime) * time.Second,
 				}
-				if host.Remote_ip != "" {
-					conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(host.Remote_ip, strconv.Itoa(host.Remote_port)))
+				if host.IsEnableLoadBalance > 0 {
+					conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(ip, strconv.Itoa(port)))
 					if err == nil {
 						return conn, nil
 					}
+				} else {
+					if host.Remote_ip != "" {
+						conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(host.Remote_ip, strconv.Itoa(host.Remote_port)))
+						if err == nil {
+							return conn, nil
+						}
+					}
 				}
+
 				return dialer.DialContext(ctx, network, addr)
 			},
 		},

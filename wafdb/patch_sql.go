@@ -126,4 +126,13 @@ func pathCoreSql(db *gorm.DB) {
 	} else {
 		zlog.Info("db", "sensitives :response_time_out init successfully")
 	}
+
+	//20250307 是否跳过后端https有效性验证
+	err = db.Exec("UPDATE hosts SET insecure_skip_verify=0 WHERE insecure_skip_verify IS NULL ").Error
+	if err != nil {
+		panic("failed to hosts :insecure_skip_verify " + err.Error())
+	} else {
+		zlog.Info("db", "hosts :insecure_skip_verify init successfully")
+	}
+
 }

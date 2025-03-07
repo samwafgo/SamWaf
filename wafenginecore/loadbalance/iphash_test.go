@@ -18,7 +18,7 @@ func generateRandomIP() string {
 
 func BenchmarkIpHash(b *testing.B) {
 	b.ReportAllocs()
-	hashBalance := NewConsistentHashBalance(nil)
+	hashBalance := NewConsistentHashBalance(nil, "")
 	hashBalance.Add("0", 1) // 权重为10
 	hashBalance.Add("1", 1) // 权重为5
 	hashBalance.Add("2", 1) // 权重为1

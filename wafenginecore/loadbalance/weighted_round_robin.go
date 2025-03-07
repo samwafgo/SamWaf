@@ -1,8 +1,21 @@
 package loadbalance
 
+import (
+	"strconv"
+)
+
 type WeightRoundRobinBalance struct {
+	hostCode string
 	curIndex int
 	rss      []*WeightNode
+}
+
+// NewWeightRoundRobinBalance 创建一个权重负载
+func NewWeightRoundRobinBalance(hostCode string) *WeightRoundRobinBalance {
+	m := &WeightRoundRobinBalance{
+		hostCode: hostCode,
+	}
+	return m
 }
 
 type WeightNode struct {
@@ -51,4 +64,24 @@ func (r *WeightRoundRobinBalance) Next() int {
 
 func (r *WeightRoundRobinBalance) Get() (int, error) {
 	return r.Next(), nil
+}
+
+// GetHealthy 获取健康的节点
+func (r *WeightRoundRobinBalance) GetHealthy(isHealthyFunc func(hostCode, backendID string) bool) (int, error) {
+	// 先尝试获取一个健康的节点
+	for i := 0; i < len(r.rss); i++ {
+		next := r.Next()
+		if next == -1 {
+			break
+		}
+
+		backendID := strconv.Itoa(next)
+		currentHealthy := isHealthyFunc(r.hostCode, backendID)
+		if currentHealthy {
+			return next, nil
+		}
+	}
+	// 如果没有健康节点，返回第一个节点
+	return r.rss[0].addr, nil
+
 }

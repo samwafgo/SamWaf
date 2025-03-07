@@ -59,6 +59,7 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 		BindMorePort:         wafHostAddReq.BindMorePort,
 		IsEnableHttpAuthBase: wafHostAddReq.IsEnableHttpAuthBase,
 		ResponseTimeOut:      wafHostAddReq.ResponseTimeOut,
+		HealthyJSON:          wafHostAddReq.HealthyJSON,
 	}
 	global.GWAF_LOCAL_DB.Create(wafHost)
 	return wafHost.Code, nil
@@ -108,6 +109,7 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 		"BindMorePort":         wafHostEditReq.BindMorePort,
 		"IsEnableHttpAuthBase": wafHostEditReq.IsEnableHttpAuthBase,
 		"ResponseTimeOut":      wafHostEditReq.ResponseTimeOut,
+		"HealthyJSON":          wafHostEditReq.HealthyJSON,
 	}
 	err := global.GWAF_LOCAL_DB.Debug().Model(model.Hosts{}).Where("CODE=?", wafHostEditReq.CODE).Updates(hostMap).Error
 
@@ -235,6 +237,14 @@ func (receiver *WafHostService) GetAllHostApi() []model.Hosts {
 	global.GWAF_LOCAL_DB.Order("global_host desc").Find(&webHosts)
 	return webHosts
 }
+
+// GetAllRunningHostApi 获取所有正在启动的主机
+func (receiver *WafHostService) GetAllRunningHostApi() []model.Hosts {
+	var webHosts []model.Hosts
+	global.GWAF_LOCAL_DB.Where("global_host <>?", 1).Where("start_status = ?", 0).Find(&webHosts)
+	return webHosts
+}
+
 func (receiver *WafHostService) CheckPortExistApi(port int) int64 {
 	var total int64 = 0
 	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where("port=?", port).Count(&total)

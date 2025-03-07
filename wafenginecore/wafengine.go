@@ -868,8 +868,8 @@ func (waf *WafEngine) ClearProxy(hostCode string) {
 		waf.HostTarget[waf.HostCode[hostCode]].Mux.Lock()
 		defer waf.HostTarget[waf.HostCode[hostCode]].Mux.Unlock()
 		waf.HostTarget[waf.HostCode[hostCode]].LoadBalanceRuntime.RevProxies = []*wafproxy.ReverseProxy{}
-		waf.HostTarget[waf.HostCode[hostCode]].LoadBalanceRuntime.WeightRoundRobinBalance = &loadbalance.WeightRoundRobinBalance{}
-		waf.HostTarget[waf.HostCode[hostCode]].LoadBalanceRuntime.IpHashBalance = loadbalance.NewConsistentHashBalance(nil)
+		waf.HostTarget[waf.HostCode[hostCode]].LoadBalanceRuntime.WeightRoundRobinBalance = loadbalance.NewWeightRoundRobinBalance(hostCode)
+		waf.HostTarget[waf.HostCode[hostCode]].LoadBalanceRuntime.IpHashBalance = loadbalance.NewConsistentHashBalance(nil, hostCode)
 		waf.HostTarget[waf.HostCode[hostCode]].LoadBalanceLists = list
 	}
 }
@@ -960,6 +960,7 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 			serclone := waf.ServerOnline[innruntime.Port]
 			serclone.Svr = svr
 			serclone.Status = 0
+
 			waf.ServerOnline[innruntime.Port] = serclone
 
 			zlog.Info("启动HTTP 服务器" + strconv.Itoa(innruntime.Port))

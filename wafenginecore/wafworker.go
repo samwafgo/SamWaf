@@ -161,7 +161,7 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 
 	//查询负载均衡
 	var loadBalanceList []model.LoadBalance
-	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&loadBalanceList)
+	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Order("create_time asc").Find(&loadBalanceList)
 
 	//查询HTTP AUTH
 	var httpAuthList []model.HttpAuthBase
@@ -186,8 +186,8 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 		LoadBalanceRuntime: &wafenginmodel.LoadBalanceRuntime{
 			CurrentProxyIndex:       0,
 			RevProxies:              []*wafproxy.ReverseProxy{},
-			WeightRoundRobinBalance: &loadbalance.WeightRoundRobinBalance{},
-			IpHashBalance:           loadbalance.NewConsistentHashBalance(nil),
+			WeightRoundRobinBalance: loadbalance.NewWeightRoundRobinBalance(inHost.Code),
+			IpHashBalance:           loadbalance.NewConsistentHashBalance(nil, inHost.Code),
 		},
 		LoadBalanceLists:    loadBalanceList,
 		Rule:                ruleHelper,

@@ -118,3 +118,10 @@ func (receiver *WafLoadBalanceService) DelApi(req request.WafLoadBalanceDelReq) 
 	err = global.GWAF_LOCAL_DB.Where("id = ?", req.Id).Delete(model.LoadBalance{}).Error
 	return err
 }
+
+// GetListByHostCodeApi 通过主机码获取负载信息
+func (receiver *WafLoadBalanceService) GetListByHostCodeApi(hostCode string) []model.LoadBalance {
+	var list []model.LoadBalance
+	global.GWAF_LOCAL_DB.Where("host_code = ?", hostCode).Order("create_time asc").Find(&list)
+	return list
+}

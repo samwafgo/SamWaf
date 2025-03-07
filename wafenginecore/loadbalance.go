@@ -11,14 +11,14 @@ func (waf *WafEngine) getProxyIndex(host string, ip string, hostTarget *wafengin
 	// 根据负载均衡策略处理请求
 	switch hostTarget.Host.LoadBalanceStage {
 	case 1: // 加权轮询（WRR）
-		addrIndex, err := hostTarget.LoadBalanceRuntime.WeightRoundRobinBalance.Get()
+		addrIndex, err := hostTarget.LoadBalanceRuntime.WeightRoundRobinBalance.GetHealthy(IsBackendHealthy)
 		if err != nil {
 			zlog.Error("Invalid Load Balance")
 		}
 		bestAddr = addrIndex
 
 	case 2: // IP Hash
-		addrIndexString, err := hostTarget.LoadBalanceRuntime.IpHashBalance.Get(ip)
+		addrIndexString, err := hostTarget.LoadBalanceRuntime.IpHashBalance.GetHealthy(ip, IsBackendHealthy)
 		if err != nil {
 			zlog.Error("Invalid Load Balance")
 		}

@@ -28,7 +28,9 @@ type WafHostAddReq struct {
 	BindMorePort         string `json:"bind_more_port"`           //是否绑定多个端口
 	IsEnableHttpAuthBase int    `json:"is_enable_http_auth_base"` //是否 HTTPAuthBase  1 激活  非1 没有激活
 	ResponseTimeOut      int    `json:"response_time_out"`        //响应超时时间
+	HealthyJSON          string `json:"healthy_json"`             //后端健康度检测 json
 }
+
 type WafHostDelReq struct {
 	CODE string `json:"code"`
 }
@@ -63,6 +65,7 @@ type WafHostEditReq struct {
 	BindMorePort         string `json:"bind_more_port"`           //是否绑定多个端口
 	IsEnableHttpAuthBase int    `json:"is_enable_http_auth_base"` //是否 HTTPAuthBase  1 激活  非1 没有激活
 	ResponseTimeOut      int    `json:"response_time_out"`        //响应超时时间
+	HealthyJSON          string `json:"healthy_json"`             //后端健康度检测 json
 }
 
 type WafHostGuardStatusReq struct {

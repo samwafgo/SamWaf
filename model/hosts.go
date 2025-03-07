@@ -34,6 +34,7 @@ type Hosts struct {
 	IsEnableHttpAuthBase int    `json:"is_enable_http_auth_base"` //是否 HTTPAuthBase  1 激活  非1 没有激活
 	ResponseTimeOut      int    `json:"response_time_out"`        //响应超时时间 默认60秒,为0则无限等待
 	HealthyJSON          string `json:"healthy_json"`             //后端健康度检测 json
+	InsecureSkipVerify   int    `json:"insecure_skip_verify"`     //是否开启后端https证书有效性验证 默认 0 是校验 1 是不校验
 }
 
 type HostsDefense struct {

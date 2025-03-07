@@ -120,7 +120,7 @@ func (waf *WafEngine) createTransport(r *http.Request, host string, isEnableLoad
 		customHeaders["X-FORWARDED-PROTO"] = "https"
 		transport = &http.Transport{
 			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: false,
+				InsecureSkipVerify: hostTarget.Host.InsecureSkipVerify == 1,
 				GetCertificate:     waf.GetCertificateFunc,
 			},
 			DialContext: dialContext,

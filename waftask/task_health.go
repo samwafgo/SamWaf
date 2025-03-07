@@ -114,7 +114,13 @@ func checkBackendHealth(host model.Hosts, ip string, port int, config model.Heal
 				dialer := net.Dialer{
 					Timeout: time.Duration(config.ResponseTime) * time.Second,
 				}
-				return dialer.DialContext(ctx, network, fmt.Sprintf("%s:%d", ip, port))
+				if host.Remote_ip != "" {
+					conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(host.Remote_ip, strconv.Itoa(host.Remote_port)))
+					if err == nil {
+						return conn, nil
+					}
+				}
+				return dialer.DialContext(ctx, network, addr)
 			},
 		},
 	}
@@ -129,9 +135,13 @@ func checkBackendHealth(host model.Hosts, ip string, port int, config model.Heal
 
 	// 添加Host头
 	if host.IsTransBackDomain == 1 {
-		req.Host = host.Remote_host
-	} else {
-		req.Host = mainHost
+		// 拆分主机名和端口
+		hostPort := strings.Split(host.Remote_host, ":")
+		if len(hostPort) == 2 {
+			if req.Host != hostPort[0] {
+				req.Host = hostPort[0]
+			}
+		}
 	}
 
 	// 打印请求头信息

@@ -10,7 +10,7 @@ type Hosts struct {
 	Host                 string `json:"host"`                     //域名
 	Port                 int    `json:"port"`                     //端口
 	Ssl                  int    `json:"ssl"`                      //是否是ssl
-	GUARD_STATUS         int    `json:"guard_status"`             //防御状态
+	GUARD_STATUS         int    `json:"guard_status"`             //防御状态 1 是开启防御 0 是防御关闭
 	REMOTE_SYSTEM        string `json:"remote_system"`            //是宝塔 phpstudy等
 	REMOTE_APP           string `json:"remote_app"`               //是什么类型的应用
 	Remote_host          string `json:"remote_host"`              //远端域名

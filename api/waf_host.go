@@ -238,6 +238,51 @@ func (w *WafHostAPi) ModifyGuardStatusApi(c *gin.Context) {
 	}
 }
 
+// 修改批量修改防御状态的API
+func (w *WafHostAPi) ModifyAllGuardStatusApi(c *gin.Context) {
+	var req request.WafHostBatchGuardStatusReq
+	err := c.ShouldBindJSON(&req)
+	if err == nil {
+		// 获取需要变更状态的主机（当前状态与目标状态不同的主机）
+		hostsToUpdate := wafHostService.GetHostsByGuardStatus(1 - req.GUARD_STATUS)
+
+		if len(hostsToUpdate) == 0 {
+			// 如果没有需要更新的主机，直接返回成功
+			message := "所有主机已经是"
+			if req.GUARD_STATUS == 1 {
+				message += "开启防御状态"
+			} else {
+				message += "关闭防御状态"
+			}
+			response.FailWithMessage(message, c)
+			return
+		}
+
+		err = wafHostService.ModifyAllGuardStatusApi(req)
+		if err != nil {
+			response.FailWithMessage("批量更新防御状态发生错误", c)
+			return
+		} else {
+			// 只通知需要变更状态的主机
+			for _, host := range hostsToUpdate {
+				// 更新主机的防御状态
+				host.GUARD_STATUS = req.GUARD_STATUS
+				global.GWAF_CHAN_HOST <- host
+			}
+
+			// 根据操作类型返回不同的成功消息
+			message := "批量开启防御成功"
+			if req.GUARD_STATUS == 0 {
+				message = "批量关闭防御成功"
+			}
+
+			response.OkWithMessage(message, c)
+		}
+	} else {
+		response.FailWithMessage("解析失败", c)
+	}
+}
+
 /*
 *
 修改启动状态

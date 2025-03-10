@@ -74,7 +74,7 @@ type WafHostEditReq struct {
 
 type WafHostGuardStatusReq struct {
 	CODE         string `json:"code"`
-	GUARD_STATUS int    `json:"guard_status"` //防御状态
+	GUARD_STATUS int    `json:"guard_status"` //防御状态 1 是开启防御 0 是防御关闭
 }
 
 type WafHostSearchReq struct {
@@ -94,4 +94,8 @@ type WafHostStartStatusReq struct {
 
 type WafHostAllDomainsReq struct {
 	CODE string `json:"code" form:"code"`
+}
+
+type WafHostBatchGuardStatusReq struct {
+	GUARD_STATUS int `json:"guard_status"` // 防御状态：0-关闭防御，1-开启防御
 }

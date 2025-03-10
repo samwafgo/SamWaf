@@ -20,4 +20,6 @@ func (receiver *HostRouter) InitHostRouter(group *gin.RouterGroup) {
 	hostRouter.GET("/samwaf/wafhost/host/startstatus", hostApi.ModifyStartStatusApi)
 	hostRouter.GET("/samwaf/wafhost/host/allhost", hostApi.GetAllListApi)
 	hostRouter.GET("/samwaf/wafhost/host/alldomainbyhostcode", hostApi.GetDomainsByHostCodeApi)
+	hostRouter.POST("/samwaf/wafhost/host/modfiyallstatus", hostApi.ModifyAllGuardStatusApi)
+
 }

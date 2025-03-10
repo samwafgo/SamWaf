@@ -345,3 +345,22 @@ func (receiver *WafHostService) GetAllSSLBindHost() ([]model.Hosts, int64, error
 
 	return list, total, nil
 }
+
+// ModifyAllGuardStatusApi 新增批量修改防御状态的方法
+func (receiver *WafHostService) ModifyAllGuardStatusApi(req request.WafHostBatchGuardStatusReq) error {
+	hostMap := map[string]interface{}{
+		"GUARD_STATUS": req.GUARD_STATUS,
+		"UPDATE_TIME":  customtype.JsonTime(time.Now()),
+	}
+
+	// 更新所有非全局主机的防御状态，且只更新与目标状态不同的主机
+	err := global.GWAF_LOCAL_DB.Model(model.Hosts{}).Where("GLOBAL_HOST <> ? AND GUARD_STATUS <> ?", 1, req.GUARD_STATUS).Updates(hostMap).Error
+	return err
+}
+
+// GetHostsByGuardStatus 获取指定防御状态的主机
+func (receiver *WafHostService) GetHostsByGuardStatus(guardStatus int) []model.Hosts {
+	var webHosts []model.Hosts
+	global.GWAF_LOCAL_DB.Where("global_host <> ? AND guard_status = ? ", 1, guardStatus).Find(&webHosts)
+	return webHosts
+}

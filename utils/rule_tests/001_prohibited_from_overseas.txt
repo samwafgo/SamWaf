@@ -1,0 +1,6 @@
+rule R57ad21269c744155829e86d91347f2ec "禁止中国以外访客访问" salience 10 {
+    when
+        MF.COUNTRY != "中国"
+    then
+        Retract("R57ad21269c744155829e86d91347f2ec");
+}

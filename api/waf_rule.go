@@ -1,6 +1,7 @@
 package api
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/model"
@@ -9,6 +10,7 @@ import (
 	"SamWaf/model/spec"
 	"SamWaf/utils"
 	"errors"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	uuid "github.com/satori/go.uuid"
 	"gorm.io/gorm"
@@ -29,15 +31,28 @@ func (w *WafRuleAPi) AddApi(c *gin.Context) {
 			response.FailWithMessage("规则解析错误", c)
 			return
 		}
+		var ruleCode = uuid.NewV4().String()
+		if req.IsManualRule == 1 {
+			ruleCodeFormDRL, err := ruleHelper.ExtractRuleName(req.RuleJson)
+			if err != nil {
+				response.FailWithMessage(err.Error(), c)
+			}
+			if ruleCodeFormDRL != "{SamWafUUID}" {
+				ruleCode = ruleCodeFormDRL
+			}
+		}
+		if ruleInfo.RuleBase.RuleDomainCode == "请选择网站" {
+			response.FailWithMessage("请选择网站", c)
+			return
+		}
 		count := wafRuleService.CheckIsExistApi(ruleInfo.RuleBase.RuleName, ruleInfo.RuleBase.RuleDomainCode)
 		if count > 0 {
 			response.FailWithMessage("当前规则已存在", c)
 			return
 		}
 		chsName := ruleInfo.RuleBase.RuleName
-		var ruleCode = uuid.NewV4().String()
-		if req.IsManualRule == 1 && req.RuleCode != "" {
-			ruleCode = req.RuleCode
+
+		if req.IsManualRule == 1 {
 			existBean := wafRuleService.GetDetailByCodeApi(ruleCode)
 			if existBean.RuleCode != "" {
 				response.FailWithMessage("当前编码已存在，请刷新页面重新尝试", c)
@@ -141,12 +156,27 @@ func (w *WafRuleAPi) ModifyRuleApi(c *gin.Context) {
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		var ruleTool = model.RuleTool{}
+		rule := wafRuleService.GetDetailByCodeApi(req.CODE)
+
+		if req.IsManualRule == 1 {
+			ruleCodeFormDRL, err := ruleHelper.ExtractRuleName(req.RuleJson)
+			if err != nil {
+				response.FailWithMessage(err.Error(), c)
+			}
+			if rule.RuleCode != ruleCodeFormDRL {
+				zlog.Debug(fmt.Sprintf("原始的规则码 %v， 需要替换的规则码 %v", rule.RuleCode, ruleCodeFormDRL))
+				beforeJson := req.RuleJson
+				req.RuleJson = strings.Replace(req.RuleJson, ruleCodeFormDRL, strings.Replace(rule.RuleCode, "-", "", -1), -1)
+				zlog.Debug(fmt.Sprintf("原始信息 %v 替换后信息 %v ", beforeJson, req.RuleJson))
+
+			}
+		}
 		ruleInfo, err := ruleTool.LoadRule(req.RuleJson)
 		if err != nil {
 			response.FailWithMessage("解析错误", c)
 			return
 		}
-		rule := wafRuleService.GetDetailByCodeApi(req.CODE)
+
 		var ruleName = ruleInfo.RuleBase.RuleName //中文名
 		ruleInfo.RuleBase.RuleName = strings.Replace(rule.RuleCode, "-", "", -1)
 		var ruleContent = ruleTool.GenRuleInfo(ruleInfo, ruleName)

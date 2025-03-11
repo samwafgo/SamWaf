@@ -1,0 +1,6 @@
+rule Rf8d3f5a9c744155829e86d91347f2ec "只允许222.223.23.1访问/admin/admin.php" salience 10 {
+    when
+        MF.URL.Contains("/admin/admin.php") && MF.SRC_IP!="222.223.23.1"
+    then
+        Retract("Rf8d3f5a9c744155829e86d91347f2ec");
+}

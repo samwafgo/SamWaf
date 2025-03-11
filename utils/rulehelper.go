@@ -5,10 +5,12 @@ import (
 	"SamWaf/innerbean"
 	"SamWaf/model"
 	"errors"
+	"fmt"
 	"github.com/hyperjumptech/grule-rule-engine/ast"
 	"github.com/hyperjumptech/grule-rule-engine/builder"
 	"github.com/hyperjumptech/grule-rule-engine/engine"
 	"github.com/hyperjumptech/grule-rule-engine/pkg"
+	"regexp"
 )
 
 // 规则帮助类
@@ -24,17 +26,18 @@ func (rulehelper *RuleHelper) InitRuleEngine() {
 	rulehelper.ruleBuilder = builder.NewRuleBuilder(rulehelper.knowledgeLibrary)
 	rulehelper.engine = engine.NewGruleEngine()
 }
-func (rulehelper *RuleHelper) LoadRule(ruleconfig model.Rules) {
+func (rulehelper *RuleHelper) LoadRule(ruleconfig model.Rules) error {
 
 	byteArr := pkg.NewBytesResource([]byte(ruleconfig.RuleContent))
 	err := rulehelper.ruleBuilder.BuildRuleFromResource("Region", "0.0.1", byteArr)
 	if err != nil {
 		zlog.Error("LoadRule", err)
 	}
-	rulehelper.KnowledgeBase = rulehelper.knowledgeLibrary.NewKnowledgeBaseInstance("Region", "0.0.1")
+	rulehelper.KnowledgeBase, err = rulehelper.knowledgeLibrary.NewKnowledgeBaseInstance("Region", "0.0.1")
+	return err
 }
 
-func (rulehelper *RuleHelper) LoadRules(ruleconfig []model.Rules) string {
+func (rulehelper *RuleHelper) LoadRules(ruleconfig []model.Rules) (string, error) {
 
 	defer func() {
 		e := recover()
@@ -42,17 +45,6 @@ func (rulehelper *RuleHelper) LoadRules(ruleconfig []model.Rules) string {
 			zlog.Error("LoadRules error ", e)
 		}
 	}()
-
-	//rulehelper.dataCtx = ast.NewDataContext()
-	/*drls = `
-	rule CheckRegionNotChina "CheckRegionNotChina" salience 10 {
-	    when
-	        fact.SRC_INFO.CONTENT_LENGTH == 0 && fact.SRC_INFO.HOST == "mybaidu1.com:8081"
-	    then
-	        fact.ExecResult = 1;
-			Retract("CheckRegionNotChina");
-	}
-	`*/
 	//清除之前的规则
 	for _, value := range rulehelper.knowledgeLibrary.Library {
 		for ruleKey, _ := range value.RuleEntries {
@@ -69,18 +61,14 @@ func (rulehelper *RuleHelper) LoadRules(ruleconfig []model.Rules) string {
 		zlog.Error("LoadRules", err)
 	}
 
-	rulehelper.KnowledgeBase = rulehelper.knowledgeLibrary.NewKnowledgeBaseInstance("Region", "0.0.1")
+	rulehelper.KnowledgeBase, err = rulehelper.knowledgeLibrary.NewKnowledgeBaseInstance("Region", "0.0.1")
 
-	return rulestr
+	return rulestr, err
 }
 func (rulehelper *RuleHelper) Exec(key string, ruleinfo *innerbean.WAF_REQUEST_FULL) error {
-
-	//rulehelper.dataCtx = ast.NewDataContext()
-	//rulehelper.dataCtx.Add(key, ruleinfo)
 	dataCtx := ast.NewDataContext()
 	dataCtx.Add(key, ruleinfo)
 	err := rulehelper.engine.Execute(dataCtx, rulehelper.KnowledgeBase)
-	//err:= rulehelper.engine.Execute(rulehelper.dataCtx, rulehelper.KnowledgeBase)
 	if err != nil {
 		zlog.Error("Exec", err)
 	}
@@ -120,8 +108,10 @@ func (rulehelper *RuleHelper) CheckRuleAvailable(ruleText string) error {
 		return err
 	}
 
-	knowledgeBase := knowledgeLibrary.NewKnowledgeBaseInstance("CheckRule", "0.0.1")
-
+	knowledgeBase, err := knowledgeLibrary.NewKnowledgeBaseInstance("CheckRule", "0.0.1")
+	if err != nil {
+		return err
+	}
 	myEngine := engine.NewGruleEngine()
 	processType := "match"
 	if processType == "match" {
@@ -131,4 +121,18 @@ func (rulehelper *RuleHelper) CheckRuleAvailable(ruleText string) error {
 		}
 	}
 	return nil
+}
+
+// ExtractRuleName 提取规则名称
+func (rulehelper *RuleHelper) ExtractRuleName(ruleText string) (string, error) {
+	// 定义正则表达式
+	re := regexp.MustCompile(`rule\s+R([^"\s]+)`)
+
+	// 查找匹配项
+	matches := re.FindStringSubmatch(ruleText)
+	if len(matches) < 2 {
+		return "", fmt.Errorf("未找到匹配的 rule 名称")
+	}
+
+	return matches[1], nil
 }

@@ -43,6 +43,7 @@ type WebLog struct {
 	PreCheckCost         int64  `json:"pre_check_cost"`                    // 前置检查耗时(ms)
 	ForwardCost          int64  `json:"forward_cost"`                      // 转发耗时(ms)
 	BackendCheckCost     int64  `json:"backend_check_cost"`                // 后端处理耗时(ms)
+	ResHeader            string `json:"res_header"`                        // 返回header情况
 }
 
 // 在 GORM 的 Model 方法中定义复合索引

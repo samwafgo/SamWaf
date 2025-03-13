@@ -525,6 +525,18 @@ func (waf *WafEngine) errorResponse() func(http.ResponseWriter, *http.Request, e
 
 			resBytes := []byte("<html><head><title>服务不可用</title></head><body><center><h1>服务不可用</h1> <br><h3></h3></center></body> </html>")
 
+			//记录响应Header信息
+			resHeader := ""
+			if req.Response != nil {
+				for key, values := range req.Response.Header {
+					for _, value := range values {
+						resHeader += key + ": " + value + "\r\n"
+					}
+				}
+			}
+
+			weblogReq.ResHeader = resHeader
+			weblogReq.ACTION = "放行"
 			weblogReq.STATUS = "Service Unavailable"
 			weblogReq.STATUS_CODE = 503
 			weblogReq.RES_BODY = fmt.Sprintf("请求相关信息:%v \r\n 错误信息:%v \r\n", requestInfo, err.Error())
@@ -689,6 +701,14 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 						}
 					}
 				} else {
+					//记录响应Header信息
+					resHeader := ""
+					for key, values := range resp.Header {
+						for _, value := range values {
+							resHeader += key + ": " + value + "\r\n"
+						}
+					}
+					weblogfrist.ResHeader = resHeader
 					weblogfrist.ACTION = "放行"
 					weblogfrist.STATUS = resp.Status
 					weblogfrist.STATUS_CODE = resp.StatusCode

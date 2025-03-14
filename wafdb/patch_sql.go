@@ -14,7 +14,7 @@ func pathLogSql(db *gorm.DB) {
 	// 20241018 创建联合索引 weblog
 	startTime := time.Now()
 
-	zlog.Info("ready create index maybe use a few minutes ")
+	zlog.Info("ready create log index maybe use a few minutes ")
 	err := db.Exec("CREATE INDEX IF NOT EXISTS idx_web_logs_task_flag_time ON web_logs (task_flag, unix_add_time)").Error
 	if err != nil {
 		panic("failed to create index: idx_web_logs_task_flag_time " + err.Error())
@@ -60,9 +60,12 @@ func pathLogSql(db *gorm.DB) {
 
 	// 记录结束时间并计算耗时
 	duration := time.Since(startTime)
-	zlog.Info("create index completely", "duration", duration.String())
+	zlog.Info("create log index completely", "duration", duration.String())
 }
 func pathCoreSql(db *gorm.DB) {
+	startTime := time.Now()
+
+	zlog.Info("ready create core index maybe use a few minutes ")
 	// 20241018 创建联合索引 weblog
 	err := db.Exec("UPDATE system_configs SET item_class = 'system' WHERE item_class IS NULL or item_class='' ").Error
 	if err != nil {
@@ -134,5 +137,42 @@ func pathCoreSql(db *gorm.DB) {
 	} else {
 		zlog.Info("db", "hosts :insecure_skip_verify init successfully")
 	}
+	// 记录结束时间并计算耗时
+	duration := time.Since(startTime)
+	zlog.Info("create core index completely", "duration", duration.String())
+}
 
+// 处理统计部分代码
+func pathStatsSql(db *gorm.DB) {
+	startTime := time.Now()
+
+	zlog.Info("ready create stats index maybe use a few minutes, ")
+
+	// 为stats_days表创建索引
+	err := db.Exec("CREATE INDEX IF NOT EXISTS idx_stats_days_lookup ON stats_days (tenant_id, user_code, host_code, type, day)").Error
+	if err != nil {
+		panic("failed to create index: idx_stats_days_lookup " + err.Error())
+	} else {
+		zlog.Info("db", "idx_stats_days_lookup created")
+	}
+
+	// 为stats_ip_days表创建索引
+	err = db.Exec("CREATE INDEX IF NOT EXISTS idx_stats_ip_days_lookup ON stats_ip_days (tenant_id, user_code, host_code, ip, type, day)").Error
+	if err != nil {
+		panic("failed to create index: idx_stats_ip_days_lookup " + err.Error())
+	} else {
+		zlog.Info("db", "idx_stats_ip_days_lookup created")
+	}
+
+	// 为stats_ip_city_days表创建索引
+	err = db.Exec("CREATE INDEX IF NOT EXISTS idx_stats_ip_city_days_lookup ON stats_ip_city_days (tenant_id, user_code, host_code, country, province, city, type, day)").Error
+	if err != nil {
+		panic("failed to create index: idx_stats_ip_city_days_lookup " + err.Error())
+	} else {
+		zlog.Info("db", "idx_stats_ip_city_days_lookup created")
+	}
+
+	// 记录结束时间并计算耗时
+	duration := time.Since(startTime)
+	zlog.Info("create stats index completely", "duration", duration.String())
 }

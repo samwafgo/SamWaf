@@ -308,6 +308,7 @@ func InitStatsDb(currentDir string) {
 		global.GWAF_LOCAL_STATS_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 		global.GWAF_LOCAL_STATS_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
 
+		pathStatsSql(db)
 	}
 }
 

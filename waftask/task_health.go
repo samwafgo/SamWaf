@@ -24,18 +24,24 @@ func TaskHealth() {
 	zlog.Debug("TaskHealth - 开始执行后端健康度检测")
 	hosts := waf_service.WafHostServiceApp.GetAllRunningHostApi()
 
-	// 使用WaitGroup等待所有检测任务完成
+	maxConcurrent := 5
+	sem := make(chan struct{}, maxConcurrent)
 	var wg sync.WaitGroup
 
 	for _, host := range hosts {
 		wg.Add(1)
-		go func(host model.Hosts) {
-			defer wg.Done()
-			checkHostHealth(host)
+		sem <- struct{}{}
+		go func(h model.Hosts) {
+			defer func() {
+				<-sem // 释放信号量
+				wg.Done()
+			}()
+			checkHostHealth(h)
 		}(host)
 	}
 
 	wg.Wait()
+	close(sem)
 	zlog.Debug("TaskHealth - 后端健康度检测完成")
 }
 
@@ -45,7 +51,6 @@ func checkHostHealth(host model.Hosts) {
 	var healthyConfig model.HealthyConfig
 	err := json.Unmarshal([]byte(host.HealthyJSON), &healthyConfig)
 	if err != nil {
-		zlog.Error("解析健康检测配置失败，使用默认配置", err, host.Code)
 		// 设置默认配置
 		healthyConfig = model.HealthyConfig{
 			IsEnableHealthy: 1, // 默认启用健康检测
@@ -56,6 +61,7 @@ func checkHostHealth(host model.Hosts) {
 			CheckPath:       "/",   // 默认检测根路径
 			ExpectedCodes:   "200,",
 		}
+
 	}
 
 	// 检查是否启用健康检测

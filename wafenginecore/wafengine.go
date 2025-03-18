@@ -29,6 +29,7 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/net/html/charset"
 	"golang.org/x/text/encoding"
+	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/encoding/unicode"
 	"golang.org/x/text/transform"
 	"io"
@@ -760,30 +761,89 @@ func (waf *WafEngine) compressContent(res *http.Response, inputBytes []byte) (re
 
 // 获取原始内容
 func (waf *WafEngine) getOrgContent(resp *http.Response) (cntBytes []byte, err error) {
+	// 根据内容编码处理压缩
 	var bodyReader io.Reader
 	switch resp.Header.Get("Content-Encoding") {
 	case "gzip":
-		bodyReader, err = gzip.NewReader(resp.Body)
+		gzipReader, gzipErr := gzip.NewReader(resp.Body)
+		if gzipErr != nil {
+			zlog.Warn("gzip解压失败: %v", gzipErr)
+			// 失败时返回错误
+			return nil, fmt.Errorf("gzip解压失败: %v", gzipErr)
+		}
+		bodyReader = gzipReader
+		defer gzipReader.Close()
 	case "deflate":
-		bodyReader = flate.NewReader(resp.Body)
+		deflateReader := flate.NewReader(resp.Body)
+		bodyReader = deflateReader
+		defer deflateReader.Close()
 	default:
 		bodyReader = resp.Body
 	}
-	newBodyReader := bufio.NewReader(bodyReader)
-	//使用peek读取十分关键，只是偷看一下，不会移动读取位置，否则其他地方就没法读取了
+	// 创建缓冲读取器
+	bufReader := bufio.NewReader(bodyReader)
+
+	// 首先检查Content-Type头中是否明确指定了字符集
+	contentType := resp.Header.Get("Content-Type")
 	var currentEncoding encoding.Encoding
-	bytes, err := newBodyReader.Peek(1024)
-	if err != nil {
-		currentEncoding = unicode.UTF8
-	} else {
-		currentEncoding, _, _ = charset.DetermineEncoding(bytes, resp.Header.Get("Content-Type"))
+
+	if strings.Contains(contentType, "charset=") {
+		charsetName := ""
+		parts := strings.Split(contentType, ";")
+		for _, part := range parts {
+			part = strings.TrimSpace(part)
+			if strings.HasPrefix(part, "charset=") {
+				charsetName = strings.TrimPrefix(part, "charset=")
+				charsetName = strings.Trim(charsetName, `"'`)
+				break
+			}
+		}
+
+		// 如果找到了字符集
+		if charsetName != "" {
+			zlog.Debug("从Content-Type中检测到字符集: %s", charsetName)
+			switch strings.ToLower(charsetName) {
+			case "utf-8", "utf8":
+				currentEncoding = unicode.UTF8
+			case "gbk", "gb2312":
+				currentEncoding = simplifiedchinese.GBK
+			default:
+				currentEncoding = nil // 使用自动检测
+			}
+		}
 	}
-	reader := transform.NewReader(newBodyReader, currentEncoding.NewDecoder())
-	resbodyByte, err := io.ReadAll(reader)
-	if err != nil {
-		zlog.Info("error", err)
-		return nil, err
+
+	// 如果没有从Content-Type中获取到编码或获取的编码不支持，则使用自动检测
+	if currentEncoding == nil {
+		// 增加检测字节数到4096，提高准确性
+		peekBytes, peekErr := bufReader.Peek(4096)
+		if peekErr != nil && peekErr != io.EOF {
+			zlog.Warn("Peek失败: %v，使用UTF-8编码", peekErr)
+			currentEncoding = unicode.UTF8
+		} else {
+			// 使用更多的字节进行编码检测
+			detectedEncoding, name, certain := charset.DetermineEncoding(peekBytes, contentType)
+
+			if !certain {
+				zlog.Debug("编码检测不确定，使用检测到的编码: %s", name)
+			} else {
+				zlog.Debug("编码检测确定为: %s", name)
+			}
+
+			currentEncoding = detectedEncoding
+		}
 	}
+
+	// 使用检测到的编码创建转换读取器
+	reader := transform.NewReader(bufReader, currentEncoding.NewDecoder())
+
+	// 读取全部内容
+	resbodyByte, readErr := io.ReadAll(reader)
+	if readErr != nil {
+		zlog.Warn("读取响应体失败: %v", readErr)
+		return nil, fmt.Errorf("读取响应体失败: %v", readErr)
+	}
+
 	return resbodyByte, nil
 }
 func (waf *WafEngine) StartWaf() {

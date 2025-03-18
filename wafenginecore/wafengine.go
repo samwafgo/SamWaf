@@ -606,6 +606,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 					resp.ContentLength = int64(len(finalCompressBytes))
 					resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalCompressBytes)), 10))
 				} else {
+					resp.Body = io.NopCloser(bytes.NewBuffer(orgContentBytes))
 					zlog.Warn(fmt.Sprintf("识别响应内容编码失败，隐私防护不可用 %v", responseEncodingError))
 				}
 
@@ -666,6 +667,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 					}
 
 				} else {
+					resp.Body = io.NopCloser(bytes.NewBuffer(orgContentBytes))
 					zlog.Warn(fmt.Sprintf("识别响应内容编码失败，响应日志，敏感词替换 不可用 %v", responseEncodingError))
 				}
 			}
@@ -769,6 +771,12 @@ func (waf *WafEngine) compressContent(res *http.Response, inputBytes []byte) (re
 
 // 获取原始内容
 func (waf *WafEngine) getOrgContent(resp *http.Response) (cntBytes []byte, err error) {
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return bodyBytes, fmt.Errorf("读取原始响应体失败: %v", err)
+	}
+	// 重新设置响应体，以便后续处理
+	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 	// 根据内容编码处理压缩
 	var bodyReader io.Reader
 	switch resp.Header.Get("Content-Encoding") {
@@ -777,7 +785,7 @@ func (waf *WafEngine) getOrgContent(resp *http.Response) (cntBytes []byte, err e
 		if gzipErr != nil {
 			zlog.Warn("gzip解压失败: %v", gzipErr)
 			// 失败时返回错误
-			return nil, fmt.Errorf("gzip解压失败: %v", gzipErr)
+			return bodyBytes, fmt.Errorf("gzip解压失败: %v", gzipErr)
 		}
 		bodyReader = gzipReader
 		defer gzipReader.Close()
@@ -826,13 +834,13 @@ func (waf *WafEngine) getOrgContent(resp *http.Response) (cntBytes []byte, err e
 		// 增加检测字节数到1024，提高准确性
 		peekBytes, peekErr := bufReader.Peek(1024)
 		if peekErr != nil && peekErr != io.EOF {
-			return nil, errors.New(fmt.Sprintf("编码检测错误，Peek失败: %v", peekErr))
+			return bodyBytes, errors.New(fmt.Sprintf("编码检测错误，Peek失败: %v", peekErr))
 		} else {
 			// 使用更多的字节进行编码检测
 			detectedEncoding, name, certain := charset.DetermineEncoding(peekBytes, contentType)
 
 			if !certain {
-				return nil, errors.New(fmt.Sprintf("编码检测不确定"))
+				return bodyBytes, errors.New(fmt.Sprintf("编码检测不确定"))
 			} else {
 				zlog.Debug("编码检测确定为: %s", name)
 			}
@@ -847,7 +855,7 @@ func (waf *WafEngine) getOrgContent(resp *http.Response) (cntBytes []byte, err e
 	resBodyBytes, readErr := io.ReadAll(reader)
 	if readErr != nil {
 		zlog.Warn("读取响应体失败: %v", readErr)
-		return nil, fmt.Errorf("读取响应体失败: %v", readErr)
+		return bodyBytes, fmt.Errorf("读取响应体失败: %v", readErr)
 	}
 
 	return resBodyBytes, nil

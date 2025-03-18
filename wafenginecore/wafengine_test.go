@@ -202,7 +202,7 @@ func TestGetOrgContent(t *testing.T) {
 			contentEncoding: "",
 			content:         "<html><body>没有指定字符集的内容</body></html>",
 			expectedContent: "<html><body>没有指定字符集的内容</body></html>",
-			expectedErr:     false,
+			expectedErr:     true,
 		},
 		{
 			// 对于不支持的字符集，我们跳过内容比较，只检查是否有错误

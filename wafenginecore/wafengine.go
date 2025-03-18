@@ -596,14 +596,19 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 				}
 			}
 			if ldpFlag == true {
-				orgContentBytes, _ := waf.getOrgContent(resp)
-				newPayload := []byte("" + utils.DeSenText(string(orgContentBytes)))
-				finalCompressBytes, _ := waf.compressContent(resp, newPayload)
+				orgContentBytes, responseEncodingError := waf.getOrgContent(resp)
+				if responseEncodingError == nil {
+					newPayload := []byte("" + utils.DeSenText(string(orgContentBytes)))
+					finalCompressBytes, _ := waf.compressContent(resp, newPayload)
 
-				resp.Body = io.NopCloser(bytes.NewBuffer(finalCompressBytes))
-				// head 修改追加内容
-				resp.ContentLength = int64(len(finalCompressBytes))
-				resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalCompressBytes)), 10))
+					resp.Body = io.NopCloser(bytes.NewBuffer(finalCompressBytes))
+					// head 修改追加内容
+					resp.ContentLength = int64(len(finalCompressBytes))
+					resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalCompressBytes)), 10))
+				} else {
+					zlog.Warn(fmt.Sprintf("识别响应内容编码失败，隐私防护不可用 %v", responseEncodingError))
+				}
+
 			}
 			//返回内容的类型
 			respContentType := resp.Header.Get("Content-Type")
@@ -617,49 +622,52 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 			if isText && resp.Body != nil && resp.Body != http.NoBody {
 
 				//编码转换，自动检测网页编码   resp *http.Response
-				orgContentBytes, _ := waf.getOrgContent(resp)
-
-				if global.GCONFIG_RECORD_RESP == 1 {
-					if resp.ContentLength < global.GCONFIG_RECORD_MAX_RES_BODY_LENGTH {
-						weblogfrist.RES_BODY = string(orgContentBytes)
-						weblogfrist.SrcByteResBody = orgContentBytes
+				orgContentBytes, responseEncodingError := waf.getOrgContent(resp)
+				if responseEncodingError == nil {
+					if global.GCONFIG_RECORD_RESP == 1 {
+						if resp.ContentLength < global.GCONFIG_RECORD_MAX_RES_BODY_LENGTH {
+							weblogfrist.RES_BODY = string(orgContentBytes)
+							weblogfrist.SrcByteResBody = orgContentBytes
+						}
 					}
-				}
 
-				//处理敏感词
-				if waf.CheckResponseSensitive() {
-					//敏感词检测
-					matchBodyResult := waf.SensitiveManager.MultiPatternSearch([]rune(string(orgContentBytes)), false)
-					if len(matchBodyResult) > 0 {
-						sensitive := matchBodyResult[0].CustomData.(model.Sensitive)
+					//处理敏感词
+					if waf.CheckResponseSensitive() {
+						//敏感词检测
+						matchBodyResult := waf.SensitiveManager.MultiPatternSearch([]rune(string(orgContentBytes)), false)
+						if len(matchBodyResult) > 0 {
+							sensitive := matchBodyResult[0].CustomData.(model.Sensitive)
 
-						if sensitive.CheckDirection != "in" {
-							weblogfrist.RISK_LEVEL = 1
-							if sensitive.Action == "deny" {
-								EchoResponseErrorInfo(resp, *weblogfrist, "敏感词检测："+string(matchBodyResult[0].Word), "敏感词内容", waf.HostTarget[host], waf.HostTarget[waf.HostCode[global.GWAF_GLOBAL_HOST_CODE]], true)
-								return nil
+							if sensitive.CheckDirection != "in" {
+								weblogfrist.RISK_LEVEL = 1
+								if sensitive.Action == "deny" {
+									EchoResponseErrorInfo(resp, *weblogfrist, "敏感词检测："+string(matchBodyResult[0].Word), "敏感词内容", waf.HostTarget[host], waf.HostTarget[waf.HostCode[global.GWAF_GLOBAL_HOST_CODE]], true)
+									return nil
 
-							} else {
-								words := processSensitiveWords(matchBodyResult, "in")
-								weblogfrist.GUEST_IDENTIFICATION = "触发敏感词"
-								weblogfrist.RULE = "敏感词检测：" + strings.Join(words, ",")
-								for _, word := range words {
-									orgContentBytes = bytes.ReplaceAll(orgContentBytes, []byte(word), []byte(global.GWAF_HTTP_SENSITIVE_REPLACE_STRING))
+								} else {
+									words := processSensitiveWords(matchBodyResult, "in")
+									weblogfrist.GUEST_IDENTIFICATION = "触发敏感词"
+									weblogfrist.RULE = "敏感词检测：" + strings.Join(words, ",")
+									for _, word := range words {
+										orgContentBytes = bytes.ReplaceAll(orgContentBytes, []byte(word), []byte(global.GWAF_HTTP_SENSITIVE_REPLACE_STRING))
 
+									}
 								}
 							}
+							//将数据在回写上去
+							finalCompressBytes, _ := waf.compressContent(resp, orgContentBytes)
+							resp.Body = io.NopCloser(bytes.NewBuffer(finalCompressBytes))
+
+							// head 修改追加内容
+							resp.ContentLength = int64(len(finalCompressBytes))
+							resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalCompressBytes)), 10))
+
 						}
-
 					}
+
+				} else {
+					zlog.Warn(fmt.Sprintf("识别响应内容编码失败，响应日志，敏感词替换 不可用 %v", responseEncodingError))
 				}
-
-				finalCompressBytes, _ := waf.compressContent(resp, orgContentBytes)
-				resp.Body = io.NopCloser(bytes.NewBuffer(finalCompressBytes))
-
-				// head 修改追加内容
-				resp.ContentLength = int64(len(finalCompressBytes))
-				resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalCompressBytes)), 10))
-
 			}
 			zlog.Debug("TESTChanllage", weblogfrist.HOST, weblogfrist.URL)
 			if !isStaticAssist {
@@ -815,21 +823,19 @@ func (waf *WafEngine) getOrgContent(resp *http.Response) (cntBytes []byte, err e
 
 	// 如果没有从Content-Type中获取到编码或获取的编码不支持，则使用自动检测
 	if currentEncoding == nil {
-		// 增加检测字节数到4096，提高准确性
-		peekBytes, peekErr := bufReader.Peek(4096)
+		// 增加检测字节数到1024，提高准确性
+		peekBytes, peekErr := bufReader.Peek(1024)
 		if peekErr != nil && peekErr != io.EOF {
-			zlog.Warn("Peek失败: %v，使用UTF-8编码", peekErr)
-			currentEncoding = unicode.UTF8
+			return nil, errors.New(fmt.Sprintf("编码检测错误，Peek失败: %v", peekErr))
 		} else {
 			// 使用更多的字节进行编码检测
 			detectedEncoding, name, certain := charset.DetermineEncoding(peekBytes, contentType)
 
 			if !certain {
-				zlog.Debug("编码检测不确定，使用检测到的编码: %s", name)
+				return nil, errors.New(fmt.Sprintf("编码检测不确定"))
 			} else {
 				zlog.Debug("编码检测确定为: %s", name)
 			}
-
 			currentEncoding = detectedEncoding
 		}
 	}
@@ -838,13 +844,13 @@ func (waf *WafEngine) getOrgContent(resp *http.Response) (cntBytes []byte, err e
 	reader := transform.NewReader(bufReader, currentEncoding.NewDecoder())
 
 	// 读取全部内容
-	resbodyByte, readErr := io.ReadAll(reader)
+	resBodyBytes, readErr := io.ReadAll(reader)
 	if readErr != nil {
 		zlog.Warn("读取响应体失败: %v", readErr)
 		return nil, fmt.Errorf("读取响应体失败: %v", readErr)
 	}
 
-	return resbodyByte, nil
+	return resBodyBytes, nil
 }
 func (waf *WafEngine) StartWaf() {
 

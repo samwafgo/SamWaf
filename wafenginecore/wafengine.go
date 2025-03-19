@@ -655,16 +655,13 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 									}
 								}
 							}
-							//将数据在回写上去
-							finalCompressBytes, _ := waf.compressContent(resp, orgContentBytes)
-							resp.Body = io.NopCloser(bytes.NewBuffer(finalCompressBytes))
-
-							// head 修改追加内容
-							resp.ContentLength = int64(len(finalCompressBytes))
-							resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalCompressBytes)), 10))
-
 						}
 					}
+					//将数据在回写上去
+					finalCompressBytes, _ := waf.compressContent(resp, orgContentBytes)
+					resp.Body = io.NopCloser(bytes.NewBuffer(finalCompressBytes))
+					resp.ContentLength = int64(len(finalCompressBytes))
+					resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalCompressBytes)), 10))
 
 				} else {
 					resp.Body = io.NopCloser(bytes.NewBuffer(orgContentBytes))

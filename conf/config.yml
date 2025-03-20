@@ -5,3 +5,5 @@ notice:
     isenable: false
 soft_id: SamWafCom
 user_code: 8ad2bca0-4fd0-46aa-afe6-833132a05eee
+zlog:
+    outputformat: console

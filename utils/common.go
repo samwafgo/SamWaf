@@ -35,17 +35,15 @@ func GetExternalIp() string {
 func GetCurrentDir() string {
 	// 检测环境变量是否存在
 	envVar := "SamWafIDE"
-	if value, exists := os.LookupEnv(envVar); exists {
-		zlog.Info("当前在IDE,环境变量", value)
+	if _, exists := os.LookupEnv(envVar); exists {
 		return "."
 	}
 
 	exePath, err := os.Executable()
 	if err != nil {
-		zlog.Error("Failed to get executable path:", err)
+		fmt.Println(fmt.Sprintf("Failed to get executable path:%v", err))
 		return ""
 	}
-	zlog.Debug("当前程序所在文件位置", exePath)
 	exeDir := filepath.Dir(exePath)
 	return exeDir
 }

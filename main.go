@@ -107,8 +107,6 @@ func NeverExit(name string, f func()) {
 // run 是服务的主要逻辑
 func (m *wafSystenService) run() {
 
-	//加载配置
-	wafconfig.LoadAndInitConfig()
 	// 获取当前执行文件的路径
 	executablePath, err := os.Executable()
 	if err != nil {
@@ -167,29 +165,6 @@ func (m *wafSystenService) run() {
 
 	//TODO 准备释放最新spider bot
 
-	/*// 启动一个 goroutine 来处理信号
-	go func() {
-		// 创建一个通道来接收信号
-		signalCh := make(chan os.Signal, 1)
-
-		// 根据操作系统设置不同的信号监听
-		if runtime.GOOS == "windows" {
-			signal.Notify(signalCh,  syscall.SIGINT,os.Interrupt, syscall.SIGTERM,os.Kill)
-		} else { // Linux 系统
-			signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
-		}
-		for {
-			select {
-			case sig := <-signalCh:
-				fmt.Println("接收到信号:", sig)
-				wafsafeclear.SafeClear()
-				// 在这里执行你的清理操作或退出应用程序的代码
-				os.Exit(0)
-			}
-		}
-	}()*/
-
-	// 在这里编写你的服务逻辑代码
 	//初始化cache
 	global.GCACHE_WAFCACHE = cache.InitWafCache()
 	//初始化锁写不锁度
@@ -336,13 +311,6 @@ func (m *wafSystenService) run() {
 		})
 
 	}
-
-	/*withEncrypt, err :=wafreg.GenClientMachineInfoWithEncrypt()
-	if err != nil {
-		fmt.Println("获取机器码失败")
-	} else {
-		fmt.Println("机器码: ", withEncrypt)
-	}*/
 	//加载授权信息
 	verifyResult, info, err := wafreg.VerifyServerRegByDefaultFile()
 	if verifyResult {
@@ -621,10 +589,18 @@ func (m *wafSystenService) Graceful() {
 }
 
 func main() {
+	fmt.Println(`
+==========================================
+  SamWaf Web Application Firewall ` + global.GWAF_RELEASE_VERSION + `
+  Version Name: ` + global.GWAF_RELEASE_VERSION_NAME + ` 
+==========================================
+`)
+	//加载配置
+	wafconfig.LoadAndInitConfig()
 	//初始化日志
-	zlog.InitZLog(global.GWAF_RELEASE)
-	if v := recover(); v != nil { // 侦测到一个恐慌
-		zlog.Info("主流程上被异常了")
+	zlog.InitZLog(global.GWAF_RELEASE, global.GWAF_LOG_OUTPUT_FORMAT)
+	if v := recover(); v != nil {
+		zlog.Error("主流程上被异常了")
 	}
 	pid := os.Getpid()
 	zlog.Debug("SamWaf Current PID:" + strconv.Itoa(pid))
@@ -659,11 +635,6 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, os.Kill, syscall.SIGTERM)
 
-	/*_, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer stop()*/
-
-	//doWork(ctx)
-
 	if len(os.Args) > 1 {
 		command := os.Args[1]
 		switch command {
@@ -676,13 +647,9 @@ func main() {
 			fmt.Printf("Samwaf has successfully executed the '%s' command.\n", command)
 			break
 		case "resetpwd": //重制密码
-			//加载配置
-			wafconfig.LoadAndInitConfig()
 			wafdb.InitCoreDb("")
 			wafdb.ResetAdminPwd()
 		case "resetotp": //重置安全码
-			//加载配置
-			wafconfig.LoadAndInitConfig()
 			wafdb.InitCoreDb("")
 			wafdb.ResetAdminOTP()
 		default:
@@ -698,7 +665,6 @@ func main() {
 		zlog.Info("main server not under service manager")
 		global.GWAF_RUNTIME_SERVER_TYPE = service.Interactive()
 	}
-	//defer wafsafeclear.SafeClear()
 	// 以常规方式运行
 	err = s.Run()
 	if err != nil {

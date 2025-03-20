@@ -1,18 +1,21 @@
 package wafconfig
 
 import (
-	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/utils"
+	"fmt"
 	"github.com/denisbrodbeck/machineid"
 	uuid "github.com/satori/go.uuid"
 	"github.com/spf13/viper"
 	"os"
+	"time"
 )
 
 // 加载配置并初始化
 func LoadAndInitConfig() {
-	zlog.Info("load config")
+	// 格式化当前时间为指定格式
+	currentTime := time.Now().Format("2006-01-02 15:04:05.000")
+	fmt.Printf("%s\tINFO\tload config\n", currentTime)
 	/**
 	1.如果user_code存在就使用本地的user_code
 	2.
@@ -21,7 +24,7 @@ func LoadAndInitConfig() {
 	configDir := utils.GetCurrentDir() + "/conf/"
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
 		if err := os.MkdirAll(configDir, os.ModePerm); err != nil {
-			zlog.Error("创建config目录失败:", err)
+			fmt.Printf("%s\tERROR\t创建config目录失败:%v\n", currentTime, err)
 			return
 		}
 	}
@@ -32,11 +35,11 @@ func LoadAndInitConfig() {
 
 	if err := config.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			zlog.Error("找不到配置文件..")
+			fmt.Printf("%s\tWARN\t找不到配置文件..\n", currentTime)
 			config.Set("local_port", global.GWAF_LOCAL_SERVER_PORT)
 			err = config.SafeWriteConfig()
 		} else {
-			zlog.Error("配置文件出错..")
+			fmt.Printf("%s\tERROR\t配置文件出错..\n", currentTime)
 		}
 	}
 	if config.IsSet("user_code") == false {
@@ -84,10 +87,18 @@ func LoadAndInitConfig() {
 		global.GWAF_CAN_EXPORT_DOWNLOAD_LOG = config.GetBool("export_download")
 	}
 
+	if config.IsSet("zlog.outputformat") {
+		global.GWAF_LOG_OUTPUT_FORMAT = config.GetString("zlog.outputformat")
+	} else {
+		config.Set("zlog.outputformat", global.GWAF_LOG_OUTPUT_FORMAT)
+	}
+
 	err := config.WriteConfig()
 	if err != nil {
-		zlog.Error("write config failed: ", err)
+		fmt.Printf("%s\tERROR\twrite config failed:%v\n", currentTime, err)
+		return
 	}
-	zlog.Info("user_code:", global.GWAF_USER_CODE)
-	zlog.Info("sof_id:", global.GWAF_TENANT_ID)
+
+	fmt.Printf("%s\tINFO\tuser_code:%s ,soft_id:%s\n",
+		currentTime, global.GWAF_USER_CODE, global.GWAF_TENANT_ID)
 }

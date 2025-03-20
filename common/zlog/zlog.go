@@ -19,13 +19,19 @@ import (
 // zlog.Warn("hello", zap.String("name", "Kevin"), zap.Any("arbitraryObj", dummyObject))
 var logger *zap.Logger
 
-func InitZLog(releaseFlag string) {
+// InitZLog 初始化zlog
+func InitZLog(releaseFlag string, outputFormat string) {
 	encoderConfig := zap.NewProductionEncoderConfig()
 	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-	encoder := zapcore.NewJSONEncoder(encoderConfig)
-
-	//file, _ := os.OpenFile("/tmp/test.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 644)
-	//fileWriteSyncer = zapcore.AddSync(file)
+	var encoder zapcore.Encoder
+	if outputFormat == "json" {
+		encoder = zapcore.NewJSONEncoder(encoderConfig)
+	} else { // 默认使用控制台格式
+		consoleConfig := zap.NewDevelopmentEncoderConfig()
+		consoleConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+		consoleConfig.EncodeTime = zapcore.TimeEncoderOfLayout("2006-01-02 15:04:05.000")
+		encoder = zapcore.NewConsoleEncoder(consoleConfig)
+	}
 	fileWriteSyncer := getFileLogWriter()
 
 	if releaseFlag == "false" {
@@ -51,8 +57,8 @@ func getFileLogWriter() (writeSyncer zapcore.WriteSyncer) {
 	exeDir := ""
 	// 检测环境变量是否存在
 	envVar := "SamWafIDE"
-	if value, exists := os.LookupEnv(envVar); exists {
-		fmt.Println("当前在IDE,环境变量" + value)
+	if _, exists := os.LookupEnv(envVar); exists {
+		//fmt.Println("当前在IDE,环境变量" + value)
 		exeDir = "."
 	} else {
 		exePath, err := os.Executable()

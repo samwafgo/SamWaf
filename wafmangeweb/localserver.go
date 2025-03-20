@@ -10,6 +10,7 @@ import (
 	"errors"
 	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -119,10 +120,10 @@ func (web *WafWebManager) cors() gin.HandlerFunc {
 func (web *WafWebManager) StartLocalServer() {
 	if global.GWAF_RELEASE == "true" {
 		gin.SetMode(gin.ReleaseMode)
+		gin.DefaultWriter = io.Discard
 	}
 	r := gin.Default()
 	r.Use(web.cors()) //解决跨域
-
 	web.initRouter(r)
 
 	web.R = r

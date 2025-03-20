@@ -85,10 +85,13 @@ func InitCoreDb(currentDir string) {
 		// 启用 WAL 模式
 		_ = db.Exec("PRAGMA journal_mode=WAL;")
 
+		// 创建自定义日志记录器
+		gormLogger := NewGormZLogger()
 		if global.GWAF_RELEASE == "false" && utils.CheckDebugEnvInfo() {
+			gormLogger = gormLogger.LogMode(logger.Info).(*GormZLogger)
 			// 启用调试模式
 			db = db.Session(&gorm.Session{
-				Logger: logger.Default.LogMode(logger.Info), // 设置为Info表示启用调试模式
+				Logger: gormLogger,
 			})
 		}
 		global.GWAF_LOCAL_DB = db
@@ -188,7 +191,10 @@ func InitLogDb(currentDir string) {
 		}
 		// 启用 WAL 模式
 		_ = db.Exec("PRAGMA journal_mode=WAL;")
+		// 创建自定义日志记录器
+		gormLogger := NewGormZLogger()
 		if global.GWAF_RELEASE == "false" && utils.CheckDebugEnvInfo() {
+			gormLogger = gormLogger.LogMode(logger.Info).(*GormZLogger)
 			// 启用调试模式
 			db = db.Session(&gorm.Session{
 				Logger: logger.Default.LogMode(logger.Info), // 设置为Info表示启用调试模式
@@ -250,7 +256,10 @@ func InitManaulLogDb(currentDir string, custFileName string) {
 		}
 		// 启用 WAL 模式
 		_ = db.Exec("PRAGMA journal_mode=WAL;")
-		if global.GWAF_RELEASE == "false" {
+		// 创建自定义日志记录器
+		gormLogger := NewGormZLogger()
+		if global.GWAF_RELEASE == "false" && utils.CheckDebugEnvInfo() {
+			gormLogger = gormLogger.LogMode(logger.Info).(*GormZLogger)
 			// 启用调试模式
 			db = db.Session(&gorm.Session{
 				Logger: logger.Default.LogMode(logger.Info), // 设置为Info表示启用调试模式
@@ -289,7 +298,10 @@ func InitStatsDb(currentDir string) {
 		}
 		// 启用 WAL 模式
 		_ = db.Exec("PRAGMA journal_mode=WAL;")
+		// 创建自定义日志记录器
+		gormLogger := NewGormZLogger()
 		if global.GWAF_RELEASE == "false" && utils.CheckDebugEnvInfo() {
+			gormLogger = gormLogger.LogMode(logger.Info).(*GormZLogger)
 			// 启用调试模式
 			db = db.Session(&gorm.Session{
 				Logger: logger.Default.LogMode(logger.Info), // 设置为Info表示启用调试模式

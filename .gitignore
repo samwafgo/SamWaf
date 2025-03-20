@@ -17,3 +17,4 @@ dist/
 /logs/*
 /ssl/
 /codetemplete/output/*
+/conf/config.yml

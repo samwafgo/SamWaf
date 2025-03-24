@@ -30,7 +30,7 @@ type WafHostAddReq struct {
 	ResponseTimeOut      int    `json:"response_time_out"`        //响应超时时间
 	HealthyJSON          string `json:"healthy_json"`             //后端健康度检测 json
 	InsecureSkipVerify   int    `json:"insecure_skip_verify"`     //是否开启后端https证书有效性验证 默认 0 是校验 1 是不校验
-
+	CaptchaJSON          string `json:"captcha_json"`             //验证码配置 json
 }
 
 type WafHostDelReq struct {
@@ -69,7 +69,7 @@ type WafHostEditReq struct {
 	ResponseTimeOut      int    `json:"response_time_out"`        //响应超时时间
 	HealthyJSON          string `json:"healthy_json"`             //后端健康度检测 json
 	InsecureSkipVerify   int    `json:"insecure_skip_verify"`     //是否开启后端https证书有效性验证 默认 0 是校验 1 是不校验
-
+	CaptchaJSON          string `json:"captcha_json"`             //验证码配置 json
 }
 
 type WafHostGuardStatusReq struct {

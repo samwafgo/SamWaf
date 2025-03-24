@@ -35,6 +35,7 @@ type Hosts struct {
 	ResponseTimeOut      int    `json:"response_time_out"`        //响应超时时间 默认60秒,为0则无限等待
 	HealthyJSON          string `json:"healthy_json"`             //后端健康度检测 json
 	InsecureSkipVerify   int    `json:"insecure_skip_verify"`     //是否开启后端https证书有效性验证 默认 0 是校验 1 是不校验
+	CaptchaJSON          string `json:"captcha_json"`             //验证码配置 json
 }
 
 type HostsDefense struct {
@@ -57,4 +58,11 @@ type HealthyConfig struct {
 	CheckPath       string `json:"check_path"`        // 检查路径
 	ExpectedCodes   string `json:"expected_codes"`    // 预期状态码
 	LastErrorReason string `json:"last_error_reason"` // 最后一次错误原因
+}
+
+// CaptchaConfig 验证码配置
+type CaptchaConfig struct {
+	IsEnableCaptcha int    `json:"is_enable_captcha"` // 是否开启验证码 1开启 0关闭
+	ExcludeURLs     string `json:"exclude_urls"`      // 排除验证码的URL列表
+	ExpireTime      int    `json:"expire_time"`       // 验证通过后的有效期(小时)
 }

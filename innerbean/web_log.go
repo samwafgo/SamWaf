@@ -33,6 +33,7 @@ type WebLog struct {
 	UNIX_ADD_TIME        int64  `json:"unix_add_time" gorm:"index"`        //添加日期unix
 	RISK_LEVEL           int    `json:"risk_level"`                        //危险等级 0:正常 1:轻微 2:有害 3:严重 4:特别严重
 	GUEST_IDENTIFICATION string `json:"guest_identification"`              //访客身份识别
+	IsBot                int    `json:"is_bot"`                            //是否是机器人  0 不是机器人 1 机器人
 	TimeSpent            int64  `json:"time_spent"`                        //用时
 	NetSrcIp             string `json:"net_src_ip"`                        //获取的原始IP
 	SrcByteBody          []byte `json:"src_byte_body"`                     //原始body信息

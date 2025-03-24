@@ -18,7 +18,7 @@ func IsContent(contentType string) bool {
 // IsStaticAssist 是否是静态资源
 func IsStaticAssist(contentType string) bool {
 	var allowedSortFields = []string{"application/javascript", "text/css", "image/jpeg",
-		"image/png", "image/gif", "image/x-icon", "application/html"}
+		"image/png", "image/gif", "image/x-icon", "text/js"}
 
 	for _, allowedField := range allowedSortFields {
 		if strings.Contains(contentType, allowedField) {

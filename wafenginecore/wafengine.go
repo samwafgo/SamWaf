@@ -15,10 +15,7 @@ import (
 	"SamWaf/wafenginecore/loadbalance"
 	"SamWaf/wafenginecore/wafhttpcore"
 	"SamWaf/wafproxy"
-	"bufio"
 	"bytes"
-	"compress/flate"
-	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -27,11 +24,6 @@ import (
 	goahocorasick "github.com/samwafgo/ahocorasick"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
-	"golang.org/x/net/html/charset"
-	"golang.org/x/text/encoding"
-	"golang.org/x/text/encoding/simplifiedchinese"
-	"golang.org/x/text/encoding/unicode"
-	"golang.org/x/text/transform"
 	"io"
 	"net"
 	"net/http"
@@ -657,8 +649,9 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 
 			}
 			//返回内容的类型
-			respContentType := resp.Header.Get("Content-Type")
+			respContentType := strings.ToLower(resp.Header.Get("Content-Type"))
 			respContentType = strings.Replace(respContentType, "; charset=utf-8", "", -1)
+			respContentType = strings.Replace(respContentType, "; charset=gbk", "", -1)
 
 			//记录静态日志
 			isStaticAssist := utils.IsStaticAssist(respContentType)
@@ -797,111 +790,6 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 	}
 }
 
-// 返回内容前依据情况进行返回压缩数据
-func (waf *WafEngine) compressContent(res *http.Response, inputBytes []byte) (respBytes []byte, err error) {
-
-	switch res.Header.Get("Content-Encoding") {
-	case "gzip":
-		respBytes, err = utils.GZipEncode(inputBytes)
-	case "deflate":
-		respBytes, err = utils.DeflateEncode(inputBytes)
-	default:
-		respBytes = inputBytes
-	}
-	return
-}
-
-// 获取原始内容
-func (waf *WafEngine) getOrgContent(resp *http.Response) (cntBytes []byte, err error) {
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return bodyBytes, fmt.Errorf("读取原始响应体失败: %v", err)
-	}
-	// 重新设置响应体，以便后续处理
-	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-	// 根据内容编码处理压缩
-	var bodyReader io.Reader
-	switch resp.Header.Get("Content-Encoding") {
-	case "gzip":
-		gzipReader, gzipErr := gzip.NewReader(resp.Body)
-		if gzipErr != nil {
-			zlog.Warn("gzip解压失败: %v", gzipErr)
-			// 失败时返回错误
-			return bodyBytes, fmt.Errorf("gzip解压失败: %v", gzipErr)
-		}
-		bodyReader = gzipReader
-		defer gzipReader.Close()
-	case "deflate":
-		deflateReader := flate.NewReader(resp.Body)
-		bodyReader = deflateReader
-		defer deflateReader.Close()
-	default:
-		bodyReader = resp.Body
-	}
-	// 创建缓冲读取器
-	bufReader := bufio.NewReader(bodyReader)
-
-	// 首先检查Content-Type头中是否明确指定了字符集
-	contentType := resp.Header.Get("Content-Type")
-	var currentEncoding encoding.Encoding
-
-	if strings.Contains(contentType, "charset=") {
-		charsetName := ""
-		parts := strings.Split(contentType, ";")
-		for _, part := range parts {
-			part = strings.TrimSpace(part)
-			if strings.HasPrefix(part, "charset=") {
-				charsetName = strings.TrimPrefix(part, "charset=")
-				charsetName = strings.Trim(charsetName, `"'`)
-				break
-			}
-		}
-
-		// 如果找到了字符集
-		if charsetName != "" {
-			zlog.Debug("从Content-Type中检测到字符集: %s", charsetName)
-			switch strings.ToLower(charsetName) {
-			case "utf-8", "utf8":
-				currentEncoding = unicode.UTF8
-			case "gbk", "gb2312":
-				currentEncoding = simplifiedchinese.GBK
-			default:
-				currentEncoding = nil // 使用自动检测
-			}
-		}
-	}
-
-	// 如果没有从Content-Type中获取到编码或获取的编码不支持，则使用自动检测
-	if currentEncoding == nil {
-		// 增加检测字节数到1024，提高准确性
-		peekBytes, peekErr := bufReader.Peek(1024)
-		if peekErr != nil && peekErr != io.EOF {
-			return bodyBytes, errors.New(fmt.Sprintf("编码检测错误，Peek失败: %v", peekErr))
-		} else {
-			// 使用更多的字节进行编码检测
-			detectedEncoding, name, certain := charset.DetermineEncoding(peekBytes, contentType)
-
-			if !certain {
-				return bodyBytes, errors.New(fmt.Sprintf("编码检测不确定"))
-			} else {
-				zlog.Debug("编码检测确定为: %s", name)
-			}
-			currentEncoding = detectedEncoding
-		}
-	}
-
-	// 使用检测到的编码创建转换读取器
-	reader := transform.NewReader(bufReader, currentEncoding.NewDecoder())
-
-	// 读取全部内容
-	resBodyBytes, readErr := io.ReadAll(reader)
-	if readErr != nil {
-		zlog.Warn("读取响应体失败: %v", readErr)
-		return bodyBytes, fmt.Errorf("读取响应体失败: %v", readErr)
-	}
-
-	return resBodyBytes, nil
-}
 func (waf *WafEngine) StartWaf() {
 
 	waf.EngineCurrentStatus = 1

@@ -69,6 +69,9 @@ var owaspAssets embed.FS
 //go:embed exedata/spiderbot
 var spiderBotAssets embed.FS
 
+//go:embed exedata/captcha
+var captchaAssets embed.FS
+
 // wafSystenService 实现了 service.Service 接口
 type wafSystenService struct{}
 
@@ -154,16 +157,17 @@ func (m *wafSystenService) run() {
 	global.GWAF_DLP_CONFIG = ldpConfig
 	global.GWAF_REG_PUBLIC_KEY = publicKey
 
-	//方式owasp资源
-	//设置目标目录（当前路径下的 data/owasp）
-	targetDir := utils.GetCurrentDir() + "/data/owasp"
-
-	// 调用 wafinit 包中的方法检查并释放数据集
-	err = wafinit.CheckAndReleaseDataset(owaspAssets, targetDir)
+	//owasp资源 释放
+	err = wafinit.CheckAndReleaseDataset(owaspAssets, utils.GetCurrentDir()+"/data/owasp", "owasp")
 	if err != nil {
 		zlog.Error("owasp", err.Error())
 	}
 
+	// 验证码资源释放
+	err = wafinit.CheckAndReleaseDataset(captchaAssets, utils.GetCurrentDir()+"/data/captcha", "captcha")
+	if err != nil {
+		zlog.Error("captcha", err.Error())
+	}
 	//TODO 准备释放最新spider bot
 
 	//初始化cache

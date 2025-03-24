@@ -63,6 +63,13 @@ func (wafCache *WafCache) SetWithTTlRenewTime(key string, value interface{}, ttl
 		ttl:        ttl,
 	}
 }
+func (wafCache *WafCache) GetBytes(key string) ([]byte, error) {
+	key1Value := wafCache.Get(key)
+	if str, ok := key1Value.([]byte); ok {
+		return str, nil
+	}
+	return nil, errors.New("数据不存在")
+}
 func (wafCache *WafCache) GetString(key string) (string, error) {
 	key1Value := wafCache.Get(key)
 	if str, ok := key1Value.(string); ok {

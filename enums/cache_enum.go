@@ -7,4 +7,6 @@ const (
 	CACHE_TOKEN          = "CACHE_TOKEN"           //鉴权信息
 	CACHE_DNS_BOT_IP     = "CACHE_DNS_BOT_IP"      //IP反向域名解析
 	CACHE_DNS_NORMAL_IP  = "CACHE_DNS_NORMAL_IP"   //正常IP
+	CACHE_CAPTCHA_TRY    = "CACHE_CAPTCHA_TRY"     //验证码临时
+	CACHE_CAPTCHA_PASS   = "CACHE_CAPTCHA_PASS"    //通过验证的码
 )

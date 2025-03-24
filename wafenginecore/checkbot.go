@@ -38,6 +38,7 @@ func (waf *WafEngine) CheckBot(r *http.Request, weblogbean *innerbean.WebLog, fo
 		botResult = global.GCACHE_WAFCACHE.Get(enums.CACHE_DNS_BOT_IP + weblogbean.SRC_IP).(wafbot.BotResult)
 	}
 	if botResult.IsBot == true {
+		weblogbean.IsBot = 1
 		if botResult.IsNormalBot {
 			weblogbean.GUEST_IDENTIFICATION = botResult.BotName
 		} else {

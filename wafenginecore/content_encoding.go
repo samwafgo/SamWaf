@@ -24,8 +24,7 @@ func (waf *WafEngine) compressContent(res *http.Response, isStaticAssist bool, i
 
 	// 如果是静态资源响应或资源类型请求，直接返回原始内容
 	if isStaticAssist {
-		zlog.Debug("静态资源或资源类型请求，跳过编码转换")
-		return inputBytes, nil
+		return inputBytes, errors.New("静态资源或资源类型请求，跳过编码转换")
 	}
 
 	// 首先检查Content-Type头中是否明确指定了字符集
@@ -87,8 +86,7 @@ func (waf *WafEngine) getOrgContent(resp *http.Response, isStaticAssist bool) (c
 
 	// 如果是静态资源响应或资源类型请求，直接返回原始内容
 	if isStaticAssist {
-		zlog.Debug("静态资源或资源类型请求，跳过编码转换")
-		return bodyBytes, nil
+		return bodyBytes, errors.New("静态资源或资源类型请求，跳过编码转换")
 	}
 
 	// 根据内容编码处理压缩

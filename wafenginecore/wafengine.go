@@ -608,58 +608,57 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 			//记录静态日志
 			isStaticAssist := utils.IsStaticAssist(resp, respContentType)
 
-			ldpFlag := false
-			// 将请求URL转为小写，用于不区分大小写的比较
-			lowerRequestURI := strings.ToLower(resp.Request.RequestURI)
-
-			//隐私保护（局部）
-			for i := 0; i < len(waf.HostTarget[host].LdpUrlLists); i++ {
-				// 将规则URL也转为小写
-				lowerRuleURL := strings.ToLower(waf.HostTarget[host].LdpUrlLists[i].Url)
-
-				if (waf.HostTarget[host].LdpUrlLists[i].CompareType == "等于" && lowerRuleURL == lowerRequestURI) ||
-					(waf.HostTarget[host].LdpUrlLists[i].CompareType == "前缀匹配" && strings.HasPrefix(lowerRequestURI, lowerRuleURL)) ||
-					(waf.HostTarget[host].LdpUrlLists[i].CompareType == "后缀匹配" && strings.HasSuffix(lowerRequestURI, lowerRuleURL)) ||
-					(waf.HostTarget[host].LdpUrlLists[i].CompareType == "包含匹配" && strings.Contains(lowerRequestURI, lowerRuleURL)) {
-
-					ldpFlag = true
-					break
-				}
-			}
-			//隐私保护（全局）
-			for i := 0; i < len(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists); i++ {
-				// 将全局规则URL也转为小写
-				lowerGlobalRuleURL := strings.ToLower(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].Url)
-
-				if (waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].CompareType == "等于" && lowerGlobalRuleURL == lowerRequestURI) ||
-					(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].CompareType == "前缀匹配" && strings.HasPrefix(lowerRequestURI, lowerGlobalRuleURL)) ||
-					(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].CompareType == "后缀匹配" && strings.HasSuffix(lowerRequestURI, lowerGlobalRuleURL)) ||
-					(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].CompareType == "包含匹配" && strings.Contains(lowerRequestURI, lowerGlobalRuleURL)) {
-
-					ldpFlag = true
-					break
-				}
-			}
-			if ldpFlag == true {
-				orgContentBytes, responseEncodingError := waf.getOrgContent(resp, isStaticAssist)
-				if responseEncodingError == nil {
-					newPayload := []byte("" + utils.DeSenText(string(orgContentBytes)))
-					finalCompressBytes, _ := waf.compressContent(resp, isStaticAssist, newPayload)
-
-					resp.Body = io.NopCloser(bytes.NewBuffer(finalCompressBytes))
-					// head 修改追加内容
-					resp.ContentLength = int64(len(finalCompressBytes))
-					resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalCompressBytes)), 10))
-				} else {
-					resp.Body = io.NopCloser(bytes.NewBuffer(orgContentBytes))
-					zlog.Warn(fmt.Sprintf("识别响应内容编码失败，隐私防护不可用 %v", responseEncodingError))
-				}
-
-			}
-
 			//记录响应body
 			if !isStaticAssist && resp.Body != nil && resp.Body != http.NoBody {
 
+				ldpFlag := false
+				// 将请求URL转为小写，用于不区分大小写的比较
+				lowerRequestURI := strings.ToLower(resp.Request.RequestURI)
+
+				//隐私保护（局部）
+				for i := 0; i < len(waf.HostTarget[host].LdpUrlLists); i++ {
+					// 将规则URL也转为小写
+					lowerRuleURL := strings.ToLower(waf.HostTarget[host].LdpUrlLists[i].Url)
+
+					if (waf.HostTarget[host].LdpUrlLists[i].CompareType == "等于" && lowerRuleURL == lowerRequestURI) ||
+						(waf.HostTarget[host].LdpUrlLists[i].CompareType == "前缀匹配" && strings.HasPrefix(lowerRequestURI, lowerRuleURL)) ||
+						(waf.HostTarget[host].LdpUrlLists[i].CompareType == "后缀匹配" && strings.HasSuffix(lowerRequestURI, lowerRuleURL)) ||
+						(waf.HostTarget[host].LdpUrlLists[i].CompareType == "包含匹配" && strings.Contains(lowerRequestURI, lowerRuleURL)) {
+
+						ldpFlag = true
+						break
+					}
+				}
+				//隐私保护（全局）
+				for i := 0; i < len(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists); i++ {
+					// 将全局规则URL也转为小写
+					lowerGlobalRuleURL := strings.ToLower(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].Url)
+
+					if (waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].CompareType == "等于" && lowerGlobalRuleURL == lowerRequestURI) ||
+						(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].CompareType == "前缀匹配" && strings.HasPrefix(lowerRequestURI, lowerGlobalRuleURL)) ||
+						(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].CompareType == "后缀匹配" && strings.HasSuffix(lowerRequestURI, lowerGlobalRuleURL)) ||
+						(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].CompareType == "包含匹配" && strings.Contains(lowerRequestURI, lowerGlobalRuleURL)) {
+
+						ldpFlag = true
+						break
+					}
+				}
+				if ldpFlag == true {
+					orgContentBytes, responseEncodingError := waf.getOrgContent(resp, isStaticAssist)
+					if responseEncodingError == nil {
+						newPayload := []byte("" + utils.DeSenText(string(orgContentBytes)))
+						finalCompressBytes, _ := waf.compressContent(resp, isStaticAssist, newPayload)
+
+						resp.Body = io.NopCloser(bytes.NewBuffer(finalCompressBytes))
+						// head 修改追加内容
+						resp.ContentLength = int64(len(finalCompressBytes))
+						resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalCompressBytes)), 10))
+					} else {
+						resp.Body = io.NopCloser(bytes.NewBuffer(orgContentBytes))
+						zlog.Warn(fmt.Sprintf("识别响应内容编码失败，隐私防护不可用 %v，请求URL: %s", responseEncodingError, r.URL.String()))
+					}
+
+				}
 				//编码转换，自动检测网页编码   resp *http.Response
 				orgContentBytes, responseEncodingError := waf.getOrgContent(resp, isStaticAssist)
 				if responseEncodingError == nil {
@@ -703,7 +702,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 
 				} else {
 					resp.Body = io.NopCloser(bytes.NewBuffer(orgContentBytes))
-					zlog.Warn(fmt.Sprintf("识别响应内容编码失败，响应日志，敏感词替换 不可用 %v", responseEncodingError))
+					zlog.Warn(fmt.Sprintf("识别响应内容编码失败，响应日志，敏感词替换 不可用 %v，请求URL: %s", responseEncodingError, r.URL.String()))
 				}
 			}
 			zlog.Debug("TESTChanllage", weblogfrist.HOST, weblogfrist.URL)

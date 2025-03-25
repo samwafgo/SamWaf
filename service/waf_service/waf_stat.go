@@ -72,7 +72,7 @@ func (receiver *WafStatService) StatHomeSumDayRangeApi(req request.WafStatsDayRa
 	var rangeNormalMap = map[int]int64{}
 	var rangeInt = (int)(utils.Str2Time(req.EndDay).Sub(utils.Str2Time(req.StartDay)).Hours() / 24)
 
-	for i := 0; i < rangeInt; i++ {
+	for i := 0; i <= rangeInt; i++ {
 		rangeAttackMap[utils.TimeToDayInt(utils.Str2Time(req.StartDay).AddDate(0, 0, i))] = 0
 		rangeNormalMap[utils.TimeToDayInt(utils.Str2Time(req.StartDay).AddDate(0, 0, i))] = 0
 	}

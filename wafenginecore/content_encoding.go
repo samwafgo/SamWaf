@@ -20,7 +20,14 @@ import (
 )
 
 // 返回内容前依据情况进行返回压缩数据
-func (waf *WafEngine) compressContent(res *http.Response, inputBytes []byte) (respBytes []byte, err error) {
+func (waf *WafEngine) compressContent(res *http.Response, isStaticAssist bool, inputBytes []byte) (respBytes []byte, err error) {
+
+	// 如果是静态资源响应或资源类型请求，直接返回原始内容
+	if isStaticAssist {
+		zlog.Debug("静态资源或资源类型请求，跳过编码转换")
+		return inputBytes, nil
+	}
+
 	// 首先检查Content-Type头中是否明确指定了字符集
 	contentType := res.Header.Get("Content-Type")
 	var encodedBytes []byte = inputBytes
@@ -70,13 +77,20 @@ func (waf *WafEngine) compressContent(res *http.Response, inputBytes []byte) (re
 }
 
 // 获取原始内容
-func (waf *WafEngine) getOrgContent(resp *http.Response) (cntBytes []byte, err error) {
+func (waf *WafEngine) getOrgContent(resp *http.Response, isStaticAssist bool) (cntBytes []byte, err error) {
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return bodyBytes, fmt.Errorf("读取原始响应体失败: %v", err)
 	}
 	// 重新设置响应体，以便后续处理
 	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	// 如果是静态资源响应或资源类型请求，直接返回原始内容
+	if isStaticAssist {
+		zlog.Debug("静态资源或资源类型请求，跳过编码转换")
+		return bodyBytes, nil
+	}
+
 	// 根据内容编码处理压缩
 	var bodyReader io.Reader
 	switch resp.Header.Get("Content-Encoding") {

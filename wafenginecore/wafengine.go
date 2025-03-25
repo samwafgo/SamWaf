@@ -600,6 +600,14 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 			weblogfrist.STATUS = resp.Status
 			weblogfrist.STATUS_CODE = resp.StatusCode
 
+			//返回内容的类型
+			respContentType := strings.ToLower(resp.Header.Get("Content-Type"))
+			respContentType = strings.Replace(respContentType, "; charset=utf-8", "", -1)
+			respContentType = strings.Replace(respContentType, "; charset=gbk", "", -1)
+
+			//记录静态日志
+			isStaticAssist := utils.IsStaticAssist(resp, respContentType)
+
 			ldpFlag := false
 			// 将请求URL转为小写，用于不区分大小写的比较
 			lowerRequestURI := strings.ToLower(resp.Request.RequestURI)
@@ -633,10 +641,10 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 				}
 			}
 			if ldpFlag == true {
-				orgContentBytes, responseEncodingError := waf.getOrgContent(resp)
+				orgContentBytes, responseEncodingError := waf.getOrgContent(resp, isStaticAssist)
 				if responseEncodingError == nil {
 					newPayload := []byte("" + utils.DeSenText(string(orgContentBytes)))
-					finalCompressBytes, _ := waf.compressContent(resp, newPayload)
+					finalCompressBytes, _ := waf.compressContent(resp, isStaticAssist, newPayload)
 
 					resp.Body = io.NopCloser(bytes.NewBuffer(finalCompressBytes))
 					// head 修改追加内容
@@ -648,20 +656,12 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 				}
 
 			}
-			//返回内容的类型
-			respContentType := strings.ToLower(resp.Header.Get("Content-Type"))
-			respContentType = strings.Replace(respContentType, "; charset=utf-8", "", -1)
-			respContentType = strings.Replace(respContentType, "; charset=gbk", "", -1)
-
-			//记录静态日志
-			isStaticAssist := utils.IsStaticAssist(respContentType)
-			isText := utils.IsContent(respContentType)
 
 			//记录响应body
-			if isText && resp.Body != nil && resp.Body != http.NoBody {
+			if !isStaticAssist && resp.Body != nil && resp.Body != http.NoBody {
 
 				//编码转换，自动检测网页编码   resp *http.Response
-				orgContentBytes, responseEncodingError := waf.getOrgContent(resp)
+				orgContentBytes, responseEncodingError := waf.getOrgContent(resp, isStaticAssist)
 				if responseEncodingError == nil {
 					if global.GCONFIG_RECORD_RESP == 1 {
 						if resp.ContentLength < global.GCONFIG_RECORD_MAX_RES_BODY_LENGTH {
@@ -696,7 +696,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 						}
 					}
 					//将数据在回写上去
-					finalCompressBytes, _ := waf.compressContent(resp, orgContentBytes)
+					finalCompressBytes, _ := waf.compressContent(resp, isStaticAssist, orgContentBytes)
 					resp.Body = io.NopCloser(bytes.NewBuffer(finalCompressBytes))
 					resp.ContentLength = int64(len(finalCompressBytes))
 					resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalCompressBytes)), 10))

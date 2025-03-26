@@ -63,7 +63,9 @@ func (ts *TaskScheduler) Start() {
 	ts.Scheduler.StartAsync()
 }
 func (ts *TaskScheduler) Stop() {
-	ts.Scheduler.Stop()
+	if ts != nil {
+		ts.Scheduler.Stop()
+	}
 }
 
 func (ts *TaskScheduler) RunManual(taskMethod string) {

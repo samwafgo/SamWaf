@@ -8,6 +8,7 @@ import (
 	"SamWaf/wafmangeweb/static"
 	"context"
 	"errors"
+	"fmt"
 	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
 	"io"
@@ -117,7 +118,9 @@ func (web *WafWebManager) cors() gin.HandlerFunc {
 		c.Next()
 	}
 }
-func (web *WafWebManager) StartLocalServer() {
+
+// StartLocalServer 启动本地管理服务器
+func (web *WafWebManager) StartLocalServer() error {
 	if global.GWAF_RELEASE == "true" {
 		gin.SetMode(gin.ReleaseMode)
 		gin.DefaultWriter = io.Discard
@@ -131,10 +134,16 @@ func (web *WafWebManager) StartLocalServer() {
 		Addr:    ":" + strconv.Itoa(global.GWAF_LOCAL_SERVER_PORT),
 		Handler: r,
 	}
-	if err := web.HttpServer.ListenAndServe(); err != nil && errors.Is(err, http.ErrServerClosed) {
-		zlog.Error(web.LogName, "use static asset", err.Error())
+
+	// 正式启动服务
+	if err := web.HttpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		errMsg := fmt.Sprintf("启动管理界面失败: %s", err.Error())
+		zlog.Error(web.LogName, errMsg)
+		return err
 	}
+
 	zlog.Info(web.LogName, "本地 port:", global.GWAF_LOCAL_SERVER_PORT)
+	return nil
 }
 
 /*
@@ -146,10 +155,18 @@ func (web *WafWebManager) CloseLocalServer() {
 	// The context is used to inform the server it has 5 seconds to finish
 	// the request it is currently handling
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 
-	if err := web.HttpServer.Shutdown(ctx); err != nil {
-		zlog.Error(web.LogName, "Server forced to shutdown:", err.Error())
+	defer func() {
+		defer cancel()
+	}()
+
+	if web != nil && web.HttpServer != nil {
+		if err := web.HttpServer.Shutdown(ctx); err != nil {
+			zlog.Error(web.LogName, "Server forced to shutdown:", err.Error())
+		}
+		zlog.Info(web.LogName, "local Server exiting")
+	} else {
+		zlog.Info("local Server exiting")
 	}
-	zlog.Info(web.LogName, "local Server exiting")
+
 }

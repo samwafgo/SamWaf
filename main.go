@@ -129,6 +129,9 @@ func (m *wafSystenService) run() {
 		panic(errMsg)
 		return
 	}
+	if listener != nil {
+		listener.Close()
+	}
 	// 获取当前执行文件的路径
 	executablePath, err := os.Executable()
 	if err != nil {

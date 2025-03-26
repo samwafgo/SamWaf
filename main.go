@@ -36,6 +36,7 @@ import (
 	"gorm.io/gorm"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -111,6 +112,23 @@ func NeverExit(name string, f func()) {
 // run 是服务的主要逻辑
 func (m *wafSystenService) run() {
 
+	// 先尝试监听端口，检查是否被占用
+	listener, err := net.Listen("tcp", ":"+strconv.Itoa(global.GWAF_LOCAL_SERVER_PORT))
+	defer func() {
+		if listener != nil {
+			err := listener.Close()
+			if err != nil {
+				return
+			}
+		}
+	}()
+	if err != nil {
+		errMsg := fmt.Sprintf("管理界面端口 %d 已被占用，请检查并修改配置(conf/config.yml local_port字段)或关闭占用该端口的程序: %s",
+			global.GWAF_LOCAL_SERVER_PORT, err.Error())
+		zlog.Error(errMsg)
+		panic(errMsg)
+		return
+	}
 	// 获取当前执行文件的路径
 	executablePath, err := os.Executable()
 	if err != nil {

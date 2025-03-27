@@ -246,12 +246,73 @@ func containsPathTraversal(filePath string) bool {
 // GetClickBasicCaptData 获取基础点击验证码数据
 func (s *CaptchaService) GetClickBasicCaptData(w http.ResponseWriter, r *http.Request) {
 	var capt click.Captcha
-	if r.URL.Query().Get("type") == "light" {
-		capt = s.lightTextCapt
+
+	// 首先检查请求参数中是否指定了语言
+	userLang := r.URL.Query().Get("lang")
+
+	// 如果没有指定语言，则检测浏览器语言
+	isChineseUser := false
+	if userLang != "" {
+		// 优先使用用户选择的语言
+		isChineseUser = userLang == "zh"
+		zlog.Debug("使用用户选择的语言", zap.String("language", userLang), zap.Bool("isChineseUser", isChineseUser))
 	} else {
-		capt = s.textCapt
+		// 否则使用浏览器语言
+		acceptLanguage := r.Header.Get("Accept-Language")
+		isChineseUser = strings.Contains(strings.ToLower(acceptLanguage), "zh")
+		zlog.Debug("使用浏览器语言", zap.String("acceptLanguage", acceptLanguage), zap.Bool("isChineseUser", isChineseUser))
 	}
 
+	// 根据用户语言和请求类型选择验证码
+	if r.URL.Query().Get("type") == "light" {
+		// 使用已经初始化好的lightTextCapt
+		capt = s.lightTextCapt
+	} else {
+		// 根据语言动态生成验证码
+		builder := click.NewBuilder(
+			click.WithRangeLen(option.RangeVal{Min: 4, Max: 6}),
+			click.WithRangeVerifyLen(option.RangeVal{Min: 2, Max: 4}),
+			click.WithRangeThumbColors([]string{
+				"#1f55c4", "#780592", "#2f6b00", "#910000",
+				"#864401", "#675901", "#016e5c",
+			}),
+			click.WithRangeColors([]string{
+				"#fde98e", "#60c1ff", "#fcb08e", "#fb88ff",
+				"#b4fed4", "#cbfaa9", "#78d6f8",
+			}),
+		)
+
+		// 获取字体和背景资源
+		fonts, err := fzshengsksjw.GetFont()
+		if err != nil {
+			log.Fatalln(err)
+		}
+		imgs, err := images.GetImages()
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		// 根据用户语言选择字符集
+		if isChineseUser {
+			zlog.Debug("使用中文验证码")
+			builder.SetResources(
+				click.WithChars(chars.GetChineseChars()),
+				click.WithFonts([]*truetype.Font{fonts}),
+				click.WithBackgrounds(imgs),
+			)
+		} else {
+			zlog.Debug("使用英文验证码")
+			builder.SetResources(
+				click.WithChars(chars.GetAlphaChars()),
+				click.WithFonts([]*truetype.Font{fonts}),
+				click.WithBackgrounds(imgs),
+			)
+		}
+
+		capt = builder.Make()
+	}
+
+	// 其余代码保持不变
 	captData, err := capt.Generate()
 	if err != nil {
 		log.Fatalln(err)

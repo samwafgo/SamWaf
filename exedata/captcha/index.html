@@ -1,5 +1,3 @@
-<!DOCTYPE html>
-<html lang="en">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -7,7 +5,7 @@
     <link rel="shortcut icon" type="image/ico" href="/samwaf_captcha/favicon.ico" />
     <link rel="stylesheet" type="text/css" href="/samwaf_captcha/css/gocaptcha.global.css">
     <link rel="stylesheet" type="text/css" href="/samwaf_captcha/css/toastify.css">
-    <title>进行验证</title>
+    <title id="page-title">进行验证</title>
     <style>
         html, body {
             width: 100%;
@@ -28,11 +26,29 @@
         .box{
             margin: 30px;
         }
+
+        .lang-switch {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #3C3C3C;
+        }
+
+        .lang-switch:hover {
+            background: #f5f5f5;
+        }
     </style>
 </head>
 <body>
+<button id="lang-switch" class="lang-switch">English</button>
 <div class="example">
-    <div class="box" id="click-wrap"></div> 
+    <div class="box" id="click-wrap"></div>
 </div>
 <!-- GoCaptcha -->
 <script type="text/javascript" src="/samwaf_captcha/js/gocaptcha.global.js"></script>
@@ -44,317 +60,385 @@
 <script src="/samwaf_captcha/js/toastify.js"></script>
 
 <script type="text/javascript">
-// 机器人检测模块
-(function() {
-    // 初始化检测变量
-    let mouseMovements = 0;
-    let lastMouseX = 0;
-    let lastMouseY = 0;
-    let mouseTrack = [];
-    let startTime = Date.now();
-    let botScore = 0;
-    let isBotDetected = false;
-    let clickTimes = [];
-    
-    // 检测自动化工具和模拟器
-    function detectAutomation() {
-        // 检测常见的自动化工具特征
-        const automationFlags = [
-            !!window.document.documentElement.getAttribute('selenium'),
-            !!window.document.documentElement.getAttribute('webdriver'),
-            !!window._phantom,
-            !!window.callPhantom,
-            !!window.__nightmare,
-            !!window.domAutomation,
-            !!window.domAutomationController,
-            navigator.webdriver === true,
-            navigator.userAgent.indexOf('Selenium') !== -1,
-            navigator.userAgent.indexOf('PhantomJS') !== -1,
-            navigator.userAgent.indexOf('Headless') !== -1
-        ];
-        
-        // 检测到任何自动化工具标志
-        automationFlags.forEach(flag => {
-            if (flag) botScore += 20;
-        });
-        
-        // 检测异常的浏览器特征
-        if (navigator.hardwareConcurrency < 2) botScore += 10;
-        if (navigator.plugins.length === 0) botScore += 10;
-        if (navigator.languages === undefined) botScore += 10;
-        
-        // 检测Canvas指纹
-        try {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            ctx.textBaseline = "top";
-            ctx.font = "14px 'Arial'";
-            ctx.fillStyle = "#f60";
-            ctx.fillRect(125, 1, 62, 20);
-            ctx.fillStyle = "#069";
-            ctx.fillText("SamWaf防护", 2, 15);
-            ctx.fillStyle = "rgba(102, 204, 0, 0.7)";
-            ctx.fillText("SamWaf防护", 4, 17);
-            
-            const dataURL = canvas.toDataURL();
-            if (dataURL === 'data:,') botScore += 20; // 空数据URL通常表示headless浏览器
-        } catch(e) {
-            botScore += 15; // Canvas操作异常
+    // 语言资源
+    const i18n = {
+        'zh': {
+            title: '进行验证',
+            captchaTitle: '请在下图依次点击',
+            buttonText: '确认',
+            getDataError: '获取数据失败',
+            verifySuccess: '验证成功，页面即将刷新...',
+            verifyFail: '校验失败',
+            switchLang: 'English'
+        },
+        'en': {
+            title: 'Verification',
+            captchaTitle: 'Please click in sequence',
+            buttonText: 'Confirm',
+            getDataError: 'Failed to get data',
+            verifySuccess: 'Verification successful, page will refresh...',
+            verifyFail: 'Verification failed',
+            switchLang: '中文'
         }
-        
-        return botScore >= 30;
-    }
-    
-    // 监听鼠标移动
-    document.addEventListener('mousemove', function(e) {
-        mouseMovements++;
-        
-        // 记录鼠标轨迹
-        if (mouseTrack.length < 100) {
-            mouseTrack.push({
-                x: e.clientX,
-                y: e.clientY,
-                time: Date.now() - startTime
-            });
-        }
-        
-        // 检测鼠标移动是否过于机械
-        if (lastMouseX !== 0 && lastMouseY !== 0) {
-            const dx = e.clientX - lastMouseX;
-            const dy = e.clientY - lastMouseY;
-            
-            // 检测直线移动
-            if (dx === 0 || dy === 0) {
-                botScore += 1;
+    };
+
+    // 语言管理
+    const langManager = (function() {
+        // Cookie 操作函数
+        function setCookie(name, value, days) {
+            let expires = "";
+            if (days) {
+                const date = new Date();
+                date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+                expires = "; expires=" + date.toUTCString();
             }
-            
-            // 检测等距移动
-            if (mouseTrack.length > 3) {
-                const last = mouseTrack[mouseTrack.length - 1];
-                const prev = mouseTrack[mouseTrack.length - 2];
-                const prevPrev = mouseTrack[mouseTrack.length - 3];
-                
-                const dist1 = Math.sqrt(Math.pow(last.x - prev.x, 2) + Math.pow(last.y - prev.y, 2));
-                const dist2 = Math.sqrt(Math.pow(prev.x - prevPrev.x, 2) + Math.pow(prev.y - prevPrev.y, 2));
-                
-                if (Math.abs(dist1 - dist2) < 0.5) {
+            document.cookie = name + "=" + (value || "") + expires + "; path=/";
+        }
+
+        function getCookie(name) {
+            const nameEQ = name + "=";
+            const ca = document.cookie.split(';');
+            for(let i = 0; i < ca.length; i++) {
+                let c = ca[i];
+                while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+                if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+            }
+            return null;
+        }
+
+        // 检测浏览器语言
+        function detectBrowserLang() {
+            const browserLang = navigator.language || navigator.userLanguage;
+
+            return browserLang.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+        }
+
+        let currentLang = getCookie('samwaf_lang') || detectBrowserLang();
+
+        function setLanguage(lang) {
+            currentLang = lang;
+            setCookie('samwaf_lang', lang, 30); // 保存30天
+            applyLanguage();
+            return currentLang;
+        }
+
+        function getCurrentLang() {
+            return currentLang;
+        }
+
+        function getText(key) {
+            return i18n[currentLang][key] || i18n['en'][key] || key;
+        }
+
+        function applyLanguage() {
+            // 更新页面标题
+            document.getElementById('page-title').textContent = getText('title');
+
+            // 更新语言切换按钮
+            document.getElementById('lang-switch').textContent = getText('switchLang');
+
+            // 如果有成功消息，更新它
+            const successEl = document.querySelector('.box h3');
+            if (successEl) {
+                successEl.textContent = getText('verifySuccess');
+            }
+        }
+
+        return {
+            setLanguage,
+            getCurrentLang,
+            getText,
+            applyLanguage
+        };
+    })();
+
+    // 初始化语言
+    langManager.applyLanguage();
+
+    // 语言切换按钮事件
+    document.getElementById('lang-switch').addEventListener('click', function() {
+        const newLang = langManager.getCurrentLang() === 'zh' ? 'en' : 'zh';
+        langManager.setLanguage(newLang);
+        // 刷新页面以重新初始化验证码
+        window.location.reload();
+    });
+
+    // 机器人检测模块
+    (function() {
+        // 初始化检测变量
+        let mouseMovements = 0;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+        let mouseTrack = [];
+        let startTime = Date.now();
+        let botScore = 0;
+        let isBotDetected = false;
+        let clickTimes = [];
+
+        // 检测自动化工具和模拟器
+        function detectAutomation() {
+            // 检测常见的自动化工具特征
+            const automationFlags = [
+                !!window.document.documentElement.getAttribute('selenium'),
+                !!window.document.documentElement.getAttribute('webdriver'),
+                !!window._phantom,
+                !!window.callPhantom,
+                !!window.__nightmare,
+                !!window.domAutomation,
+                !!window.domAutomationController,
+                navigator.webdriver === true,
+                navigator.userAgent.indexOf('Selenium') !== -1,
+                navigator.userAgent.indexOf('PhantomJS') !== -1,
+                navigator.userAgent.indexOf('Headless') !== -1
+            ];
+
+            // 检测到任何自动化工具标志
+            automationFlags.forEach(flag => {
+                if (flag) botScore += 20;
+            });
+
+            // 检测异常的浏览器特征
+            if (navigator.hardwareConcurrency < 2) botScore += 10;
+            if (navigator.plugins.length === 0) botScore += 10;
+            if (navigator.languages === undefined) botScore += 10;
+
+            // 检测Canvas指纹
+            try {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                ctx.textBaseline = "top";
+                ctx.font = "14px 'Arial'";
+                ctx.fillStyle = "#f60";
+                ctx.fillRect(125, 1, 62, 20);
+                ctx.fillStyle = "#069";
+                ctx.fillText("SamWaf防护", 2, 15);
+                ctx.fillStyle = "rgba(102, 204, 0, 0.7)";
+                ctx.fillText("SamWaf防护", 4, 17);
+
+                const dataURL = canvas.toDataURL();
+                if (dataURL === 'data:,') botScore += 20; // 空数据URL通常表示headless浏览器
+            } catch(e) {
+                botScore += 15; // Canvas操作异常
+            }
+
+            return botScore >= 30;
+        }
+
+        // 监听鼠标移动
+        document.addEventListener('mousemove', function(e) {
+            mouseMovements++;
+
+            // 记录鼠标轨迹
+            if (mouseTrack.length < 100) {
+                mouseTrack.push({
+                    x: e.clientX,
+                    y: e.clientY,
+                    time: Date.now() - startTime
+                });
+            }
+
+            // 检测鼠标移动是否过于机械
+            if (lastMouseX !== 0 && lastMouseY !== 0) {
+                const dx = e.clientX - lastMouseX;
+                const dy = e.clientY - lastMouseY;
+
+                // 检测直线移动
+                if (dx === 0 || dy === 0) {
                     botScore += 1;
                 }
+
+                // 检测等距移动
+                if (mouseTrack.length > 3) {
+                    const last = mouseTrack[mouseTrack.length - 1];
+                    const prev = mouseTrack[mouseTrack.length - 2];
+                    const prevPrev = mouseTrack[mouseTrack.length - 3];
+
+                    const dist1 = Math.sqrt(Math.pow(last.x - prev.x, 2) + Math.pow(last.y - prev.y, 2));
+                    const dist2 = Math.sqrt(Math.pow(prev.x - prevPrev.x, 2) + Math.pow(prev.y - prevPrev.y, 2));
+
+                    if (Math.abs(dist1 - dist2) < 0.5) {
+                        botScore += 1;
+                    }
+                }
             }
-        }
-        
-        lastMouseX = e.clientX;
-        lastMouseY = e.clientY;
-    });
-    
-    // 监听点击事件
-    document.addEventListener('click', function(e) {
-        clickTimes.push(Date.now());
-        
-        // 检测点击间隔是否过于规律
-        if (clickTimes.length >= 3) {
-            const interval1 = clickTimes[clickTimes.length - 1] - clickTimes[clickTimes.length - 2];
-            const interval2 = clickTimes[clickTimes.length - 2] - clickTimes[clickTimes.length - 3];
-            
-            if (Math.abs(interval1 - interval2) < 50) {
-                botScore += 5; // 点击间隔过于规律
+
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+        });
+
+        // 监听点击事件
+        document.addEventListener('click', function (e) {
+            clickTimes.push(Date.now());
+
+            // 检测点击间隔是否过于规律
+            if (clickTimes.length >= 3) {
+                const interval1 = clickTimes[clickTimes.length - 1] - clickTimes[clickTimes.length - 2];
+                const interval2 = clickTimes[clickTimes.length - 2] - clickTimes[clickTimes.length - 3];
+
+                if (Math.abs(interval1 - interval2) < 50) {
+                    botScore += 5; // 点击间隔过于规律
+                }
             }
-        }
-        
-        // 检测点击位置是否过于精确
-        if (e.clientX % 1 === 0 && e.clientY % 1 === 0) {
-            botScore += 2; // 精确到整数像素的点击
-        }
-    });
-    
-    // 定期检查机器人特征
-    setInterval(function() {
-        // 检测鼠标移动是否太少
-        const timeElapsed = (Date.now() - startTime) / 1000;
-        if (timeElapsed > 3 && mouseMovements < 5) {
-            botScore += 10; // 3秒内鼠标移动次数少于5次
-        }
-        
-        // 检测自动化工具
-        if (detectAutomation()) {
-            isBotDetected = true;
-        }
-        
-        // 如果机器人分数过高，标记为机器人
-        if (botScore >= 30) {
-            isBotDetected = true;
-        }
-        
-        // 如果检测到机器人，发送到服务器
-        if (isBotDetected) {
-            // 向服务器报告可能的机器人行为
-            axios({
-                method: 'post',
-                url: '/samwaf_captcha/report_bot',
-                data: Qs.stringify({
-                    score: botScore,
-                    userAgent: navigator.userAgent,
-                    screenInfo: `${window.screen.width}x${window.screen.height}`,
-                    timestamp: Date.now()
-                })
-            }).catch(e => {
-                // 静默处理错误
-            });
-            
-            // 增加验证难度或显示额外验证
-            const captchaEl = document.getElementById('click-wrap');
-            if (captchaEl) {
-                // 可以在这里修改验证码的难度或行为
+
+            // 检测点击位置是否过于精确
+            if (e.clientX % 1 === 0 && e.clientY % 1 === 0) {
+                botScore += 2; // 精确到整数像素的点击
             }
-        }
-    }, 2000);
-})();
-
-axios.defaults.baseURL = '/';
-
-function toastSuccess(msg) {
-    Toastify({
-        text: msg,
-        duration: 1000,
-        newWindow: true,
-        gravity: "top",
-        position: "center",
-        style: {
-            background: "#f0f9eb",
-            border: "1px solid #dcf9cc",
-            color: "#5eaa2f",
-            borderRadius: "6px",
-            boxShadow: "1px 1px 10px #e0e0e0",
-            padding: "8px 20px"
-        },
-    }).showToast();
-}
-
-function toastError(msg) {
-    Toastify({
-        text: msg,
-        duration: 1000,
-        newWindow: true,
-        gravity: "top",
-        position: "center",
-        style: {
-            background: "#fef0f0",
-            border: "1px solid #fcd6d6",
-            color: "#ed4630",
-            borderRadius: "6px",
-            boxShadow: "1px 1px 10px #e0e0e0",
-            padding: "8px 20px"
-        },
-    }).showToast();
-}
+        });
 
 
-// Click 
-;(function (goCaptcha){
-    const getDataApi = "/samwaf_captcha/click_basic";
-    const checkDataApi = "/samwaf_captcha/verify";
+    })();
 
-    const el = document.getElementById("click-wrap");
-    const capt = new goCaptcha.Click({
-        width: 300,
-        height: 220,
-        // iconSize: 30,
-    });
+    axios.defaults.baseURL = '/';
 
-    var captKey = ''
-
-    capt.mount(el)
-
-    capt.setEvents({
-        click(x,  y) { 
-        },
-        confirm(dots, reset) {
-            // 添加机器人检测数据
-            const botData = {
-                mouseTrack: window.mouseTrack || [],
-                timing: Date.now(),
-                pattern: dots.map(d => ({ x: d.x, y: d.y }))
-            };
-            
-            confirmEvent(dots, botData)
-        },
-        refresh() {
-            capt.clear()
-            requestCaptchaData()
-        },
-        close() { 
-        }
-    })
-
-    const requestCaptchaData = function() {
-        capt.clear()
-        captKey = ''
-        axios({
-            method: 'get',
-            url: getDataApi,
-        }).then(function(response){
-            const data = response.data || {};
-            if (data && (data['code'] || 0) === 0) {
-                capt.setData({
-                    image: data['image_base64'] || '',
-                    thumb: data['thumb_base64'] || '',
-                })
-                captKey = data['captcha_key'] || ''
-            } else {
-                toastError(`获取数据失败`)
-            }
-        }).catch((e)=>{
-            console.warn(e)
-        })
+    function toastSuccess(msg) {
+        Toastify({
+            text: msg,
+            duration: 1000,
+            newWindow: true,
+            gravity: "top",
+            position: "center",
+            style: {
+                background: "#f0f9eb",
+                border: "1px solid #dcf9cc",
+                color: "#5eaa2f",
+                borderRadius: "6px",
+                boxShadow: "1px 1px 10px #e0e0e0",
+                padding: "8px 20px"
+            },
+        }).showToast();
     }
 
-    const confirmEvent = function (dots, botData) {
-        const dotArr = []
-        for (let i = 0; i < dots.length; i++) {
-            const dot = dots[i]
-            dotArr.push(dot.x, dot.y)
+    function toastError(msg) {
+        Toastify({
+            text: msg,
+            duration: 1000,
+            newWindow: true,
+            gravity: "top",
+            position: "center",
+            style: {
+                background: "#fef0f0",
+                border: "1px solid #fcd6d6",
+                color: "#ed4630",
+                borderRadius: "6px",
+                boxShadow: "1px 1px 10px #e0e0e0",
+                padding: "8px 20px"
+            },
+        }).showToast();
+    }
+
+
+    // Click
+    ;(function (goCaptcha) {
+        const getDataApi = "/samwaf_captcha/click_basic";
+        const checkDataApi = "/samwaf_captcha/verify";
+
+        const el = document.getElementById("click-wrap");
+        const capt = new goCaptcha.Click({
+            width: 300,
+            height: 220,
+            title: langManager.getText('captchaTitle'),
+            buttonText: langManager.getText('buttonText'),
+        });
+
+        var captKey = ''
+
+        capt.mount(el)
+
+        capt.setEvents({
+            click(x, y) {
+            },
+            confirm(dots, reset) {
+                // 添加机器人检测数据
+                const botData = {
+                    mouseTrack: window.mouseTrack || [],
+                    timing: Date.now(),
+                    pattern: dots.map(d => ({x: d.x, y: d.y}))
+                };
+
+                confirmEvent(dots, botData)
+            },
+            refresh() {
+                capt.clear()
+                requestCaptchaData()
+            },
+            close() {
+            }
+        })
+
+        const requestCaptchaData = function () {
+            capt.clear()
+            captKey = ''
+            axios({
+                method: 'get',
+                url: getDataApi,
+                params: {
+                    lang: langManager.getCurrentLang() // 将当前语言传递给后端
+                }
+            }).then(function (response) {
+                const data = response.data || {};
+                if (data && (data['code'] || 0) === 0) {
+                    capt.setData({
+                        image: data['image_base64'] || '',
+                        thumb: data['thumb_base64'] || '',
+                    })
+                    captKey = data['captcha_key'] || ''
+                } else {
+                    toastError(langManager.getText('getDataError'))
+                }
+            }).catch((e) => {
+                console.warn(e)
+            })
         }
 
-        axios({
-            method: 'post',
-            url: checkDataApi,
-            data: Qs.stringify({
-                dots: dotArr.join(','),
-                key: captKey || '',
-                botCheck: JSON.stringify(botData || {})
-            }),
-        }).then(function (response){
-            const data = response.data || {};
-            if (data && (data['code'] || 0) === 0) {
-                // 隐藏验证码元素
-                document.getElementById("click-wrap").style.display = "none";
-                // 添加成功提示
-                const successEl = document.createElement("div");
-                successEl.className = "box";
-                successEl.innerHTML = "<h3 style='color: #5eaa2f; text-align: center;'>验证成功，页面即将刷新...</h3>";
-                document.querySelector(".example").appendChild(successEl);
-                
-                setTimeout(() => {
-                    window.location.reload();
-                }, 2000);
-            } else {
-                toastError(`校验失败`)
-                
+        const confirmEvent = function (dots, botData) {
+            const dotArr = []
+            for (let i = 0; i < dots.length; i++) {
+                const dot = dots[i]
+                dotArr.push(dot.x, dot.y)
+            }
+
+            axios({
+                method: 'post',
+                url: checkDataApi,
+                data: Qs.stringify({
+                    dots: dotArr.join(','),
+                    key: captKey || '',
+                    botCheck: JSON.stringify(botData || {})
+                }),
+            }).then(function (response) {
+                const data = response.data || {};
+                if (data && (data['code'] || 0) === 0) {
+                    // 隐藏验证码元素
+                    document.getElementById("click-wrap").style.display = "none";
+                    // 隐藏语言切换按钮
+                    document.getElementById("lang-switch").style.display = "none";
+                    // 添加成功提示
+                    const successEl = document.createElement("div");
+                    successEl.className = "box";
+                    successEl.innerHTML = "<h3 style='color: #5eaa2f; text-align: center;'>" + langManager.getText('verifySuccess') + "</h3>";
+                    document.querySelector(".example").appendChild(successEl);
+
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                } else {
+                    toastError(langManager.getText('verifyFail'))
+
+                    setTimeout(() => {
+                        requestCaptchaData()
+                    }, 500)
+                }
+            }).catch((e) => {
+                console.warn(e)
                 setTimeout(() => {
                     requestCaptchaData()
                 }, 500)
-            }
-        }).catch((e)=>{
-            console.warn(e)
-            setTimeout(() => {
-                requestCaptchaData()
-            }, 500)
-        })
-    }
+            })
+        }
 
-    requestCaptchaData()
-})(window.GoCaptcha || {}) 
+        requestCaptchaData()
+    })(window.GoCaptcha || {})
 
 </script>
 </body>
-</html>

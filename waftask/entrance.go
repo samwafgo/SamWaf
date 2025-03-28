@@ -111,11 +111,18 @@ func InitTaskDb() []model.Task {
 		TaskMethod: enums.TASK_NOTICE,
 	})
 	syncTaskToDb(model.Task{
-		TaskName:   "每天5s进行健康度检测",
+		TaskName:   "每30s进行健康度检测",
 		TaskUnit:   enums.TASK_SECOND,
-		TaskValue:  5,
+		TaskValue:  30,
 		TaskAt:     "",
 		TaskMethod: enums.TASK_HEALTH,
+	})
+	syncTaskToDb(model.Task{
+		TaskName:   "每5分钟进行CCWindows旧信息清除",
+		TaskUnit:   enums.TASK_MIN,
+		TaskValue:  5,
+		TaskAt:     "",
+		TaskMethod: enums.TASK_CLEAR_CC_WINDOWS,
 	})
 	list, _, _ := wafTaskService.GetList()
 	return list

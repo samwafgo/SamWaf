@@ -228,9 +228,9 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 检测是否已经被CC封禁
-		ccCacheKey := enums.CACHE_CCVISITBAN_PRE + clientIP
+		ccCacheKey := enums.CACHE_CCVISITBAN_PRE + weblogbean.NetSrcIp
 		if global.GCACHE_WAFCACHE.IsKeyExist(ccCacheKey) {
-			visitIPError := fmt.Sprintf("当前IP已经被CC封禁，IP:%s 归属地区：%s", clientIP, region)
+			visitIPError := fmt.Sprintf("当前IP已经被CC封禁，IP:%s 归属地区：%s", weblogbean.NetSrcIp, region)
 			global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
 				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "CC封禁提醒"},
 				OperaCnt:        visitIPError,
@@ -1024,4 +1024,45 @@ func (waf *WafEngine) StopProxyServer(v innerbean.ServerRunTime) {
 	if v.Svr != nil {
 		v.Svr.Close()
 	}
+}
+func (waf *WafEngine) ClearCcWindows() {
+	// 清理所有主机的IP限流器记录
+	for _, hostSafe := range waf.HostTarget {
+		if hostSafe.PluginIpRateLimiter != nil {
+			hostSafe.PluginIpRateLimiter.CleanupOldRecords()
+		}
+	}
+}
+
+// ClearCcWindowsForIP 清理特定IP的CC限流记录
+func (waf *WafEngine) ClearCcWindowsForIP(ip string) {
+	// 遍历所有主机，清理指定IP的限流记录
+	hostCount := 0
+	for hostKey, hostSafe := range waf.HostTarget {
+		if hostSafe.PluginIpRateLimiter != nil {
+			// 获取清理前的请求计数
+			var countBefore int
+			if hostSafe.PluginIpRateLimiter.GetRequestCount != nil {
+				countBefore = hostSafe.PluginIpRateLimiter.GetRequestCount(ip)
+			}
+
+			// 清理该IP的限流记录
+			hostSafe.PluginIpRateLimiter.ClearWindowForIP(ip)
+			hostCount++
+
+			// 获取清理后的请求计数
+			var countAfter int
+			if hostSafe.PluginIpRateLimiter.GetRequestCount != nil {
+				countAfter = hostSafe.PluginIpRateLimiter.GetRequestCount(ip)
+			}
+
+			// 打印清理前后的计数信息
+			zlog.Debug(fmt.Sprintf("主机 %s 的 IP %s 限流记录: 清理前=%d, 清理后=%d",
+				hostKey, ip, countBefore, countAfter))
+		}
+	}
+
+	zlog.Debug(fmt.Sprintf("已清理 IP %s 在 %d 个主机上的 CC 限流记录", ip, hostCount),
+		zap.String("ip", ip),
+		zap.Int("hostCount", hostCount))
 }

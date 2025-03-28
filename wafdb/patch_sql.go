@@ -137,6 +137,13 @@ func pathCoreSql(db *gorm.DB) {
 	} else {
 		zlog.Info("db", "hosts :insecure_skip_verify init successfully")
 	}
+	//20250328 cc模式 默认还是现有的
+	err = db.Exec("UPDATE anti_ccs SET limit_mode='window' WHERE limit_mode IS NULL ").Error
+	if err != nil {
+		panic("failed to anti_ccs :limit_mode " + err.Error())
+	} else {
+		zlog.Info("db", "anti_ccs :limit_mode init successfully")
+	}
 	// 记录结束时间并计算耗时
 	duration := time.Since(startTime)
 	zlog.Info("create core index completely", "duration", duration.String())

@@ -88,6 +88,9 @@ var (
 	GWAF_CHAN_SSL_EXPIRE_CHECK        = make(chan int, 10)                 //SSL证书到期检测
 	GWAF_CHAN_SYNC_HOST_TO_SSL_EXPIRE = make(chan int, 10)                 //同步已存在主机到SSL证书检测任务里
 	GWAF_CHAN_TASK                    = make(chan string, 10)              //手工执行任务
+	GWAF_CHAN_CLEAR_CC_WINDOWS        = make(chan int, 10)                 //清除cc缓存信息
+	GWAF_CHAN_CLEAR_CC_IP             = make(chan string, 10)              //清除cc缓存信息IP
+
 	/*****CACHE相关*********/
 	GCACHE_WAFCACHE      *cache.WafCache      //cache
 	GCACHE_WECHAT_ACCESS string          = "" //微信访问密钥

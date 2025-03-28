@@ -13,6 +13,7 @@ import (
 	"SamWaf/webplugin"
 	"context"
 	"encoding/base64"
+	"fmt"
 	goahocorasick "github.com/samwafgo/ahocorasick"
 	"golang.org/x/time/rate"
 	"net/http"
@@ -136,7 +137,19 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 	//初始化插件-ip计数器
 	var pluginIpRateLimiter *webplugin.IPRateLimiter
 	if anticcBean.Id != "" {
-		pluginIpRateLimiter = webplugin.NewIPRateLimiter(rate.Limit(anticcBean.Rate), anticcBean.Limit)
+		// 根据配置选择限流模式
+		if anticcBean.LimitMode == "window" {
+			// 使用滑动窗口模式
+			pluginIpRateLimiter = webplugin.NewWindowIPRateLimiter(anticcBean.Rate, anticcBean.Limit)
+			zlog.Debug(fmt.Sprintf("初始化CC防护(滑动窗口模式) 主机%v 时间窗口(秒)%v 最大请求数%v",
+				inHost.Host, anticcBean.Rate, anticcBean.Limit))
+		} else {
+			// 使用平均速率模式(默认)
+			ratePerSecond := rate.Limit(float64(anticcBean.Limit) / float64(anticcBean.Rate))
+			pluginIpRateLimiter = webplugin.NewIPRateLimiter(ratePerSecond, anticcBean.Limit)
+			zlog.Debug(fmt.Sprintf("初始化CC防护(平均速率模式) 主机%v 时间窗口(秒)%v 最大请求数%v 每秒速率%v",
+				inHost.Host, anticcBean.Rate, anticcBean.Limit, float64(anticcBean.Limit)/float64(anticcBean.Rate)))
+		}
 	}
 
 	//查询ip白名单

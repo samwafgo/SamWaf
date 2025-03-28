@@ -301,6 +301,7 @@ func (m *wafSystenService) run() {
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_SSL_EXPIRE_CHECK, waftask.SSLExpireCheck)
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_NOTICE, waftask.TaskStatusNotify)
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_HEALTH, waftask.TaskHealth)
+	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_CLEAR_CC_WINDOWS, waftask.TaskCC)
 	go waftask.TaskShareDbInfo()
 
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler = waftask.NewTaskScheduler(globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry)
@@ -585,6 +586,14 @@ func (m *wafSystenService) run() {
 		case taskMethod := <-global.GWAF_CHAN_TASK:
 			zlog.Debug("需要执行的方法", taskMethod)
 			globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler.RunManual(taskMethod)
+			break
+		case clearCcWindows := <-global.GWAF_CHAN_CLEAR_CC_WINDOWS:
+			zlog.Debug("定时清空CCwindows", clearCcWindows)
+			globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ClearCcWindows()
+			break
+		case clearCcWindowsIp := <-global.GWAF_CHAN_CLEAR_CC_IP:
+			zlog.Debug("定时清空CCip", clearCcWindowsIp)
+			globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ClearCcWindowsForIP(clearCcWindowsIp)
 			break
 		}
 

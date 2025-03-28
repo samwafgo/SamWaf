@@ -30,6 +30,7 @@ func (receiver *WafAntiCCService) AddApi(req request.WafAntiCCAddReq) error {
 		LockIPMinutes: req.LockIPMinutes,
 		Url:           req.Url,
 		Remarks:       req.Remarks,
+		LimitMode:     req.LimitMode,
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
 	return nil
@@ -54,6 +55,7 @@ func (receiver *WafAntiCCService) ModifyApi(req request.WafAntiCCEditReq) error 
 		"LockIPMinutes": req.LockIPMinutes,
 		"Remarks":       req.Remarks,
 		"UPDATE_TIME":   customtype.JsonTime(time.Now()),
+		"LimitMode":     req.LimitMode,
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.AntiCC{}).Where("id = ?", req.Id).Updates(ipWhiteMap).Error
 

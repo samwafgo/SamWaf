@@ -109,6 +109,7 @@ func (w *WafAntiCCApi) RemoveCCBanIPApi(c *gin.Context) {
 		ccCacheKey := enums.CACHE_CCVISITBAN_PRE + req.Ip
 		if global.GCACHE_WAFCACHE.IsKeyExist(ccCacheKey) {
 			global.GCACHE_WAFCACHE.Remove(ccCacheKey)
+			global.GWAF_CHAN_CLEAR_CC_IP <- req.Ip
 			response.OkWithMessage(req.Ip+" 移除成功", c)
 		} else {
 			response.FailWithMessage("键值未找到或以过期", c)

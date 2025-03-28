@@ -9,12 +9,12 @@ import (
 )
 
 // checkCaptchaToken 返回false 要验证信息 ，true 不验证信息
-func (waf *WafEngine) checkCaptchaToken(r *http.Request, log innerbean.WebLog) bool {
+func (waf *WafEngine) checkCaptchaToken(r *http.Request, webLog innerbean.WebLog) bool {
 	// 首先从Cookie中获取验证标识
 	cookie, err := r.Cookie("samwaf_captcha_token")
 	if err == nil && cookie.Value != "" {
 		// 检查缓存中是否存在该标识
-		if global.GCACHE_WAFCACHE.IsKeyExist(enums.CACHE_CAPTCHA_PASS + cookie.Value) {
+		if global.GCACHE_WAFCACHE.IsKeyExist(enums.CACHE_CAPTCHA_PASS + cookie.Value + webLog.SRC_IP) {
 			return true
 		}
 	}
@@ -23,16 +23,16 @@ func (waf *WafEngine) checkCaptchaToken(r *http.Request, log innerbean.WebLog) b
 	token := r.Header.Get("X-SamWaf-Captcha-Token")
 	if token != "" {
 		// 检查缓存中是否存在该标识
-		if global.GCACHE_WAFCACHE.IsKeyExist(enums.CACHE_CAPTCHA_PASS + token) {
+		if global.GCACHE_WAFCACHE.IsKeyExist(enums.CACHE_CAPTCHA_PASS + token + webLog.SRC_IP) {
 			return true
 		}
 	}
 	//是bot而且危险程度是0，那么不用进行验证码挑战
-	if log.IsBot == 1 {
-		if log.RISK_LEVEL == 0 {
+	if webLog.IsBot == 1 {
+		if webLog.RISK_LEVEL == 0 {
 			return true
 		} else {
-			if log.GUEST_IDENTIFICATION == "查询超时" || log.GUEST_IDENTIFICATION == "查询失败" {
+			if webLog.GUEST_IDENTIFICATION == "查询超时" || webLog.GUEST_IDENTIFICATION == "查询失败" {
 				return true
 			}
 			//伪爬虫是否开启图形验证

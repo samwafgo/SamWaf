@@ -430,7 +430,7 @@ func (s *CaptchaService) VerifyCaptcha(w http.ResponseWriter, r *http.Request, c
 		// 生成验证通过的标识
 		captchaPassToken := uuid.NewV4().String()
 		// 将标识存入缓存
-		s.cache.SetWithTTl(enums.CACHE_CAPTCHA_PASS+captchaPassToken, "ok", time.Duration(expireTime)*time.Hour)
+		s.cache.SetWithTTl(enums.CACHE_CAPTCHA_PASS+captchaPassToken+webLog.SRC_IP, "ok", time.Duration(expireTime)*time.Hour)
 
 		// 设置Cookie
 		cookie := &http.Cookie{

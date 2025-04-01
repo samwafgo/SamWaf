@@ -72,6 +72,7 @@ jobs:
           push: true  # Push to Docker Hub
           tags: |
             samwaf/samwaf:${{ env.IMAGE_TAG }}
+            samwaf/samwaf:beta
             ${{ env.is_beta == 'false' && 'samwaf/samwaf:latest' || '' }}
       # Test the Docker Image  (latest)
       - name: Test Docker Image (latest)

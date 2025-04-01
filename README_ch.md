@@ -176,6 +176,9 @@ docker run -d --name=samwaf-instance \
 ```
 更多docker启动上面的解释  https://hub.docker.com/r/samwaf/samwaf
 
+标签
+- latest :最新正式版本（建议生产使用）   
+- beta: 最新测试版本（可以在测试体验最新特性，或修正特定bug）
 
 ## 启动访问
 

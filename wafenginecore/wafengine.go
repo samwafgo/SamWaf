@@ -353,6 +353,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					IsEnableCaptcha: 0,
 					ExcludeURLs:     "",
 					ExpireTime:      24,
+					IPMode:          "nic", // 默认使用网卡模式
 				}
 
 				err = json.Unmarshal([]byte(hostTarget.Host.CaptchaJSON), &captchaConfig)
@@ -361,7 +362,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 
 				if captchaConfig.IsEnableCaptcha == 1 {
-					if !waf.checkCaptchaToken(r, weblogbean) {
+					if !waf.checkCaptchaToken(r, weblogbean, captchaConfig.IPMode) {
 						// 检查当前URL是否在排除列表中
 						currentURL := strings.ToLower(r.URL.Path)
 						isExcluded := false
@@ -379,7 +380,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 							}
 						}
 						if !isExcluded {
-							waf.handleCaptchaRequest(w, r, captchaConfig.ExpireTime, weblogbean)
+							waf.handleCaptchaRequest(w, r, captchaConfig.ExpireTime, weblogbean, captchaConfig.IPMode)
 							return
 						}
 					}

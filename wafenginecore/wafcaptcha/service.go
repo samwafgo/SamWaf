@@ -150,8 +150,8 @@ func GetService() *CaptchaService {
 }
 
 // HandleCaptchaRequest 处理验证码请求
-func (s *CaptchaService) HandleCaptchaRequest(w http.ResponseWriter, r *http.Request, expireTime int, weblog innerbean.WebLog) {
-	// 从路径中提取验证码相关部分
+func (s *CaptchaService) HandleCaptchaRequest(w http.ResponseWriter, r *http.Request, expireTime int, weblog innerbean.WebLog, ipMode string) {
+
 	path := r.URL.Path
 	// 记录访问日志
 	zlog.Debug("验证码请求", zap.String("path", path), zap.String("method", r.Method), zap.String("remote_addr", r.RemoteAddr))
@@ -161,7 +161,7 @@ func (s *CaptchaService) HandleCaptchaRequest(w http.ResponseWriter, r *http.Req
 	} else if strings.HasPrefix(path, "/samwaf_captcha/verify") {
 		// 根据请求参数确定验证码类型
 		captchaType := r.URL.Query().Get("type")
-		s.VerifyCaptcha(w, r, captchaType, expireTime, weblog)
+		s.VerifyCaptcha(w, r, captchaType, expireTime, weblog, ipMode)
 	} else if strings.HasPrefix(path, "/samwaf_captcha/") {
 		cleanPath := strings.TrimPrefix(path, "/samwaf_captcha/")
 		s.ServeStaticFile(w, r, cleanPath)
@@ -365,7 +365,12 @@ func (s *CaptchaService) GetClickBasicCaptData(w http.ResponseWriter, r *http.Re
 }
 
 // VerifyCaptcha 验证验证码
-func (s *CaptchaService) VerifyCaptcha(w http.ResponseWriter, r *http.Request, captchaType string, expireTime int, webLog innerbean.WebLog) {
+func (s *CaptchaService) VerifyCaptcha(w http.ResponseWriter, r *http.Request, captchaType string, expireTime int, webLog innerbean.WebLog, ipMode string) {
+	// 根据IP模式选择使用的IP
+	clientIP := webLog.NetSrcIp
+	if ipMode == "proxy" {
+		clientIP = webLog.SRC_IP
+	}
 	code := 1
 	_ = r.ParseForm()
 	dots := r.Form.Get("dots")
@@ -430,7 +435,7 @@ func (s *CaptchaService) VerifyCaptcha(w http.ResponseWriter, r *http.Request, c
 		// 生成验证通过的标识
 		captchaPassToken := uuid.NewV4().String()
 		// 将标识存入缓存
-		s.cache.SetWithTTl(enums.CACHE_CAPTCHA_PASS+captchaPassToken+webLog.SRC_IP, "ok", time.Duration(expireTime)*time.Hour)
+		s.cache.SetWithTTl(enums.CACHE_CAPTCHA_PASS+captchaPassToken+clientIP, "ok", time.Duration(expireTime)*time.Hour)
 
 		// 设置Cookie
 		cookie := &http.Cookie{

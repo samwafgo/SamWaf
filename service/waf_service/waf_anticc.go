@@ -16,6 +16,12 @@ type WafAntiCCService struct{}
 var WafAntiCCServiceApp = new(WafAntiCCService)
 
 func (receiver *WafAntiCCService) AddApi(req request.WafAntiCCAddReq) error {
+	var existingRecord model.AntiCC
+	result := global.GWAF_LOCAL_DB.Where("host_code = ?", req.HostCode).First(&existingRecord)
+	if result.Error == nil {
+		// 记录已存在，返回错误
+		return errors.New("当前网站已存在CC防护配置")
+	}
 	var bean = &model.AntiCC{
 		BaseOrm: baseorm.BaseOrm{
 			Id:          uuid.NewV4().String(),
@@ -31,6 +37,7 @@ func (receiver *WafAntiCCService) AddApi(req request.WafAntiCCAddReq) error {
 		Url:           req.Url,
 		Remarks:       req.Remarks,
 		LimitMode:     req.LimitMode,
+		IPMode:        req.IPMode,
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
 	return nil
@@ -56,6 +63,7 @@ func (receiver *WafAntiCCService) ModifyApi(req request.WafAntiCCEditReq) error 
 		"Remarks":       req.Remarks,
 		"UPDATE_TIME":   customtype.JsonTime(time.Now()),
 		"LimitMode":     req.LimitMode,
+		"IPMode":        req.IPMode,
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.AntiCC{}).Where("id = ?", req.Id).Updates(ipWhiteMap).Error
 

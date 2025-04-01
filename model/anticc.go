@@ -10,12 +10,12 @@ import "SamWaf/model/baseorm"
 
 type AntiCC struct {
 	baseorm.BaseOrm
-	Id            string `json:"id" gorm:"column:id;primary_key"`
 	HostCode      string `json:"host_code" gorm:"column:host_code"`
 	Rate          int    `json:"rate" gorm:"column:rate"`
 	Limit         int    `json:"limit" gorm:"column:limit"`
 	LockIPMinutes int    `json:"lock_ip_minutes" gorm:"column:lock_ip_minutes"`
 	LimitMode     string `json:"limit_mode" gorm:"column:limit_mode"` // "rate" 或 "window"
+	IPMode        string `json:"ip_mode" gorm:"column:ip_mode"`       // "nic" 网卡模式 或 "proxy" 代理模式
 	Url           string `json:"url"`                                 //保护的url
 	Remarks       string `json:"remarks"`                             //备注
 }

@@ -465,6 +465,9 @@ func (s *CaptchaService) VerifyCaptcha(w http.ResponseWriter, r *http.Request, c
 func (s *CaptchaService) ShowCaptchaHomePage(w http.ResponseWriter, r *http.Request) {
 	// 设置内容类型
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
 
 	// 从指定目录加载index.html
 	http.ServeFile(w, r, utils.GetCurrentDir()+"/data/captcha/index.html")

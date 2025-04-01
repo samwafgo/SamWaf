@@ -9,12 +9,18 @@ import (
 )
 
 // checkCaptchaToken 返回false 要验证信息 ，true 不验证信息
-func (waf *WafEngine) checkCaptchaToken(r *http.Request, webLog innerbean.WebLog) bool {
+func (waf *WafEngine) checkCaptchaToken(r *http.Request, webLog innerbean.WebLog, ipMode string) bool {
+	// 根据IP模式选择使用的IP
+	clientIP := webLog.NetSrcIp
+	if ipMode == "proxy" {
+		clientIP = webLog.SRC_IP
+	}
+
 	// 首先从Cookie中获取验证标识
 	cookie, err := r.Cookie("samwaf_captcha_token")
 	if err == nil && cookie.Value != "" {
 		// 检查缓存中是否存在该标识
-		if global.GCACHE_WAFCACHE.IsKeyExist(enums.CACHE_CAPTCHA_PASS + cookie.Value + webLog.SRC_IP) {
+		if global.GCACHE_WAFCACHE.IsKeyExist(enums.CACHE_CAPTCHA_PASS + cookie.Value + clientIP) {
 			return true
 		}
 	}
@@ -23,7 +29,7 @@ func (waf *WafEngine) checkCaptchaToken(r *http.Request, webLog innerbean.WebLog
 	token := r.Header.Get("X-SamWaf-Captcha-Token")
 	if token != "" {
 		// 检查缓存中是否存在该标识
-		if global.GCACHE_WAFCACHE.IsKeyExist(enums.CACHE_CAPTCHA_PASS + token + webLog.SRC_IP) {
+		if global.GCACHE_WAFCACHE.IsKeyExist(enums.CACHE_CAPTCHA_PASS + token + clientIP) {
 			return true
 		}
 	}
@@ -40,14 +46,13 @@ func (waf *WafEngine) checkCaptchaToken(r *http.Request, webLog innerbean.WebLog
 				return true
 			}
 		}
-
 	}
 	return false
 }
 
 // 处理验证码
-func (waf *WafEngine) handleCaptchaRequest(w http.ResponseWriter, r *http.Request, expireTime int, log innerbean.WebLog) {
+func (waf *WafEngine) handleCaptchaRequest(w http.ResponseWriter, r *http.Request, expireTime int, log innerbean.WebLog, ipMode string) {
 	// 使用验证码服务处理请求
 	captchaService := wafcaptcha.GetService()
-	captchaService.HandleCaptchaRequest(w, r, expireTime, log)
+	captchaService.HandleCaptchaRequest(w, r, expireTime, log, ipMode)
 }

@@ -65,4 +65,5 @@ type CaptchaConfig struct {
 	IsEnableCaptcha int    `json:"is_enable_captcha"` // 是否开启验证码 1开启 0关闭
 	ExcludeURLs     string `json:"exclude_urls"`      // 排除验证码的URL列表
 	ExpireTime      int    `json:"expire_time"`       // 验证通过后的有效期(小时)
+	IPMode          string `json:"ip_mode"`           // IP提取模式: "nic" 网卡模式 或 "proxy" 代理模式
 }

@@ -31,7 +31,7 @@ func (w *WafAntiCCApi) AddApi(c *gin.Context) {
 				response.OkWithMessage("添加成功", c)
 			} else {
 
-				response.FailWithMessage("添加失败", c)
+				response.FailWithMessage("添加失败 "+err.Error(), c)
 			}
 			return
 		} else {

@@ -22,28 +22,46 @@ func (waf *WafEngine) CheckCC(r *http.Request, weblogbean *innerbean.WebLog, for
 		Title:           "",
 		Content:         "",
 	}
-	// cc 防护 (局部检测 )
+	// cc 防护 (局部检测)
 	if hostTarget.PluginIpRateLimiter != nil {
+		// 根据IP模式选择使用的IP
+		var clientIP string
+		if hostTarget.AntiCCBean.IPMode == "proxy" {
+			clientIP = weblogbean.SRC_IP
+		} else {
+			// 默认使用网卡模式
+			clientIP = weblogbean.NetSrcIp
+		}
 
-		if !hostTarget.PluginIpRateLimiter.Allow(weblogbean.NetSrcIp) {
+		if !hostTarget.PluginIpRateLimiter.Allow(clientIP) {
 			weblogbean.RISK_LEVEL = 1
 			result.IsBlock = true
 			result.Title = "【局部】触发IP频次访问限制"
 			result.Content = "您的访问被阻止超量了"
-			cacheKey := enums.CACHE_CCVISITBAN_PRE + weblogbean.NetSrcIp
+			cacheKey := enums.CACHE_CCVISITBAN_PRE + clientIP
 			//将该IP添加到封禁里
 			global.GCACHE_WAFCACHE.SetWithTTl(cacheKey, 1, time.Duration(hostTarget.AntiCCBean.LockIPMinutes)*time.Minute)
 			return result
 		}
 	}
-	// cc 防护 （全局检测 ）
+
+	// cc 防护 （全局检测）
 	if waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].Host.GUARD_STATUS == 1 && waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].PluginIpRateLimiter != nil {
-		if !waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].PluginIpRateLimiter.Allow(weblogbean.NetSrcIp) {
+		// 根据IP模式选择使用的IP
+		var clientIP string
+		if waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].AntiCCBean.IPMode == "proxy" {
+			clientIP = weblogbean.SRC_IP
+		} else {
+			// 默认使用网卡模式
+			clientIP = weblogbean.NetSrcIp
+		}
+
+		if !waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].PluginIpRateLimiter.Allow(clientIP) {
 			weblogbean.RISK_LEVEL = 1
 			result.IsBlock = true
 			result.Title = "【全局】触发IP频次访问限制"
 			result.Content = "您的访问被阻止超量了"
-			cacheKey := enums.CACHE_CCVISITBAN_PRE + weblogbean.NetSrcIp
+			cacheKey := enums.CACHE_CCVISITBAN_PRE + clientIP
 			//将该IP添加到封禁里
 			global.GCACHE_WAFCACHE.SetWithTTl(cacheKey, 1, time.Duration(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].AntiCCBean.LockIPMinutes)*time.Minute)
 			return result

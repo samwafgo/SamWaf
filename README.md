@@ -178,6 +178,9 @@ docker run -d --name=samwaf-instance \
 ```
 More Detail Docker https://hub.docker.com/r/samwaf/samwaf
 
+Tags:
+- **latest**: The latest stable release (recommended for production use).
+- **beta**: The latest testing version (allows testing of new features or specific bug fixes).
 
 ## Start Access
 

@@ -110,7 +110,9 @@ func (waf *WafEngine) processSSL(updateSSLOrder model.SslOrder, bean model.SslOr
 
 	//1. 查找关联主机是否绑定了证书信息， 如有有则生成新证书夹信息，否则  新增
 	hostBean := wafHostService.GetDetailByCodeApi(bean.HostCode)
-	if hostBean.BindSslId == "" {
+	oldSslConfig := wafSslConfigService.GetDetailInner(hostBean.BindSslId)
+	//如果绑定为空 ，或者绑定的数据没有对应的数据就生产一个新的到证书夹里面
+	if hostBean.BindSslId == "" || oldSslConfig.SerialNo == "" {
 		zlog.Info(fmt.Sprintf("%s 当前主机未配置证书新增一个证书文件夹", bean.ApplyDomain))
 		//添加到证书夹内
 		wafSslConfigService.AddInner(newSslConfig)
@@ -129,12 +131,13 @@ func (waf *WafEngine) processSSL(updateSSLOrder model.SslOrder, bean model.SslOr
 		}
 	} else {
 		zlog.Info(fmt.Sprintf("%s 当前主机已配置证书文件夹绑定关系", bean.ApplyDomain))
-		oldSslConfig := wafSslConfigService.GetDetailInner(hostBean.BindSslId)
 		if newSslConfig.CompareSSLNeedUpdate(newSslConfig, oldSslConfig) {
 			//将原来的证书备份，新证书更新到现有证书里面
 			zlog.Info(fmt.Sprintf("%s 当前主机已绑定的证书和新证书相比后允许更新", bean.ApplyDomain))
+			//备份原来的配置
 			wafSslConfigService.AddInner(oldSslConfig)
 			newSslConfig.Id = oldSslConfig.Id
+			//把最新的配置上去
 			wafSslConfigService.ModifyInner(newSslConfig)
 			//1.更新主机信息 2.发送主机通知
 			err = wafHostService.UpdateSSLInfo(string(updateSSLOrder.ResultCertificate), string(updateSSLOrder.ResultPrivateKey), bean.HostCode)

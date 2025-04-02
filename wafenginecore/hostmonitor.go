@@ -23,7 +23,10 @@ func incrementActiveConnections(site string) {
 func decrementActiveConnections(site string) {
 	defer connectionLock.Unlock()
 	connectionLock.Lock()
-	activeConnections[site]--
+	// 检查当前值是否大于0，防止出现负数
+	if activeConnections[site] > 0 {
+		activeConnections[site]--
+	}
 }
 
 // 增加 QPS 计数

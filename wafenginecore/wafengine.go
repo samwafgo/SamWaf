@@ -123,6 +123,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		hostCode := hostTarget.Host.Code
 
 		incrementMonitor(hostCode)
+		defer decrementMonitor(hostCode)
 		//检测网站是否已关闭
 		if hostTarget.Host.START_STATUS == 1 {
 			resBytes := []byte("<html><head><title>网站已关闭</title></head><body><center><h1>当前访问网站已关闭</h1> <br><h3></h3></center></body> </html>")
@@ -425,7 +426,6 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		// 代理请求
 		waf.ProxyHTTP(w, r, host, remoteUrl, clientIP, ctx, weblogbean, hostTarget)
-		decrementMonitor(hostCode)
 
 		return
 	} else {

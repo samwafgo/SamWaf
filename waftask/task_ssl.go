@@ -47,7 +47,7 @@ func SSLReload() {
 				zlog.Error(innerLogName, "ssl config:", err.Error())
 				continue
 			}
-			wafSslConfigService.AddInner(backSslConfig)
+			wafSslConfigService.CreateNewIdInner(backSslConfig)
 			err = wafSslConfigService.ModifyInner(updateSslConfig)
 			if err != nil {
 				zlog.Error(innerLogName, "ssl modify inner config:", err.Error())

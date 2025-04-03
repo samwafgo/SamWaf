@@ -84,7 +84,7 @@ func (receiver *WafSslConfigService) AddApi(req request.SslConfigAddReq) error {
 	return nil
 }
 
-func (receiver *WafSslConfigService) AddInner(config model.SslConfig) {
+func (receiver *WafSslConfigService) CreateNewIdInner(config model.SslConfig) {
 	//检测如果证书编号已经存在不需在进行添加了
 	err := global.GWAF_LOCAL_DB.First(&model.SslConfig{}, "serial_no = ?", config.SerialNo).Error
 	if err == nil && !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -92,6 +92,22 @@ func (receiver *WafSslConfigService) AddInner(config model.SslConfig) {
 		return
 	}
 	config.Id = uuid.NewV4().String()
+	if config.CertPath == "" {
+		config.CertPath = filepath.Join(utils.GetCurrentDir(), "ssl", config.Id, "domain.crt")
+	}
+	if config.KeyPath == "" {
+		config.KeyPath = filepath.Join(utils.GetCurrentDir(), "ssl", config.Id, "domain.key")
+	}
+	global.GWAF_LOCAL_DB.Create(config)
+	zlog.Info(fmt.Sprintf("%s 原来证书已备份", config.Domains))
+}
+func (receiver *WafSslConfigService) CreateInner(config model.SslConfig) {
+	//检测如果证书编号已经存在不需在进行添加了
+	err := global.GWAF_LOCAL_DB.First(&model.SslConfig{}, "serial_no = ?", config.SerialNo).Error
+	if err == nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		zlog.Info(fmt.Sprintf("%s 证书已经存在不进行再次备份", config.Domains))
+		return
+	}
 	if config.CertPath == "" {
 		config.CertPath = filepath.Join(utils.GetCurrentDir(), "ssl", config.Id, "domain.crt")
 	}

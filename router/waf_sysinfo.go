@@ -14,4 +14,5 @@ func (receiver *WebSysInfoRouter) InitSysInfoRouter(group *gin.RouterGroup) {
 	router.GET("/samwaf/sysinfo/version", api.SysVersionApi)
 	router.GET("/samwaf/sysinfo/checkversion", api.CheckVersionApi)
 	router.GET("/samwaf/sysinfo/update", api.UpdateApi)
+	router.GET("/samwaf/sysinfo/announcement", api.GetAnnouncementApi)
 }

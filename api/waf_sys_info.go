@@ -2,17 +2,94 @@ package api
 
 import (
 	"SamWaf/common/zlog"
+	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/utils"
 	"SamWaf/wafupdate"
+	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"io"
+	"net/http"
+	"time"
 )
 
 type WafSysInfoApi struct {
+}
+
+func getAnnouncement() {
+	announcement, err := fetchAnnouncementWithTimeout(10 * time.Second)
+	if err != nil {
+		zlog.Error(err.Error())
+	} else {
+		global.GCACHE_WAFCACHE.SetWithTTlRenewTime(enums.CACHE_ANNOUNCEMENT, announcement, time.Duration(global.GCONFIG_RECORD_ANNOUNCEMENT_EXPIRE_HOURS)*time.Hour)
+	}
+}
+
+// 获取公告数据，可指定超时时间
+func fetchAnnouncementWithTimeout(timeout time.Duration) (string, error) {
+	zlog.Debug(fmt.Sprintf("开始获取公告数据，超时时间: %v", timeout))
+	client := &http.Client{
+		Timeout: timeout,
+	}
+
+	resp, err := client.Get(global.GUPDATE_VERSION_URL + "announcement/public.json?v=" + global.GWAF_RELEASE_VERSION + "&u=" + global.GWAF_USER_CODE)
+	if err != nil {
+		return "", errors.New(fmt.Sprintf("获取失败: %v", err))
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", errors.New(fmt.Sprintf("服务器返回错误状态码: %d", resp.StatusCode))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", errors.New(fmt.Sprintf("读取内容失败: %v", err))
+	}
+
+	return string(body), nil
+}
+
+// GetAnnouncementApi 获取公告API
+func (w *WafSysInfoApi) GetAnnouncementApi(c *gin.Context) {
+	isAnnouncementExist := global.GCACHE_WAFCACHE.IsKeyExist(enums.CACHE_ANNOUNCEMENT)
+	if !isAnnouncementExist {
+		// 先尝试快速获取（2秒超时）
+		announcement, err := fetchAnnouncementWithTimeout(2 * time.Second)
+		if err != nil {
+			zlog.Error("快速获取失败: " + err.Error())
+			// 如果快速获取失败，启动异步协程进行完整获取（10秒超时）
+			go getAnnouncement()
+			response.OkWithDetailed(gin.H{
+				"code": "fail",
+				"data": "",
+			}, "获取中，请稍后", c)
+		} else {
+			// 快速获取成功，保存到缓存
+			global.GCACHE_WAFCACHE.SetWithTTlRenewTime(enums.CACHE_ANNOUNCEMENT, announcement, time.Duration(global.GCONFIG_RECORD_ANNOUNCEMENT_EXPIRE_HOURS)*time.Hour)
+			response.OkWithDetailed(gin.H{
+				"code": "success",
+				"data": announcement,
+			}, "获取成功", c)
+		}
+	} else {
+		announcement, err := global.GCACHE_WAFCACHE.GetString(enums.CACHE_ANNOUNCEMENT)
+		if err == nil {
+			response.OkWithDetailed(gin.H{
+				"code": "success",
+				"data": announcement,
+			}, "获取成功", c)
+		} else {
+			response.OkWithDetailed(gin.H{
+				"code": "fail",
+				"data": "",
+			}, "获取失败", c)
+		}
+	}
 }
 
 func (w *WafSysInfoApi) SysVersionApi(c *gin.Context) {

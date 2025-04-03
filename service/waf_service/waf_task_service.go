@@ -81,7 +81,7 @@ func (receiver *WafTaskService) CheckIsExistApi(req request.WafTaskAddReq) int {
 	return int(total)
 }
 
-func (receiver *WafTaskService) CheckIsExist(taskName string) int {
+func (receiver *WafTaskService) CheckIsExist(taskMethod string) int {
 	var total int64 = 0
 	/*where条件*/
 	var whereField = ""
@@ -89,17 +89,17 @@ func (receiver *WafTaskService) CheckIsExist(taskName string) int {
 	//where字段
 	whereField = ""
 
-	if len(taskName) > 0 {
+	if len(taskMethod) > 0 {
 		if len(whereField) > 0 {
 			whereField = whereField + " and "
 		}
-		whereField = whereField + " task_name=? "
+		whereField = whereField + " task_method=? "
 	}
 
 	//where字段赋值
-	if len(taskName) > 0 {
+	if len(taskMethod) > 0 {
 		if len(whereField) > 0 {
-			whereValues = append(whereValues, taskName)
+			whereValues = append(whereValues, taskMethod)
 		}
 	}
 
@@ -186,5 +186,14 @@ func (receiver *WafTaskService) DelApi(req request.WafTaskDelReq) error {
 		return err
 	}
 	err = global.GWAF_LOCAL_DB.Where("id = ?", req.Id).Delete(model.Task{}).Error
+	return err
+}
+func (receiver *WafTaskService) DelByMethod(taskMethod string) error {
+	var bean model.Task
+	err := global.GWAF_LOCAL_DB.Where("task_method = ?", taskMethod).First(&bean).Error
+	if err != nil {
+		return err
+	}
+	err = global.GWAF_LOCAL_DB.Where("task_method = ?", taskMethod).Delete(model.Task{}).Error
 	return err
 }

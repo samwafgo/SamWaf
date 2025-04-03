@@ -128,8 +128,12 @@ func InitTaskDb() []model.Task {
 	return list
 }
 func syncTaskToDb(task model.Task) {
-	cnt := wafTaskService.CheckIsExist(task.TaskName)
+	cnt := wafTaskService.CheckIsExist(task.TaskMethod)
 	if cnt == 0 {
+		wafTaskService.Add(task)
+	} else if cnt > 1 {
+		//如果重复添加多个method的情况
+		wafTaskService.DelByMethod(task.TaskMethod)
 		wafTaskService.Add(task)
 	}
 }

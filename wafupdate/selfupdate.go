@@ -307,7 +307,7 @@ func fromStream(updateWith io.Reader) (err error, errRecover error) {
 // fetchInfo fetches the update JSON manifest at u.ApiURL/appname/platform.json?v=currentVersion
 // and updates u.Info.
 func (u *Updater) fetchInfo() error {
-	r, err := u.fetch(u.ApiURL + url.QueryEscape(u.CmdName) + "/" + url.QueryEscape(plat) + ".json?v=" + global.GWAF_RELEASE_VERSION)
+	r, err := u.fetch(u.ApiURL + url.QueryEscape(u.CmdName) + "/" + url.QueryEscape(plat) + ".json?v=" + global.GWAF_RELEASE_VERSION + "&u=" + global.GWAF_USER_CODE)
 	if err != nil {
 		return err
 	}

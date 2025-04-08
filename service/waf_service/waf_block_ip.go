@@ -1,13 +1,13 @@
 package waf_service
 
 import (
+	"SamWaf/common/uuid"
 	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
 	"errors"
-	uuid "github.com/satori/go.uuid"
 	"time"
 )
 
@@ -18,7 +18,7 @@ var WafBlockIpServiceApp = new(WafBlockIpService)
 func (receiver *WafBlockIpService) AddApi(req request.WafBlockIpAddReq) error {
 	var bean = &model.IPBlockList{
 		BaseOrm: baseorm.BaseOrm{
-			Id:          uuid.NewV4().String(),
+			Id:          uuid.GenUUID(),
 			USER_CODE:   global.GWAF_USER_CODE,
 			Tenant_ID:   global.GWAF_TENANT_ID,
 			CREATE_TIME: customtype.JsonTime(time.Now()),

@@ -1,6 +1,7 @@
 package wafqueue
 
 import (
+	"SamWaf/common/uuid"
 	"SamWaf/common/zlog"
 	"SamWaf/enums"
 	"SamWaf/global"
@@ -9,7 +10,6 @@ import (
 	"SamWaf/utils"
 	"SamWaf/wafsec"
 	"encoding/json"
-	uuid "github.com/satori/go.uuid"
 	"time"
 )
 
@@ -44,7 +44,7 @@ func ProcessMessageDequeEngine() {
 
 							if ws != nil {
 								msgBody, _ := json.Marshal(model.MsgDataPacket{
-									MessageId:           uuid.NewV4().String(),
+									MessageId:           uuid.GenUUID(),
 									MessageType:         "命中保护规则",
 									MessageData:         rulemessage.RuleInfo + rulemessage.Ip,
 									MessageAttach:       nil,
@@ -80,7 +80,7 @@ func ProcessMessageDequeEngine() {
 
 					if ws != nil {
 						msgBody, _ := json.Marshal(model.MsgDataPacket{
-							MessageId:           uuid.NewV4().String(),
+							MessageId:           uuid.GenUUID(),
 							MessageType:         operatorMessage.OperaType,
 							MessageData:         operatorMessage.OperaCnt,
 							MessageAttach:       nil,
@@ -108,7 +108,7 @@ func ProcessMessageDequeEngine() {
 					if ws != nil {
 						//信息包体进行单独处理
 						msgBody, _ := json.Marshal(model.MsgDataPacket{
-							MessageId:           uuid.NewV4().String(),
+							MessageId:           uuid.GenUUID(),
 							MessageType:         "导出结果",
 							MessageData:         exportResult.Msg,
 							MessageAttach:       nil,
@@ -138,7 +138,7 @@ func ProcessMessageDequeEngine() {
 					if ws != nil {
 						//信息包体进行单独处理
 						msgBody, _ := json.Marshal(model.MsgDataPacket{
-							MessageId:           uuid.NewV4().String(),
+							MessageId:           uuid.GenUUID(),
 							MessageType:         "升级结果",
 							MessageData:         updatemessage.Msg,
 							MessageAttach:       nil,
@@ -168,7 +168,7 @@ func ProcessMessageDequeEngine() {
 					if ws != nil {
 						//信息包体进行单独处理
 						msgBody, _ := json.Marshal(model.MsgDataPacket{
-							MessageId:           uuid.NewV4().String(),
+							MessageId:           uuid.GenUUID(),
 							MessageType:         "信息通知",
 							MessageData:         updatemessage.Msg,
 							MessageAttach:       nil,

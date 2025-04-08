@@ -1,13 +1,13 @@
 package waf_service
 
 import (
+	"SamWaf/common/uuid"
 	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
 	"errors"
-	uuid "github.com/satori/go.uuid"
 	"time"
 )
 
@@ -18,7 +18,7 @@ var WafWhiteUrlServiceApp = new(WafWhiteUrlService)
 func (receiver *WafWhiteUrlService) AddApi(req request.WafAllowUrlAddReq) error {
 	var bean = &model.URLAllowList{
 		BaseOrm: baseorm.BaseOrm{
-			Id:          uuid.NewV4().String(),
+			Id:          uuid.GenUUID(),
 			USER_CODE:   global.GWAF_USER_CODE,
 			Tenant_ID:   global.GWAF_TENANT_ID,
 			CREATE_TIME: customtype.JsonTime(time.Now()),

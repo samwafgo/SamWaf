@@ -1,6 +1,7 @@
 package waftask
 
 import (
+	"SamWaf/common/uuid"
 	"SamWaf/common/zlog"
 	"SamWaf/customtype"
 	"SamWaf/global"
@@ -10,7 +11,6 @@ import (
 	"SamWaf/utils"
 	"SamWaf/wafdb"
 	"fmt"
-	uuid "github.com/satori/go.uuid"
 	"os"
 	"time"
 )
@@ -46,7 +46,7 @@ func TaskShareDbInfo() {
 		}
 		sharDbBean := model.ShareDb{
 			BaseOrm: baseorm.BaseOrm{
-				Id:          uuid.NewV4().String(),
+				Id:          uuid.GenUUID(),
 				USER_CODE:   global.GWAF_USER_CODE,
 				Tenant_ID:   global.GWAF_TENANT_ID,
 				CREATE_TIME: customtype.JsonTime(time.Now()),

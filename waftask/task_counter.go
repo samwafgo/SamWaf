@@ -1,6 +1,7 @@
 package waftask
 
 import (
+	"SamWaf/common/uuid"
 	"SamWaf/common/zlog"
 	"SamWaf/customtype"
 	"SamWaf/global"
@@ -9,7 +10,6 @@ import (
 	"SamWaf/model/baseorm"
 	"SamWaf/service/waf_service"
 	"fmt"
-	uuid "github.com/satori/go.uuid"
 	"time"
 )
 
@@ -123,7 +123,7 @@ func TaskCounter() {
 			if statDay.HostCode == "" {
 				statDay2 := &model.StatsDay{
 					BaseOrm: baseorm.BaseOrm{
-						Id:          uuid.NewV4().String(),
+						Id:          uuid.GenUUID(),
 						USER_CODE:   global.GWAF_USER_CODE,
 						Tenant_ID:   global.GWAF_TENANT_ID,
 						CREATE_TIME: customtype.JsonTime(time.Now()),
@@ -169,7 +169,7 @@ func TaskCounter() {
 			if statDay.HostCode == "" {
 				statDay2 := &model.StatsIPDay{
 					BaseOrm: baseorm.BaseOrm{
-						Id:          uuid.NewV4().String(),
+						Id:          uuid.GenUUID(),
 						USER_CODE:   global.GWAF_USER_CODE,
 						Tenant_ID:   global.GWAF_TENANT_ID,
 						CREATE_TIME: customtype.JsonTime(time.Now()),
@@ -218,7 +218,7 @@ func TaskCounter() {
 			if statDay.HostCode == "" {
 				statDay2 := &model.StatsIPCityDay{
 					BaseOrm: baseorm.BaseOrm{
-						Id:          uuid.NewV4().String(),
+						Id:          uuid.GenUUID(),
 						USER_CODE:   global.GWAF_USER_CODE,
 						Tenant_ID:   global.GWAF_TENANT_ID,
 						CREATE_TIME: customtype.JsonTime(time.Now()),
@@ -271,7 +271,7 @@ func TaskCounter() {
 			if ipTag.IP == "" {
 				insertIpTag := &model.IPTag{
 					BaseOrm: baseorm.BaseOrm{
-						Id:          uuid.NewV4().String(),
+						Id:          uuid.GenUUID(),
 						USER_CODE:   global.GWAF_USER_CODE,
 						Tenant_ID:   global.GWAF_TENANT_ID,
 						CREATE_TIME: customtype.JsonTime(time.Now()),

@@ -1,12 +1,12 @@
 package waf_service
 
 import (
+	"SamWaf/common/uuid"
 	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
 	"errors"
-	uuid "github.com/satori/go.uuid"
 	"time"
 )
 
@@ -18,7 +18,7 @@ func (receiver *WafTokenInfoService) AddApi(loginAccount string, AccessToken str
 
 	var bean = &model.TokenInfo{
 		BaseOrm: baseorm.BaseOrm{
-			Id:          uuid.NewV4().String(),
+			Id:          uuid.GenUUID(),
 			USER_CODE:   global.GWAF_USER_CODE,
 			Tenant_ID:   global.GWAF_TENANT_ID,
 			CREATE_TIME: customtype.JsonTime(time.Now()),

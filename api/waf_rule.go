@@ -1,6 +1,7 @@
 package api
 
 import (
+	"SamWaf/common/uuid"
 	"SamWaf/common/zlog"
 	"SamWaf/enums"
 	"SamWaf/global"
@@ -12,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
-	uuid "github.com/satori/go.uuid"
 	"gorm.io/gorm"
 	"strings"
 )
@@ -31,7 +31,7 @@ func (w *WafRuleAPi) AddApi(c *gin.Context) {
 			response.FailWithMessage("规则解析错误", c)
 			return
 		}
-		var ruleCode = uuid.NewV4().String()
+		var ruleCode = uuid.GenUUID()
 		if req.IsManualRule == 1 {
 			ruleCodeFormDRL, err := ruleHelper.ExtractRuleName(req.RuleJson)
 			if err != nil {

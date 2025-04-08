@@ -1,13 +1,13 @@
 package waf_service
 
 import (
+	"SamWaf/common/uuid"
 	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
 	"errors"
-	uuid "github.com/satori/go.uuid"
 	"time"
 )
 
@@ -18,7 +18,7 @@ var WafOtpServiceApp = new(WafOtpService)
 func (receiver *WafOtpService) AddApi(req request.WafOtpAddReq) error {
 	var bean = &model.Otp{
 		BaseOrm: baseorm.BaseOrm{
-			Id:          uuid.NewV4().String(),
+			Id:          uuid.GenUUID(),
 			USER_CODE:   global.GWAF_USER_CODE,
 			Tenant_ID:   global.GWAF_TENANT_ID,
 			CREATE_TIME: customtype.JsonTime(time.Now()),
@@ -110,7 +110,7 @@ func (receiver *WafOtpService) ModifyApi(req request.WafOtpEditReq) error {
 func (receiver *WafOtpService) BindApi(req request.WafOtpBindReq) error {
 	var bean = &model.Otp{
 		BaseOrm: baseorm.BaseOrm{
-			Id:          uuid.NewV4().String(),
+			Id:          uuid.GenUUID(),
 			USER_CODE:   global.GWAF_USER_CODE,
 			Tenant_ID:   global.GWAF_TENANT_ID,
 			CREATE_TIME: customtype.JsonTime(time.Now()),

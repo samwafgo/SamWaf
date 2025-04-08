@@ -1,6 +1,7 @@
 package waf_service
 
 import (
+	"SamWaf/common/uuid"
 	"SamWaf/common/validfield"
 	"SamWaf/customtype"
 	"SamWaf/global"
@@ -8,7 +9,6 @@ import (
 	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
 	"errors"
-	uuid "github.com/satori/go.uuid"
 	"strings"
 	"time"
 )
@@ -20,13 +20,13 @@ var WafHostServiceApp = new(WafHostService)
 func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (string, error) {
 	uniCode := ""
 	if wafHostAddReq.Code == "" {
-		uniCode = uuid.NewV4().String()
+		uniCode = uuid.GenUUID()
 	} else {
 		uniCode = wafHostAddReq.Code
 	}
 	var wafHost = &model.Hosts{
 		BaseOrm: baseorm.BaseOrm{
-			Id:          uuid.NewV4().String(),
+			Id:          uuid.GenUUID(),
 			USER_CODE:   global.GWAF_USER_CODE,
 			Tenant_ID:   global.GWAF_TENANT_ID,
 			CREATE_TIME: customtype.JsonTime(time.Now()),

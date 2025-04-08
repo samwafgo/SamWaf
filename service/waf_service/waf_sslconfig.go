@@ -1,6 +1,7 @@
 package waf_service
 
 import (
+	"SamWaf/common/uuid"
 	"SamWaf/common/zlog"
 	"SamWaf/customtype"
 	"SamWaf/global"
@@ -13,7 +14,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"github.com/satori/go.uuid"
 	"gorm.io/gorm"
 	"path/filepath"
 	"time"
@@ -57,7 +57,7 @@ func (receiver *WafSslConfigService) AddApi(req request.SslConfigAddReq) error {
 	}
 	var bean = &model.SslConfig{
 		BaseOrm: baseorm.BaseOrm{
-			Id:          uuid.NewV4().String(),
+			Id:          uuid.GenUUID(),
 			USER_CODE:   global.GWAF_USER_CODE,
 			Tenant_ID:   global.GWAF_TENANT_ID,
 			CREATE_TIME: customtype.JsonTime(time.Now()),
@@ -91,7 +91,7 @@ func (receiver *WafSslConfigService) CreateNewIdInner(config model.SslConfig) {
 		zlog.Info(fmt.Sprintf("%s 证书已经存在不进行再次备份", config.Domains))
 		return
 	}
-	config.Id = uuid.NewV4().String()
+	config.Id = uuid.GenUUID()
 	if config.CertPath == "" {
 		config.CertPath = filepath.Join(utils.GetCurrentDir(), "ssl", config.Id, "domain.crt")
 	}

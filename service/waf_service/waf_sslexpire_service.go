@@ -1,6 +1,7 @@
 package waf_service
 
 import (
+	"SamWaf/common/uuid"
 	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/model"
@@ -8,7 +9,6 @@ import (
 	"SamWaf/model/request"
 	"SamWaf/model/response"
 	"errors"
-	uuid "github.com/satori/go.uuid"
 	"time"
 )
 
@@ -19,7 +19,7 @@ var WafSslExpireServiceApp = new(WafSslExpireService)
 func (receiver *WafSslExpireService) AddApi(req request.WafSslExpireAddReq) error {
 	var bean = &model.SslExpire{
 		BaseOrm: baseorm.BaseOrm{
-			Id:          uuid.NewV4().String(),
+			Id:          uuid.GenUUID(),
 			USER_CODE:   global.GWAF_USER_CODE,
 			Tenant_ID:   global.GWAF_TENANT_ID,
 			CREATE_TIME: customtype.JsonTime(time.Now()),
@@ -38,7 +38,7 @@ func (receiver *WafSslExpireService) AddApi(req request.WafSslExpireAddReq) erro
 func (receiver *WafSslExpireService) Add(domain string, port int) error {
 	var bean = &model.SslExpire{
 		BaseOrm: baseorm.BaseOrm{
-			Id:          uuid.NewV4().String(),
+			Id:          uuid.GenUUID(),
 			USER_CODE:   global.GWAF_USER_CODE,
 			Tenant_ID:   global.GWAF_TENANT_ID,
 			CREATE_TIME: customtype.JsonTime(time.Now()),

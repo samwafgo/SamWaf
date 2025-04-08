@@ -14,6 +14,7 @@ require (
 	github.com/go-acme/lego/v4 v4.20.4
 	github.com/go-co-op/gocron v1.17.1
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0
+	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/hyperjumptech/grule-rule-engine v1.15.0
 	github.com/kardianos/service v1.2.2
@@ -23,7 +24,6 @@ require (
 	github.com/samwafgo/ahocorasick v1.0.0
 	github.com/samwafgo/go-wxsqlite3 v1.0.1
 	github.com/samwafgo/sqlitedriver v1.0.2
-	github.com/satori/go.uuid v1.2.0
 	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/spf13/viper v1.18.2
 	github.com/stretchr/testify v1.9.0
@@ -70,7 +70,6 @@ require (
 	github.com/go-playground/validator/v10 v10.23.0 // indirect
 	github.com/goccy/go-json v0.10.4 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect

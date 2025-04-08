@@ -1,6 +1,7 @@
 package api
 
 import (
+	"SamWaf/common/uuid"
 	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/model"
@@ -11,7 +12,6 @@ import (
 	"fmt"
 	"github.com/360EntSecGroup-Skylar/excelize"
 	"github.com/gin-gonic/gin"
-	uuid "github.com/satori/go.uuid"
 	"log"
 	"net/http"
 	"os"
@@ -254,7 +254,7 @@ func processImportData(dataType interface{}, tableName string, rows [][]string, 
 				case reflect.String:
 					if tableName == "hosts" {
 						if importCodeStrategy == "0" && fieldName == "Code" {
-							fieldVal.SetString(uuid.NewV4().String())
+							fieldVal.SetString(uuid.GenUUID())
 						} else {
 							fieldVal.SetString(val)
 						}
@@ -277,7 +277,7 @@ func processImportData(dataType interface{}, tableName string, rows [][]string, 
 				fieldVal := newInstance.Field(fieldIdx)
 				// 给 BaseOrm 赋值
 				baseOrm := baseorm.BaseOrm{
-					Id:          uuid.NewV4().String(), // 新生成的 ID
+					Id:          uuid.GenUUID(), // 新生成的 ID
 					USER_CODE:   global.GWAF_USER_CODE,
 					Tenant_ID:   global.GWAF_TENANT_ID,
 					CREATE_TIME: customtype.JsonTime(time.Now()),

@@ -1,6 +1,7 @@
 package wafdb
 
 import (
+	"SamWaf/common/uuid"
 	"SamWaf/common/zlog"
 	"SamWaf/customtype"
 	"SamWaf/global"
@@ -11,7 +12,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	uuid "github.com/satori/go.uuid"
 	"gorm.io/gorm/logger"
 	"io"
 	"net/url"
@@ -223,7 +223,7 @@ func InitLogDb(currentDir string) {
 
 			sharDbBean := model.ShareDb{
 				BaseOrm: baseorm.BaseOrm{
-					Id:          uuid.NewV4().String(),
+					Id:          uuid.GenUUID(),
 					USER_CODE:   global.GWAF_USER_CODE,
 					Tenant_ID:   global.GWAF_TENANT_ID,
 					CREATE_TIME: customtype.JsonTime(time.Now()),

@@ -1,13 +1,13 @@
 package waftask
 
 import (
+	"SamWaf/common/uuid"
 	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/service/waf_service"
 	"SamWaf/wafsec"
 	"encoding/json"
-	uuid "github.com/satori/go.uuid"
 	"time"
 )
 
@@ -29,7 +29,7 @@ func TaskDelayInfo() {
 							cmdType = "RELOAD_PAGE"
 						}
 						msgBody, _ := json.Marshal(model.MsgDataPacket{
-							MessageId:           uuid.NewV4().String(),
+							MessageId:           uuid.GenUUID(),
 							MessageType:         msg.DelayType,
 							MessageData:         msg.DelayContent,
 							MessageAttach:       nil,

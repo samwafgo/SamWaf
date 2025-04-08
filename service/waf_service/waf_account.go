@@ -1,6 +1,7 @@
 package waf_service
 
 import (
+	"SamWaf/common/uuid"
 	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/model"
@@ -8,7 +9,6 @@ import (
 	"SamWaf/model/request"
 	"SamWaf/utils"
 	"errors"
-	uuid "github.com/satori/go.uuid"
 	"gorm.io/gorm"
 	"time"
 )
@@ -20,7 +20,7 @@ var WafAccountServiceApp = new(WafAccountService)
 func (receiver *WafAccountService) AddApi(req request.WafAccountAddReq) error {
 	var bean = &model.Account{
 		BaseOrm: baseorm.BaseOrm{
-			Id:          uuid.NewV4().String(),
+			Id:          uuid.GenUUID(),
 			USER_CODE:   global.GWAF_USER_CODE,
 			Tenant_ID:   global.GWAF_TENANT_ID,
 			CREATE_TIME: customtype.JsonTime(time.Now()),

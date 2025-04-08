@@ -1,6 +1,7 @@
 package api
 
 import (
+	"SamWaf/common/uuid"
 	"SamWaf/customtype"
 	"SamWaf/enums"
 	"SamWaf/global"
@@ -14,7 +15,6 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/pquerna/otp/totp"
-	uuid "github.com/satori/go.uuid"
 	"time"
 )
 
@@ -70,7 +70,7 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 				loginError := fmt.Sprintf("输入密码错误超过次数限制，IP:%s 归属地区：%s", clientIP, clientCountry)
 				wafSysLog := model.WafSysLog{
 					BaseOrm: baseorm.BaseOrm{
-						Id:          uuid.NewV4().String(),
+						Id:          uuid.GenUUID(),
 						USER_CODE:   global.GWAF_USER_CODE,
 						Tenant_ID:   global.GWAF_TENANT_ID,
 						CREATE_TIME: customtype.JsonTime(time.Now()),
@@ -114,7 +114,7 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 			}
 
 			//记录状态
-			accessToken := utils.Md5String(uuid.NewV4().String())
+			accessToken := utils.Md5String(uuid.GenUUID())
 			tokenInfo := wafTokenInfoService.AddApi(bean.LoginAccount, accessToken, c.ClientIP())
 
 			//令牌记录到cache里
@@ -129,7 +129,7 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 
 			wafSysLog := model.WafSysLog{
 				BaseOrm: baseorm.BaseOrm{
-					Id:          uuid.NewV4().String(),
+					Id:          uuid.GenUUID(),
 					USER_CODE:   global.GWAF_USER_CODE,
 					Tenant_ID:   global.GWAF_TENANT_ID,
 					CREATE_TIME: customtype.JsonTime(time.Now()),

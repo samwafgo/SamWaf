@@ -1,13 +1,13 @@
 package wafonekey
 
 import (
+	"SamWaf/common/uuid"
 	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
 	"errors"
 	"fmt"
-	uuid "github.com/satori/go.uuid"
 	"io/ioutil"
 	"path/filepath"
 	"strconv"
@@ -57,7 +57,7 @@ func OneKeyModifyBt(btSavePath string) (error, string) {
 					//插入记录
 					global.GQEQUE_LOG_DB.Enqueue(model.OneKeyMod{
 						BaseOrm: baseorm.BaseOrm{
-							Id:          uuid.NewV4().String(),
+							Id:          uuid.GenUUID(),
 							USER_CODE:   global.GWAF_USER_CODE,
 							Tenant_ID:   global.GWAF_TENANT_ID,
 							CREATE_TIME: customtype.JsonTime(time.Now()),

@@ -1,12 +1,12 @@
 package waf_service
 
 import (
+	"SamWaf/common/uuid"
 	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
-	uuid "github.com/satori/go.uuid"
 	"time"
 )
 
@@ -17,7 +17,7 @@ var WafSSLOrderServiceApp = new(WafSSLOrderService)
 func (receiver *WafSSLOrderService) AddApi(req request.WafSslorderaddReq) (model.SslOrder, error) {
 	var bean = &model.SslOrder{
 		BaseOrm: baseorm.BaseOrm{
-			Id:          uuid.NewV4().String(),
+			Id:          uuid.GenUUID(),
 			USER_CODE:   global.GWAF_USER_CODE,
 			Tenant_ID:   global.GWAF_TENANT_ID,
 			CREATE_TIME: customtype.JsonTime(time.Now()),
@@ -133,7 +133,7 @@ func (receiver *WafSSLOrderService) RenewAdd(orderId string) (model.SslOrder, er
 	order := receiver.GetDetailById(orderId)
 	var bean = &model.SslOrder{
 		BaseOrm: baseorm.BaseOrm{
-			Id:          uuid.NewV4().String(),
+			Id:          uuid.GenUUID(),
 			USER_CODE:   global.GWAF_USER_CODE,
 			Tenant_ID:   global.GWAF_TENANT_ID,
 			CREATE_TIME: customtype.JsonTime(time.Now()),

@@ -2,6 +2,7 @@ package wafcaptcha
 
 import (
 	"SamWaf/cache"
+	"SamWaf/common/uuid"
 	"SamWaf/common/zlog"
 	"SamWaf/enums"
 	"SamWaf/global"
@@ -10,7 +11,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/golang/freetype/truetype"
-	uuid "github.com/satori/go.uuid"
 	"github.com/wenlng/go-captcha-assets/bindata/chars"
 	"github.com/wenlng/go-captcha-assets/resources/fonts/fzshengsksjw"
 	"github.com/wenlng/go-captcha-assets/resources/images"
@@ -350,7 +350,7 @@ func (s *CaptchaService) GetClickBasicCaptData(w http.ResponseWriter, r *http.Re
 	}
 
 	dotsByte, _ := json.Marshal(dotData)
-	key := uuid.NewV4().String()
+	key := uuid.GenUUID()
 	//key := helper.StringToMD5(string(dotsByte))
 	s.cache.SetWithTTl(enums.CACHE_CAPTCHA_TRY+key, dotsByte, 1*time.Minute)
 
@@ -433,7 +433,7 @@ func (s *CaptchaService) VerifyCaptcha(w http.ResponseWriter, r *http.Request, c
 	if chkRet {
 		code = 0
 		// 生成验证通过的标识
-		captchaPassToken := uuid.NewV4().String()
+		captchaPassToken := uuid.GenUUID()
 		// 将标识存入缓存
 		s.cache.SetWithTTl(enums.CACHE_CAPTCHA_PASS+captchaPassToken+clientIP, "ok", time.Duration(expireTime)*time.Hour)
 

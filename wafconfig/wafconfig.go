@@ -1,11 +1,11 @@
 package wafconfig
 
 import (
+	"SamWaf/common/uuid"
 	"SamWaf/global"
 	"SamWaf/utils"
 	"fmt"
 	"github.com/denisbrodbeck/machineid"
-	uuid "github.com/satori/go.uuid"
 	"github.com/spf13/viper"
 	"os"
 	"time"
@@ -45,7 +45,7 @@ func LoadAndInitConfig() {
 	if config.IsSet("user_code") == false {
 		id, err := machineid.ID()
 		if err != nil {
-			newcode := "RAD" + uuid.NewV4().String()
+			newcode := "RAD" + uuid.GenUUID()
 			config.Set("user_code", newcode)
 			global.GWAF_USER_CODE = newcode
 		} else {

@@ -1,6 +1,7 @@
 package waf_service
 
 import (
+	"SamWaf/common/uuid"
 	"SamWaf/common/zlog"
 	"SamWaf/customtype"
 	"SamWaf/global"
@@ -8,7 +9,6 @@ import (
 	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
 	"errors"
-	uuid "github.com/satori/go.uuid"
 	"time"
 )
 
@@ -20,7 +20,7 @@ func (receiver *WafRuleService) AddApi(wafRuleAddReq request.WafRuleAddReq, rule
 
 	var wafRule = &model.Rules{
 		BaseOrm: baseorm.BaseOrm{
-			Id:          uuid.NewV4().String(),
+			Id:          uuid.GenUUID(),
 			USER_CODE:   global.GWAF_USER_CODE,
 			Tenant_ID:   global.GWAF_TENANT_ID,
 			CREATE_TIME: customtype.JsonTime(time.Now()),

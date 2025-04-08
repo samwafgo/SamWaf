@@ -1,6 +1,7 @@
 package wafenginecore
 
 import (
+	"SamWaf/common/uuid"
 	"SamWaf/common/zlog"
 	"SamWaf/customtype"
 	"SamWaf/enums"
@@ -13,7 +14,6 @@ import (
 	"SamWaf/utils/ssl"
 	"errors"
 	"fmt"
-	uuid "github.com/satori/go.uuid"
 	"time"
 )
 
@@ -96,7 +96,7 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 func (waf *WafEngine) processSSL(updateSSLOrder model.SslOrder, bean model.SslOrder) error {
 	newSslConfig := model.SslConfig{
 		BaseOrm: baseorm.BaseOrm{
-			Id:          uuid.NewV4().String(),
+			Id:          uuid.GenUUID(),
 			USER_CODE:   global.GWAF_USER_CODE,
 			Tenant_ID:   global.GWAF_TENANT_ID,
 			CREATE_TIME: customtype.JsonTime(time.Now()),

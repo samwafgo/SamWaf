@@ -2,6 +2,7 @@ package wafenginecore
 
 import (
 	"SamWaf/common/domaintool"
+	"SamWaf/common/uuid"
 	"SamWaf/common/zlog"
 	"SamWaf/customtype"
 	"SamWaf/enums"
@@ -22,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	goahocorasick "github.com/samwafgo/ahocorasick"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 	"io"
 	"net"
@@ -197,7 +197,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			CONTENT_LENGTH:       contentLength,
 			COOKIES:              string(cookies),
 			BODY:                 string(bodyByte),
-			REQ_UUID:             uuid.NewV4().String(),
+			REQ_UUID:             uuid.GenUUID(),
 			USER_CODE:            global.GWAF_USER_CODE,
 			HOST_CODE:            hostCode,
 			TenantId:             global.GWAF_TENANT_ID,
@@ -476,7 +476,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			CONTENT_LENGTH:       contentLength,
 			COOKIES:              string(cookies),
 			BODY:                 string(bodyByte),
-			REQ_UUID:             uuid.NewV4().String(),
+			REQ_UUID:             uuid.GenUUID(),
 			USER_CODE:            global.GWAF_USER_CODE,
 			HOST_CODE:            "",
 			TenantId:             global.GWAF_TENANT_ID,
@@ -805,7 +805,7 @@ func (waf *WafEngine) StartWaf() {
 				CREATE_TIME: customtype.JsonTime(time.Now()),
 				UPDATE_TIME: customtype.JsonTime(time.Now()),
 			},
-			Code:             uuid.NewV4().String(),
+			Code:             uuid.GenUUID(),
 			Host:             "全局网站",
 			Port:             0,
 			Ssl:              0,
@@ -836,7 +836,7 @@ func (waf *WafEngine) StartWaf() {
 
 	wafSysLog := &model.WafSysLog{
 		BaseOrm: baseorm.BaseOrm{
-			Id:          uuid.NewV4().String(),
+			Id:          uuid.GenUUID(),
 			USER_CODE:   global.GWAF_USER_CODE,
 			Tenant_ID:   global.GWAF_TENANT_ID,
 			CREATE_TIME: customtype.JsonTime(time.Now()),
@@ -860,7 +860,7 @@ func (waf *WafEngine) CloseWaf() {
 	}()
 	wafSysLog := &model.WafSysLog{
 		BaseOrm: baseorm.BaseOrm{
-			Id:          uuid.NewV4().String(),
+			Id:          uuid.GenUUID(),
 			USER_CODE:   global.GWAF_USER_CODE,
 			Tenant_ID:   global.GWAF_TENANT_ID,
 			CREATE_TIME: customtype.JsonTime(time.Now()),
@@ -956,7 +956,7 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 				//TODO 记录如果https 端口被占用的情况 记录日志 且应该推送websocket
 				wafSysLog := model.WafSysLog{
 					BaseOrm: baseorm.BaseOrm{
-						Id:          uuid.NewV4().String(),
+						Id:          uuid.GenUUID(),
 						USER_CODE:   global.GWAF_USER_CODE,
 						Tenant_ID:   global.GWAF_TENANT_ID,
 						CREATE_TIME: customtype.JsonTime(time.Now()),
@@ -995,7 +995,7 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 				//TODO 记录如果http 端口被占用的情况 记录日志 且应该推送websocket
 				wafSysLog := model.WafSysLog{
 					BaseOrm: baseorm.BaseOrm{
-						Id:          uuid.NewV4().String(),
+						Id:          uuid.GenUUID(),
 						USER_CODE:   global.GWAF_USER_CODE,
 						Tenant_ID:   global.GWAF_TENANT_ID,
 						CREATE_TIME: customtype.JsonTime(time.Now()),

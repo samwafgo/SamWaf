@@ -1,12 +1,12 @@
 package waf_service
 
 import (
+	"SamWaf/common/uuid"
 	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
-	uuid "github.com/satori/go.uuid"
 	"time"
 )
 
@@ -17,7 +17,7 @@ var CenterServiceApp = new(CenterService)
 func (receiver *CenterService) AddApi(req request.CenterClientUpdateReq) error {
 	var bean = &model.Center{
 		BaseOrm: baseorm.BaseOrm{
-			Id:          uuid.NewV4().String(),
+			Id:          uuid.GenUUID(),
 			USER_CODE:   global.GWAF_USER_CODE,
 			Tenant_ID:   global.GWAF_TENANT_ID,
 			CREATE_TIME: customtype.JsonTime(time.Now()),

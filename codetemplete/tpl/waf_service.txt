@@ -7,7 +7,7 @@ import (
 	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
 	"errors"
-	uuid "github.com/satori/go.uuid"
+	"SamWaf/common/uuid"
 	"time"
 )
 
@@ -18,7 +18,7 @@ var Waf{{.EntityName}}ServiceApp = new(Waf{{.EntityName}}Service)
 func (receiver *Waf{{.EntityName}}Service) AddApi(req request.Waf{{.EntityName}}AddReq) error {
 	var bean = &model.{{.EntityName}}{
 		BaseOrm: baseorm.BaseOrm{
-			Id:          uuid.NewV4().String(),
+			Id:          uuid.GenUUID(),
 			USER_CODE:   global.GWAF_USER_CODE,
 			Tenant_ID:   global.GWAF_TENANT_ID,
 			CREATE_TIME: customtype.JsonTime(time.Now()),

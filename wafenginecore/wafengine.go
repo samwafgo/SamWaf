@@ -590,6 +590,36 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 			resp.Header.Del("X-Powered-By")
 		}
 		r := resp.Request
+		// 检查是否为WebSocket协议切换
+		if resp.StatusCode == http.StatusSwitchingProtocols {
+
+			if wafHttpContext, ok := r.Context().Value("waf_context").(innerbean.WafHttpContextData); ok {
+				weblogfrist := wafHttpContext.Weblog
+
+				weblogfrist.ACTION = "放行"
+				weblogfrist.STATUS = resp.Status
+				weblogfrist.STATUS_CODE = resp.StatusCode
+
+				resHeader := ""
+				for key, values := range resp.Header {
+					for _, value := range values {
+						resHeader += key + ": " + value + "\r\n"
+					}
+				}
+				weblogfrist.ResHeader = resHeader
+
+				datetimeNow := time.Now()
+				weblogfrist.TimeSpent = datetimeNow.UnixNano()/1e6 - weblogfrist.UNIX_ADD_TIME
+				weblogfrist.TASK_FLAG = 1
+
+				// 记录日志
+				if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "all" {
+					global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
+				}
+			}
+			// 对于WebSocket连接，不修改响应体，直接返回
+			return nil
+		}
 		if wafHttpContext, ok := r.Context().Value("waf_context").(innerbean.WafHttpContextData); ok {
 
 			backendCheckStart := time.Now().UnixNano() / 1e6

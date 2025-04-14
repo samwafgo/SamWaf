@@ -595,7 +595,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 
 			if wafHttpContext, ok := r.Context().Value("waf_context").(innerbean.WafHttpContextData); ok {
 				weblogfrist := wafHttpContext.Weblog
-
+				host := waf.HostCode[wafHttpContext.HostCode]
 				weblogfrist.ACTION = "放行"
 				weblogfrist.STATUS = resp.Status
 				weblogfrist.STATUS_CODE = resp.StatusCode
@@ -614,6 +614,22 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 
 				// 记录日志
 				if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "all" {
+					if waf.HostTarget[host].Host.EXCLUDE_URL_LOG == "" {
+						global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
+					} else {
+						lines := strings.Split(waf.HostTarget[host].Host.EXCLUDE_URL_LOG, "\n")
+						isRecordLog := true
+						// 检查每一行
+						for _, line := range lines {
+							if strings.HasPrefix(weblogfrist.URL, line) {
+								isRecordLog = false
+							}
+						}
+						if isRecordLog {
+							global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
+						}
+					}
+				} else if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "abnormal" && weblogfrist.ACTION != "放行" {
 					global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
 				}
 			}

@@ -6,6 +6,7 @@ import (
 	"SamWaf/innerbean"
 	"SamWaf/wafenginecore/wafcaptcha"
 	"net/http"
+	"strings"
 )
 
 // checkCaptchaToken 返回false 要验证信息 ，true 不验证信息
@@ -46,6 +47,10 @@ func (waf *WafEngine) checkCaptchaToken(r *http.Request, webLog innerbean.WebLog
 				return true
 			}
 		}
+	}
+	//如果是证书申请情况 也跳过
+	if strings.HasPrefix(webLog.URL, global.GSSL_HTTP_CHANGLE_PATH) {
+		return true
 	}
 	return false
 }

@@ -36,6 +36,7 @@ type Hosts struct {
 	HealthyJSON          string `json:"healthy_json"`             //后端健康度检测 json
 	InsecureSkipVerify   int    `json:"insecure_skip_verify"`     //是否开启后端https证书有效性验证 默认 0 是校验 1 是不校验
 	CaptchaJSON          string `json:"captcha_json"`             //验证码配置 json
+	AntiLeechJSON        string `json:"anti_leech_json"`          //防盗链配置 json
 }
 
 type HostsDefense struct {
@@ -66,4 +67,13 @@ type CaptchaConfig struct {
 	ExcludeURLs     string `json:"exclude_urls"`      // 排除验证码的URL列表
 	ExpireTime      int    `json:"expire_time"`       // 验证通过后的有效期(小时)
 	IPMode          string `json:"ip_mode"`           // IP提取模式: "nic" 网卡模式 或 "proxy" 代理模式
+}
+
+// AntiLeechConfig 防盗链配置
+type AntiLeechConfig struct {
+	IsEnableAntiLeech int    `json:"is_enable_anti_leech"` // 是否开启防盗链 1开启 0关闭
+	FileTypes         string `json:"file_types"`           // 需要防盗链的文件类型，例如: gif|jpg|jpeg|png|bmp|swf
+	ValidReferers     string `json:"valid_referers"`       // 允许的引用来源列表，使用分号(;)分隔
+	Action            string `json:"action"`               // 对于非法引用的处理方式: redirect(重定向) 或 block(直接阻止)
+	RedirectURL       string `json:"redirect_url"`         // 重定向URL，当Action为redirect时使用
 }

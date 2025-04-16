@@ -114,7 +114,7 @@ func TestReplaceURLContent(t *testing.T) {
 	t.Parallel()
 
 	//初始化日志
-	zlog.InitZLog(global.GWAF_RELEASE)
+	zlog.InitZLog(global.GWAF_RELEASE, "json")
 	if v := recover(); v != nil {
 		zlog.Error("error")
 	}
@@ -150,7 +150,7 @@ func TestGetOrgContent(t *testing.T) {
 	t.Parallel()
 
 	//初始化日志
-	zlog.InitZLog(global.GWAF_RELEASE)
+	zlog.InitZLog(global.GWAF_RELEASE, "json")
 	// 初始化WAF引擎
 	waf := &WafEngine{}
 
@@ -274,7 +274,7 @@ func TestGetOrgContent(t *testing.T) {
 			}
 
 			// 调用测试函数
-			result, err := waf.getOrgContent(resp)
+			result, err := waf.getOrgContent(resp, false)
 
 			// 验证结果
 			if tc.expectedErr {
@@ -320,7 +320,7 @@ func TestGetOrgContentWithChunkedEncoding(t *testing.T) {
 	t.Parallel()
 
 	//初始化日志
-	zlog.InitZLog(global.GWAF_RELEASE)
+	zlog.InitZLog(global.GWAF_RELEASE, "json")
 	// 初始化WAF引擎
 	waf := &WafEngine{}
 
@@ -337,7 +337,7 @@ func TestGetOrgContentWithChunkedEncoding(t *testing.T) {
 	resp.Header.Set("Content-Type", "text/html; charset=utf-8")
 
 	// 调用测试函数
-	result, err := waf.getOrgContent(resp)
+	result, err := waf.getOrgContent(resp, false)
 
 	// 验证结果
 	if err != nil {
@@ -352,7 +352,7 @@ func TestGetOrgContentWithEmptyBody(t *testing.T) {
 	t.Parallel()
 
 	//初始化日志
-	zlog.InitZLog(global.GWAF_RELEASE)
+	zlog.InitZLog(global.GWAF_RELEASE, "json")
 	// 初始化WAF引擎
 	waf := &WafEngine{}
 
@@ -365,7 +365,7 @@ func TestGetOrgContentWithEmptyBody(t *testing.T) {
 	resp.Header.Set("Content-Type", "text/html; charset=utf-8")
 
 	// 调用测试函数
-	result, err := waf.getOrgContent(resp)
+	result, err := waf.getOrgContent(resp, false)
 
 	// 验证结果
 	if err != nil {
@@ -384,7 +384,7 @@ func TestGetOrgContentWithErrors(t *testing.T) {
 	t.Parallel()
 
 	//初始化日志
-	zlog.InitZLog(global.GWAF_RELEASE)
+	zlog.InitZLog(global.GWAF_RELEASE, "json")
 	// 初始化WAF引擎
 	waf := &WafEngine{}
 
@@ -399,7 +399,7 @@ func TestGetOrgContentWithErrors(t *testing.T) {
 	resp.Header.Set("Content-Encoding", "gzip")
 
 	// 调用测试函数
-	_, err := waf.getOrgContent(resp)
+	_, err := waf.getOrgContent(resp, false)
 
 	// 验证结果
 	if err == nil {

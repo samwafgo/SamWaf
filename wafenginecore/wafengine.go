@@ -349,6 +349,11 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 
+				// 添加防盗链检查
+				if handleBlock(waf.CheckAntiLeech) {
+					return
+				}
+
 				// 验证码检测
 				captchaConfig := model.CaptchaConfig{
 					IsEnableCaptcha: 0,
@@ -1089,9 +1094,7 @@ func (waf *WafEngine) ClearCcWindowsForIP(ip string) {
 		if hostSafe.PluginIpRateLimiter != nil {
 			// 获取清理前的请求计数
 			var countBefore int
-			if hostSafe.PluginIpRateLimiter.GetRequestCount != nil {
-				countBefore = hostSafe.PluginIpRateLimiter.GetRequestCount(ip)
-			}
+			countBefore = hostSafe.PluginIpRateLimiter.GetRequestCount(ip)
 
 			// 清理该IP的限流记录
 			hostSafe.PluginIpRateLimiter.ClearWindowForIP(ip)
@@ -1099,9 +1102,7 @@ func (waf *WafEngine) ClearCcWindowsForIP(ip string) {
 
 			// 获取清理后的请求计数
 			var countAfter int
-			if hostSafe.PluginIpRateLimiter.GetRequestCount != nil {
-				countAfter = hostSafe.PluginIpRateLimiter.GetRequestCount(ip)
-			}
+			countAfter = hostSafe.PluginIpRateLimiter.GetRequestCount(ip)
 
 			// 打印清理前后的计数信息
 			zlog.Debug(fmt.Sprintf("主机 %s 的 IP %s 限流记录: 清理前=%d, 清理后=%d",

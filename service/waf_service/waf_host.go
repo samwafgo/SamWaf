@@ -62,6 +62,7 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 		HealthyJSON:          wafHostAddReq.HealthyJSON,
 		InsecureSkipVerify:   wafHostAddReq.InsecureSkipVerify,
 		CaptchaJSON:          wafHostAddReq.CaptchaJSON,
+		AntiLeechJSON:        wafHostAddReq.AntiLeechJSON,
 	}
 	global.GWAF_LOCAL_DB.Create(wafHost)
 	return wafHost.Code, nil
@@ -114,6 +115,7 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 		"HealthyJSON":          wafHostEditReq.HealthyJSON,
 		"InsecureSkipVerify":   wafHostEditReq.InsecureSkipVerify,
 		"CaptchaJSON":          wafHostEditReq.CaptchaJSON,
+		"AntiLeechJSON":        wafHostEditReq.AntiLeechJSON,
 	}
 	err := global.GWAF_LOCAL_DB.Debug().Model(model.Hosts{}).Where("CODE=?", wafHostEditReq.CODE).Updates(hostMap).Error
 

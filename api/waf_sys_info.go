@@ -102,7 +102,7 @@ func (w *WafSysInfoApi) SysVersionApi(c *gin.Context) {
 
 func (w *WafSysInfoApi) CheckVersionApi(c *gin.Context) {
 	if global.GWAF_RUNTIME_IS_UPDATETING == true {
-		response.OkWithMessage("正在升级中...请在消息等待结果", c)
+		response.FailWithMessage("正在升级中...请在消息等待结果", c)
 		return
 	}
 	var remoteURL string
@@ -158,7 +158,7 @@ func (w *WafSysInfoApi) UpdateApi(c *gin.Context) {
 	// 获取请求中的 channel 参数
 	channel := c.Query("channel")
 	if global.GWAF_RUNTIME_IS_UPDATETING == true {
-		response.OkWithMessage("正在升级中...请在消息等待结果", c)
+		response.FailWithMessage("正在升级中...请在消息等待结果", c)
 		return
 	}
 	var remoteURL string

@@ -90,6 +90,13 @@ func InitTaskDb() []model.Task {
 		TaskMethod: enums.TASK_SSL_PATH_LOAD,
 	})
 	syncTaskToDb(model.Task{
+		TaskName:   "每天04:00进行索引创建",
+		TaskUnit:   enums.TASK_DAY,
+		TaskValue:  1,
+		TaskAt:     "04:00",
+		TaskMethod: enums.TASK_CREATE_DB_INDEX,
+	})
+	syncTaskToDb(model.Task{
 		TaskName:   "每天05:00进行批量任务",
 		TaskUnit:   enums.TASK_DAY,
 		TaskValue:  1,

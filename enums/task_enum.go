@@ -17,5 +17,5 @@ const (
 	TASK_NOTICE                       = "task_notice"                       //通知信息
 	TASK_HEALTH                       = "task_health"                       //健康检测
 	TASK_CLEAR_CC_WINDOWS             = "task_clear_cc_windows"             //清除ccWindows记录
-
+	TASK_CREATE_DB_INDEX              = "task_create_db_index"              //创建索引
 )

@@ -132,9 +132,9 @@ var (
 	GWebSocket *gwebsocket.WebSocketOnline
 
 	//升级相关
-	GUPDATE_VERSION_URL string = "https://update.samwaf.com/" //
-
-	GWAF_SNOWFLAKE_GEN *wafsnowflake.Snowflake //雪花算法
+	GUPDATE_VERSION_URL        string                  = "https://update.samwaf.com/"                                   // 官方下载
+	GUPDATE_GITHUB_VERSION_URL string                  = "https://api.github.com/repos/samwafgo/samwaf/releases/latest" //gitHub
+	GWAF_SNOWFLAKE_GEN         *wafsnowflake.Snowflake                                                                  //雪花算法
 
 	//任务开关信息
 	GWAF_SWITCH_TASK_COUNTER bool

@@ -181,3 +181,35 @@ func TestUpdater_GetHttps(t *testing.T) {
 		println(strbody)
 	}
 }
+
+// 测试 fetchInfoGithub 在实际环境中的行为
+func TestFetchInfoGithubIntegration(t *testing.T) {
+
+	// 创建更新器
+	updater := &Updater{
+		CurrentVersion: "v1.0.0",
+	}
+
+	// 调用被测试的函数
+	err := updater.fetchInfoGithub()
+	if err != nil {
+		t.Fatalf("获取 GitHub 信息失败: %v", err)
+	}
+
+	// 验证结果
+	if updater.BinGithubURL == "" {
+		t.Error("下载 URL 为空")
+	}
+
+	if updater.Info.Version == "" {
+		t.Error("版本为空")
+	}
+
+	if updater.Info.Desc == "" {
+		t.Error("描述为空")
+	}
+
+	t.Logf("获取到的版本: %s", updater.Info.Version)
+	t.Logf("下载 URL: %s", updater.BinGithubURL)
+	t.Logf("版本说明 Desc: %s", updater.Info.Desc)
+}

@@ -3,6 +3,7 @@ package wafupdate
 import (
 	"SamWaf/binarydist"
 	"SamWaf/global"
+	"SamWaf/utils"
 	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
@@ -18,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -56,6 +58,7 @@ type Updater struct {
 	CmdName        string    // Command name is appended to the ApiURL like http://apiurl/CmdName/. This represents one binary.
 	BinURL         string    // Base URL for full binary downloads.
 	DiffURL        string    // Base URL for diff downloads.
+	BinGithubURL   string    // Base URL for full binary downloads.
 	Dir            string    // Directory to store selfupdate state.
 	ForceCheck     bool      // Check for update regardless of cktime timestamp
 	CheckTime      int       // Time in hours before next check
@@ -99,13 +102,34 @@ func canUpdate() (err error) {
 
 // BackgroundRun starts the update check and apply cycle.
 func (u *Updater) BackgroundRun() error {
-	if err := os.MkdirAll(u.getExecRelativeDir(u.Dir), 0755); err != nil {
-		// fail
-		return err
-	}
-	// check to see if we want to check for updates based on version
-	// and last update time
-	if u.WantUpdate() {
+
+	return u.BackgroundRunWithChannel("official")
+}
+func (u *Updater) BackgroundRunWithChannel(channel string) error {
+	if channel == "" || channel == "official" {
+		if err := os.MkdirAll(u.getExecRelativeDir(u.Dir), 0755); err != nil {
+			// fail
+			return err
+		}
+		// check to see if we want to check for updates based on version
+		// and last update time
+		if u.WantUpdate() {
+			if err := canUpdate(); err != nil {
+				// fail
+				return err
+			}
+
+			u.SetUpdateTime()
+
+			if err := u.Update(); err != nil {
+				return err
+			}
+		}
+	} else if channel == "github" {
+		if err := os.MkdirAll(u.getExecRelativeDir(u.Dir), 0755); err != nil {
+			// fail
+			return err
+		}
 		if err := canUpdate(); err != nil {
 			// fail
 			return err
@@ -113,10 +137,11 @@ func (u *Updater) BackgroundRun() error {
 
 		u.SetUpdateTime()
 
-		if err := u.Update(); err != nil {
+		if err := u.UpdateWithChannel(channel); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -154,9 +179,8 @@ func (u *Updater) ClearUpdateState() {
 	path := u.getExecRelativeDir(u.Dir + upcktimePath)
 	os.Remove(path)
 }
+func (u *Updater) UpdateAvailableWithChannel(channel string) (bool, string, string, error) {
 
-// UpdateAvailable checks if update is available and returns version
-func (u *Updater) UpdateAvailable() (bool, string, string, error) {
 	path, err := os.Executable()
 	if err != nil {
 		return false, "", "", err
@@ -167,19 +191,44 @@ func (u *Updater) UpdateAvailable() (bool, string, string, error) {
 	}
 	defer old.Close()
 
-	err = u.fetchInfo()
-	if err != nil {
-		return false, "", "", err
-	}
-	// 比较版本号
-	cmp := semver.Compare(u.Info.Version, u.CurrentVersion)
-	// 如果更新的版本大于当前版本，返回 true，表示有可用的更新
-	if cmp > 0 {
-		return true, u.Info.Version, u.Info.Desc, nil
+	//渠道选择
+	if channel == "" || channel == "official" {
+		err = u.fetchInfo()
+		if err != nil {
+			return false, "", "", err
+		}
+		// 比较版本号
+		cmp := semver.Compare(u.Info.Version, u.CurrentVersion)
+		// 如果更新的版本大于当前版本，返回 true，表示有可用的更新
+		if cmp > 0 {
+			return true, u.Info.Version, u.Info.Desc, nil
+		} else {
+			// 否则，返回 false，表示没有可用的更新
+			return false, "", "", nil
+		}
+	} else if channel == "github" {
+		err = u.fetchInfoGithub()
+		if err != nil {
+			return false, "", "", err
+		}
+		// 比较版本号
+		cmp := semver.Compare(u.Info.Version, u.CurrentVersion)
+		// 如果更新的版本大于当前版本，返回 true，表示有可用的更新
+		if cmp > 0 {
+			return true, u.Info.Version, u.Info.Desc, nil
+		} else {
+			// 否则，返回 false，表示没有可用的更新
+			return false, "", "", nil
+		}
 	} else {
 		// 否则，返回 false，表示没有可用的更新
 		return false, "", "", nil
 	}
+}
+
+// UpdateAvailable 默认从官方下载
+func (u *Updater) UpdateAvailable() (bool, string, string, error) {
+	return u.UpdateAvailableWithChannel("official")
 }
 
 // Update initiates the self update process
@@ -237,6 +286,149 @@ func (u *Updater) Update() error {
 	// update was successful, run func if set
 	if u.OnSuccessfulUpdate != nil {
 		u.OnSuccessfulUpdate()
+	}
+
+	return nil
+}
+
+// UpdateWithChannel 通过渠道来检测
+func (u *Updater) UpdateWithChannel(channel string) error {
+	path, err := os.Executable()
+	if err != nil {
+		return err
+	}
+
+	if resolvedPath, err := filepath.EvalSymlinks(path); err == nil {
+		path = resolvedPath
+	}
+
+	if channel == "" || channel == "official" {
+		// go fetch latest updates manifest
+		err = u.fetchInfo()
+		if err != nil {
+			return err
+		}
+
+		// 检测是新版本才更新，否则不更新
+		cmp := semver.Compare(u.Info.Version, u.CurrentVersion)
+		if cmp <= 0 {
+			return nil
+		}
+
+		old, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer old.Close()
+
+		// if patch failed grab the full new bin
+		bin, err := u.fetchAndVerifyFullBin()
+		if err != nil {
+			if err == ErrHashMismatch {
+				log.Println("update: hash mismatch from full binary")
+			} else {
+				log.Println("update: fetching full binary,", err)
+			}
+			return err
+		}
+
+		// close the old binary before installing because on windows
+		// it can't be renamed if a handle to the file is still open
+		old.Close()
+
+		err, errRecover := fromStream(bytes.NewBuffer(bin))
+		if errRecover != nil {
+			return fmt.Errorf("update and recovery errors: %q %q", err, errRecover)
+		}
+		if err != nil {
+			return err
+		}
+
+		// update was successful, run func if set
+		if u.OnSuccessfulUpdate != nil {
+			u.OnSuccessfulUpdate()
+		}
+	} else if channel == "github" {
+		err = u.fetchInfoGithub()
+		if err != nil {
+			return err
+		}
+		// 从 GitHub 下载资源
+		r, err := u.fetch(u.BinGithubURL)
+		if err != nil {
+			return err
+		}
+		defer r.Close()
+
+		// 创建临时目录用于解压文件
+		tempDir, err := ioutil.TempDir("", "samwaf_beta_update"+u.Info.Version)
+		if err != nil {
+			return err
+		}
+		defer os.RemoveAll(tempDir)
+
+		// 保存下载的文件到临时文件
+		tempFile := filepath.Join(tempDir, "download")
+		out, err := os.Create(tempFile)
+		if err != nil {
+			return err
+		}
+
+		_, err = io.Copy(out, r)
+		out.Close()
+		if err != nil {
+			return err
+		}
+
+		// 根据文件类型和平台解压并获取正确的可执行文件
+		var binPath string
+
+		if strings.HasSuffix(u.BinGithubURL, ".exe") {
+			//使用win7内核
+			binPath = tempFile
+		} else if strings.HasSuffix(u.BinGithubURL, ".zip") {
+			// 情况 1: 从 ZIP 中提取 SamWaf64.exe
+			err = utils.Unzip(tempFile, tempDir)
+			if err != nil {
+				return err
+			}
+			binPath = filepath.Join(tempDir, "SamWaf64.exe")
+		} else if strings.HasSuffix(u.BinGithubURL, ".tar.gz") {
+			// 处理 Linux 平台的 tar.gz 文件
+			err = utils.ExtractTarGz(tempFile, tempDir)
+			if err != nil {
+				return err
+			}
+
+			if strings.Contains(u.BinGithubURL, "Linux_x86_64") {
+				// 情况 2: 从 tar.gz 中提取 SamWafLinux64
+				binPath = filepath.Join(tempDir, "SamWafLinux64")
+			} else if strings.Contains(u.BinGithubURL, "Linux_arm64") {
+				// 情况 3: 从 tar.gz 中提取 SamWafLinuxArm64
+				binPath = filepath.Join(tempDir, "SamWafLinuxArm64")
+			}
+		}
+
+		// 检查是否找到了可执行文件
+		if binPath == "" {
+			return errors.New("无法找到适合当前平台的可执行文件")
+		}
+		fileBytes, err := ioutil.ReadFile(binPath)
+		if err != nil {
+			return err
+		}
+		err, errRecover := fromStream(bytes.NewBuffer(fileBytes))
+		if errRecover != nil {
+			return fmt.Errorf("update and recovery errors: %q %q", err, errRecover)
+		}
+		if err != nil {
+			return err
+		}
+
+		// update was successful, run func if set
+		if u.OnSuccessfulUpdate != nil {
+			u.OnSuccessfulUpdate()
+		}
 	}
 
 	return nil
@@ -322,6 +514,72 @@ func (u *Updater) fetchInfo() error {
 	return nil
 }
 
+// fetchInfoGithub 从GitHub获取最新beta版本信息
+func (u *Updater) fetchInfoGithub() error {
+	r, err := u.fetch(global.GUPDATE_GITHUB_VERSION_URL)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	// 解析GitHub API返回的JSON数据
+	var githubRelease struct {
+		TagName string `json:"tag_name"`
+		Name    string `json:"name"`
+		Body    string `json:"body"`
+		Assets  []struct {
+			Name               string `json:"name"`
+			BrowserDownloadURL string `json:"browser_download_url"`
+			Size               int64  `json:"size"`
+			ContentType        string `json:"content_type"`
+		} `json:"assets"`
+	}
+
+	err = json.NewDecoder(r).Decode(&githubRelease)
+	if err != nil {
+		return err
+	}
+	//判断tagname 是否包含beta
+	if !strings.Contains(githubRelease.TagName, "beta") {
+		//return errors.New("not beta version")
+	}
+	// 查找适合当前平台的资源
+	var downloadURL string
+
+	// 根据平台选择合适的下载文件
+	platformSuffix := ""
+	utils.IsSupportedWindows7Version()
+	switch plat {
+	case "windows-amd64":
+		if utils.IsSupportedWindows7Version() {
+			platformSuffix = "SamWaf64ForWin7Win8Win2008"
+		} else {
+			platformSuffix = "Windows_x86_64"
+		}
+	case "linux-amd64":
+		platformSuffix = "Linux_x86_64"
+	case "linux-arm64":
+		platformSuffix = "Linux_arm64"
+	}
+
+	// 查找匹配当前平台的资源
+	for _, asset := range githubRelease.Assets {
+		if strings.Contains(asset.Name, platformSuffix) {
+			downloadURL = asset.BrowserDownloadURL
+			break
+		}
+	}
+
+	// 如果没有找到适合的资源，返回错误
+	if downloadURL == "" {
+		return errors.New("no suitable release asset found for this platform")
+	}
+	u.BinGithubURL = downloadURL
+	u.Info.Version = githubRelease.TagName
+	u.Info.Desc = githubRelease.Body
+	return nil
+}
+
 func (u *Updater) fetchAndVerifyPatch(old io.Reader) ([]byte, error) {
 	bin, err := u.fetchAndApplyPatch(old)
 	if err != nil {
@@ -370,10 +628,8 @@ func (u *Updater) fetchBin() ([]byte, error) {
 	if _, err = io.Copy(buf, gz); err != nil {
 		return nil, err
 	}
-
 	return buf.Bytes(), nil
 }
-
 func (u *Updater) fetch(url string) (io.ReadCloser, error) {
 	if u.Requester == nil {
 		return defaultHTTPRequester.Fetch(url)

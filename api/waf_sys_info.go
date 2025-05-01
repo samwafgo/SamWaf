@@ -120,11 +120,7 @@ func (w *WafSysInfoApi) CheckVersionApi(c *gin.Context) {
 		CmdName:        "samwaf_update",             // The app name which is appended to the ApiURL to look for an update
 		//ForceCheck:     true,                     // For this example, always check for an update unless the version is "dev"
 	}
-	available, newVer, desc, err := updater.UpdateAvailable()
-	if err != nil {
-		response.FailWithMessage("未发现新文件", c)
-		return
-	}
+	available, newVer, desc, _ := updater.UpdateAvailable()
 	if available {
 		global.GWAF_RUNTIME_NEW_VERSION = newVer
 		global.GWAF_RUNTIME_NEW_VERSION_DESC = desc
@@ -137,15 +133,30 @@ func (w *WafSysInfoApi) CheckVersionApi(c *gin.Context) {
 			VersionDesc:    desc,
 		}, "有新版本", c)
 	} else {
-		response.FailWithMessage("没有最新版本", c)
-		return
+		available, newVer, desc, _ = updater.UpdateAvailableWithChannel("github")
+		if available {
+			global.GWAF_RUNTIME_NEW_VERSION = newVer
+			global.GWAF_RUNTIME_NEW_VERSION_DESC = desc
+			response.OkWithDetailed(model.VersionInfo{
+				Version:        global.GWAF_RELEASE_VERSION,
+				VersionName:    global.GWAF_RELEASE_VERSION_NAME,
+				VersionRelease: global.GWAF_RELEASE,
+				NeedUpdate:     true,
+				VersionNew:     newVer,
+				VersionDesc:    desc,
+			}, "有新版本(测试版)", c)
+		} else {
+			response.FailWithMessage("没有最新版本", c)
+			return
+		}
 	}
 
 }
 
 // 去升级
 func (w *WafSysInfoApi) UpdateApi(c *gin.Context) {
-
+	// 获取请求中的 channel 参数
+	channel := c.Query("channel")
 	if global.GWAF_RUNTIME_IS_UPDATETING == true {
 		response.OkWithMessage("正在升级中...请在消息等待结果", c)
 		return
@@ -180,18 +191,34 @@ func (w *WafSysInfoApi) UpdateApi(c *gin.Context) {
 	}
 	go func() {
 		// try to update
-		err := updater.BackgroundRun()
-		if err != nil {
+		if channel != "" {
+			err := updater.BackgroundRunWithChannel(channel)
+			if err != nil {
 
-			global.GWAF_RUNTIME_IS_UPDATETING = false
-			//发送websocket 推送消息
-			global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.UpdateResultMessageInfo{
-				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "升级结果", Server: global.GWAF_CUSTOM_SERVER_NAME},
-				Msg:             "升级错误",
-				Success:         "False",
-			})
-			zlog.Info("Failed to update app:", err)
+				global.GWAF_RUNTIME_IS_UPDATETING = false
+				//发送websocket 推送消息
+				global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.UpdateResultMessageInfo{
+					BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "升级结果", Server: global.GWAF_CUSTOM_SERVER_NAME},
+					Msg:             "升级错误",
+					Success:         "False",
+				})
+				zlog.Info("Failed to update app:", err)
+			}
+		} else {
+			err := updater.BackgroundRun()
+			if err != nil {
+
+				global.GWAF_RUNTIME_IS_UPDATETING = false
+				//发送websocket 推送消息
+				global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.UpdateResultMessageInfo{
+					BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "升级结果", Server: global.GWAF_CUSTOM_SERVER_NAME},
+					Msg:             "升级错误",
+					Success:         "False",
+				})
+				zlog.Info("Failed to update app:", err)
+			}
 		}
+
 	}()
 	response.OkWithMessage("已发起升级，等待通知结果", c)
 }

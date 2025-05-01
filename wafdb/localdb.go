@@ -17,8 +17,9 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
-
 	//"github.com/kangarooxin/gorm-webplugin-crypto"
 	//"github.com/kangarooxin/gorm-webplugin-crypto/strategy"
 	gowxsqlite3 "github.com/samwafgo/go-wxsqlite3"
@@ -75,6 +76,9 @@ func InitCoreDb(currentDir string) {
 			}
 
 			zlog.Info("文件备份成功，备份文件路径：", backupFilePath)
+
+			// 检查并清理旧的备份文件，保留最新的10个
+			cleanupOldBackups(backupDir, 10)
 		}
 		key := url.QueryEscape(global.GWAF_PWD_COREDB)
 		dns := fmt.Sprintf("%s?_db_key=%s", path, key)
@@ -412,4 +416,51 @@ func BackupDatabase(db *gorm.DB, backupFile string) error {
 
 	fmt.Println("Backup completed successfully")
 	return nil
+}
+
+// cleanupOldBackups 清理旧的备份文件，只保留最新的n个
+func cleanupOldBackups(backupDir string, keepCount int) {
+	// 获取备份目录中的所有文件
+	files, err := os.ReadDir(backupDir)
+	if err != nil {
+		zlog.Error("读取备份目录失败:", err)
+		return
+	}
+
+	// 筛选出数据库备份文件
+	var backupFiles []os.DirEntry
+	for _, file := range files {
+		if !file.IsDir() && strings.HasPrefix(file.Name(), "local_backup_") && filepath.Ext(file.Name()) == ".db" {
+			backupFiles = append(backupFiles, file)
+		}
+	}
+
+	// 如果备份文件数量不超过保留数量，则不需要删除
+	if len(backupFiles) <= keepCount {
+		return
+	}
+
+	// 按文件修改时间排序（从旧到新）
+	sort.Slice(backupFiles, func(i, j int) bool {
+		infoI, err := backupFiles[i].Info()
+		if err != nil {
+			return false
+		}
+		infoJ, err := backupFiles[j].Info()
+		if err != nil {
+			return false
+		}
+		return infoI.ModTime().Before(infoJ.ModTime())
+	})
+
+	// 删除多余的旧文件
+	for i := 0; i < len(backupFiles)-keepCount; i++ {
+		filePath := filepath.Join(backupDir, backupFiles[i].Name())
+		err := os.Remove(filePath)
+		if err != nil {
+			zlog.Error("删除旧备份文件失败:", err, filePath)
+		} else {
+			zlog.Info("已删除旧备份文件:", filePath)
+		}
+	}
 }

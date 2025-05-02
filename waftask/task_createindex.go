@@ -96,6 +96,14 @@ func createLogDbIndex() {
 		zlog.Info("db", "idx_web_time_desc_tenant_user_code_ip created")
 	}
 
+	// 2025-05-02 添加新索引：为guest_id_entification字段创建索引，优化机器人识别查询
+	err = db.Exec("CREATE INDEX IF NOT EXISTS idx_web_guest_id_entification ON web_logs (guest_id_entification, day, is_bot, host_code)").Error
+	if err != nil {
+		panic("failed to create index: idx_web_guest_id_entification " + err.Error())
+	} else {
+		zlog.Info("db", "idx_web_guest_id_entification created")
+	}
+
 	// 记录结束时间并计算耗时
 	duration := time.Since(startTime)
 	zlog.Info("create log index completely", "duration", duration.String())

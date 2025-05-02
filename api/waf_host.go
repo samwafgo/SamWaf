@@ -121,13 +121,15 @@ func (w *WafHostAPi) GetAllListApi(c *gin.Context) {
 
 		if wafHosts[i].Ssl == 1 {
 			allHostRep[i] = response2.AllHostRep{
-				Host: fmt.Sprintf("%s:%d(SSL)", wafHosts[i].Host, wafHosts[i].Port),
-				Code: wafHosts[i].Code,
+				Host:    fmt.Sprintf("%s:%d(SSL)", wafHosts[i].Host, wafHosts[i].Port),
+				Code:    wafHosts[i].Code,
+				PreHost: fmt.Sprintf("%s:%d", wafHosts[i].Host, wafHosts[i].Port),
 			}
 		} else {
 			allHostRep[i] = response2.AllHostRep{
-				Host: fmt.Sprintf("%s:%d", wafHosts[i].Host, wafHosts[i].Port),
-				Code: wafHosts[i].Code,
+				Host:    fmt.Sprintf("%s:%d", wafHosts[i].Host, wafHosts[i].Port),
+				Code:    wafHosts[i].Code,
+				PreHost: fmt.Sprintf("%s:%d", wafHosts[i].Host, wafHosts[i].Port),
 			}
 		}
 

@@ -48,16 +48,3 @@ func (w *WafStatApi) StatHomeSumDayTopIPRangeApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
-
-// 数据分析界面- 国家级别分析
-func (w *WafStatApi) StatAnalysisDayCountryRangeApi(c *gin.Context) {
-	var req request.WafStatsAnalysisDayRangeCountryReq
-	err := c.ShouldBind(&req)
-	if err == nil {
-		wafStat := wafStatService.StatAnalysisDayCountryRangeApi(req)
-		response.OkWithDetailed(wafStat, "获取成功", c)
-	} else {
-
-		response.FailWithMessage("解析失败", c)
-	}
-}

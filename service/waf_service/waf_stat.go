@@ -162,21 +162,6 @@ func (receiver *WafStatService) StatHomeSumDayTopIPRangeApi(req request.WafStats
 		nil
 }
 
-// 通过时间获取国家级别的 攻击数 访问数
-func (receiver *WafStatService) StatAnalysisDayCountryRangeApi(req request.WafStatsAnalysisDayRangeCountryReq) []response2.WafAnalysisDayStats {
-	var CountOfRange []response2.WafAnalysisDayStats
-	if req.AttackType == "" {
-		global.GWAF_LOCAL_STATS_DB.Model(&model.StatsIPCityDay{}).Where("day between ? and ? and country<>? and country<>? ",
-			req.StartDay, req.EndDay, "0", "内网").Select(" country as Name ,sum(count) as Value").Group("country").Order("sum(count) desc").Scan(&CountOfRange)
-
-	} else {
-		global.GWAF_LOCAL_STATS_DB.Model(&model.StatsIPCityDay{}).Where("day between ? and ? and type = ?  and country<>? and country<>? ",
-			req.StartDay, req.EndDay, req.AttackType, "0", "内网").Select(" country as Name ,sum(count) as Value").Group("country").Order("sum(count) desc").Scan(&CountOfRange)
-
-	}
-	return CountOfRange
-}
-
 // 获取系统基本信息
 func (receiver *WafStatService) StatHomeSysinfo(c *gin.Context) response2.WafHomeSysinfoStat {
 	tokenStr := c.GetHeader("X-Token")

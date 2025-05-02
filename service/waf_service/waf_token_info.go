@@ -3,6 +3,7 @@ package waf_service
 import (
 	"SamWaf/common/uuid"
 	"SamWaf/customtype"
+	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
@@ -114,4 +115,67 @@ func (receiver *WafTokenInfoService) DelApiByAccount(loginAccount string) error 
 	}
 	err = global.GWAF_LOCAL_DB.Where("login_account = ?", loginAccount).Delete(model.TokenInfo{}).Error
 	return err
+}
+
+/*
+* 检测所有的token是否过期，没有过期就重新加载到cache
+ */
+func (receiver *WafTokenInfoService) ReloadAllValidTokensToCache() error {
+	var tokens []model.TokenInfo
+	// 获取所有token信息
+	err := global.GWAF_LOCAL_DB.Find(&tokens).Error
+	if err != nil {
+		return err
+	}
+
+	// 当前时间
+	now := time.Now()
+
+	// 遍历所有token
+	for _, token := range tokens {
+		// 检查token是否过期
+		// 假设token的过期时间存储在UPDATE_TIME字段中，并且有一个固定的过期时间
+		expireTime := time.Time(token.UPDATE_TIME).Add(time.Duration(global.GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES) * time.Minute)
+
+		// 如果token没有过期，则重新加载到缓存中
+		if expireTime.After(now) {
+			// 将token信息存入缓存
+			global.GCACHE_WAFCACHE.SetWithTTl(
+				enums.CACHE_TOKEN+token.AccessToken,
+				token,
+				time.Duration(global.GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES)*time.Minute,
+			)
+		}
+	}
+
+	return nil
+}
+
+// 根据数据库中的特定token信息重新加载到缓存
+func (receiver *WafTokenInfoService) ReloadSpecificTokenToCache(tokenId string) error {
+	var token model.TokenInfo
+	// 根据ID获取token信息
+	err := global.GWAF_LOCAL_DB.Where("id = ?", tokenId).First(&token).Error
+	if err != nil {
+		return err
+	}
+
+	// 当前时间
+	now := time.Now()
+
+	// 检查token是否过期
+	expireTime := time.Time(token.UPDATE_TIME).Add(time.Duration(global.GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES) * time.Minute)
+
+	// 如果token没有过期，则重新加载到缓存中
+	if expireTime.After(now) {
+		// 将token信息存入缓存
+		global.GCACHE_WAFCACHE.SetWithTTl(
+			enums.CACHE_TOKEN+token.AccessToken,
+			token,
+			time.Duration(global.GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES)*time.Minute,
+		)
+		return nil
+	}
+
+	return errors.New("token已过期")
 }

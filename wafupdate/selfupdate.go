@@ -675,3 +675,31 @@ func verifySha(bin []byte, sha []byte) bool {
 func writeTime(path string, t time.Time) bool {
 	return ioutil.WriteFile(path, []byte(t.Format(time.RFC3339)), 0644) == nil
 }
+
+// BackupExecutable 备份当前可执行文件
+func BackupExecutable() error {
+	// 获取当前可执行文件路径
+	execPath, err := os.Executable()
+	if err != nil {
+		return err
+	}
+
+	// 如果是符号链接，获取实际路径
+	if resolvedPath, err := filepath.EvalSymlinks(execPath); err == nil {
+		execPath = resolvedPath
+	}
+
+	// 获取当前目录
+	currentDir := utils.GetCurrentDir()
+
+	// 创建备份目录
+	backupDir := filepath.Join(currentDir, "data", "backups_bin")
+
+	// 获取文件名（不带路径）
+	fileName := filepath.Base(execPath)
+	fileNameWithoutExt := strings.TrimSuffix(fileName, filepath.Ext(fileName))
+
+	// 备份文件
+	_, err = utils.BackupFile(execPath, backupDir, fileNameWithoutExt, 5)
+	return err
+}

@@ -190,6 +190,13 @@ func (w *WafSysInfoApi) UpdateApi(c *gin.Context) {
 		},
 	}
 	go func() {
+		// 备份当前可执行文件
+		err := wafupdate.BackupExecutable()
+		if err != nil {
+			zlog.Error("备份可执行文件失败:", err)
+			// 备份失败不影响升级流程，继续执行
+		}
+
 		// try to update
 		if channel != "" {
 			err := updater.BackgroundRunWithChannel(channel)

@@ -5,6 +5,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/middleware"
 	"SamWaf/router"
+	"SamWaf/service/waf_service"
 	"SamWaf/wafmangeweb/static"
 	"context"
 	"errors"
@@ -135,7 +136,10 @@ func (web *WafWebManager) StartLocalServer() error {
 		Addr:    ":" + strconv.Itoa(global.GWAF_LOCAL_SERVER_PORT),
 		Handler: r,
 	}
-
+	err := waf_service.WafTokenInfoServiceApp.ReloadAllValidTokensToCache()
+	if err != nil {
+		zlog.Info("加载token到cache错误", err.Error())
+	}
 	// 正式启动服务
 	if err := web.HttpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		errMsg := fmt.Sprintf("启动管理界面失败: %s", err.Error())

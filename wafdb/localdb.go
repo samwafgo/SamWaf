@@ -13,7 +13,6 @@ import (
 	"database/sql"
 	"fmt"
 	"gorm.io/gorm/logger"
-	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -42,44 +41,14 @@ func InitCoreDb(currentDir string) {
 		path := currentDir + "/data/local.db"
 		// 检查文件是否存在
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
-			// 文件存在的逻辑
+			// 文件存在的逻辑，使用工具函数进行备份
 			backupDir := currentDir + "/data/backups"
-			// 判断备份目录是否存在，不存在则创建
-			if _, err := os.Stat(backupDir); os.IsNotExist(err) {
-				if err := os.MkdirAll(backupDir, os.ModePerm); err != nil {
-					zlog.Error("创建备份目录失败:", err)
-					return
-				}
-			}
-			// 创建备份文件
-			backupFilePath := filepath.Join(backupDir, fmt.Sprintf("local_backup_%s.db", time.Now().Format("20060102150405")))
-			backupFile, err := os.Create(backupFilePath)
+			_, err := utils.BackupFile(path, backupDir, "local_backup", 10)
 			if err != nil {
-				zlog.Error("创建备份文件失败:", err)
-				return
+				zlog.Error("备份数据库文件失败:", err)
 			}
-			defer backupFile.Close()
-
-			// 打开原始文件
-			originalFile, err := os.Open(path)
-			if err != nil {
-				zlog.Error("打开原始文件失败:", err)
-				return
-			}
-			defer originalFile.Close()
-
-			// 复制文件内容到备份文件
-			_, err = io.Copy(backupFile, originalFile)
-			if err != nil {
-				zlog.Error("文件复制失败:", err)
-				return
-			}
-
-			zlog.Info("文件备份成功，备份文件路径：", backupFilePath)
-
-			// 检查并清理旧的备份文件，保留最新的10个
-			cleanupOldBackups(backupDir, 10)
 		}
+
 		key := url.QueryEscape(global.GWAF_PWD_COREDB)
 		dns := fmt.Sprintf("%s?_db_key=%s", path, key)
 		db, err := gorm.Open(sqlite.Open(dns), &gorm.Config{})

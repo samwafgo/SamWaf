@@ -65,6 +65,12 @@ type CountIPRuleResult struct {
 */
 
 func TaskCounter() {
+	// 检查是否收到关闭信号
+	if global.GWAF_SHUTDOWN_SIGNAL {
+		zlog.Info("TaskCounter Shutdown")
+		return
+	}
+
 	if global.GWAF_LOCAL_DB == nil || global.GWAF_LOCAL_LOG_DB == nil {
 		zlog.Debug("数据库没有初始化完成呢")
 		return
@@ -116,6 +122,11 @@ func TaskCounter() {
 		2.如果存在则累加这个周期的统计数
 		*/
 		for _, value := range resultHosts {
+			// 检查是否收到关闭信号
+			if global.GWAF_SHUTDOWN_SIGNAL {
+				zlog.Info("TaskCounter - Shutdown")
+				return
+			}
 			var statDay model.StatsDay
 			global.GWAF_LOCAL_STATS_DB.Where("tenant_id = ? and user_code = ? and host_code=? and type=? and day=?",
 				value.TenantId, value.UserCode, value.HostCode, value.ACTION, value.Day).Find(&statDay)
@@ -162,6 +173,11 @@ func TaskCounter() {
 		2.如果存在则累加这个周期的统计数
 		*/
 		for _, value := range resultIP {
+			// 检查是否收到关闭信号
+			if global.GWAF_SHUTDOWN_SIGNAL {
+				zlog.Info("TaskCounter - Shutdown")
+				return
+			}
 			var statDay model.StatsIPDay
 			global.GWAF_LOCAL_STATS_DB.Where("tenant_id = ? and user_code = ? and host_code=? and ip = ? and type=? and day=?",
 				value.TenantId, value.UserCode, value.HostCode, value.Ip, value.ACTION, value.Day).Find(&statDay)
@@ -211,6 +227,11 @@ func TaskCounter() {
 		2.如果存在则累加这个周期的统计数
 		*/
 		for _, value := range resultCitys {
+			// 检查是否收到关闭信号
+			if global.GWAF_SHUTDOWN_SIGNAL {
+				zlog.Info("TaskCounter - Shutdown")
+				return
+			}
 			var statDay model.StatsIPCityDay
 			global.GWAF_LOCAL_STATS_DB.Where("tenant_id = ? and user_code = ? and host_code=? and country = ? and province = ? and city = ? and type=? and day=?",
 				value.TenantId, value.UserCode, value.HostCode, value.Country, value.Province, value.City, value.ACTION, value.Day).Find(&statDay)
@@ -262,6 +283,11 @@ func TaskCounter() {
 		2.如果存在则累加这个IP这个rule的统计数
 		*/
 		for _, value := range resultIPRule {
+			// 检查是否收到关闭信号
+			if global.GWAF_SHUTDOWN_SIGNAL {
+				zlog.Info("TaskCounter - Shutdown")
+				return
+			}
 			if value.Rule == "" {
 				value.Rule = "正常"
 			}

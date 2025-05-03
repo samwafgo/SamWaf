@@ -536,32 +536,27 @@ func (m *wafSystenService) run() {
 				//需要重新启动
 				if global.GWAF_RUNTIME_SERVER_TYPE == true {
 					zlog.Info("服务形式重启")
-
 					m.stopSamWaf()
-					// 使用filepath包提取文件名
-					//executableName := filepath.Base(executablePath)
-					var cmd *exec.Cmd
-					cmd = exec.Command(global.GWAF_RUNTIME_CURRENT_EXEPATH, "restart")
-					err = cmd.Start()
-					if err != nil {
-						zlog.Error("Service Error restarting program:", err)
-						return
+
+					// 只启动一次新进程
+					cmd := exec.Command(global.GWAF_RUNTIME_CURRENT_EXEPATH, "restart")
+					cmd.Stdout = os.Stdout
+					cmd.Stderr = os.Stderr
+					if err := cmd.Start(); err != nil {
+						zlog.Error("启动新进程失败:", err)
+						os.Exit(0)
 					}
-					// 等待新版本程序启动
 					time.Sleep(2 * time.Second)
 					os.Exit(0)
 				} else {
-
 					m.stopSamWaf()
 					cmd := exec.Command(global.GWAF_RUNTIME_CURRENT_EXEPATH)
 					cmd.Stdout = os.Stdout
 					cmd.Stderr = os.Stderr
-					err := cmd.Start()
-					if err != nil {
-						zlog.Error("Not Service Error restarting program:", err)
-						return
+					if err := cmd.Start(); err != nil {
+						zlog.Error("启动新进程失败:", err)
+						os.Exit(0)
 					}
-					// 等待新版本程序启动
 					time.Sleep(2 * time.Second)
 					os.Exit(0)
 				}
@@ -604,21 +599,36 @@ func (m *wafSystenService) run() {
 
 // 停止要提前关闭的 是服务的主要逻辑
 func (m *wafSystenService) stopSamWaf() {
-	zlog.Debug("Shutdown SamWaf Engine...")
+	zlog.Info("Shutdown SamWaf Engine...")
 	globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.CloseWaf()
-	zlog.Debug("Shutdown SamWaf Engine finished")
+	zlog.Info("Shutdown SamWaf Engine finished")
 
-	zlog.Debug("Shutdown SamWaf Cron...")
+	zlog.Info("Shutdown SamWaf Queue Processors...")
+	// 关闭信号通道，通知所有队列处理协程退出
+	close(global.GWAF_QUEUE_SHUTDOWN_SIGNAL)
+	// 等待一段时间，让队列处理协程有时间完成当前工作并退出
+	time.Sleep(500 * time.Millisecond)
+	zlog.Info("Shutdown SamWaf Queue Processors finished")
+
+	// 设置任务停止标志
+	zlog.Info("Notifying SamWaf Tasks to shutdown...")
+	global.GWAF_SHUTDOWN_SIGNAL = true
+	// 给任务一些时间完成当前工作
+	time.Sleep(200 * time.Millisecond)
+	zlog.Info("SamWaf Tasks notified")
+
+	zlog.Info("Shutdown SamWaf Cron...")
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler.Stop()
-	zlog.Debug("Shutdown SamWaf Cron finished")
+	zlog.Info("Shutdown SamWaf Cron finished")
 
-	zlog.Debug("Shutdown SamWaf WebManager...")
+	zlog.Info("Shutdown SamWaf WebManager...")
 	webmanager.CloseLocalServer()
-	zlog.Debug("Shutdown SamWaf WebManager finished")
+	zlog.Info("Shutdown SamWaf WebManager finished")
 
-	zlog.Debug("Shutdown SamWaf IPDatabase...")
+	zlog.Info("Shutdown SamWaf IPDatabase...")
 	utils.CloseIPDatabase()
-	zlog.Debug("Shutdown SamWaf IPDatabase finished")
+	zlog.Info("Shutdown SamWaf IPDatabase finished")
+
 }
 
 // 优雅升级
@@ -677,7 +687,7 @@ func main() {
 		command := os.Args[1]
 		switch command {
 
-		case "install", "start", "stop", "uninstall": // 以服务方式运行
+		case "install", "start", "stop", "uninstall", "restart": // 以服务方式运行
 			err := service.Control(s, command)
 			if err != nil {
 				log.Fatal(err)

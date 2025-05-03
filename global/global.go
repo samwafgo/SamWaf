@@ -78,19 +78,21 @@ var (
 
 	GWAF_OWASP *wafowasp.WafOWASP //owasp引擎
 	/**链聚合**/
-	GWAF_CHAN_HOST                    = make(chan model.Hosts, 10)         //主机链
-	GWAF_CHAN_ENGINE                  = make(chan int, 10)                 //引擎链
-	GWAF_CHAN_MSG                     = make(chan spec.ChanCommonHost, 10) //全局通讯包
-	GWAF_CHAN_UPDATE                  = make(chan int, 10)                 //升级后处理链
-	GWAF_CHAN_SENSITIVE               = make(chan int, 10)                 //敏感词处理链
-	GWAF_CHAN_SSL                     = make(chan string, 10)              //证书处理链
-	GWAF_CHAN_SSLOrder                = make(chan spec.ChanSslOrder, 10)   //SSL证书申请
-	GWAF_CHAN_SSL_EXPIRE_CHECK        = make(chan int, 10)                 //SSL证书到期检测
-	GWAF_CHAN_SYNC_HOST_TO_SSL_EXPIRE = make(chan int, 10)                 //同步已存在主机到SSL证书检测任务里
-	GWAF_CHAN_TASK                    = make(chan string, 10)              //手工执行任务
-	GWAF_CHAN_CLEAR_CC_WINDOWS        = make(chan int, 10)                 //清除cc缓存信息
-	GWAF_CHAN_CLEAR_CC_IP             = make(chan string, 10)              //清除cc缓存信息IP
+	GWAF_CHAN_HOST                                  = make(chan model.Hosts, 10)         //主机链
+	GWAF_CHAN_ENGINE                                = make(chan int, 10)                 //引擎链
+	GWAF_CHAN_MSG                                   = make(chan spec.ChanCommonHost, 10) //全局通讯包
+	GWAF_CHAN_UPDATE                                = make(chan int, 10)                 //升级后处理链
+	GWAF_CHAN_SENSITIVE                             = make(chan int, 10)                 //敏感词处理链
+	GWAF_CHAN_SSL                                   = make(chan string, 10)              //证书处理链
+	GWAF_CHAN_SSLOrder                              = make(chan spec.ChanSslOrder, 10)   //SSL证书申请
+	GWAF_CHAN_SSL_EXPIRE_CHECK                      = make(chan int, 10)                 //SSL证书到期检测
+	GWAF_CHAN_SYNC_HOST_TO_SSL_EXPIRE               = make(chan int, 10)                 //同步已存在主机到SSL证书检测任务里
+	GWAF_CHAN_TASK                                  = make(chan string, 10)              //手工执行任务
+	GWAF_CHAN_CLEAR_CC_WINDOWS                      = make(chan int, 10)                 //清除cc缓存信息
+	GWAF_CHAN_CLEAR_CC_IP                           = make(chan string, 10)              //清除cc缓存信息IP
+	GWAF_QUEUE_SHUTDOWN_SIGNAL        chan struct{} = make(chan struct{})                // 队列关闭信号
 
+	GWAF_SHUTDOWN_SIGNAL bool = false // 系统关闭信号
 	/*****CACHE相关*********/
 	GCACHE_WAFCACHE      *cache.WafCache      //cache
 	GCACHE_WECHAT_ACCESS string          = "" //微信访问密钥
@@ -134,7 +136,9 @@ var (
 	//升级相关
 	GUPDATE_VERSION_URL        string = "https://update.samwaf.com/"                                       // 官方下载
 	GUPDATE_GITHUB_VERSION_URL string = "https://update.samwaf.com/samwaf_beta_update/latest_release.json" //从gitHub自动下载镜像
-
+	//GUPDATE_GITHUB_VERSION_URL string = "http://10.0.2.2:8111/beta_update_linux/latest_release.json"
+	// http://127.0.0.1:8111/beta_update/latest_release.json
+	// http://10.0.2.2:8111/beta_update_linux/latest_release.json
 	GWAF_SNOWFLAKE_GEN *wafsnowflake.Snowflake //雪花算法
 
 	//任务开关信息

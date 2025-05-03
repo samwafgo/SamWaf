@@ -21,10 +21,15 @@ func (waf *WafEngine) CheckAllowIP(r *http.Request, weblogbean *innerbean.WebLog
 		Title:           "",
 		Content:         "",
 	}
+	clientIp := weblogbean.SRC_IP
+	if global.GCONFIG_RECORD_PROXY_HEADER == "" {
+		clientIp = weblogbean.NetSrcIp
+	}
+
 	//ip白名单策略（局部）
 	if hostTarget.IPWhiteLists != nil {
 		for i := 0; i < len(hostTarget.IPWhiteLists); i++ {
-			if utils.CheckIPInCIDR(weblogbean.SRC_IP, hostTarget.IPWhiteLists[i].Ip) {
+			if utils.CheckIPInCIDR(clientIp, hostTarget.IPWhiteLists[i].Ip) {
 				result.JumpGuardResult = true
 				break
 			}
@@ -33,7 +38,7 @@ func (waf *WafEngine) CheckAllowIP(r *http.Request, weblogbean *innerbean.WebLog
 	//ip白名单策略（全局）
 	if waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].Host.GUARD_STATUS == 1 && waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPWhiteLists != nil {
 		for i := 0; i < len(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPWhiteLists); i++ {
-			if utils.CheckIPInCIDR(weblogbean.SRC_IP, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPWhiteLists[i].Ip) {
+			if utils.CheckIPInCIDR(clientIp, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPWhiteLists[i].Ip) {
 				result.JumpGuardResult = true
 				break
 			}

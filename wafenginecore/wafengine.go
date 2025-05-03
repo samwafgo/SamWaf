@@ -268,10 +268,20 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return false
 			}
 			globalHostSafe := waf.HostTarget[waf.HostCode[global.GWAF_GLOBAL_HOST_CODE]]
-			detectionWhiteResult := waf.CheckAllowIP(r, &weblogbean, formValues, hostTarget, globalHostSafe)
-			if detectionWhiteResult.JumpGuardResult == false {
-				detectionWhiteResult = waf.CheckAllowURL(r, weblogbean, formValues, hostTarget, globalHostSafe)
+			// 检测白名单开始
+			detectionWhiteResult := detection.Result{JumpGuardResult: false}
+			checkFunctions := []func(*http.Request, *innerbean.WebLog, url.Values, *wafenginmodel.HostSafe, *wafenginmodel.HostSafe) detection.Result{
+				waf.CheckAllowIP,
+				waf.CheckAllowURL,
+				waf.CheckAllowCallBackIP,
 			}
+			for _, checkFunc := range checkFunctions {
+				detectionWhiteResult = checkFunc(r, &weblogbean, formValues, hostTarget, globalHostSafe)
+				if detectionWhiteResult.JumpGuardResult == true {
+					break
+				}
+			}
+			//检测白名单结束
 			if detectionWhiteResult.JumpGuardResult == false {
 
 				if handleBlock(waf.CheckDenyIP) {

@@ -206,7 +206,7 @@ func (w *WafSysInfoApi) UpdateApi(c *gin.Context) {
 				//发送websocket 推送消息
 				global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.UpdateResultMessageInfo{
 					BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "升级结果", Server: global.GWAF_CUSTOM_SERVER_NAME},
-					Msg:             "升级错误",
+					Msg:             "升级错误:" + err.Error(),
 					Success:         "False",
 				})
 				zlog.Info("Failed to update app:", err)
@@ -219,7 +219,7 @@ func (w *WafSysInfoApi) UpdateApi(c *gin.Context) {
 				//发送websocket 推送消息
 				global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.UpdateResultMessageInfo{
 					BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "升级结果", Server: global.GWAF_CUSTOM_SERVER_NAME},
-					Msg:             "升级错误",
+					Msg:             "升级错误:" + err.Error(),
 					Success:         "False",
 				})
 				zlog.Info("Failed to update app:", err)

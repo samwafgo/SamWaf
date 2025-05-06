@@ -10,8 +10,8 @@ import (
 	"SamWaf/model/request"
 	"errors"
 	"fmt"
-	"github.com/360EntSecGroup-Skylar/excelize"
 	"github.com/gin-gonic/gin"
+	"github.com/xuri/excelize/v2"
 	"log"
 	"net/http"
 	"os"
@@ -121,7 +121,7 @@ func (w *WafCommonApi) ImportExcelApi(c *gin.Context) {
 	}
 
 	// Get all the rows in the Sheet1.
-	rows := f.GetRows("Sheet1")
+	rows, err := f.GetRows("Sheet1")
 	if err != nil {
 		fmt.Println(err)
 		return

@@ -3,7 +3,6 @@ module SamWaf
 go 1.22.9
 
 require (
-	github.com/360EntSecGroup-Skylar/excelize v1.4.1
 	github.com/bytedance/godlp v1.2.15
 	github.com/corazawaf/coraza/v3 v3.2.2
 	github.com/corazawaf/libinjection-go v0.2.2
@@ -30,6 +29,7 @@ require (
 	github.com/twmb/franz-go v1.18.0
 	github.com/wenlng/go-captcha-assets v1.0.5
 	github.com/wenlng/go-captcha/v2 v2.0.3
+	github.com/xuri/excelize/v2 v2.9.0
 	go.uber.org/zap v1.25.0
 	golang.org/x/mod v0.21.0
 	golang.org/x/net v0.33.0
@@ -93,6 +93,8 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.21 // indirect
 	github.com/pjbgf/sha1cd v0.3.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
+	github.com/richardlehane/mscfb v1.0.4 // indirect
+	github.com/richardlehane/msoleps v1.0.4 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/sagikazarmark/locafero v0.4.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
@@ -114,12 +116,14 @@ require (
 	github.com/ugorji/go/codec v1.2.12 // indirect
 	github.com/valllabh/ocsf-schema-golang v1.0.3 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
+	github.com/xuri/efp v0.0.0-20240408161823-9ad904a10d6d // indirect
+	github.com/xuri/nfp v0.0.0-20240318013403-ab9948c2c4a7 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/arch v0.12.0 // indirect
 	golang.org/x/crypto v0.31.0 // indirect
 	golang.org/x/exp v0.0.0-20240213143201-ec583247a57a // indirect
-	golang.org/x/image v0.16.0 // indirect
+	golang.org/x/image v0.18.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/tools v0.25.0 // indirect
 	google.golang.org/protobuf v1.36.1 // indirect

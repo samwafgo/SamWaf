@@ -6,11 +6,11 @@ import (
 
 type Account struct {
 	baseorm.BaseOrm
-	LoginAccount  string `json:"login_account"`                //登录账号
-	LoginPassword string `json:"login_password"  crypto:"aes"` //密码md5加密
-	Role          string `json:"role"`                         //登录角色
-	Status        int    `json:"status"`                       //状态
-	Remarks       string `json:"remarks"`                      //备注
+	LoginAccount  string `json:"login_account"`  //登录账号
+	LoginPassword string `json:"login_password"` //密码md5加密
+	Role          string `json:"role"`           //登录角色
+	Status        int    `json:"status"`         //状态
+	Remarks       string `json:"remarks"`        //备注
 }
 
 type AccountLog struct {

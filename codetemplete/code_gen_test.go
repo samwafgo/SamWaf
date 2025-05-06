@@ -9,7 +9,7 @@ import (
 func TestCodeGeneration(t *testing.T) {
 	// 唯一校验定义字段信息的字符串
 	fieldDefs := []string{
-		"UserName:user_name:string",
+		"PrivateKey:private_key:string",
 	}
 
 	// 构造 `uniFields` 列表
@@ -27,6 +27,6 @@ func TestCodeGeneration(t *testing.T) {
 		}
 	}
 
-	fields := GetStructFields(model.Otp{})
-	CodeGeneration("Otp", fields, uniFields)
+	fields := GetStructFields(model.PrivateInfo{})
+	CodeGeneration("PrivateInfo", fields, uniFields)
 }

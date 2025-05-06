@@ -60,6 +60,7 @@ func AlipayPayBackIP(ip string) CallBackIpResult {
 		"203.209.224.0/19",
 		"43.227.188.0/22",
 		"45.113.40.0/22",
+		"8.150.0.0/17",
 		"2400:B200::/32",
 	}
 	isInRanges := utils.CheckIPInRanges(ip, ipRanges)

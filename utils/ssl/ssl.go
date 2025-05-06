@@ -11,7 +11,12 @@ import (
 	"fmt"
 	"github.com/go-acme/lego/v4/certcrypto"
 	"github.com/go-acme/lego/v4/certificate"
+	"github.com/go-acme/lego/v4/challenge"
 	"github.com/go-acme/lego/v4/lego"
+	"github.com/go-acme/lego/v4/providers/dns/alidns"
+	"github.com/go-acme/lego/v4/providers/dns/cloudflare"
+	"github.com/go-acme/lego/v4/providers/dns/huaweicloud"
+	"github.com/go-acme/lego/v4/providers/dns/tencentcloud"
 	"github.com/go-acme/lego/v4/providers/http/webroot"
 	"github.com/go-acme/lego/v4/registration"
 	"strings"
@@ -76,11 +81,19 @@ func RegistrationSSL(order model.SslOrder, savePath string) (model.SslOrder, err
 	// because we aren't running as root and can't bind a listener to port 80 and 443
 	// (used later when we attempt to pass challenges). Keep in mind that you still
 	// need to proxy challenge traffic to port 5002 and 5001.
-	provider, err := webroot.NewHTTPProvider(savePath)
-	if err != nil {
-		return order, err
+	if order.ApplyMethod == "http01" {
+		provider, err := webroot.NewHTTPProvider(savePath)
+		if err != nil {
+			return order, err
+		}
+		err = client.Challenge.SetHTTP01Provider(provider)
+	} else if order.ApplyMethod == "dns01" {
+		dnsProvider, err := GetDnsProvider(order.ApplyDns)
+		if err != nil {
+			return order, err
+		}
+		err = client.Challenge.SetDNS01Provider(dnsProvider)
 	}
-	err = client.Challenge.SetHTTP01Provider(provider)
 
 	if err != nil {
 		return order, err
@@ -167,11 +180,19 @@ func ReNewSSL(order model.SslOrder, savePath string) (model.SslOrder, error) {
 	// because we aren't running as root and can't bind a listener to port 80 and 443
 	// (used later when we attempt to pass challenges). Keep in mind that you still
 	// need to proxy challenge traffic to port 5002 and 5001.
-	provider, err := webroot.NewHTTPProvider(savePath)
-	if err != nil {
-		return order, err
+	if order.ApplyMethod == "http01" {
+		provider, err := webroot.NewHTTPProvider(savePath)
+		if err != nil {
+			return order, err
+		}
+		err = client.Challenge.SetHTTP01Provider(provider)
+	} else if order.ApplyMethod == "dns01" {
+		dnsProvider, err := GetDnsProvider(order.ApplyDns)
+		if err != nil {
+			return order, err
+		}
+		err = client.Challenge.SetDNS01Provider(dnsProvider)
 	}
-	err = client.Challenge.SetHTTP01Provider(provider)
 
 	if err != nil {
 		return order, err
@@ -253,4 +274,22 @@ func pemToPrivateKey(pemStr string) (*ecdsa.PrivateKey, error) {
 	}
 
 	return privateKey, nil
+}
+
+func GetDnsProvider(dnsName string) (challenge.Provider, error) {
+
+	switch dnsName {
+	case "alidns":
+		return alidns.NewDNSProvider()
+	case "huaweicloud":
+		return huaweicloud.NewDNSProvider()
+	case "tencentcloud":
+
+		return tencentcloud.NewDNSProvider()
+	case "cloudflare":
+
+		return cloudflare.NewDNSProvider()
+	default:
+		return nil, fmt.Errorf("unrecognized DNS provider: %s", dnsName)
+	}
 }

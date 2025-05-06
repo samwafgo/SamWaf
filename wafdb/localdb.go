@@ -140,6 +140,9 @@ func InitCoreDb(currentDir string) {
 		//OTP
 		db.AutoMigrate(&model.Otp{})
 
+		//密钥信息
+		db.AutoMigrate(&model.PrivateInfo{})
+
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
 

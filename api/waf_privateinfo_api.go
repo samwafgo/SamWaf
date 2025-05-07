@@ -1,12 +1,15 @@
 package api
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	"errors"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	"os"
 )
 
 type WafPrivateInfoApi struct {
@@ -21,9 +24,9 @@ func (w *WafPrivateInfoApi) AddApi(c *gin.Context) {
 		if cnt == 0 {
 			err = wafPrivateInfoService.AddApi(req)
 			if err == nil {
+				w.Notify()
 				response.OkWithMessage("添加成功", c)
 			} else {
-				w.Notify()
 				response.FailWithMessage("添加失败", c)
 			}
 			return
@@ -80,13 +83,18 @@ func (w *WafPrivateInfoApi) DelApi(c *gin.Context) {
 	var req request.WafPrivateInfoDelReq
 	err := c.ShouldBind(&req)
 	if err == nil {
+		info := wafPrivateInfoService.GetDetailByIdApi(req.Id)
+		key := info.PrivateKey
 		err = wafPrivateInfoService.DelApi(req)
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 			response.FailWithMessage("请检测参数", c)
 		} else if err != nil {
 			response.FailWithMessage("发生错误", c)
 		} else {
-			w.Notify()
+			err := os.Unsetenv(key)
+			if err == nil {
+				zlog.Info(fmt.Sprintf("ENV `%s` REMOVED", key))
+			}
 			response.OkWithMessage("删除成功", c)
 		}
 	} else {

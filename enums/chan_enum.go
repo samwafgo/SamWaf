@@ -15,4 +15,5 @@ const (
 	ChanTypeSSL
 	ChanTypeHttpauth
 	ChanTypeBlockingPage
+	ChanTypeCacheRule
 )

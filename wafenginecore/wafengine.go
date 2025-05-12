@@ -15,6 +15,7 @@ import (
 	"SamWaf/utils"
 	"SamWaf/wafenginecore/loadbalance"
 	"SamWaf/wafenginecore/wafhttpcore"
+	"SamWaf/wafenginecore/wafwebcache"
 	"SamWaf/wafproxy"
 	"bytes"
 	"context"
@@ -25,6 +26,7 @@ import (
 	goahocorasick "github.com/samwafgo/ahocorasick"
 	"go.uber.org/zap"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -404,6 +406,46 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 		}
+
+		//检测cache
+		cacheConfig := model.CacheConfig{
+			IsEnableCache:   0,
+			CacheLocation:   "",
+			CacheDir:        "",
+			MaxFileSizeMB:   0,
+			MaxMemorySizeMB: 0,
+		}
+		err := json.Unmarshal([]byte(hostTarget.Host.CacheJSON), &cacheConfig)
+		if err != nil {
+			zlog.Debug("解析cache json失败")
+		}
+		if cacheConfig.IsEnableCache == 1 {
+			cacheResp := wafwebcache.LoadWebDataFormCache(w, r, hostTarget, cacheConfig)
+			if cacheResp != nil {
+				// 将缓存的响应写回给客户端
+				for k, v := range cacheResp.Header {
+					for _, val := range v {
+						w.Header().Add(k, val)
+					}
+				}
+
+				w.Header().Add("X-Cache", "HIT")
+				w.WriteHeader(cacheResp.StatusCode)
+				// 读取并写入响应体
+				if cacheResp.Body != nil {
+					body, _ := ioutil.ReadAll(cacheResp.Body)
+					cacheResp.Body.Close()
+					w.Write(body)
+
+					// 重新创建一个body供后续使用
+					cacheResp.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+				}
+
+				// 设置响应并返回
+				r.Response = cacheResp
+				return
+			}
+		}
 		//如果正常的流量不记录请求原始包
 		if global.GCONFIG_RECORD_ALL_SRC_BYTE_INFO == 0 {
 			weblogbean.SrcByteBody = nil
@@ -767,6 +809,23 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 					zlog.Warn(fmt.Sprintf("识别响应内容编码失败，响应日志，敏感词替换 不可用 %v，请求URL: %s", responseEncodingError, r.URL.String()))
 				}
 			}
+
+			//检测cache
+			cacheConfig := model.CacheConfig{
+				IsEnableCache:   0,
+				CacheLocation:   "",
+				CacheDir:        "",
+				MaxFileSizeMB:   0,
+				MaxMemorySizeMB: 0,
+			}
+			err := json.Unmarshal([]byte(waf.HostTarget[host].Host.CacheJSON), &cacheConfig)
+			if err != nil {
+				zlog.Debug("解析cache json失败")
+			}
+			if cacheConfig.IsEnableCache == 1 {
+				wafwebcache.StoreWebDataCache(resp, waf.HostTarget[host], cacheConfig)
+			}
+
 			zlog.Debug("TESTChanllage", weblogfrist.HOST, weblogfrist.URL)
 			if !isStaticAssist {
 				datetimeNow := time.Now()

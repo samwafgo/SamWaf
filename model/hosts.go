@@ -37,6 +37,7 @@ type Hosts struct {
 	InsecureSkipVerify   int    `json:"insecure_skip_verify"`     //是否开启后端https证书有效性验证 默认 0 是校验 1 是不校验
 	CaptchaJSON          string `json:"captcha_json"`             //验证码配置 json
 	AntiLeechJSON        string `json:"anti_leech_json"`          //防盗链配置 json
+	CacheJSON            string `json:"cache_json"`               //缓存配置 json
 }
 
 type HostsDefense struct {
@@ -76,4 +77,13 @@ type AntiLeechConfig struct {
 	ValidReferers     string `json:"valid_referers"`       // 允许的引用来源列表，使用分号(;)分隔
 	Action            string `json:"action"`               // 对于非法引用的处理方式: redirect(重定向) 或 block(直接阻止)
 	RedirectURL       string `json:"redirect_url"`         // 重定向URL，当Action为redirect时使用
+}
+
+// CacheConfig 缓存配置
+type CacheConfig struct {
+	IsEnableCache   int     `json:"is_enable_cache"`    // 是否开启缓存 1开启 0关闭
+	CacheLocation   string  `json:"cache_location"`     // 缓存位置: "memory"内存 或 "file"文件 或 "all"内存和文件
+	CacheDir        string  `json:"cache_dir"`          // 缓存目录，当location为file时使用
+	MaxFileSizeMB   float64 `json:"max_file_size_mb"`   // 最大缓存文件大小(MB)  0 是不限制
+	MaxMemorySizeMB float64 `json:"max_memory_size_mb"` // 最大内存缓存大小(MB)，当location为memory时使用  0 是不限制
 }

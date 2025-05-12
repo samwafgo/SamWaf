@@ -25,11 +25,12 @@ func (receiver *WafTaskService) AddApi(req request.WafTaskAddReq) error {
 			UPDATE_TIME: customtype.JsonTime(time.Now()),
 		},
 
-		TaskName:   req.TaskName,
-		TaskUnit:   req.TaskUnit,
-		TaskValue:  req.TaskValue,
-		TaskAt:     req.TaskAt,
-		TaskMethod: req.TaskMethod,
+		TaskName:          req.TaskName,
+		TaskUnit:          req.TaskUnit,
+		TaskValue:         req.TaskValue,
+		TaskAt:            req.TaskAt,
+		TaskMethod:        req.TaskMethod,
+		TaskDaysOfTheWeek: req.TaskDaysOfTheWeek,
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
 	return nil
@@ -45,11 +46,12 @@ func (receiver *WafTaskService) Add(req model.Task) error {
 			UPDATE_TIME: customtype.JsonTime(time.Now()),
 		},
 
-		TaskName:   req.TaskName,
-		TaskUnit:   req.TaskUnit,
-		TaskValue:  req.TaskValue,
-		TaskAt:     req.TaskAt,
-		TaskMethod: req.TaskMethod,
+		TaskName:          req.TaskName,
+		TaskUnit:          req.TaskUnit,
+		TaskValue:         req.TaskValue,
+		TaskAt:            req.TaskAt,
+		TaskMethod:        req.TaskMethod,
+		TaskDaysOfTheWeek: req.TaskDaysOfTheWeek,
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
 	return nil
@@ -141,13 +143,13 @@ func (receiver *WafTaskService) ModifyApi(req request.WafTaskEditReq) error {
 
 	beanMap := map[string]interface{}{
 
-		"TaskName":   req.TaskName,
-		"TaskUnit":   req.TaskUnit,
-		"TaskAt":     req.TaskAt,
-		"TaskMethod": req.TaskMethod,
-		"TaskValue":  req.TaskValue,
-
-		"UPDATE_TIME": customtype.JsonTime(time.Now()),
+		"TaskName":          req.TaskName,
+		"TaskUnit":          req.TaskUnit,
+		"TaskAt":            req.TaskAt,
+		"TaskMethod":        req.TaskMethod,
+		"TaskValue":         req.TaskValue,
+		"TaskDaysOfTheWeek": req.TaskDaysOfTheWeek,
+		"UPDATE_TIME":       customtype.JsonTime(time.Now()),
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.Task{}).Where("id = ?", req.Id).Updates(beanMap).Error
 

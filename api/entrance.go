@@ -38,6 +38,7 @@ type APIGroup struct {
 	WafOtpApi
 	WafAnalysisApi
 	WafPrivateInfoApi
+	WafCacheRuleApi
 }
 
 var APIGroupAPP = new(APIGroup)
@@ -91,4 +92,6 @@ var (
 	wafAnalysisService = waf_service.WafAnalysisServiceApp
 
 	wafPrivateInfoService = waf_service.WafPrivateInfoServiceApp
+
+	wafCacheRuleService = waf_service.WafCacheRuleServiceApp
 )

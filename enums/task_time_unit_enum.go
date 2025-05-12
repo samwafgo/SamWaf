@@ -5,4 +5,5 @@ const (
 	TASK_MIN    = "minute"
 	TASK_HOUR   = "hour"
 	TASK_DAY    = "day"
+	TASK_WEEKLY = "weekly"
 )

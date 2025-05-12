@@ -29,7 +29,7 @@ type HostSafe struct {
 	AntiCCBean         model.AntiCC                  //抵御CC
 	HttpAuthBases      []model.HttpAuthBase          //HTTP AUTH校验
 	BlockingPage       map[string]model.BlockingPage //自定义拦截界面
-
+	CacheRule          []model.CacheRule             //CacheRule
 }
 
 // 负载处理运行对象

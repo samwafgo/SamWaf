@@ -143,6 +143,9 @@ func InitCoreDb(currentDir string) {
 		//密钥信息
 		db.AutoMigrate(&model.PrivateInfo{})
 
+		//缓存规则
+		db.AutoMigrate(&model.CacheRule{})
+
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
 

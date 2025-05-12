@@ -193,6 +193,9 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 			}
 		}
 	}
+	//查询缓存规则
+	var cacheRuleList []model.CacheRule
+	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&cacheRuleList)
 
 	//初始化主机host
 	hostsafe := &wafenginmodel.HostSafe{
@@ -217,6 +220,7 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 		AntiCCBean:          anticcBean,
 		HttpAuthBases:       httpAuthList,
 		BlockingPage:        blockingPageMap,
+		CacheRule:           cacheRuleList,
 	}
 	hostsafe.Mux.Lock()
 	defer hostsafe.Mux.Unlock()

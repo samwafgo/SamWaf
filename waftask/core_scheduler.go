@@ -5,6 +5,8 @@ import (
 	"SamWaf/enums"
 	"fmt"
 	"github.com/go-co-op/gocron"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -28,7 +30,8 @@ func NewTaskScheduler(registry *TaskRegistry) *TaskScheduler {
 // interval 表示时间间隔
 // at 具体的时间
 // taskMethod 是具体要执行的任务
-func (ts *TaskScheduler) ScheduleTask(unit string, interval int, at string, taskMethod string) error {
+// taskDaysOfTheWeek 如果是周级别 此处传入周几
+func (ts *TaskScheduler) ScheduleTask(unit string, interval int, at string, taskMethod string, taskDaysOfTheWeek string) error {
 	var job *gocron.Job
 	var err error
 
@@ -47,6 +50,14 @@ func (ts *TaskScheduler) ScheduleTask(unit string, interval int, at string, task
 		})
 	case enums.TASK_DAY:
 		job, err = ts.Scheduler.Every(interval).Day().At(at).Do(func() {
+			ts.Registry.ExecuteTask(taskMethod)
+		})
+	case enums.TASK_WEEKLY:
+		dayInt, err := strconv.Atoi(strings.TrimSpace(taskDaysOfTheWeek))
+		if err != nil {
+			return fmt.Errorf("无效的星期几格式: %s, 错误: %v", taskDaysOfTheWeek, err)
+		}
+		job, err = ts.Scheduler.Every(interval).Weekday(time.Weekday(dayInt)).At(at).Do(func() {
 			ts.Registry.ExecuteTask(taskMethod)
 		})
 	default:

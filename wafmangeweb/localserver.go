@@ -70,6 +70,7 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitWafOtpRouter(RouterGroup)
 		router.ApiGroupApp.InitAnalysisRouter(RouterGroup)
 		router.ApiGroupApp.InitWafPrivateInfoRouter(RouterGroup)
+		router.ApiGroupApp.InitWafCacheRuleRouter(RouterGroup)
 	}
 
 	if global.GWAF_RELEASE == "true" {

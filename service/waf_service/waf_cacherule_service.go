@@ -152,8 +152,25 @@ func (receiver *WafCacheRuleService) GetDetailByIdApi(id string) model.CacheRule
 func (receiver *WafCacheRuleService) GetListApi(req request.WafCacheRuleSearchReq) ([]model.CacheRule, int64, error) {
 	var list []model.CacheRule
 	var total int64 = 0
-	global.GWAF_LOCAL_DB.Model(&model.CacheRule{}).Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&list)
-	global.GWAF_LOCAL_DB.Model(&model.CacheRule{}).Count(&total)
+
+	/*where条件*/
+	var whereField = ""
+	var whereValues []interface{}
+	//where字段
+	whereField = ""
+	if len(req.HostCode) > 0 {
+		if len(whereField) > 0 {
+			whereField = whereField + " and "
+		}
+		whereField = whereField + " host_code=? "
+	}
+	//where字段赋值
+	if len(req.HostCode) > 0 {
+		whereValues = append(whereValues, req.HostCode)
+	}
+
+	global.GWAF_LOCAL_DB.Model(&model.CacheRule{}).Where(whereField, whereValues...).Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&list)
+	global.GWAF_LOCAL_DB.Model(&model.CacheRule{}).Where(whereField, whereValues...).Count(&total)
 
 	return list, total, nil
 }

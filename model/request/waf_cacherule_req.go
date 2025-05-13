@@ -32,5 +32,6 @@ type WafCacheRuleDelReq struct {
 	Id string `json:"id"   form:"id"`
 }
 type WafCacheRuleSearchReq struct {
+	HostCode string `json:"host_code" gorm:"column:host_code" form:"host_code" gorm:"column:host_code"`
 	request.PageInfo
 }

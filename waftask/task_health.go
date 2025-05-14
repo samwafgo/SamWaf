@@ -63,7 +63,7 @@ func TaskHealth() {
 				<-sem // 释放信号量
 				wg.Done()
 			}()
-			checkHostHealth(h)
+			checkHostHealth(h, ctx)
 		}(host)
 	}
 
@@ -73,7 +73,7 @@ func TaskHealth() {
 }
 
 // checkHostHealth 检查单个主机的健康状态
-func checkHostHealth(host model.Hosts) {
+func checkHostHealth(host model.Hosts, ctx context.Context) {
 	// 解析健康检测配置
 	var healthyConfig model.HealthyConfig
 	err := json.Unmarshal([]byte(host.HealthyJSON), &healthyConfig)
@@ -106,16 +106,16 @@ func checkHostHealth(host model.Hosts) {
 		// 检查每个后端服务器
 		for i, lb := range loadBalances {
 			backendID := fmt.Sprintf("%d", i)
-			checkBackendHealth(host, lb.Remote_ip, lb.Remote_port, healthyConfig, backendID)
+			checkBackendHealth(host, lb.Remote_ip, lb.Remote_port, healthyConfig, backendID, ctx)
 		}
 	} else {
 		// 非负载均衡情况，只检查单一后端
-		checkBackendHealth(host, host.Remote_ip, host.Remote_port, healthyConfig, "single")
+		checkBackendHealth(host, host.Remote_ip, host.Remote_port, healthyConfig, "single", ctx)
 	}
 }
 
 // checkBackendHealth 检查后端服务器健康状态
-func checkBackendHealth(host model.Hosts, ip string, port int, config model.HealthyConfig, backendID string) {
+func checkBackendHealth(host model.Hosts, ip string, port int, config model.HealthyConfig, backendID string, ctx context.Context) {
 	// 使用配置的检测路径
 	checkPath := "/"
 	if config.CheckPath != "" {
@@ -163,13 +163,12 @@ func checkBackendHealth(host model.Hosts, ip string, port int, config model.Heal
 	}
 
 	// 创建请求
-	req, err := http.NewRequest(config.CheckMethod, checkURL, nil)
+	req, err := http.NewRequestWithContext(ctx, config.CheckMethod, checkURL, nil)
 	if err != nil {
 		zlog.Debug("健康检测请求创建失败", "错误", err.Error())
 		updateHealthStatus(host.Code, backendID, false, 0, "创建请求失败: "+err.Error(), ip, port, config)
 		return
 	}
-
 	// 添加Host头
 	if host.IsTransBackDomain == 1 {
 		// 拆分主机名和端口

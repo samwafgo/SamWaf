@@ -25,6 +25,9 @@ func setConfigIntValue(name string, value int64, change int) {
 	case "log_db_size":
 		global.GDATA_SHARE_DB_SIZE = value
 		break
+	case "db_file_size":
+		global.GDATA_SHARE_DB_FILE_SIZE = value
+		break
 	case "auto_load_ssl_file":
 		global.GCONFIG_RECORD_AUTO_LOAD_SSL = value
 		break
@@ -185,6 +188,7 @@ func TaskLoadSetting(initLoad bool) {
 	updateConfigIntItem(initLoad, "system", "record_resp", global.GCONFIG_RECORD_RESP, "是否记录响应报文", "int", "")
 	updateConfigIntItem(initLoad, "system", "delete_history_log_day", global.GDATA_DELETE_INTERVAL, "删除多少天前的日志数据(单位:天)", "int", "")
 	updateConfigIntItem(initLoad, "system", "log_db_size", global.GDATA_SHARE_DB_SIZE, "日志归档最大记录数量", "int", "")
+	updateConfigIntItem(initLoad, "system", "db_file_size", global.GDATA_SHARE_DB_FILE_SIZE, "日志归档最大文件大小(MB)", "int", "")
 	updateConfigIntItem(initLoad, "system", "auto_load_ssl_file", global.GCONFIG_RECORD_AUTO_LOAD_SSL, "是否每天凌晨3点自动加载ssl证书", "int", "")
 
 	updateConfigStringItem(initLoad, "system", "dns_server", global.GWAF_RUNTIME_DNS_SERVER, "DNS服务器", "options", "119.29.29.29|腾讯DNS,8.8.8.8|谷歌DNS")

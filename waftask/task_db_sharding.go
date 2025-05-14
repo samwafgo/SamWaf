@@ -30,12 +30,41 @@ func TaskShareDbInfo() {
 		zlog.Debug(innerLogName, "数据库没有初始化完成呢")
 		return
 	}
+
 	//获取当前日志数量
 	var total int64 = 0
 	global.GWAF_LOCAL_LOG_DB.Table("web_logs INDEXED BY  idx_tenant_usercode_web_logs").Count(&total)
+
+	//获取当前数据库文件大小
+	currentDir := utils.GetCurrentDir()
+	oldDBFilename := "local_log.db"
+	dbFilePath := currentDir + "/data/" + oldDBFilename
+
+	needSharding := false
+	var shardingReason string
+
+	// 检查记录数量是否超过限制
 	if total > global.GDATA_SHARE_DB_SIZE {
+		needSharding = true
+		shardingReason = fmt.Sprintf("记录数量(%d)超过限制(%d)", total, global.GDATA_SHARE_DB_SIZE)
+	}
+
+	// 检查文件大小是否超过限制
+	fileInfo, err := os.Stat(dbFilePath)
+	if err == nil {
+		fileSizeMB := fileInfo.Size() / (1024 * 1024) // 转换为MB
+		if fileSizeMB > global.GDATA_SHARE_DB_FILE_SIZE {
+			needSharding = true
+			shardingReason = fmt.Sprintf("文件大小(%dMB)超过限制(%dMB)", fileSizeMB, global.GDATA_SHARE_DB_FILE_SIZE)
+		}
+	} else {
+		zlog.Error(innerLogName, "获取数据库文件大小失败:", err)
+	}
+
+	if needSharding {
 		global.GDATA_CURRENT_CHANGE = true
-		oldDBFilename := "local_log.db"
+		zlog.Info(innerLogName, "开始分库，原因:", shardingReason)
+
 		newDBFilename := fmt.Sprintf("local_log_%v.db", time.Now().Format("20060102150405"))
 
 		var lastedDb model.ShareDb
@@ -105,6 +134,7 @@ func TaskShareDbInfo() {
 		global.GWAF_LOCAL_DB.Create(sharDbBean)
 		global.GWAF_LOCAL_LOG_DB = nil
 		wafdb.InitLogDb("")
+		createLogDbIndex() //重新创建索引
 		global.GDATA_CURRENT_CHANGE = false
 		zlog.Info(innerLogName, "切库完成...")
 	}

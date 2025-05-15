@@ -4,11 +4,14 @@ import (
 	"SamWaf/common/zlog"
 	"SamWaf/enums"
 	"SamWaf/global"
+	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/model/wafenginmodel"
 	"SamWaf/utils"
 	"bufio"
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -22,10 +25,26 @@ import (
 )
 
 // LoadWebDataFormCache  从缓存里面拿数据
-func LoadWebDataFormCache(w http.ResponseWriter, r *http.Request, hostSafe *wafenginmodel.HostSafe, cacheConfig model.CacheConfig) *http.Response {
-	key := utils.Md5String(r.RequestURI)
+func LoadWebDataFormCache(w http.ResponseWriter, r *http.Request, hostSafe *wafenginmodel.HostSafe, cacheConfig model.CacheConfig, weblog *innerbean.WebLog) *http.Response {
+	bodyHashKey := ""
+	if weblog.SrcByteBody != nil && len(weblog.SrcByteBody) > 0 {
+		bodyHash := sha256.Sum256(weblog.SrcByteBody)
+		bodyHashKey = hex.EncodeToString(bodyHash[:])
+		//重新赋值给weblog
+		weblog.BodyHash = bodyHashKey
+	}
+	requestMethod := strings.ToLower(r.Method)
+	requestURI := r.RequestURI
+
+	zlog.Debug(fmt.Sprintf("缓存键组成部分 (加载) - 方法: %s, URI: %s", requestMethod, requestURI))
+
+	key := utils.Md5String(requestMethod + requestURI)
+	if requestMethod == "post" || requestMethod == "put" {
+		zlog.Debug(fmt.Sprintf("缓存键组成部分 (加载) - BodyHash: %s (用于POST/PUT请求)", bodyHashKey))
+		key = utils.Md5String(requestMethod + requestURI + bodyHashKey)
+	}
 	zlog.Debug(fmt.Sprintf("尝试从缓存加载数据 URL: %s, 缓存键: %s, 主机代码: %s, 缓存位置: %s",
-		r.RequestURI, key, hostSafe.Host.Code, cacheConfig.CacheLocation))
+		requestURI, key, hostSafe.Host.Code, cacheConfig.CacheLocation))
 
 	//规则匹配查询
 	_, err2 := checkCacheRule(hostSafe, cacheConfig, r)
@@ -77,10 +96,24 @@ func LoadWebDataFormCache(w http.ResponseWriter, r *http.Request, hostSafe *wafe
 }
 
 // StoreWebDataCache 缓存web数据到cache里面
-func StoreWebDataCache(resp *http.Response, hostSafe *wafenginmodel.HostSafe, cacheConfig model.CacheConfig) {
-	key := utils.Md5String(resp.Request.RequestURI)
+func StoreWebDataCache(resp *http.Response, hostSafe *wafenginmodel.HostSafe, cacheConfig model.CacheConfig, weblog *innerbean.WebLog) {
+	// 检查HTTP响应状态码，只缓存2xx的响应
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		zlog.Debug(fmt.Sprintf("响应状态码 %d 不符合缓存条件 (2xx)，不进行缓存 URL: %s",
+			resp.StatusCode, resp.Request.RequestURI))
+		return
+	}
+
+	requestMethod := strings.ToLower(resp.Request.Method)
+	requestURI := resp.Request.RequestURI
+	zlog.Debug(fmt.Sprintf("缓存键组成部分 - 方法: %s, URI: %s", requestMethod, requestURI))
+	key := utils.Md5String(resp.Request.Method + requestURI)
+	if requestMethod == "post" || requestMethod == "put" {
+		zlog.Debug(fmt.Sprintf("缓存键组成部分 - BodyHash: %s (用于POST/PUT请求)", weblog.BodyHash))
+		key = utils.Md5String(requestMethod + requestURI + weblog.BodyHash)
+	}
 	zlog.Debug(fmt.Sprintf("尝试存储响应到缓存 URL: %s, 缓存键: %s, 主机代码: %s, 缓存位置: %s",
-		resp.Request.RequestURI, key, hostSafe.Host.Code, cacheConfig.CacheLocation))
+		requestURI, key, hostSafe.Host.Code, cacheConfig.CacheLocation))
 
 	//规则匹配查询 获取缓存时间
 	timeout, err2 := checkCacheRule(hostSafe, cacheConfig, resp.Request)
@@ -90,11 +123,11 @@ func StoreWebDataCache(resp *http.Response, hostSafe *wafenginmodel.HostSafe, ca
 
 	data, err := httputil.DumpResponse(resp, true)
 	if err != nil {
-		zlog.Error(fmt.Sprintf("序列化响应失败 URL: %s, 错误: %v", resp.Request.RequestURI, err))
+		zlog.Error(fmt.Sprintf("序列化响应失败 URL: %s, 错误: %v", requestURI, err))
 		return
 	}
 
-	zlog.Debug(fmt.Sprintf("响应序列化成功 URL: %s, 数据大小: %d", resp.Request.RequestURI, len(data)))
+	zlog.Debug(fmt.Sprintf("响应序列化成功 URL: %s, 数据大小: %d", requestURI, len(data)))
 
 	if cacheConfig.CacheLocation == "memory" || cacheConfig.CacheLocation == "all" {
 		zlog.Debug(fmt.Sprintf("存储到内存缓存 主机代码: %s, 缓存键: %s, 超时时间(秒): %d",

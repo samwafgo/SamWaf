@@ -763,10 +763,10 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 					}
 				}
 				if ldpFlag == true {
-					orgContentBytes, responseEncodingError := waf.getOrgContent(resp, isStaticAssist)
+					orgContentBytes, charsetName, responseEncodingError := waf.getOrgContent(resp, isStaticAssist)
 					if responseEncodingError == nil {
 						newPayload := []byte("" + utils.DeSenText(string(orgContentBytes)))
-						finalCompressBytes, _ := waf.compressContent(resp, isStaticAssist, newPayload)
+						finalCompressBytes, _ := waf.compressContent(resp, isStaticAssist, newPayload, charsetName)
 
 						resp.Body = io.NopCloser(bytes.NewBuffer(finalCompressBytes))
 						// head 修改追加内容
@@ -779,7 +779,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 
 				}
 				//编码转换，自动检测网页编码   resp *http.Response
-				orgContentBytes, responseEncodingError := waf.getOrgContent(resp, isStaticAssist)
+				orgContentBytes, charsetName, responseEncodingError := waf.getOrgContent(resp, isStaticAssist)
 				if responseEncodingError == nil {
 					if global.GCONFIG_RECORD_RESP == 1 {
 						if resp.ContentLength < global.GCONFIG_RECORD_MAX_RES_BODY_LENGTH {
@@ -814,7 +814,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 						}
 					}
 					//将数据在回写上去
-					finalCompressBytes, _ := waf.compressContent(resp, isStaticAssist, orgContentBytes)
+					finalCompressBytes, _ := waf.compressContent(resp, isStaticAssist, orgContentBytes, charsetName)
 					resp.Body = io.NopCloser(bytes.NewBuffer(finalCompressBytes))
 					resp.ContentLength = int64(len(finalCompressBytes))
 					resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalCompressBytes)), 10))

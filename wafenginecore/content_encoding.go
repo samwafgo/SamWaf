@@ -20,7 +20,7 @@ import (
 )
 
 // 返回内容前依据情况进行返回压缩数据
-func (waf *WafEngine) compressContent(res *http.Response, isStaticAssist bool, inputBytes []byte) (respBytes []byte, err error) {
+func (waf *WafEngine) compressContent(res *http.Response, isStaticAssist bool, inputBytes []byte, encodeType string) (respBytes []byte, err error) {
 
 	// 如果是静态资源响应或资源类型请求，直接返回原始内容
 	if isStaticAssist {
@@ -30,10 +30,11 @@ func (waf *WafEngine) compressContent(res *http.Response, isStaticAssist bool, i
 	// 首先检查Content-Type头中是否明确指定了字符集
 	contentType := res.Header.Get("Content-Type")
 	var encodedBytes []byte = inputBytes
+	charsetName := encodeType
 
 	// 如果Content-Type中指定了字符集，需要将UTF-8编码的内容转换回原始编码
-	if strings.Contains(contentType, "charset=") {
-		charsetName := ""
+	if charsetName == "" && strings.Contains(contentType, "charset=") {
+
 		parts := strings.Split(contentType, ";")
 		for _, part := range parts {
 			part = strings.TrimSpace(part)
@@ -43,23 +44,22 @@ func (waf *WafEngine) compressContent(res *http.Response, isStaticAssist bool, i
 				break
 			}
 		}
-
-		// 根据字符集进行编码转换
-		if charsetName != "" && !strings.EqualFold(charsetName, "utf-8") && !strings.EqualFold(charsetName, "utf8") {
-			switch strings.ToLower(charsetName) {
-			case "gbk", "gb2312":
-				// 将UTF-8转换为GBK
-				encoder := simplifiedchinese.GBK.NewEncoder()
-				encodedBytes, err = encoder.Bytes(inputBytes)
-				if err != nil {
-					zlog.Warn("编码转换失败(UTF-8 -> GBK): %v", err)
-					// 转换失败时使用原始UTF-8内容
-					encodedBytes = inputBytes
-				}
-			// 可以根据需要添加其他编码的支持
-			default:
-				zlog.Debug("不支持的字符集编码转换: %s，保持UTF-8编码", charsetName)
+	}
+	// 根据字符集进行编码转换
+	if charsetName != "" && !strings.EqualFold(charsetName, "utf-8") && !strings.EqualFold(charsetName, "utf8") {
+		switch strings.ToLower(charsetName) {
+		case "gbk", "gb2312":
+			// 将UTF-8转换为GBK
+			encoder := simplifiedchinese.GBK.NewEncoder()
+			encodedBytes, err = encoder.Bytes(inputBytes)
+			if err != nil {
+				zlog.Warn("编码转换失败(UTF-8 -> GBK): %v", err)
+				// 转换失败时使用原始UTF-8内容
+				encodedBytes = inputBytes
 			}
+		// 可以根据需要添加其他编码的支持
+		default:
+			zlog.Debug("不支持的字符集编码转换: %s，保持UTF-8编码", charsetName)
 		}
 	}
 
@@ -76,17 +76,18 @@ func (waf *WafEngine) compressContent(res *http.Response, isStaticAssist bool, i
 }
 
 // 获取原始内容
-func (waf *WafEngine) getOrgContent(resp *http.Response, isStaticAssist bool) (cntBytes []byte, err error) {
+func (waf *WafEngine) getOrgContent(resp *http.Response, isStaticAssist bool) (cntBytes []byte, encodeType string, err error) {
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return bodyBytes, fmt.Errorf("读取原始响应体失败: %v", err)
+		return bodyBytes, "", fmt.Errorf("读取原始响应体失败: %v", err)
 	}
+	charsetNameFinal := ""
 	// 重新设置响应体，以便后续处理
 	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 	// 如果是静态资源响应或资源类型请求，直接返回原始内容
 	if isStaticAssist {
-		return bodyBytes, errors.New("静态资源或资源类型请求，跳过编码转换")
+		return bodyBytes, "", errors.New("静态资源或资源类型请求，跳过编码转换")
 	}
 
 	// 根据内容编码处理压缩
@@ -97,7 +98,7 @@ func (waf *WafEngine) getOrgContent(resp *http.Response, isStaticAssist bool) (c
 		if gzipErr != nil {
 			zlog.Warn("gzip解压失败: %v", gzipErr)
 			// 失败时返回错误
-			return bodyBytes, fmt.Errorf("gzip解压失败: %v", gzipErr)
+			return bodyBytes, "", fmt.Errorf("gzip解压失败: %v", gzipErr)
 		}
 		bodyReader = gzipReader
 		defer gzipReader.Close()
@@ -133,8 +134,12 @@ func (waf *WafEngine) getOrgContent(resp *http.Response, isStaticAssist bool) (c
 			switch strings.ToLower(charsetName) {
 			case "utf-8", "utf8":
 				currentEncoding = unicode.UTF8
+				charsetNameFinal = "utf-8"
+				break
 			case "gbk", "gb2312":
 				currentEncoding = simplifiedchinese.GBK
+				charsetNameFinal = "gbk"
+				break
 			default:
 				currentEncoding = nil // 使用自动检测
 			}
@@ -146,17 +151,59 @@ func (waf *WafEngine) getOrgContent(resp *http.Response, isStaticAssist bool) (c
 		// 增加检测字节数到1024，提高准确性
 		peekBytes, peekErr := bufReader.Peek(1024)
 		if peekErr != nil && peekErr != io.EOF {
-			return bodyBytes, errors.New(fmt.Sprintf("编码检测错误，Peek失败: %v", peekErr))
+			return bodyBytes, "", errors.New(fmt.Sprintf("编码检测错误，Peek失败: %v", peekErr))
 		} else {
-			// 使用更多的字节进行编码检测
+			// 先尝试用系统自带的自动检测
 			detectedEncoding, name, certain := charset.DetermineEncoding(peekBytes, contentType)
 
 			if !certain {
-				return bodyBytes, errors.New(fmt.Sprintf("编码检测不确定"))
+				// 自动检测不确定时，尝试从HTML头部meta标签或DOCTYPE中提取编码
+				htmlHead := string(peekBytes)
+				metaCharset := ""
+				// 1. 检查meta标签
+				metaIdx := strings.Index(strings.ToLower(htmlHead), "charset=")
+				if metaIdx != -1 {
+					// 提取charset=后面的内容
+					substr := htmlHead[metaIdx+8:]
+					// 只取等号后面第一个非字母数字下划线的内容
+					for i, c := range substr {
+						if !(c == '-' || c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) {
+							metaCharset = substr[:i]
+							break
+						}
+					}
+					if metaCharset == "" {
+						metaCharset = substr
+					}
+					metaCharset = strings.Trim(metaCharset, "\"' />")
+				}
+				// 2. 检查DOCTYPE声明
+				if metaCharset == "" && strings.Contains(htmlHead, "xhtml1-transitional.dtd") {
+					// XHTML 1.0 通常默认utf-8或iso-8859-1
+					metaCharset = "utf-8"
+				}
+				if metaCharset != "" {
+					zlog.Debug("通过HTML头部meta/doctype辅助检测到字符集: %s", metaCharset)
+					switch strings.ToLower(metaCharset) {
+					case "utf-8", "utf8":
+						currentEncoding = unicode.UTF8
+						charsetNameFinal = "utf-8"
+						break
+					case "gbk", "gb2312":
+						currentEncoding = simplifiedchinese.GBK
+						charsetNameFinal = "gbk"
+						break
+					default:
+						zlog.Debug("meta标签检测到未知字符集: %s，保持UTF-8", metaCharset)
+						return bodyBytes, "", errors.New(fmt.Sprintf("编码检测不确定，且未能从HTML头部meta/doctype提取到编码"))
+					}
+				} else {
+					return bodyBytes, "", errors.New(fmt.Sprintf("编码检测不确定，且未能从HTML头部meta/doctype提取到编码"))
+				}
 			} else {
 				zlog.Debug("编码检测确定为: %s", name)
+				currentEncoding = detectedEncoding
 			}
-			currentEncoding = detectedEncoding
 		}
 	}
 
@@ -167,8 +214,8 @@ func (waf *WafEngine) getOrgContent(resp *http.Response, isStaticAssist bool) (c
 	resBodyBytes, readErr := io.ReadAll(reader)
 	if readErr != nil {
 		zlog.Warn("读取响应体失败: %v", readErr)
-		return bodyBytes, fmt.Errorf("读取响应体失败: %v", readErr)
+		return bodyBytes, "", fmt.Errorf("读取响应体失败: %v", readErr)
 	}
 
-	return resBodyBytes, nil
+	return resBodyBytes, charsetNameFinal, nil
 }

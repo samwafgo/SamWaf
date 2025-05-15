@@ -274,7 +274,7 @@ func TestGetOrgContent(t *testing.T) {
 			}
 
 			// 调用测试函数
-			result, err := waf.getOrgContent(resp, false)
+			result, _, err := waf.getOrgContent(resp, false)
 
 			// 验证结果
 			if tc.expectedErr {
@@ -337,7 +337,7 @@ func TestGetOrgContentWithChunkedEncoding(t *testing.T) {
 	resp.Header.Set("Content-Type", "text/html; charset=utf-8")
 
 	// 调用测试函数
-	result, err := waf.getOrgContent(resp, false)
+	result, _, err := waf.getOrgContent(resp, false)
 
 	// 验证结果
 	if err != nil {
@@ -365,7 +365,7 @@ func TestGetOrgContentWithEmptyBody(t *testing.T) {
 	resp.Header.Set("Content-Type", "text/html; charset=utf-8")
 
 	// 调用测试函数
-	result, err := waf.getOrgContent(resp, false)
+	result, _, err := waf.getOrgContent(resp, false)
 
 	// 验证结果
 	if err != nil {
@@ -399,12 +399,70 @@ func TestGetOrgContentWithErrors(t *testing.T) {
 	resp.Header.Set("Content-Encoding", "gzip")
 
 	// 调用测试函数
-	_, err := waf.getOrgContent(resp, false)
+	_, _, err := waf.getOrgContent(resp, false)
 
 	// 验证结果
 	if err == nil {
 		t.Errorf("期望无效gzip内容产生错误，但没有错误")
 	} else {
 		t.Logf("无效gzip测试通过，错误: %v", err)
+	}
+}
+
+func TestGetOrgContent_MetaAndDoctypeCharset(t *testing.T) {
+	t.Parallel()
+	zlog.InitZLog(global.GWAF_RELEASE, "json")
+	waf := &WafEngine{}
+
+	// 1. meta标签指定utf-8
+	htmlMetaUtf8 := `<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"></head><body>utf8内容</body></html>`
+	resp1 := &http.Response{
+		StatusCode: 200,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(strings.NewReader(htmlMetaUtf8)),
+	}
+	resp1.Header.Set("Content-Type", "text/html")
+	content1, charset1, err1 := waf.getOrgContent(resp1, false)
+	if err1 != nil || charset1 != "utf-8" || !strings.Contains(string(content1), "utf8内容") {
+		t.Errorf("meta标签utf-8检测失败: err=%v, charset=%s, content=%s", err1, charset1, string(content1))
+	}
+
+	// 2. meta标签指定gbk
+	gbkBody := []byte{0x3c, 0x68, 0x74, 0x6d, 0x6c, 0x3e, 0x3c, 0x68, 0x65, 0x61, 0x64, 0x3e, 0x3c, 0x6d, 0x65, 0x74, 0x61, 0x20, 0x68, 0x74, 0x74, 0x70, 0x2d, 0x65, 0x71, 0x75, 0x69, 0x76, 0x3d, 0x22, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x2d, 0x54, 0x79, 0x70, 0x65, 0x22, 0x20, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x3d, 0x22, 0x74, 0x65, 0x78, 0x74, 0x2f, 0x68, 0x74, 0x6d, 0x6c, 0x3b, 0x20, 0x63, 0x68, 0x61, 0x72, 0x73, 0x65, 0x74, 0x3d, 0x67, 0x62, 0x6b, 0x22, 0x3e, 0x3c, 0x2f, 0x68, 0x65, 0x61, 0x64, 0x3e, 0x3c, 0x62, 0x6f, 0x64, 0x79, 0x3e, 0xd5, 0xe2, 0xca, 0xc7, 0x47, 0x42, 0x4b, 0xb1, 0xe0, 0xc2, 0xeb, 0xb5, 0xc4, 0xc4, 0xda, 0xc8, 0xdd, 0x3c, 0x2f, 0x62, 0x6f, 0x64, 0x79, 0x3e, 0x3c, 0x2f, 0x68, 0x74, 0x6d, 0x6c, 0x3e}
+	resp2 := &http.Response{
+		StatusCode: 200,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(bytes.NewReader(gbkBody)),
+	}
+	resp2.Header.Set("Content-Type", "text/html")
+	content2, charset2, err2 := waf.getOrgContent(resp2, false)
+	if err2 != nil || charset2 != "gbk" || !strings.Contains(string(content2), "这是GBK编码的内容") {
+		t.Errorf("meta标签gbk检测失败: err=%v, charset=%s, content=%s", err2, charset2, string(content2))
+	}
+
+	// 3. DOCTYPE声明xhtml1-transitional.dtd
+	htmlDoctype := `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html><head></head><body>doctype内容</body></html>`
+	resp3 := &http.Response{
+		StatusCode: 200,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(strings.NewReader(htmlDoctype)),
+	}
+	resp3.Header.Set("Content-Type", "text/html")
+	content3, charset3, err3 := waf.getOrgContent(resp3, false)
+	if err3 != nil || charset3 != "utf-8" || !strings.Contains(string(content3), "doctype内容") {
+		t.Errorf("DOCTYPE声明检测失败: err=%v, charset=%s, content=%s", err3, charset3, string(content3))
+	}
+
+	// 4. meta标签未知编码
+	htmlMetaUnknown := `<html><head><meta charset="unknown-charset"></head><body>未知编码</body></html>`
+	resp4 := &http.Response{
+		StatusCode: 200,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(strings.NewReader(htmlMetaUnknown)),
+	}
+	resp4.Header.Set("Content-Type", "text/html")
+	_, _, err4 := waf.getOrgContent(resp4, false)
+	if err4 == nil || !strings.Contains(err4.Error(), "编码检测不确定") {
+		t.Errorf("未知meta编码检测失败，期望返回错误，实际: %v", err4)
 	}
 }

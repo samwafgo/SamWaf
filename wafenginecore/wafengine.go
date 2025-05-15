@@ -66,6 +66,7 @@ func (waf *WafEngine) Error() string {
 func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	innerLogName := "WafEngine ServeHTTP"
 	atomic.AddUint64(&global.GWAF_RUNTIME_QPS, 1) // 原子增加计数器
+	port := ""
 	host := r.Host
 	if !strings.Contains(host, ":") {
 		// 检查请求是否使用了HTTPS
@@ -77,7 +78,13 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			host = host + ":80"
 		}
 	}
-
+	// 从 host 字符串中提取端口
+	if strings.Contains(host, ":") {
+		parts := strings.Split(host, ":")
+		if len(parts) == 2 {
+			port = parts[1]
+		}
+	}
 	defer func() {
 		e := recover()
 		if e != nil { // 捕获该协程的panic 111111
@@ -119,6 +126,13 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	//检测是否存在不指定域名的情况
+	target, ok = waf.HostTarget["*:"+port]
+	if ok {
+		findHost = true
+		targetCode = target.Host.Code
+		zlog.Debug(fmt.Sprintf("%s %s", innerLogName, "触发*逻辑"))
+	}
 	// 检查域名是否已经注册
 	if findHost == true {
 		hostTarget := waf.HostTarget[waf.HostCode[targetCode]]

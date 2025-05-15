@@ -121,8 +121,11 @@ func checkBackendHealth(host model.Hosts, ip string, port int, config model.Heal
 	if config.CheckPath != "" {
 		checkPath = config.CheckPath
 	}
-	mainHost := host.Remote_host + ":" + strconv.Itoa(host.Remote_port)
 
+	mainHost := host.Remote_host + ":" + strconv.Itoa(host.Remote_port)
+	if host.Host == "*" {
+		mainHost = strings.ReplaceAll(host.Remote_host, "*", host.Remote_ip) + ":" + strconv.Itoa(host.Remote_port)
+	}
 	// 构建检测URL
 	checkURL := fmt.Sprintf("%s%s", mainHost, checkPath)
 

@@ -30,6 +30,11 @@ func (w *WafSslOrderApi) AddApi(c *gin.Context) {
 			response.FailWithMessage("未在主机上找到80端口配置，请在绑定更多端口里面增加80端口，再进行发起", c)
 			return
 		}
+		//检测是否*的情况
+		if req.ApplyMethod == "http01" && hostBean.Host == "*" {
+			response.FailWithMessage("未指定域名情况不能使用http文件验证方式", c)
+			return
+		}
 		addResult, err := wafSslOrderService.AddApi(req)
 		if err == nil {
 			w.NotifyWaf(enums.ChanSslOrderSubmitted, addResult)

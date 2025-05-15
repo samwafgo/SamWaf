@@ -156,12 +156,25 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		//检测cache
+		cacheConfig := model.CacheConfig{
+			IsEnableCache:   0,
+			CacheLocation:   "",
+			CacheDir:        "",
+			MaxFileSizeMB:   0,
+			MaxMemorySizeMB: 0,
+		}
+		err := json.Unmarshal([]byte(hostTarget.Host.CacheJSON), &cacheConfig)
+		if err != nil {
+			zlog.Debug("解析cache json失败")
+		}
+
 		// 获取请求报文的内容长度
 		contentLength := r.ContentLength
 		var bodyByte []byte
 
-		// 拷贝一份request的Body ,控制不记录大文件的情况 ，先写死的
-		if r.Body != nil && r.Body != http.NoBody && contentLength < (global.GCONFIG_RECORD_MAX_BODY_LENGTH) {
+		// 拷贝一份request的Body ,控制不记录大文件的情况
+		if r.Body != nil && r.Body != http.NoBody && (contentLength < (global.GCONFIG_RECORD_MAX_BODY_LENGTH) || cacheConfig.IsEnableCache == 1) {
 			bodyByte, _ = io.ReadAll(r.Body)
 			// 把刚刚读出来的再写进去，不然后面解析表单数据就解析不到了
 			r.Body = io.NopCloser(bytes.NewBuffer(bodyByte))
@@ -407,20 +420,8 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		}
 
-		//检测cache
-		cacheConfig := model.CacheConfig{
-			IsEnableCache:   0,
-			CacheLocation:   "",
-			CacheDir:        "",
-			MaxFileSizeMB:   0,
-			MaxMemorySizeMB: 0,
-		}
-		err := json.Unmarshal([]byte(hostTarget.Host.CacheJSON), &cacheConfig)
-		if err != nil {
-			zlog.Debug("解析cache json失败")
-		}
 		if cacheConfig.IsEnableCache == 1 {
-			cacheResp := wafwebcache.LoadWebDataFormCache(w, r, hostTarget, cacheConfig)
+			cacheResp := wafwebcache.LoadWebDataFormCache(w, r, hostTarget, cacheConfig, &weblogbean)
 			if cacheResp != nil {
 				// 将缓存的响应写回给客户端
 				for k, v := range cacheResp.Header {
@@ -823,10 +824,10 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 				zlog.Debug("解析cache json失败")
 			}
 			if cacheConfig.IsEnableCache == 1 {
-				wafwebcache.StoreWebDataCache(resp, waf.HostTarget[host], cacheConfig)
+				wafwebcache.StoreWebDataCache(resp, waf.HostTarget[host], cacheConfig, weblogfrist)
 			}
 
-			zlog.Debug("TESTChanllage", weblogfrist.HOST, weblogfrist.URL)
+			zlog.Debug("TEST_Challenge", weblogfrist.HOST, weblogfrist.URL)
 			if !isStaticAssist {
 				datetimeNow := time.Now()
 				weblogfrist.TimeSpent = datetimeNow.UnixNano()/1e6 - weblogfrist.UNIX_ADD_TIME

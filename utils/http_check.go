@@ -35,13 +35,13 @@ func IsStaticAssist(res *http.Response, contentType string) bool {
 		acceptHeader := res.Request.Header.Get("Accept")
 		if acceptHeader != "" {
 			// 检查Accept头是否主要请求图片或其他资源类型
-			isResourceRequest := strings.Contains(acceptHeader, "image/") ||
-				strings.Contains(acceptHeader, "font/") ||
-				strings.Contains(acceptHeader, "audio/") ||
-				strings.Contains(acceptHeader, "video/") ||
-				strings.Contains(acceptHeader, "text/css") ||
-				strings.Contains(acceptHeader, "application/javascript") ||
-				strings.Contains(acceptHeader, "application/pdf")
+			isResourceRequest := strings.HasPrefix(acceptHeader, "image/") ||
+				strings.HasPrefix(acceptHeader, "font/") ||
+				strings.HasPrefix(acceptHeader, "audio/") ||
+				strings.HasPrefix(acceptHeader, "video/") ||
+				strings.HasPrefix(acceptHeader, "text/css") ||
+				strings.HasPrefix(acceptHeader, "application/javascript") ||
+				strings.HasPrefix(acceptHeader, "application/pdf")
 			if isResourceRequest {
 				return true
 			}

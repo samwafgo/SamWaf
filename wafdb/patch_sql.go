@@ -89,7 +89,13 @@ func pathCoreSql(db *gorm.DB) {
 	} else {
 		zlog.Info("db", "anti_ccs :ip_mode init successfully")
 	}
-
+	//20250519 默认编码设置
+	err = db.Exec("UPDATE hosts SET default_encoding='auto' WHERE default_encoding IS NULL").Error
+	if err != nil {
+		panic("failed to hosts: default_encoding " + err.Error())
+	} else {
+		zlog.Info("db", "hosts: default_encoding init successfully")
+	}
 	// 记录结束时间并计算耗时
 	duration := time.Since(startTime)
 	zlog.Info("create core default value completely", "duration", duration.String())

@@ -33,6 +33,7 @@ type WafHostAddReq struct {
 	CaptchaJSON          string `json:"captcha_json"`             //验证码配置 json
 	AntiLeechJSON        string `json:"anti_leech_json"`          //防盗链配置 json
 	CacheJSON            string `json:"cache_json"`               //缓存配置 json
+	DefaultEncoding      string `json:"default_encoding"`         //默认编码 utf-8 或者 gbk auto字符串自动选择
 }
 
 type WafHostDelReq struct {
@@ -74,6 +75,7 @@ type WafHostEditReq struct {
 	CaptchaJSON          string `json:"captcha_json"`             //验证码配置 json
 	AntiLeechJSON        string `json:"anti_leech_json"`          //防盗链配置 json
 	CacheJSON            string `json:"cache_json"`               //缓存配置 json
+	DefaultEncoding      string `json:"default_encoding"`         //默认编码 utf-8 或者 gbk auto字符串自动选择
 }
 
 type WafHostGuardStatusReq struct {

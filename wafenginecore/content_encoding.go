@@ -76,7 +76,7 @@ func (waf *WafEngine) compressContent(res *http.Response, isStaticAssist bool, i
 }
 
 // 获取原始内容
-func (waf *WafEngine) getOrgContent(resp *http.Response, isStaticAssist bool) (cntBytes []byte, encodeType string, err error) {
+func (waf *WafEngine) getOrgContent(resp *http.Response, isStaticAssist bool, defaultEncoding string) (cntBytes []byte, encodeType string, err error) {
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return bodyBytes, "", fmt.Errorf("读取原始响应体失败: %v", err)
@@ -116,7 +116,19 @@ func (waf *WafEngine) getOrgContent(resp *http.Response, isStaticAssist bool) (c
 	contentType := resp.Header.Get("Content-Type")
 	var currentEncoding encoding.Encoding
 
-	if strings.Contains(contentType, "charset=") {
+	if defaultEncoding != "" {
+		switch strings.ToLower(defaultEncoding) {
+		case "utf-8", "utf8":
+			currentEncoding = unicode.UTF8
+			charsetNameFinal = "utf-8"
+			break
+		case "gbk", "gb2312":
+			currentEncoding = simplifiedchinese.GBK
+			charsetNameFinal = "gbk"
+			break
+		default:
+		}
+	} else if strings.Contains(contentType, "charset=") {
 		charsetName := ""
 		parts := strings.Split(contentType, ";")
 		for _, part := range parts {

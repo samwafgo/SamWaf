@@ -763,7 +763,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 					}
 				}
 				if ldpFlag == true {
-					orgContentBytes, charsetName, responseEncodingError := waf.getOrgContent(resp, isStaticAssist)
+					orgContentBytes, charsetName, responseEncodingError := waf.getOrgContent(resp, isStaticAssist, waf.HostTarget[host].Host.DefaultEncoding)
 					if responseEncodingError == nil {
 						newPayload := []byte("" + utils.DeSenText(string(orgContentBytes)))
 						finalCompressBytes, _ := waf.compressContent(resp, isStaticAssist, newPayload, charsetName)
@@ -774,12 +774,12 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 						resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalCompressBytes)), 10))
 					} else {
 						resp.Body = io.NopCloser(bytes.NewBuffer(orgContentBytes))
-						zlog.Warn(fmt.Sprintf("识别响应内容编码失败，隐私防护不可用 %v，请求URL: %s", responseEncodingError, r.URL.String()))
+						zlog.Warn(fmt.Sprintf("识别响应内容编码失败，隐私防护不可用 %v，请求URL: %s ,可以在主机其他设置里面设置默认编码", responseEncodingError, r.URL.String()))
 					}
 
 				}
 				//编码转换，自动检测网页编码   resp *http.Response
-				orgContentBytes, charsetName, responseEncodingError := waf.getOrgContent(resp, isStaticAssist)
+				orgContentBytes, charsetName, responseEncodingError := waf.getOrgContent(resp, isStaticAssist, waf.HostTarget[host].Host.DefaultEncoding)
 				if responseEncodingError == nil {
 					if global.GCONFIG_RECORD_RESP == 1 {
 						if resp.ContentLength < global.GCONFIG_RECORD_MAX_RES_BODY_LENGTH {
@@ -821,7 +821,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 
 				} else {
 					resp.Body = io.NopCloser(bytes.NewBuffer(orgContentBytes))
-					zlog.Warn(fmt.Sprintf("识别响应内容编码失败，响应日志，敏感词替换 不可用 %v，请求URL: %s", responseEncodingError, r.URL.String()))
+					zlog.Warn(fmt.Sprintf("识别响应内容编码失败，响应日志，敏感词替换 不可用 %v，请求URL: %s ,可以在主机其他设置里面设置默认编码", responseEncodingError, r.URL.String()))
 				}
 			}
 

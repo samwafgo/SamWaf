@@ -126,13 +126,26 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	//检测是否存在不指定域名的情况
-	target, ok = waf.HostTarget["*:"+port]
-	if ok {
-		findHost = true
-		targetCode = target.Host.Code
-		zlog.Debug(fmt.Sprintf("%s %s", innerLogName, "触发*逻辑"))
+	//检测是否是宽松端口且是不指定域名的情况
+	if targetHost, ok := waf.HostTargetNoPort["*"]; ok {
+		host = targetHost
+		//检测是否存在不指定域名的情况
+		target, ok = waf.HostTarget[host]
+		if ok {
+			findHost = true
+			targetCode = target.Host.Code
+			zlog.Debug(fmt.Sprintf("%s %s", innerLogName, "触发*逻辑和来源port"))
+		}
+	} else {
+		//检测是否存在不指定域名的情况
+		target, ok = waf.HostTarget["*:"+port]
+		if ok {
+			findHost = true
+			targetCode = target.Host.Code
+			zlog.Debug(fmt.Sprintf("%s %s", innerLogName, "触发*逻辑"))
+		}
 	}
+
 	// 检查域名是否已经注册
 	if findHost == true {
 		hostTarget := waf.HostTarget[waf.HostCode[targetCode]]

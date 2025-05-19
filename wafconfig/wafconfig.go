@@ -33,11 +33,15 @@ func LoadAndInitConfig() {
 	config.SetConfigName("config")  // 文件名
 	config.SetConfigType("yml")     // 文件类型
 
+	// 添加一个标志，用于跟踪配置是否有变化
+	configChanged := false
+
 	if err := config.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			fmt.Printf("%s\tWARN\t找不到配置文件..\n", currentTime)
 			config.Set("local_port", global.GWAF_LOCAL_SERVER_PORT)
 			err = config.SafeWriteConfig()
+			configChanged = true
 		} else {
 			fmt.Printf("%s\tERROR\t配置文件出错..\n", currentTime)
 		}
@@ -52,11 +56,13 @@ func LoadAndInitConfig() {
 			config.Set("user_code", id)
 			global.GWAF_USER_CODE = id
 		}
+		configChanged = true
 	} else {
 		global.GWAF_USER_CODE = config.GetString("user_code")
 	}
 	if config.IsSet("soft_id") == false {
 		config.Set("soft_id", global.GWAF_TENANT_ID)
+		configChanged = true
 	} else {
 		global.GWAF_TENANT_ID = config.GetString("soft_id")
 	}
@@ -73,16 +79,18 @@ func LoadAndInitConfig() {
 			config.Set("custom_server_name", hostname)
 			global.GWAF_CUSTOM_SERVER_NAME = hostname
 		}
-
+		configChanged = true
 	}
 	if config.IsSet("notice.isenable") {
 		global.GWAF_NOTICE_ENABLE = config.GetBool("notice.isenable")
 	} else {
 		config.Set("notice.isenable", false)
+		configChanged = true
 	}
 
 	if config.IsSet("export_download") == false {
 		config.Set("export_download", global.GWAF_CAN_EXPORT_DOWNLOAD_LOG)
+		configChanged = true
 	} else {
 		global.GWAF_CAN_EXPORT_DOWNLOAD_LOG = config.GetBool("export_download")
 	}
@@ -91,12 +99,17 @@ func LoadAndInitConfig() {
 		global.GWAF_LOG_OUTPUT_FORMAT = config.GetString("zlog.outputformat")
 	} else {
 		config.Set("zlog.outputformat", global.GWAF_LOG_OUTPUT_FORMAT)
+		configChanged = true
 	}
 
-	err := config.WriteConfig()
-	if err != nil {
-		fmt.Printf("%s\tERROR\twrite config failed:%v\n", currentTime, err)
-		return
+	// 只有在配置发生变化时才写入文件
+	if configChanged {
+		err := config.WriteConfig()
+		if err != nil {
+			fmt.Printf("%s\tERROR\twrite config failed:%v\n", currentTime, err)
+			return
+		}
+		fmt.Printf("%s\tINFO\t config updated\n", currentTime)
 	}
 
 	fmt.Printf("%s\tINFO\tuser_code:%s ,soft_id:%s\n",

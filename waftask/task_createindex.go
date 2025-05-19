@@ -2,6 +2,7 @@ package waftask
 
 import (
 	"SamWaf/common/zlog"
+	"SamWaf/enums"
 	"SamWaf/global"
 	"time"
 )
@@ -15,6 +16,24 @@ func TaskCreateIndex() {
 	createLogDbIndex()
 	//统计库索引创建
 	createStatDbIndex()
+}
+
+// TaskCreateIndexByDbName  创建索引通过数据库名称
+func TaskCreateIndexByDbName(dbName string) {
+
+	//主库索引创建
+	if dbName == enums.DB_MAIN {
+		createMainDbIndex()
+	}
+
+	//日志库索引创建
+	if dbName == enums.DB_LOG {
+		createLogDbIndex()
+	}
+	//统计库索引创建
+	if dbName == enums.DB_STATS {
+		createStatDbIndex()
+	}
 }
 
 func createMainDbIndex() {

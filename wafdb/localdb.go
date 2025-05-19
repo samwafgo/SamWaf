@@ -26,7 +26,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func InitCoreDb(currentDir string) {
+func InitCoreDb(currentDir string) (bool, error) {
 	if currentDir == "" {
 		currentDir = utils.GetCurrentDir()
 	}
@@ -34,11 +34,17 @@ func InitCoreDb(currentDir string) {
 	if _, err := os.Stat(currentDir + "/data/"); os.IsNotExist(err) {
 		if err := os.MkdirAll(currentDir+"/data/", os.ModePerm); err != nil {
 			zlog.Error("创建data目录失败:", err)
-			return
+			return false, err
 		}
 	}
 	if global.GWAF_LOCAL_DB == nil {
 		path := currentDir + "/data/local.db"
+		// 检查数据库文件是否存在
+		isNewDb := false
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			isNewDb = true
+			zlog.Debug("本地主数据库文件不存在，将创建新数据库")
+		}
 		// 检查文件是否存在
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
 			// 文件存在的逻辑，使用工具函数进行备份
@@ -153,15 +159,26 @@ func InitCoreDb(currentDir string) {
 		db.Where("user_code = ? and rule_status = 999", global.GWAF_USER_CODE).Delete(model.Rules{})
 
 		pathCoreSql(db)
+		return isNewDb, nil
+	} else {
+		return false, nil
 	}
 }
 
-func InitLogDb(currentDir string) {
+func InitLogDb(currentDir string) (bool, error) {
 	if currentDir == "" {
 		currentDir = utils.GetCurrentDir()
 	}
 	if global.GWAF_LOCAL_LOG_DB == nil {
 		path := currentDir + "/data/local_log.db"
+
+		// 检查数据库文件是否存在
+		isNewDb := false
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			isNewDb = true
+			zlog.Debug("本地日志数据库文件不存在，将创建新数据库")
+		}
+
 		key := url.QueryEscape(global.GWAF_PWD_LOGDB)
 		dns := fmt.Sprintf("%s?_db_key=%s", path, key)
 		db, err := gorm.Open(sqlite.Open(dns), &gorm.Config{})
@@ -216,6 +233,10 @@ func InitLogDb(currentDir string) {
 			}
 			global.GWAF_LOCAL_DB.Create(sharDbBean)
 		}
+
+		return isNewDb, nil
+	} else {
+		return false, nil
 	}
 }
 
@@ -263,12 +284,18 @@ func InitManaulLogDb(currentDir string, custFileName string) {
 	}
 }
 
-func InitStatsDb(currentDir string) {
+func InitStatsDb(currentDir string) (bool, error) {
 	if currentDir == "" {
 		currentDir = utils.GetCurrentDir()
 	}
 	if global.GWAF_LOCAL_STATS_DB == nil {
 		path := currentDir + "/data/local_stats.db"
+		// 检查数据库文件是否存在
+		isNewDb := false
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			isNewDb = true
+			zlog.Debug("本地统计数据库文件不存在，将创建新数据库")
+		}
 		key := url.QueryEscape(global.GWAF_PWD_STATDB)
 		dns := fmt.Sprintf("%s?_db_key=%s", path, key)
 		db, err := gorm.Open(sqlite.Open(dns), &gorm.Config{})
@@ -300,6 +327,10 @@ func InitStatsDb(currentDir string) {
 		global.GWAF_LOCAL_STATS_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
 
 		pathStatsSql(db)
+
+		return isNewDb, nil
+	} else {
+		return false, nil
 	}
 }
 

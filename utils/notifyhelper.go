@@ -42,7 +42,7 @@ func (receiver *NotifyHelper) SendRuleInfo(ruleMessageInfo innerbean.RuleMessage
 
 func (receiver *NotifyHelper) SendNoticeInfo(operatorMessageInfo innerbean.OperatorMessageInfo) {
 	if global.GCACHE_WECHAT_ACCESS == "" {
-		zlog.Error("未初始化wechat")
+		zlog.Debug("未初始化wechat")
 		return
 	}
 	operatorMessageInfo.Server = global.GWAF_CUSTOM_SERVER_NAME

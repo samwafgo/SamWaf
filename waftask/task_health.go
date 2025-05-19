@@ -43,7 +43,7 @@ func TaskHealth() {
 	go func() {
 		for {
 			if global.GWAF_SHUTDOWN_SIGNAL {
-				zlog.Info("TaskHealth - Shutdown ")
+				zlog.Debug("TaskHealth - Shutdown ")
 				cancel()
 				return
 			}

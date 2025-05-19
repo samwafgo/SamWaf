@@ -237,10 +237,24 @@ func (m *wafSystenService) run() {
 	}
 
 	//初始化本地数据库
-	wafdb.InitCoreDb("")
-	wafdb.InitLogDb("")
-	wafdb.InitStatsDb("")
-
+	isNewMainDb, err := wafdb.InitCoreDb("")
+	if err == nil {
+		if isNewMainDb {
+			waftask.TaskCreateIndexByDbName(enums.DB_MAIN)
+		}
+	}
+	isNewLogDb, err := wafdb.InitLogDb("")
+	if err == nil {
+		if isNewLogDb {
+			waftask.TaskCreateIndexByDbName(enums.DB_LOG)
+		}
+	}
+	isNewStatsDb, err := wafdb.InitStatsDb("")
+	if err == nil {
+		if isNewStatsDb {
+			waftask.TaskCreateIndexByDbName(enums.DB_STATS)
+		}
+	}
 	wafssl.InitDnsProviderEnvInfo()
 	//初始化队列引擎
 	wafqueue.InitDequeEngine()

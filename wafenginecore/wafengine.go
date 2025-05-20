@@ -222,7 +222,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		deRawQueryUrl := wafhttpcore.WafHttpCoreUrlEncode(r.URL.RawQuery, 10)
 		datetimeNow := time.Now()
 		weblogbean := innerbean.WebLog{
-			HOST:                 host,
+			HOST:                 r.Host,
 			URL:                  r.RequestURI,
 			RawQuery:             deRawQueryUrl,
 			REFERER:              r.Referer(),
@@ -257,7 +257,11 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Scheme:               r.Proto,
 			SrcURL:               []byte(r.RequestURI),
 		}
-
+		if r.TLS != nil {
+			weblogbean.HOST = "https://" + weblogbean.HOST
+		} else {
+			weblogbean.HOST = "http://" + weblogbean.HOST
+		}
 		formValues := url.Values{}
 		if strings.Contains(r.Header.Get("Content-Type"), "application/x-www-form-urlencoded") {
 			// 解码 x-www-form-urlencoded 数据

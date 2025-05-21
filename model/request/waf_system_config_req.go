@@ -30,3 +30,6 @@ type WafSystemConfigSearchReq struct {
 	Remarks string `json:"remarks" form:"remarks"`
 	request.PageInfo
 }
+type WafSystemConfigDetailByItemReq struct {
+	Item string `json:"item" form:"item"` //item
+}

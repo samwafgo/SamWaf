@@ -94,3 +94,13 @@ func (w *WafSystemConfigApi) ModifyApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+func (w *WafSystemConfigApi) GetDetailByItemApi(c *gin.Context) {
+	var req request.WafSystemConfigDetailByItemReq
+	err := c.ShouldBind(&req)
+	if err == nil {
+		bean := wafSystemConfigService.GetDetailByItemApi(req)
+		response.OkWithDetailed(bean, "获取成功", c)
+	} else {
+		response.FailWithMessage("解析失败", c)
+	}
+}

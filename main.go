@@ -25,6 +25,7 @@ import (
 	"SamWaf/wafsnowflake"
 	"SamWaf/wafssl"
 	"SamWaf/waftask"
+	"SamWaf/waftunnelengine"
 	"SamWaf/webplugin"
 	"crypto/tls"
 	"embed"
@@ -287,6 +288,9 @@ func (m *wafSystenService) run() {
 	http.Handle("/", globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE)
 	globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartWaf()
 
+	//启动隧道
+	globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE = waftunnelengine.NewWafTunnelEngine()
+	globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE.StartTunnel()
 	//启动管理界面
 	webmanager = &wafmangeweb.WafWebManager{LogName: "WebManager"}
 	go func() {
@@ -538,12 +542,44 @@ func (m *wafSystenService) run() {
 				}
 			}
 			break
+		case common := <-global.GWAF_CHAN_COMMON_MSG:
+			if common.Type == enums.ChanComTypeTunnel {
+				//隧道类型
+				switch common.OpType {
+				case enums.OP_TYPE_NEW:
+					tunnelNew := common.Content.(model.Tunnel)
+					netRunTimes := globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE.LoadTunnel(tunnelNew)
+					for _, netRunTime := range netRunTimes {
+						globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE.StartTunnelServer(netRunTime)
+					}
+					break
+				case enums.OP_TYPE_UPDATE:
+					// 获取修改前的隧道信息
+					tunnelOld := common.OldContent.(model.Tunnel)
+					// 获取修改后的隧道信息
+					tunnelNew := common.Content.(model.Tunnel)
+					netRunTimes := globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE.EditTunnel(tunnelOld, tunnelNew)
+					for _, netRunTime := range netRunTimes {
+						globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE.StartTunnelServer(netRunTime)
+					}
+					break
+				case enums.OP_TYPE_DELETE:
+					tunnelDelete := common.OldContent.(model.Tunnel)
+					globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE.RemoveTunnel(tunnelDelete)
+					break
+				}
+			}
 		case engineStatus := <-global.GWAF_CHAN_ENGINE:
 			if engineStatus == 1 {
 				zlog.Info("准备关闭WAF引擎")
 				globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.CloseWaf()
 				zlog.Info("准备启动WAF引擎")
 				globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartWaf()
+
+				zlog.Info("准备关闭隧道引擎")
+				globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE.CloseTunnel()
+				zlog.Info("准备启动隧道引擎")
+				globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE.StartTunnel()
 
 			}
 			break
@@ -629,6 +665,10 @@ func (m *wafSystenService) stopSamWaf() {
 	zlog.Info("Shutdown SamWaf Engine...")
 	globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.CloseWaf()
 	zlog.Info("Shutdown SamWaf Engine finished")
+
+	zlog.Info("Shutdown SamWaf Tunnel Engine...")
+	globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE.CloseTunnel()
+	zlog.Info("Shutdown SamWaf Tunnel Engine finished")
 
 	zlog.Info("Shutdown SamWaf Queue Processors...")
 	// 关闭信号通道，通知所有队列处理协程退出

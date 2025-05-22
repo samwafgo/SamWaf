@@ -246,6 +246,7 @@ func (receiver *WafStatService) StatHomeRumtimeSysinfo() []response2.WafNameValu
 	data = append(data, response2.WafNameValue{Name: "当前队列数", Value: fmt.Sprintf("主数据：%v 日志数据：%v  统计数据：%v  消息队列：%v", global.GQEQUE_DB.Size(), global.GQEQUE_LOG_DB.Size(), global.GQEQUE_STATS_DB.Size(), global.GQEQUE_MESSAGE_DB.Size())})
 	data = append(data, response2.WafNameValue{Name: "当前日志队列处理QPS", Value: fmt.Sprintf("%v", atomic.LoadUint64(&global.GWAF_RUNTIME_LOG_PROCESS))})
 	data = append(data, response2.WafNameValue{Name: "当前web端口使用列表", Value: fmt.Sprintf("%v", global.GWAF_RUNTIME_CURRENT_WEBPORT)})
+	data = append(data, response2.WafNameValue{Name: "当前隧道端口使用列表", Value: fmt.Sprintf("%v", global.GWAF_RUNTIME_CURRENT_TUNNELPORT)})
 
 	lastTimeStr := time.Unix(0, global.GWAF_LAST_TIME_UNIX*int64(time.Millisecond)).Format("2006-01-02 15:04:05")
 	data = append(data, response2.WafNameValue{Name: "最后统计时间", Value: fmt.Sprintf("%v (%v)", lastTimeStr, global.GWAF_LAST_TIME_UNIX)})

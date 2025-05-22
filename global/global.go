@@ -43,6 +43,7 @@ var (
 
 	GWAF_RUNTIME_CURRENT_EXEPATH                 string = "" //当前程序运行路径
 	GWAF_RUNTIME_CURRENT_WEBPORT                 string = "" //当前程序所占用端口
+	GWAF_RUNTIME_CURRENT_TUNNELPORT              string = "" //当前程序所占用隧道端口
 	GWAF_RUNTIME_CURRENT_EXPORT_DB_LOG_FILE_PATH string = "" //生成的日志导出文件路径
 
 	GWAF_RUNTIME_SSL_EXPIRE_CHECK bool = false //SSL过期检测是否正在运行
@@ -81,6 +82,7 @@ var (
 	GWAF_CHAN_HOST                                  = make(chan model.Hosts, 10)         //主机链
 	GWAF_CHAN_ENGINE                                = make(chan int, 10)                 //引擎链
 	GWAF_CHAN_MSG                                   = make(chan spec.ChanCommonHost, 10) //全局通讯包
+	GWAF_CHAN_COMMON_MSG                            = make(chan spec.ChanCommon, 10)     //全局共用通讯包
 	GWAF_CHAN_UPDATE                                = make(chan int, 10)                 //升级后处理链
 	GWAF_CHAN_SENSITIVE                             = make(chan int, 10)                 //敏感词处理链
 	GWAF_CHAN_SSL                                   = make(chan string, 10)              //证书处理链

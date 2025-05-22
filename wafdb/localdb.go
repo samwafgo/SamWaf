@@ -152,6 +152,9 @@ func InitCoreDb(currentDir string) (bool, error) {
 		//缓存规则
 		db.AutoMigrate(&model.CacheRule{})
 
+		//隧道
+		db.AutoMigrate(&model.Tunnel{})
+
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
 

@@ -37,6 +37,7 @@ type ApiGroup struct {
 	AnalysisRouter
 	WafPrivateInfoRouter
 	WafCacheRuleRouter
+	WafTunnelRouter
 }
 type PublicApiGroup struct {
 	LoginRouter

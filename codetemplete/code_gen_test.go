@@ -9,8 +9,7 @@ import (
 func TestCodeGeneration(t *testing.T) {
 	// 唯一校验定义字段信息的字符串
 	fieldDefs := []string{
-		"HostCode:host_code:string",
-		"RuleName:rule_name:string",
+		"Name:name:string",
 	}
 
 	// 构造 `uniFields` 列表
@@ -28,6 +27,6 @@ func TestCodeGeneration(t *testing.T) {
 		}
 	}
 
-	fields := GetStructFields(model.CacheRule{})
-	CodeGeneration("CacheRule", fields, uniFields)
+	fields := GetStructFields(model.Tunnel{})
+	CodeGeneration("Tunnel", fields, uniFields)
 }

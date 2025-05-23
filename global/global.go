@@ -65,6 +65,9 @@ var (
 	GWAF_CUSTOM_SERVER_NAME string                 // 当前服务器自定义名称
 	GWAF_TENANT_ID          string   = "SamWafCom" // 当前租户ID
 
+	//管理端访问控制
+	GWAF_IP_WHITELIST string = "0.0.0.0/0,::/0" //IP白名单 后台默认放行所有
+
 	//zlog 日志相关信息
 	GWAF_LOG_OUTPUT_FORMAT       string              = "console"  //zlog输出格式 控制台格式console,json格式
 	GWAF_RELEASE                 string              = "false"    // 当前是否为发行版

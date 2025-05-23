@@ -102,6 +102,13 @@ func LoadAndInitConfig() {
 		configChanged = true
 	}
 
+	//配置和提取白名单
+	if config.IsSet("security.ip_whitelist") {
+		global.GWAF_IP_WHITELIST = config.GetString("security.ip_whitelist")
+	} else {
+		config.Set("security.ip_whitelist", global.GWAF_IP_WHITELIST)
+		configChanged = true
+	}
 	// 只有在配置发生变化时才写入文件
 	if configChanged {
 		err := config.WriteConfig()
@@ -114,4 +121,56 @@ func LoadAndInitConfig() {
 
 	fmt.Printf("%s\tINFO\tuser_code:%s ,soft_id:%s\n",
 		currentTime, global.GWAF_USER_CODE, global.GWAF_TENANT_ID)
+}
+
+// UpdateIpWhitelist 更新IP白名单配置
+func UpdateIpWhitelist(ipWhitelist string) error {
+	// 格式化当前时间为指定格式
+	currentTime := time.Now().Format("2006-01-02 15:04:05.000")
+
+	// 判断配置目录是否存在
+	configDir := utils.GetCurrentDir() + "/conf/"
+	if _, err := os.Stat(configDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(configDir, os.ModePerm); err != nil {
+			fmt.Printf("%s\tERROR\t创建config目录失败:%v\n", currentTime, err)
+			return err
+		}
+	}
+
+	config := viper.New()
+	config.AddConfigPath(configDir) // 文件所在目录
+	config.SetConfigName("config")  // 文件名
+	config.SetConfigType("yml")     // 文件类型
+
+	// 读取配置文件
+	if err := config.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			fmt.Printf("%s\tWARN\t找不到配置文件..\n", currentTime)
+			config.Set("local_port", global.GWAF_LOCAL_SERVER_PORT)
+			err = config.SafeWriteConfig()
+			if err != nil {
+				return err
+			}
+		} else {
+			fmt.Printf("%s\tERROR\t配置文件出错..\n", currentTime)
+			return err
+		}
+	}
+
+	// 更新IP白名单配置
+	config.Set("security.ip_whitelist", ipWhitelist)
+
+	// 更新全局变量
+	global.GWAF_IP_WHITELIST = ipWhitelist
+
+	// 写入配置文件
+	err := config.WriteConfig()
+	if err != nil {
+		fmt.Printf("%s\tERROR\twrite config failed:%v\n", currentTime, err)
+		return err
+	}
+
+	fmt.Printf("%s\tINFO\tIP whitelist config updated\n", currentTime)
+
+	return nil
 }

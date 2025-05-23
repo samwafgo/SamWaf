@@ -28,12 +28,12 @@ type WafWebManager struct {
 func (web *WafWebManager) initRouter(r *gin.Engine) {
 
 	PublicRouterGroup := r.Group("")
-	PublicRouterGroup.Use(middleware.SecApi())
+	PublicRouterGroup.Use(middleware.SecApi(), middleware.IPWhitelist())
 	router.PublicApiGroupApp.InitLoginRouter(PublicRouterGroup)
 	router.PublicApiGroupApp.InitCenterRouter(PublicRouterGroup) //注册中心接收接口
 
 	RouterGroup := r.Group("")
-	RouterGroup.Use(middleware.Auth(), middleware.CenterApi(), middleware.SecApi(), middleware.GinGlobalExceptionMiddleWare()) //TODO 中心管控 特定
+	RouterGroup.Use(middleware.Auth(), middleware.CenterApi(), middleware.SecApi(), middleware.GinGlobalExceptionMiddleWare(), middleware.IPWhitelist()) //TODO 中心管控 特定
 	{
 		router.ApiGroupApp.InitHostRouter(RouterGroup)
 		router.ApiGroupApp.InitLogRouter(RouterGroup)
@@ -72,6 +72,7 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitWafPrivateInfoRouter(RouterGroup)
 		router.ApiGroupApp.InitWafCacheRuleRouter(RouterGroup)
 		router.ApiGroupApp.InitWafTunnelRouter(RouterGroup)
+		router.ApiGroupApp.InitWafVpConfigRouter(RouterGroup)
 	}
 
 	if global.GWAF_RELEASE == "true" {
@@ -129,6 +130,9 @@ func (web *WafWebManager) StartLocalServer() error {
 	if global.GWAF_RELEASE == "true" {
 		gin.SetMode(gin.ReleaseMode)
 		gin.DefaultWriter = io.Discard
+	}
+	if global.GWAF_IP_WHITELIST == "0.0.0.0/0,::/0" {
+		zlog.Warn("管理端未配置 IP 白名单，默认允许所有 IP4（0.0.0.0/0） IPv6 ::/0 访问")
 	}
 	r := gin.Default()
 	r.Use(web.cors()) //解决跨域

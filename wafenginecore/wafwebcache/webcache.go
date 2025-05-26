@@ -107,7 +107,7 @@ func StoreWebDataCache(resp *http.Response, hostSafe *wafenginmodel.HostSafe, ca
 	requestMethod := strings.ToLower(resp.Request.Method)
 	requestURI := resp.Request.RequestURI
 	zlog.Debug(fmt.Sprintf("缓存键组成部分 - 方法: %s, URI: %s", requestMethod, requestURI))
-	key := utils.Md5String(resp.Request.Method + requestURI)
+	key := utils.Md5String(requestMethod + requestURI)
 	if requestMethod == "post" || requestMethod == "put" {
 		zlog.Debug(fmt.Sprintf("缓存键组成部分 - BodyHash: %s (用于POST/PUT请求)", weblog.BodyHash))
 		key = utils.Md5String(requestMethod + requestURI + weblog.BodyHash)

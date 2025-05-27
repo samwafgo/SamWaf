@@ -451,7 +451,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		}
 
-		if cacheConfig.IsEnableCache == 1 {
+		if cacheConfig.IsEnableCache == 1 && !strings.HasPrefix(weblogbean.URL, global.GSSL_HTTP_CHANGLE_PATH) {
 			cacheResp := wafwebcache.LoadWebDataFormCache(w, r, hostTarget, cacheConfig, &weblogbean)
 			if cacheResp != nil {
 				// 将缓存的响应写回给客户端
@@ -854,7 +854,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 			if err != nil {
 				zlog.Debug("解析cache json失败")
 			}
-			if cacheConfig.IsEnableCache == 1 {
+			if cacheConfig.IsEnableCache == 1 && !strings.HasPrefix(weblogfrist.URL, global.GSSL_HTTP_CHANGLE_PATH) {
 				wafwebcache.StoreWebDataCache(resp, waf.HostTarget[host], cacheConfig, weblogfrist)
 			}
 
@@ -863,40 +863,48 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 				datetimeNow := time.Now()
 				weblogfrist.TimeSpent = datetimeNow.UnixNano()/1e6 - weblogfrist.UNIX_ADD_TIME
 
-				if strings.HasPrefix(weblogfrist.URL, global.GSSL_HTTP_CHANGLE_PATH) && (resp.StatusCode == 404 || resp.StatusCode == 301 || resp.StatusCode == 302) {
-					//如果远端HTTP01不存在挑战验证文件，那么我们映射到走本地再试一下
+				// 根据配置决定是否检查HTTP响应代码并重定向到本地
+				if strings.HasPrefix(weblogfrist.URL, global.GSSL_HTTP_CHANGLE_PATH) {
+					if global.GCONFIG_RECORD_SSLHTTP_CHECK == 0 || resp.StatusCode == 404 || resp.StatusCode == 301 || resp.StatusCode == 302 {
+						//如果远端HTTP01不存在挑战验证文件，那么我们映射到走本地再试一下
+						//或者配置为不检查HTTP响应代码，直接走本地
 
-					//Challenge /.well-known/acme-challenge/2NKiiETgQdPmmjlM88mH5uo6jM98PrgWwsDslaN8
-					urls := strings.Split(weblogfrist.URL, "/")
-					if len(urls) == 4 {
-						challengeFile := urls[3]
-						//检测challengeFile是否合法
-						if !utils.IsValidChallengeFile(challengeFile) {
-							return nil
-						}
-						//当前路径 data/vhost/domain code 变量下
-						// 需要读取的文件路径
-						filePath := utils.GetCurrentDir() + "/data/vhost/" + weblogfrist.HOST_CODE + "/.well-known/acme-challenge/" + challengeFile
+						//Challenge /.well-known/acme-challenge/2NKiiETgQdPmmjlM88mH5uo6jM98PrgWwsDslaN8
+						urls := strings.Split(weblogfrist.URL, "/")
+						if len(urls) == 4 {
+							challengeFile := urls[3]
+							//检测challengeFile是否合法
+							if !utils.IsValidChallengeFile(challengeFile) {
+								return nil
+							}
+							//当前路径 data/vhost/domain code 变量下
+							// 需要读取的文件路径
+							filePath := utils.GetCurrentDir() + "/data/vhost/" + weblogfrist.HOST_CODE + "/.well-known/acme-challenge/" + challengeFile
 
-						// 调用读取文件的函数
-						content, err := utils.ReadFile(filePath)
-						if err != nil {
-							zlog.Error("Error reading file: %v", err.Error())
-						}
-						if content != "" {
-							resp.StatusCode = http.StatusOK
-							resp.Status = http.StatusText(http.StatusOK)
-							resp.Body = io.NopCloser(bytes.NewBuffer([]byte(content)))
-							resp.ContentLength = int64(len(content))
-							resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(content)), 10))
+							// 调用读取文件的函数
+							content, err := utils.ReadFile(filePath)
+							if err != nil {
+								zlog.Error("Error reading file: %v", err.Error())
+							}
+							if content != "" {
+								resp.StatusCode = http.StatusOK
+								resp.Status = http.StatusText(http.StatusOK)
+								resp.Body = io.NopCloser(bytes.NewBuffer([]byte(content)))
+								resp.ContentLength = int64(len(content))
+								resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(content)), 10))
 
-							weblogfrist.ACTION = "放行"
-							weblogfrist.STATUS = resp.Status
-							weblogfrist.STATUS_CODE = resp.StatusCode
-							weblogfrist.TASK_FLAG = 1
-							weblogfrist.BackendCheckCost = time.Now().UnixNano()/1e6 - backendCheckStart //响应数据处理时间
-							global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
+								weblogfrist.ACTION = "放行"
+								weblogfrist.STATUS = resp.Status
+								weblogfrist.STATUS_CODE = resp.StatusCode
+								weblogfrist.TASK_FLAG = 1
+								weblogfrist.BackendCheckCost = time.Now().UnixNano()/1e6 - backendCheckStart //响应数据处理时间
+								global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
+							}
 						}
+					} else if global.GCONFIG_RECORD_SSLHTTP_CHECK == 1 {
+						// 当配置为检查HTTP响应码且响应不是404/301/302时，记录警告信息
+						zlog.Warn(fmt.Sprintf("ACME Challenge检测：域名 %s 的 URL %s 返回了非预期的状态码 %d，影响证书验证，可在系统配置里面将sslhttp_check设置成0",
+							weblogfrist.HOST, weblogfrist.URL, resp.StatusCode))
 					}
 				} else {
 					//记录响应Header信息

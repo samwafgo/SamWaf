@@ -123,40 +123,25 @@ github: [https://github.com/samwafgo/SamWaf/releases](https://github.com/samwafg
 ```
 SamWaf64.exe
 ```
-- 服务形式
+- 服务形式(安装服务需以管理员身份运行cmd)
 ```
-//安装
-SamWaf64.exe install 
+//安装并启动
+SamWaf64.exe install && SamWaf64.exe start
 
-//启动
-SamWaf64.exe start
-
-//停止
-SamWaf64.exe stop
-
-//卸载
-SamWaf64.exe uninstall
+//停止并卸载
+SamWaf64.exe stop && SamWaf64.exe uninstall
 ```
 
 ### Linux
 
-- 直接启动
+- Linux 一键自动下载并安装脚本
 ```
-./SamWafLinux64
+curl -sSO http://update.samwaf.com/latest/install_samwaf.sh && bash install_samwaf.sh install 
+``` 
+
+- Linux 一键卸载脚本
 ```
-- 服务形式
-```
-//安装
-./SamWafLinux64 install 
-
-//启动
-./SamWafLinux64 start
-
-//停止
-./SamWafLinux64 stop
-
-//卸载
-./SamWafLinux64 uninstall
+curl -sSO http://update.samwaf.com/latest/install_samwaf.sh && bash install_samwaf.sh uninstall 
 ```
 
 

@@ -23,7 +23,6 @@ import (
 	"SamWaf/wafreg"
 	"SamWaf/wafsafeclear"
 	"SamWaf/wafsnowflake"
-	"SamWaf/wafssl"
 	"SamWaf/waftask"
 	"SamWaf/waftunnelengine"
 	"SamWaf/webplugin"
@@ -256,7 +255,7 @@ func (m *wafSystenService) run() {
 			waftask.TaskCreateIndexByDbName(enums.DB_STATS)
 		}
 	}
-	wafssl.InitDnsProviderEnvInfo()
+
 	//初始化队列引擎
 	wafqueue.InitDequeEngine()
 	//启动队列消费
@@ -650,9 +649,6 @@ func (m *wafSystenService) run() {
 		case clearCcWindowsIp := <-global.GWAF_CHAN_CLEAR_CC_IP:
 			zlog.Debug("定时清空CCip", clearCcWindowsIp)
 			globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ClearCcWindowsForIP(clearCcWindowsIp)
-			break
-		case _ = <-global.GWAF_CHAN_RELOAD_ENV:
-			wafssl.InitDnsProviderEnvInfo()
 			break
 		}
 

@@ -12,6 +12,7 @@ import (
 	"SamWaf/service/waf_service"
 	"SamWaf/utils"
 	"SamWaf/utils/ssl"
+	"SamWaf/wafssl"
 	"errors"
 	"fmt"
 	"time"
@@ -25,6 +26,13 @@ var (
 
 // ApplySSLOrder 申请SSL证书处理
 func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
+	if bean.ApplyMethod == "dns01" {
+		//加载环境变量
+		privateGroupName := bean.PrivateGroupName
+		privateGroupBelongCloud := bean.ApplyDns
+		//查询环境变量信息
+		wafssl.LoadDnsProviderEnvInfo(privateGroupName, privateGroupBelongCloud)
+	}
 	if chanType == enums.ChanSslOrderSubmitted {
 		//发起申请
 		zlog.Info(fmt.Sprintf("%s 正在进行首次证书申请", bean.ApplyDomain))

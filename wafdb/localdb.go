@@ -149,6 +149,9 @@ func InitCoreDb(currentDir string) (bool, error) {
 		//密钥信息
 		db.AutoMigrate(&model.PrivateInfo{})
 
+		//密钥分组信息
+		db.AutoMigrate(&model.PrivateGroup{})
+
 		//缓存规则
 		db.AutoMigrate(&model.CacheRule{})
 

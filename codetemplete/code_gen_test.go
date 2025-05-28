@@ -9,7 +9,8 @@ import (
 func TestCodeGeneration(t *testing.T) {
 	// 唯一校验定义字段信息的字符串
 	fieldDefs := []string{
-		"Name:name:string",
+		"PrivateGroupName:private_group_name:string",
+		"PrivateGroupBelongCloud:private_group_belong_cloud:string",
 	}
 
 	// 构造 `uniFields` 列表
@@ -27,6 +28,6 @@ func TestCodeGeneration(t *testing.T) {
 		}
 	}
 
-	fields := GetStructFields(model.Tunnel{})
-	CodeGeneration("Tunnel", fields, uniFields)
+	fields := GetStructFields(model.PrivateGroup{})
+	CodeGeneration("PrivateGroup", fields, uniFields)
 }

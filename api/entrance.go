@@ -38,6 +38,7 @@ type APIGroup struct {
 	WafOtpApi
 	WafAnalysisApi
 	WafPrivateInfoApi
+	WafPrivateGroupApi
 	WafCacheRuleApi
 	WafTunnelApi
 	WafVpConfigApi
@@ -93,8 +94,8 @@ var (
 
 	wafAnalysisService = waf_service.WafAnalysisServiceApp
 
-	wafPrivateInfoService = waf_service.WafPrivateInfoServiceApp
-
-	wafCacheRuleService = waf_service.WafCacheRuleServiceApp
-	wafTunnelService    = waf_service.WafTunnelServiceApp
+	wafPrivateInfoService  = waf_service.WafPrivateInfoServiceApp
+	wafPrivateGroupService = waf_service.WafPrivateGroupServiceApp
+	wafCacheRuleService    = waf_service.WafCacheRuleServiceApp
+	wafTunnelService       = waf_service.WafTunnelServiceApp
 )

@@ -28,6 +28,7 @@ type SslOrder struct {
 	ResultValidTo           time.Time `json:"result_valid_to"`           //证书有效期结束时间
 	ResultCSR               []byte    `json:"result_csr"`                //csr信息
 	Remarks                 string    `json:"remarks"`                   //备注信息
+	PrivateGroupName        string    `json:"private_group_name"`        //密钥分组名称DNS有效
 }
 
 // ExpirationMessage 获取到期提示信息

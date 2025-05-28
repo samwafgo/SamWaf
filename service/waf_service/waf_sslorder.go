@@ -23,13 +23,14 @@ func (receiver *WafSSLOrderService) AddApi(req request.WafSslorderaddReq) (model
 			CREATE_TIME: customtype.JsonTime(time.Now()),
 			UPDATE_TIME: customtype.JsonTime(time.Now()),
 		},
-		HostCode:      req.HostCode,
-		ApplyPlatform: req.ApplyPlatform,
-		ApplyMethod:   req.ApplyMethod,
-		ApplyDns:      req.ApplyDns,
-		ApplyDomain:   req.ApplyDomain,
-		ApplyEmail:    req.ApplyEmail,
-		ApplyStatus:   "submitted",
+		HostCode:         req.HostCode,
+		ApplyPlatform:    req.ApplyPlatform,
+		ApplyMethod:      req.ApplyMethod,
+		ApplyDns:         req.ApplyDns,
+		ApplyDomain:      req.ApplyDomain,
+		ApplyEmail:       req.ApplyEmail,
+		ApplyStatus:      "submitted",
+		PrivateGroupName: req.PrivateGroupName,
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
 
@@ -39,14 +40,15 @@ func (receiver *WafSSLOrderService) AddApi(req request.WafSslorderaddReq) (model
 func (receiver *WafSSLOrderService) ModifyApi(req request.WafSslordereditReq) error {
 
 	sslOrderMap := map[string]interface{}{
-		"HostCode":      req.HostCode,
-		"ApplyPlatform": req.ApplyPlatform,
-		"ApplyMethod":   req.ApplyMethod,
-		"ApplyDns":      req.ApplyDns,
-		"ApplyDomain":   req.ApplyDomain,
-		"ApplyEmail":    req.ApplyEmail,
-		"ApplyStatus":   req.ApplyStatus,
-		"UPDATE_TIME":   customtype.JsonTime(time.Now()),
+		"HostCode":         req.HostCode,
+		"ApplyPlatform":    req.ApplyPlatform,
+		"ApplyMethod":      req.ApplyMethod,
+		"ApplyDns":         req.ApplyDns,
+		"ApplyDomain":      req.ApplyDomain,
+		"ApplyEmail":       req.ApplyEmail,
+		"ApplyStatus":      req.ApplyStatus,
+		"PrivateGroupName": req.PrivateGroupName,
+		"UPDATE_TIME":      customtype.JsonTime(time.Now()),
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.SslOrder{}).Where("id = ?", req.Id).Updates(sslOrderMap).Error
 
@@ -120,6 +122,7 @@ func (receiver *WafSSLOrderService) ModifyById(sslOrder model.SslOrder) error {
 		"ResultCSR":               sslOrder.ResultCSR,
 		"ResultValidTo":           sslOrder.ResultValidTo,
 		"ResultError":             sslOrder.ResultError,
+		"PrivateGroupName":        sslOrder.PrivateGroupName,
 		"UPDATE_TIME":             customtype.JsonTime(time.Now()),
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.SslOrder{}).Where("id = ?", sslOrder.Id).Updates(sslOrderMap).Error
@@ -154,6 +157,7 @@ func (receiver *WafSSLOrderService) RenewAdd(orderId string) (model.SslOrder, er
 		ResultCertificate:       order.ResultCertificate,
 		ResultIssuerCertificate: order.ResultIssuerCertificate,
 		ResultCSR:               order.ResultCSR,
+		PrivateGroupName:        order.PrivateGroupName,
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
 	return *bean, nil

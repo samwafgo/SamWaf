@@ -9,16 +9,16 @@ import (
 	"strings"
 )
 
-// InitDnsProviderEnvInfo 初始化dns所需要的参数信息
-func InitDnsProviderEnvInfo() {
-	privateInfos, _, err := waf_service.WafPrivateInfoServiceApp.GetListPureApi()
+// LoadDnsProviderEnvInfo 初始化dns所需要的参数信息
+func LoadDnsProviderEnvInfo(groupName string, belongCloud string) {
+	privateInfos, _, err := waf_service.WafPrivateInfoServiceApp.GetListByGroupAndBelongCloudPureApi(groupName, belongCloud)
 	if err == nil {
 		for _, info := range privateInfos {
 			err := os.Setenv(info.PrivateKey, info.PrivateValue)
 			if err != nil {
 				return
 			} else {
-				zlog.Info(fmt.Sprintf("ENV `%s` LOADED", info.PrivateKey))
+				zlog.Info(fmt.Sprintf("Cloud `%s` Group `%s` ENV `%s` LOADED", belongCloud, groupName, info.PrivateKey))
 			}
 		}
 	}

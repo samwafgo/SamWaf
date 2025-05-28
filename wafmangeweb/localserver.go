@@ -70,6 +70,7 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitWafOtpRouter(RouterGroup)
 		router.ApiGroupApp.InitAnalysisRouter(RouterGroup)
 		router.ApiGroupApp.InitWafPrivateInfoRouter(RouterGroup)
+		router.ApiGroupApp.InitWafPrivateGroupRouter(RouterGroup)
 		router.ApiGroupApp.InitWafCacheRuleRouter(RouterGroup)
 		router.ApiGroupApp.InitWafTunnelRouter(RouterGroup)
 		router.ApiGroupApp.InitWafVpConfigRouter(RouterGroup)

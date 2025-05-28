@@ -1,7 +1,12 @@
 package wafdb
 
 import (
+	"SamWaf/common/uuid"
 	"SamWaf/common/zlog"
+	"SamWaf/customtype"
+	"SamWaf/global"
+	"SamWaf/model"
+	"SamWaf/model/baseorm"
 	"gorm.io/gorm"
 	"time"
 )
@@ -96,6 +101,74 @@ func pathCoreSql(db *gorm.DB) {
 	} else {
 		zlog.Info("db", "hosts: default_encoding init successfully")
 	}
+	//20250527 初始化分组信息  model.PrivateGroup
+	// 初始化四个云服务提供商的默认分组
+	cloudProviders := []string{"alidns", "huaweicloud", "tencentcloud", "cloudflare"}
+	for _, cloudProvider := range cloudProviders {
+		// 检查该云服务提供商是否已有分组记录
+		var count int64
+		db.Model(&model.PrivateGroup{}).Where("private_group_belong_cloud = ?", cloudProvider).Count(&count)
+
+		// 如果不存在记录，则插入默认分组
+		if count == 0 {
+			privateGroup := model.PrivateGroup{
+				BaseOrm: baseorm.BaseOrm{
+					Id:          uuid.GenUUID(),
+					USER_CODE:   global.GWAF_USER_CODE,
+					Tenant_ID:   global.GWAF_TENANT_ID,
+					CREATE_TIME: customtype.JsonTime(time.Now()),
+					UPDATE_TIME: customtype.JsonTime(time.Now()),
+				},
+				PrivateGroupName:        "default",
+				PrivateGroupBelongCloud: cloudProvider,
+			}
+
+			err := db.Create(&privateGroup).Error
+			if err != nil {
+				zlog.Error("db", "init cloud group fail", "cloud", cloudProvider, "error", err.Error())
+			} else {
+				zlog.Info("db", "init cloud group success", "cloud", cloudProvider)
+			}
+		}
+	}
+	//如果申请记录里面没有分组信息，那么就默认放到default分组
+	err = db.Exec("UPDATE ssl_orders SET private_group_name='default' WHERE private_group_name IS NULL").Error
+	if err != nil {
+		panic("failed to ssl_orders: private_group_name " + err.Error())
+	} else {
+		zlog.Info("db", "ssl_orders: private_group_name init successfully")
+	}
+	// 更新private_infos表中空分组信息
+	err = db.Exec("UPDATE private_infos SET private_group_name='default' WHERE private_group_name IS NULL OR private_group_name=''").Error
+	if err != nil {
+		panic("failed to update private_infos: private_group_name " + err.Error())
+	} else {
+		zlog.Info("db", "private_infos: private_group_name updated successfully")
+	}
+
+	// 根据环境变量名称更新所属云信息
+	envCloudMap := map[string]string{
+		"ALICLOUD_ACCESS_KEY":           "alidns",
+		"ALICLOUD_SECRET_KEY":           "alidns",
+		"ALICLOUD_SECURITY_TOKEN":       "alidns",
+		"HUAWEICLOUD_ACCESS_KEY_ID":     "huaweicloud",
+		"HUAWEICLOUD_SECRET_ACCESS_KEY": "huaweicloud",
+		"HUAWEICLOUD_REGION":            "huaweicloud",
+		"TENCENTCLOUD_SECRET_ID":        "tencentcloud",
+		"TENCENTCLOUD_SECRET_KEY":       "tencentcloud",
+		"CF_DNS_API_TOKEN":              "cloudflare",
+	}
+
+	// 遍历环境变量映射，更新对应的所属云信息
+	for envKey, cloudName := range envCloudMap {
+		err = db.Exec("UPDATE private_infos SET private_group_belong_cloud=? WHERE private_key=? AND (private_group_belong_cloud IS NULL OR private_group_belong_cloud='')", cloudName, envKey).Error
+		if err != nil {
+			zlog.Error("db", "update dns key fail", "env", envKey, "cloud", cloudName, "error", err.Error())
+		} else {
+			zlog.Info("db", "update dns key successfully", "env", envKey, "cloud", cloudName)
+		}
+	}
+
 	// 记录结束时间并计算耗时
 	duration := time.Since(startTime)
 	zlog.Info("create core default value completely", "duration", duration.String())

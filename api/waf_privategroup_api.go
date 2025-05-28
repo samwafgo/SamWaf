@@ -1,27 +1,24 @@
 package api
 
 import (
-	"SamWaf/common/zlog"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	"errors"
-	"fmt"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
-	"os"
 )
 
-type WafPrivateInfoApi struct {
+type WafPrivateGroupApi struct {
 }
 
-func (w *WafPrivateInfoApi) AddApi(c *gin.Context) {
-	var req request.WafPrivateInfoAddReq
+func (w *WafPrivateGroupApi) AddApi(c *gin.Context) {
+	var req request.WafPrivateGroupAddReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
 
-		cnt := wafPrivateInfoService.CheckIsExistApi(req)
+		cnt := wafPrivateGroupService.CheckIsExistApi(req)
 		if cnt == 0 {
-			err = wafPrivateInfoService.AddApi(req)
+			err = wafPrivateGroupService.AddApi(req)
 			if err == nil {
 				response.OkWithMessage("添加成功", c)
 			} else {
@@ -38,36 +35,24 @@ func (w *WafPrivateInfoApi) AddApi(c *gin.Context) {
 	}
 }
 
-func (w *WafPrivateInfoApi) GetDetailApi(c *gin.Context) {
-	var req request.WafPrivateInfoDetailReq
+func (w *WafPrivateGroupApi) GetDetailApi(c *gin.Context) {
+	var req request.WafPrivateGroupDetailReq
 	err := c.ShouldBind(&req)
 	if err == nil {
-		bean := wafPrivateInfoService.GetDetailApi(req)
-
-		// 在返回前端前脱敏处理
-		if bean.PrivateKey != "" {
-			bean.PrivateValue = "****"
-		}
-
+		bean := wafPrivateGroupService.GetDetailApi(req)
 		response.OkWithDetailed(bean, "获取成功", c)
 	} else {
 		response.FailWithMessage("解析失败", c)
 	}
 }
 
-func (w *WafPrivateInfoApi) GetListApi(c *gin.Context) {
-	var req request.WafPrivateInfoSearchReq
+func (w *WafPrivateGroupApi) GetListApi(c *gin.Context) {
+	var req request.WafPrivateGroupSearchReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
-		PrivateInfo, total, _ := wafPrivateInfoService.GetListApi(req)
-
-		// 在返回前端前脱敏处理
-		for i := range PrivateInfo {
-			PrivateInfo[i].PrivateValue = "****"
-		}
-
+		PrivateGroup, total, _ := wafPrivateGroupService.GetListApi(req)
 		response.OkWithDetailed(response.PageResult{
-			List:      PrivateInfo,
+			List:      PrivateGroup,
 			Total:     total,
 			PageIndex: req.PageIndex,
 			PageSize:  req.PageSize,
@@ -77,22 +62,32 @@ func (w *WafPrivateInfoApi) GetListApi(c *gin.Context) {
 	}
 }
 
-func (w *WafPrivateInfoApi) DelApi(c *gin.Context) {
-	var req request.WafPrivateInfoDelReq
+func (w *WafPrivateGroupApi) GetListByBelongCloudApi(c *gin.Context) {
+	var req request.WafPrivateGroupSearchByCloudReq
+	err := c.ShouldBindJSON(&req)
+	if err == nil {
+		PrivateGroup, total, _ := wafPrivateGroupService.GetListByBelongCloudApi(req)
+		response.OkWithDetailed(response.PageResult{
+			List:      PrivateGroup,
+			Total:     total,
+			PageIndex: req.PageIndex,
+			PageSize:  req.PageSize,
+		}, "获取成功", c)
+	} else {
+		response.FailWithMessage("解析失败", c)
+	}
+}
+
+func (w *WafPrivateGroupApi) DelApi(c *gin.Context) {
+	var req request.WafPrivateGroupDelReq
 	err := c.ShouldBind(&req)
 	if err == nil {
-		info := wafPrivateInfoService.GetDetailByIdApi(req.Id)
-		key := info.PrivateKey
-		err = wafPrivateInfoService.DelApi(req)
+		err = wafPrivateGroupService.DelApi(req)
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 			response.FailWithMessage("请检测参数", c)
 		} else if err != nil {
 			response.FailWithMessage("发生错误", c)
 		} else {
-			err := os.Unsetenv(key)
-			if err == nil {
-				zlog.Info(fmt.Sprintf("ENV `%s` REMOVED", key))
-			}
 			response.OkWithMessage("删除成功", c)
 		}
 	} else {
@@ -100,16 +95,11 @@ func (w *WafPrivateInfoApi) DelApi(c *gin.Context) {
 	}
 }
 
-func (w *WafPrivateInfoApi) ModifyApi(c *gin.Context) {
-	var req request.WafPrivateInfoEditReq
+func (w *WafPrivateGroupApi) ModifyApi(c *gin.Context) {
+	var req request.WafPrivateGroupEditReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
-		if req.PrivateValue == "****" {
-			err = wafPrivateInfoService.ModifyWithOutValueApi(req)
-		} else {
-			err = wafPrivateInfoService.ModifyApi(req)
-		}
-
+		err = wafPrivateGroupService.ModifyApi(req)
 		if err != nil {
 			response.FailWithMessage("编辑发生错误"+err.Error(), c)
 		} else {

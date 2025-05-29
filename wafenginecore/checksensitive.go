@@ -76,15 +76,20 @@ func (waf *WafEngine) CheckSensitive(r *http.Request, weblogbean *innerbean.WebL
 
 // 排除某个
 func processSensitiveWords(input []*goahocorasick.Term, except string) []string {
-
+	replaceStringsMap := make(map[string]bool) // 使用map去重
 	var replaceStrings []string
+
 	for _, term := range input {
 		sensitive := term.CustomData.(model.Sensitive)
 		if sensitive.CheckDirection == except {
 			continue
 		}
 		if sensitive.Action == "replace" {
-			replaceStrings = append(replaceStrings, sensitive.Content)
+			// 检查是否已经存在，避免重复添加
+			if !replaceStringsMap[sensitive.Content] {
+				replaceStringsMap[sensitive.Content] = true
+				replaceStrings = append(replaceStrings, sensitive.Content)
+			}
 		}
 	}
 	return replaceStrings

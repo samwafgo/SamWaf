@@ -87,10 +87,15 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() {
 		e := recover()
-		if e != nil { // 捕获该协程的panic 111111
-			fmt.Println("11recover ", e)
-			debug.PrintStack() // 打印堆栈信息
-
+		if e != nil {
+			// 检查是否是连接断开相关的错误
+			if e == http.ErrAbortHandler {
+				fmt.Printf("Client connection aborted: %s\n", r.URL.Path)
+				return
+			}
+			// 其他类型的panic才打印详细堆栈
+			fmt.Printf("Unexpected error in request handler: %v\n", e)
+			debug.PrintStack()
 		}
 	}()
 	targetCode := ""
@@ -257,7 +262,14 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Scheme:               r.Proto,
 			SrcURL:               []byte(r.RequestURI),
 		}
-		if r.TLS != nil {
+		// 检查是否为WebSocket升级请求
+		if strings.ToLower(r.Header.Get("Upgrade")) == "websocket" {
+			if r.TLS != nil {
+				weblogbean.HOST = "wss://" + weblogbean.HOST
+			} else {
+				weblogbean.HOST = "ws://" + weblogbean.HOST
+			}
+		} else if r.TLS != nil {
 			weblogbean.HOST = "https://" + weblogbean.HOST
 		} else {
 			weblogbean.HOST = "http://" + weblogbean.HOST
@@ -744,8 +756,62 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 			//记录静态日志
 			isStaticAssist := utils.IsStaticAssist(resp, respContentType)
 
+			// 检查是否为流式内容
+			contentType := strings.ToLower(resp.Header.Get("Content-Type"))
+			isStreamContent := strings.Contains(contentType, "text/event-stream") ||
+				strings.Contains(contentType, "application/stream+json")
+
 			//记录响应body
 			if !isStaticAssist && resp.Body != nil && resp.Body != http.NoBody {
+
+				// 如果是流式内容，使用流式处理器
+				if isStreamContent {
+					// 创建流式处理器包装原始响应体
+					streamProcessor := waf.createStreamProcessor(resp.Body, wafHttpContext, host)
+					resp.Body = io.NopCloser(streamProcessor)
+
+					// 对于流式内容，跳过后续的常规处理逻辑
+					// 但仍然记录基本的访问日志
+					weblogfrist.ACTION = "放行"
+					weblogfrist.STATUS = resp.Status
+					weblogfrist.STATUS_CODE = resp.StatusCode
+					weblogfrist.TASK_FLAG = 1
+
+					// 记录响应Header信息
+					resHeader := ""
+					for key, values := range resp.Header {
+						for _, value := range values {
+							resHeader += key + ": " + value + "\r\n"
+						}
+					}
+					weblogfrist.ResHeader = resHeader
+
+					datetimeNow := time.Now()
+					weblogfrist.TimeSpent = datetimeNow.UnixNano()/1e6 - weblogfrist.UNIX_ADD_TIME
+					weblogfrist.BackendCheckCost = time.Now().UnixNano()/1e6 - backendCheckStart //响应数据处理时间
+
+					// 记录流式访问日志
+					if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "all" {
+						if waf.HostTarget[host].Host.EXCLUDE_URL_LOG == "" {
+							global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
+						} else {
+							lines := strings.Split(waf.HostTarget[host].Host.EXCLUDE_URL_LOG, "\n")
+							isRecordLog := true
+							for _, line := range lines {
+								if strings.HasPrefix(weblogfrist.URL, line) {
+									isRecordLog = false
+								}
+							}
+							if isRecordLog {
+								global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
+							}
+						}
+					} else if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "abnormal" && weblogfrist.ACTION != "放行" {
+						global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
+					}
+
+					return nil
+				}
 
 				ldpFlag := false
 				// 将请求URL转为小写，用于不区分大小写的比较

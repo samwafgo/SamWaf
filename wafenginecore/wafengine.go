@@ -858,13 +858,13 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 				wafwebcache.StoreWebDataCache(resp, waf.HostTarget[host], cacheConfig, weblogfrist)
 			}
 
-			zlog.Debug("TEST_Challenge", weblogfrist.HOST, weblogfrist.URL)
 			if !isStaticAssist {
 				datetimeNow := time.Now()
 				weblogfrist.TimeSpent = datetimeNow.UnixNano()/1e6 - weblogfrist.UNIX_ADD_TIME
 
 				// 根据配置决定是否检查HTTP响应代码并重定向到本地
 				if strings.HasPrefix(weblogfrist.URL, global.GSSL_HTTP_CHANGLE_PATH) {
+					zlog.Debug("TEST_Challenge", weblogfrist.HOST, weblogfrist.URL)
 					if global.GCONFIG_RECORD_SSLHTTP_CHECK == 0 || resp.StatusCode == 404 || resp.StatusCode == 301 || resp.StatusCode == 302 {
 						//如果远端HTTP01不存在挑战验证文件，那么我们映射到走本地再试一下
 						//或者配置为不检查HTTP响应代码，直接走本地

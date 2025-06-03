@@ -20,7 +20,7 @@ func BatchTask() {
 	innerLogName := "BatchTask"
 	zlog.Info(innerLogName, "准备进行自动执行批量任务")
 
-	batchTaskList, size, err := wafBatchTaskService.GetAllListInner()
+	batchTaskList, size, err := wafBatchTaskService.GetAllCronListInner()
 	if err != nil {
 		zlog.Error(innerLogName, "批量任务:", err)
 		return

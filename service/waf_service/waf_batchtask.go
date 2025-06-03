@@ -98,11 +98,12 @@ func (receiver *WafBatchTaskService) GetListApi(req request.BatchTaskSearchReq) 
 	return list, total, nil
 }
 
-func (receiver *WafBatchTaskService) GetAllListInner() ([]model.BatchTask, int64, error) {
+func (receiver *WafBatchTaskService) GetAllCronListInner() ([]model.BatchTask, int64, error) {
 	var list []model.BatchTask
 	var total int64 = 0
-	var whereField = ""
+	var whereField = "batch_trigger_type = ?"
 	var whereValues []interface{}
+	whereValues = append(whereValues, "cron")
 
 	global.GWAF_LOCAL_DB.Model(&model.BatchTask{}).Where(whereField, whereValues...).Find(&list)
 	global.GWAF_LOCAL_DB.Model(&model.BatchTask{}).Where(whereField, whereValues...).Count(&total)

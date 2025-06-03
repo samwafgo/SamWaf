@@ -35,6 +35,7 @@ func (receiver *WafBatchTaskService) AddApi(req request.BatchTaskAddReq) error {
 		BatchExecuteMethod: req.BatchExecuteMethod,
 		BatchSource:        req.BatchSource,
 		BatchSourceType:    req.BatchSourceType,
+		BatchTriggerType:   req.BatchTriggerType,
 		BatchType:          req.BatchType,
 		Remark:             req.Remark,
 	}
@@ -60,6 +61,7 @@ func (receiver *WafBatchTaskService) ModifyApi(req request.BatchTaskEditReq) err
 		"BatchExecuteMethod": req.BatchExecuteMethod,
 		"BatchSource":        req.BatchSource,
 		"BatchSourceType":    req.BatchSourceType,
+		"BatchTriggerType":   req.BatchTriggerType,
 		"BatchType":          req.BatchType,
 		"Remark":             req.Remark,
 	}

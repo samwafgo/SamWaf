@@ -95,6 +95,30 @@ func (w *WafSslOrderApi) ModifyApi(c *gin.Context) {
 	var req request.WafSslordereditReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		existingOrder := wafSslOrderService.GetDetailById(req.Id)
+		if existingOrder.Id == "" {
+			response.FailWithMessage("SSL订单不存在", c)
+			return
+		}
+
+		if existingOrder.ApplyStatus != "success" {
+			response.FailWithMessage("上次证书申请未成功，无法续期。请点击新建发起申请", c)
+			return
+		}
+		if len(existingOrder.ResultPrivateKey) == 0 || len(existingOrder.ResultCertificate) == 0 {
+			response.FailWithMessage("上次证书未找到，无法续期。请点击新建发起申请", c)
+			return
+		}
+		isExpired, _, _, err := existingOrder.ExpirationMessage()
+		if err != nil {
+			response.FailWithMessage("无法获取证书到期信息："+err.Error()+",请点击新建发起申请", c)
+			return
+		}
+		if isExpired {
+			response.FailWithMessage("证书已过期，无法续期，请点击新建发起申请", c)
+			return
+		}
+
 		err = wafSslOrderService.ModifyApi(req)
 		if err != nil {
 			response.FailWithMessage("续期发生错误", c)
@@ -107,9 +131,7 @@ func (w *WafSslOrderApi) ModifyApi(c *gin.Context) {
 			} else {
 				response.FailWithMessage("续期失败", c)
 			}
-
 		}
-
 	} else {
 		response.FailWithMessage("续期解析失败", c)
 	}

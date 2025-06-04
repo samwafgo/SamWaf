@@ -38,6 +38,7 @@ type Hosts struct {
 	CaptchaJSON          string `json:"captcha_json"`             //验证码配置 json
 	AntiLeechJSON        string `json:"anti_leech_json"`          //防盗链配置 json
 	CacheJSON            string `json:"cache_json"`               //缓存配置 json
+	StaticSiteJSON       string `json:"static_site_json"`         //静态站点配置 json
 	DefaultEncoding      string `json:"default_encoding"`         //默认编码 utf-8 或者 gbk  auto字符串自动选择
 }
 
@@ -87,4 +88,12 @@ type CacheConfig struct {
 	CacheDir        string  `json:"cache_dir"`          // 缓存目录，当location为file时使用
 	MaxFileSizeMB   float64 `json:"max_file_size_mb"`   // 最大缓存文件大小(MB)  0 是不限制
 	MaxMemorySizeMB float64 `json:"max_memory_size_mb"` // 最大内存缓存大小(MB)，当location为memory时使用  0 是不限制
+}
+
+// StaticSiteConfig 静态站点配置
+
+type StaticSiteConfig struct {
+	IsEnableStaticSite int    `json:"is_enable_static_site"` // 是否开启静态站点 1开启 0关闭
+	StaticSitePath     string `json:"static_site_path"`      // 静态站点路径
+	StaticSitePrefix   string `json:"static_site_prefix"`    // 静态站点URL前缀，默认为"/"
 }

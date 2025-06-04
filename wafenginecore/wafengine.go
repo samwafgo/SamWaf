@@ -188,6 +188,17 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// 静态站点服务检查
+		staticSiteConfig := model.StaticSiteConfig{
+			IsEnableStaticSite: 0,
+			StaticSitePath:     "",
+			StaticSitePrefix:   "/",
+		}
+		err := json.Unmarshal([]byte(hostTarget.Host.StaticSiteJSON), &staticSiteConfig)
+		if err != nil {
+			zlog.Debug("解析static site json失败")
+		}
+
 		//检测cache
 		cacheConfig := model.CacheConfig{
 			IsEnableCache:   0,
@@ -196,7 +207,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			MaxFileSizeMB:   0,
 			MaxMemorySizeMB: 0,
 		}
-		err := json.Unmarshal([]byte(hostTarget.Host.CacheJSON), &cacheConfig)
+		err = json.Unmarshal([]byte(hostTarget.Host.CacheJSON), &cacheConfig)
 		if err != nil {
 			zlog.Debug("解析cache json失败")
 		}
@@ -487,6 +498,13 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 				// 设置响应并返回
 				r.Response = cacheResp
+				return
+			}
+		}
+		// 如果开启了静态站点服务且请求路径匹配前缀
+		if staticSiteConfig.IsEnableStaticSite == 1 && !strings.HasPrefix(weblogbean.URL, global.GSSL_HTTP_CHANGLE_PATH) && strings.HasPrefix(r.URL.Path, staticSiteConfig.StaticSitePrefix) {
+
+			if waf.serveStaticFile(w, r, staticSiteConfig, &weblogbean, hostTarget) {
 				return
 			}
 		}

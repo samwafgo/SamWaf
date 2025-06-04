@@ -185,6 +185,14 @@ func pathCoreSql(db *gorm.DB) {
 		zlog.Info("db", "batch_tasks: batch_extra_config init successfully")
 	}
 
+	//20250604 静态网站配置初始化
+	defaultStaticSiteConfig := `{"is_enable_static_site":0,"static_site_path":"","static_site_prefix":"/"}`
+	err = db.Exec("UPDATE hosts SET static_site_json=? WHERE static_site_json IS NULL", defaultStaticSiteConfig).Error
+	if err != nil {
+		panic("failed to hosts :static_site_json " + err.Error())
+	} else {
+		zlog.Info("db", "hosts :static_site_json init successfully")
+	}
 	// 记录结束时间并计算耗时
 	duration := time.Since(startTime)
 	zlog.Info("create core default value completely", "duration", duration.String())

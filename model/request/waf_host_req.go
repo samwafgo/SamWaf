@@ -32,6 +32,7 @@ type WafHostAddReq struct {
 	InsecureSkipVerify   int    `json:"insecure_skip_verify"`     //是否开启后端https证书有效性验证 默认 0 是校验 1 是不校验
 	CaptchaJSON          string `json:"captcha_json"`             //验证码配置 json
 	AntiLeechJSON        string `json:"anti_leech_json"`          //防盗链配置 json
+	StaticSiteJSON       string `json:"static_site_json"`         //静态站点配置 json
 	CacheJSON            string `json:"cache_json"`               //缓存配置 json
 	DefaultEncoding      string `json:"default_encoding"`         //默认编码 utf-8 或者 gbk auto字符串自动选择
 }
@@ -75,6 +76,7 @@ type WafHostEditReq struct {
 	CaptchaJSON          string `json:"captcha_json"`             //验证码配置 json
 	AntiLeechJSON        string `json:"anti_leech_json"`          //防盗链配置 json
 	CacheJSON            string `json:"cache_json"`               //缓存配置 json
+	StaticSiteJSON       string `json:"static_site_json"`         //静态站点配置 json
 	DefaultEncoding      string `json:"default_encoding"`         //默认编码 utf-8 或者 gbk auto字符串自动选择
 }
 

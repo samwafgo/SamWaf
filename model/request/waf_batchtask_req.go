@@ -10,6 +10,7 @@ type BatchTaskAddReq struct {
 	BatchTriggerType   string `json:"batch_trigger_type"`   //触发类型 定时任务 cron ,手动任务 manual
 	BatchSource        string `json:"batch_source"`         //来源内容 路径或者实际的url内容
 	BatchExecuteMethod string `json:"batch_execute_method"` //任务执行方式 追加,覆盖
+	BatchExtraConfig   string `json:"batch_extra_config"`   //额外配置字段(JSON字符串)
 	Remark             string `json:"remark"`               //备注
 }
 type BatchTaskEditReq struct {
@@ -21,6 +22,7 @@ type BatchTaskEditReq struct {
 	BatchTriggerType   string `json:"batch_trigger_type"`   //触发类型 默认定时任务 cron ,手动任务 manual
 	BatchSource        string `json:"batch_source"`         //来源内容 路径或者实际的url内容
 	BatchExecuteMethod string `json:"batch_execute_method"` //任务执行方式 追加,覆盖
+	BatchExtraConfig   string `json:"batch_extra_config"`   //额外配置字段(JSON字符串)
 	Remark             string `json:"remark"`               //备注
 }
 type BatchTaskDetailReq struct {

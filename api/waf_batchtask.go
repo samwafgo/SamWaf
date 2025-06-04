@@ -106,6 +106,8 @@ func (s *WafBatchTaskApi) ManualBatchTaskApi(c *gin.Context) {
 		case enums.BATCHTASK_IPDENY:
 			waftask.IPDenyBatch(bean)
 			break
+		case enums.BATCHTASK_SENSITIVE:
+			waftask.SensitiveBatch(bean)
 		}
 		response.OkWithMessage("手工执行任务成功", c)
 	} else {

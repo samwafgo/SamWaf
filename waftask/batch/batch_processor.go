@@ -4,7 +4,6 @@ import (
 	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/model"
-	"SamWaf/utils"
 	"bufio"
 	"fmt"
 	"io"
@@ -20,7 +19,7 @@ type BatchProcessor interface {
 	// ProcessItem 处理单个项目
 	ProcessBatch(items []string, task model.BatchTask, progress *BatchProgress) bool
 	// GetExistingItems 获取已存在的项目
-	GetExistingItems(items []string, task model.BatchTask) map[string]interface{}
+	GetExistingItems(items []string, task model.BatchTask, config interface{}) map[string]interface{}
 	// NotifyEngine 通知引擎更新
 	NotifyEngine(task model.BatchTask)
 }
@@ -79,8 +78,11 @@ func ProcessBatchTask(task model.BatchTask, processor BatchProcessor, config Bat
 		return
 	}
 
+	// 获取对应类型的提取器
+	extractor := GetExtractor(task.BatchType)
+
 	// 首先计算总行数，用于进度显示
-	totalLines, validLines, err := countLines(task)
+	totalLines, validLines, err := countLinesWithExtractor(task, extractor)
 	if err != nil {
 		zlog.Error(innerLogName, fmt.Sprintf("计算总行数失败: %s", err.Error()))
 		// 继续执行，但无法显示准确进度
@@ -107,13 +109,13 @@ func ProcessBatchTask(task model.BatchTask, processor BatchProcessor, config Bat
 			continue // 跳过空行
 		}
 
-		line = extractIPFromLine(line)                // 可以根据需要替换为更通用的提取函数
-		validRet, _ := utils.IsValidIPOrNetwork(line) // 可以根据需要替换为更通用的验证函数
-		if !validRet {
+		// 使用特定类型的提取器
+		item := extractor.ExtractItem(line)
+		if !extractor.ValidateItem(item) {
 			continue
 		}
 
-		validItems = append(validItems, line)
+		validItems = append(validItems, item)
 		batchCount++
 
 		// 当收集到一批或者是最后一批时，进行批量处理
@@ -163,8 +165,8 @@ func ProcessBatchTask(task model.BatchTask, processor BatchProcessor, config Bat
 	}
 }
 
-// countLines 计算文件总行数和有效行数
-func countLines(task model.BatchTask) (int, int, error) {
+// countLinesWithExtractor 使用提取器计算文件总行数和有效行数
+func countLinesWithExtractor(task model.BatchTask, extractor ItemExtractor) (int, int, error) {
 	contentReader, err := openSource(task)
 	if err != nil {
 		return 0, 0, err
@@ -184,9 +186,8 @@ func countLines(task model.BatchTask) (int, int, error) {
 			continue // 跳过空行
 		}
 
-		line = extractIPFromLine(line)
-		validRet, _ := utils.IsValidIPOrNetwork(line)
-		if validRet {
+		item := extractor.ExtractItem(line)
+		if extractor.ValidateItem(item) {
 			validLines++
 		}
 	}

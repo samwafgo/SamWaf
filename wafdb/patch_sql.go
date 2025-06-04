@@ -177,6 +177,14 @@ func pathCoreSql(db *gorm.DB) {
 		zlog.Info("db", "batch_tasks: batch_trigger_type init successfully")
 	}
 
+	//20250603 批量任务额外配置初始化
+	err = db.Exec("UPDATE batch_tasks SET batch_extra_config='{}' WHERE batch_extra_config IS NULL").Error
+	if err != nil {
+		panic("failed to batch_tasks: batch_extra_config " + err.Error())
+	} else {
+		zlog.Info("db", "batch_tasks: batch_extra_config init successfully")
+	}
+
 	// 记录结束时间并计算耗时
 	duration := time.Since(startTime)
 	zlog.Info("create core default value completely", "duration", duration.String())

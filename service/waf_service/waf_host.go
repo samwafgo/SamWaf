@@ -64,6 +64,7 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 		CaptchaJSON:          wafHostAddReq.CaptchaJSON,
 		AntiLeechJSON:        wafHostAddReq.AntiLeechJSON,
 		CacheJSON:            wafHostAddReq.CacheJSON,
+		StaticSiteJSON:       wafHostAddReq.StaticSiteJSON,
 		DefaultEncoding:      wafHostAddReq.DefaultEncoding,
 	}
 	global.GWAF_LOCAL_DB.Create(wafHost)
@@ -119,6 +120,7 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 		"CaptchaJSON":          wafHostEditReq.CaptchaJSON,
 		"AntiLeechJSON":        wafHostEditReq.AntiLeechJSON,
 		"CacheJSON":            wafHostEditReq.CacheJSON,
+		"StaticSiteJSON":       wafHostEditReq.StaticSiteJSON,
 		"DefaultEncoding":      wafHostEditReq.DefaultEncoding,
 	}
 	err := global.GWAF_LOCAL_DB.Debug().Model(model.Hosts{}).Where("CODE=?", wafHostEditReq.CODE).Updates(hostMap).Error

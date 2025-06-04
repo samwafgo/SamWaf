@@ -57,11 +57,26 @@ func (e *DefaultExtractor) ValidateItem(item string) bool {
 	return item != ""
 }
 
+// SensitiveExtractor 敏感词提取器
+type SensitiveExtractor struct{}
+
+// ExtractItem 敏感词提取，去除前后空格
+func (e *SensitiveExtractor) ExtractItem(line string) string {
+	return strings.TrimSpace(line)
+}
+
+// ValidateItem 敏感词验证，非空且长度合理
+func (e *SensitiveExtractor) ValidateItem(item string) bool {
+	return item != "" && len(item) <= 1000 // 限制敏感词最大长度
+}
+
 // GetExtractor 根据批量任务类型获取合适的提取器
 func GetExtractor(batchType string) ItemExtractor {
 	switch batchType {
 	case "ipallow", "ipdeny":
 		return &IPExtractor{}
+	case "sensitive":
+		return &SensitiveExtractor{}
 	default:
 		return &DefaultExtractor{}
 	}

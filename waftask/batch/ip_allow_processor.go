@@ -26,7 +26,7 @@ func (p *IPAllowProcessor) ProcessBatch(items []string, task model.BatchTask, pr
 	zlog.Info(logName, fmt.Sprintf("处理白名单批次，包含 %d 个IP", len(items)))
 
 	// 获取已存在的记录
-	existMap := p.GetExistingItems(items, task)
+	existMap := p.GetExistingItems(items, task, nil)
 
 	// 根据执行方法处理
 	if task.BatchExecuteMethod == enums.BATCHTASK_EXECUTEMETHODAPPEND {
@@ -39,7 +39,7 @@ func (p *IPAllowProcessor) ProcessBatch(items []string, task model.BatchTask, pr
 }
 
 // GetExistingItems 获取已存在的IP记录
-func (p *IPAllowProcessor) GetExistingItems(items []string, task model.BatchTask) map[string]interface{} {
+func (p *IPAllowProcessor) GetExistingItems(items []string, task model.BatchTask, config interface{}) map[string]interface{} {
 	existMap := make(map[string]interface{})
 	var existIPs []model.IPAllowList
 

@@ -37,6 +37,7 @@ func (receiver *WafBatchTaskService) AddApi(req request.BatchTaskAddReq) error {
 		BatchSourceType:    req.BatchSourceType,
 		BatchTriggerType:   req.BatchTriggerType,
 		BatchType:          req.BatchType,
+		BatchExtraConfig:   req.BatchExtraConfig,
 		Remark:             req.Remark,
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
@@ -63,6 +64,7 @@ func (receiver *WafBatchTaskService) ModifyApi(req request.BatchTaskEditReq) err
 		"BatchSourceType":    req.BatchSourceType,
 		"BatchTriggerType":   req.BatchTriggerType,
 		"BatchType":          req.BatchType,
+		"BatchExtraConfig":   req.BatchExtraConfig,
 		"Remark":             req.Remark,
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.BatchTask{}).Where("id = ?", req.Id).Updates(beanMap).Error

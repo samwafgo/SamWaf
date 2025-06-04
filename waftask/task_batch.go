@@ -38,6 +38,9 @@ func BatchTask() {
 		case enums.BATCHTASK_IPDENY:
 			IPDenyBatch(batchTask)
 			break
+		case enums.BATCHTASK_SENSITIVE:
+			SensitiveBatch(batchTask)
+			break
 		}
 		zlog.Info(innerLogName, "批量已处理完")
 
@@ -60,6 +63,16 @@ func IPDenyBatch(task model.BatchTask) {
 	config := batch.BatchProcessorConfig{
 		BatchSize: 1000,
 		LogPrefix: "BatchTask-IPDenyBatch",
+	}
+	batch.ProcessBatchTask(task, processor, config)
+}
+
+// SensitiveBatch 敏感词批量处理
+func SensitiveBatch(task model.BatchTask) {
+	processor := &batch.SensitiveProcessor{}
+	config := batch.BatchProcessorConfig{
+		BatchSize: 1000,
+		LogPrefix: "BatchTask-SensitiveBatch",
 	}
 	batch.ProcessBatchTask(task, processor, config)
 }

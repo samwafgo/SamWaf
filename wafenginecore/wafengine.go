@@ -502,9 +502,43 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		// 如果开启了静态站点服务且请求路径匹配前缀
-		if staticSiteConfig.IsEnableStaticSite == 1 && !strings.HasPrefix(weblogbean.URL, global.GSSL_HTTP_CHANGLE_PATH) && strings.HasPrefix(r.URL.Path, staticSiteConfig.StaticSitePrefix) {
+		if staticSiteConfig.IsEnableStaticSite == 1 {
 
-			if waf.serveStaticFile(w, r, staticSiteConfig, &weblogbean, hostTarget) {
+			if strings.HasPrefix(weblogbean.URL, global.GSSL_HTTP_CHANGLE_PATH) {
+				//Challenge /.well-known/acme-challenge/2NKiiETgQdPmmjlM88mH5uo6jM98PrgWwsDslaN8
+				urls := strings.Split(weblogbean.URL, "/")
+				if len(urls) == 4 {
+					challengeFile := urls[3]
+					//检测challengeFile是否合法
+					if !utils.IsValidChallengeFile(challengeFile) {
+						return
+					}
+					//当前路径 data/vhost/domain code 变量下
+					// 需要读取的文件路径
+					filePath := utils.GetCurrentDir() + "/data/vhost/" + weblogbean.HOST_CODE + "/.well-known/acme-challenge/" + challengeFile
+
+					// 调用读取文件的函数
+					content, err := utils.ReadFile(filePath)
+					if err != nil {
+						zlog.Error("Error reading file: %v", err.Error())
+						return
+					}
+					if content != "" {
+						r.Response.StatusCode = http.StatusOK
+						r.Response.Status = http.StatusText(http.StatusOK)
+						r.Response.Body = io.NopCloser(bytes.NewBuffer([]byte(content)))
+						r.Response.ContentLength = int64(len(content))
+						r.Response.Header.Set("Content-Length", strconv.FormatInt(int64(len(content)), 10))
+
+						weblogbean.ACTION = "放行"
+						weblogbean.STATUS = r.Response.Status
+						weblogbean.STATUS_CODE = r.Response.StatusCode
+						weblogbean.TASK_FLAG = 1
+						global.GQEQUE_LOG_DB.Enqueue(weblogbean)
+					}
+				}
+			} else {
+				waf.serveStaticFile(w, r, staticSiteConfig, &weblogbean, hostTarget)
 				return
 			}
 		}

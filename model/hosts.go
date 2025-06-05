@@ -93,7 +93,11 @@ type CacheConfig struct {
 // StaticSiteConfig 静态站点配置
 
 type StaticSiteConfig struct {
-	IsEnableStaticSite int    `json:"is_enable_static_site"` // 是否开启静态站点 1开启 0关闭
-	StaticSitePath     string `json:"static_site_path"`      // 静态站点路径
-	StaticSitePrefix   string `json:"static_site_prefix"`    // 静态站点URL前缀，默认为"/"
+	IsEnableStaticSite  int    `json:"is_enable_static_site"` // 是否开启静态站点 1开启 0关闭
+	StaticSitePath      string `json:"static_site_path"`      // 静态站点路径
+	StaticSitePrefix    string `json:"static_site_prefix"`    // 静态站点URL前缀，默认为"/"
+	SensitivePaths      string `json:"sensitive_paths"`       // 敏感路径列表，逗号分隔
+	SensitiveExtensions string `json:"sensitive_extensions"`  // 敏感文件扩展名，逗号分隔
+	AllowedExtensions   string `json:"allowed_extensions"`    // 允许的文件扩展名白名单，逗号分隔
+	SensitivePatterns   string `json:"sensitive_patterns"`    // 敏感文件名模式（正则表达式），逗号分隔
 }

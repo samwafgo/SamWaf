@@ -18,56 +18,6 @@ import (
 
 // 敏感文件和路径黑名单
 var (
-	// Linux 敏感路径和文件
-	linuxSensitivePaths = []string{
-		"/etc/passwd", "/etc/shadow", "/etc/group", "/etc/gshadow",
-		"/etc/hosts", "/etc/hostname", "/etc/resolv.conf",
-		"/etc/ssh/", "/var/log/",
-		"/.ssh/", "/.bash_history", "/.profile", "/.bashrc",
-		"/etc/crontab", "/var/spool/cron/",
-		"/etc/apache2/", "/etc/nginx/", "/etc/httpd/",
-		"/var/www/", "/usr/share/",
-		"/var/tmp/", "/var/run/",
-	}
-
-	// Windows 敏感路径和文件
-	windowsSensitivePaths = []string{
-		"c:\\windows\\", "c:\\program files\\", "c:\\program files (x86)\\",
-		"c:\\users\\", "c:\\documents and settings\\",
-		"c:\\windows\\system32\\", "c:\\windows\\syswow64\\",
-		"c:\\boot.ini", "c:\\autoexec.bat", "c:\\config.sys",
-		"\\windows\\", "\\program files\\", "\\program files (x86)\\",
-		"\\users\\", "\\documents and settings\\",
-		"\\windows\\system32\\", "\\windows\\syswow64\\",
-		"boot.ini", "autoexec.bat", "config.sys",
-		"ntuser.dat", "pagefile.sys", "hiberfil.sys", "swapfile.sys",
-	}
-
-	// 敏感文件扩展名
-	sensitiveExtensions = []string{
-		".key", ".pem", ".crt", ".p12", ".pfx", ".jks",
-		".bak", ".backup", ".old", ".orig", ".save",
-		".sql", ".db", ".sqlite", ".mdb",
-		".env", ".htaccess", ".htpasswd",
-		".git", ".svn", ".hg", ".bzr",
-		".DS_Store", "Thumbs.db", "desktop.ini",
-		".tmp", ".temp", ".lock", ".pid",
-	}
-
-	// 敏感文件名模式
-	sensitiveFilePatterns = []*regexp.Regexp{
-		regexp.MustCompile(`(?i)\.git(/|\\)`),
-		regexp.MustCompile(`(?i)\.svn(/|\\)`),
-		regexp.MustCompile(`(?i)\.env`),
-		regexp.MustCompile(`(?i)database\.(php|xml|json|yaml|yml)`),
-		regexp.MustCompile(`(?i)(backup|dump|export)\.(sql|db|tar|zip|gz)`),
-		regexp.MustCompile(`(?i)(id_rsa|id_dsa|id_ecdsa|id_ed25519)`),
-		regexp.MustCompile(`(?i)\.ssh(/|\\).*`),
-		regexp.MustCompile(`(?i)(access|error|debug)\.log`),
-		regexp.MustCompile(`(?i)web\.config`),
-		regexp.MustCompile(`(?i)phpinfo\.php`),
-	}
-
 	// 路径穿越攻击模式
 	pathTraversalPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`\.\.[\\/]`),
@@ -83,6 +33,77 @@ var (
 		regexp.MustCompile(`\\{2,}`),
 	}
 )
+
+// splitConfigString 分割配置字符串为数组，去除空白项
+func splitConfigString(configStr string) []string {
+	if configStr == "" {
+		return []string{}
+	}
+
+	parts := strings.Split(configStr, ",")
+	result := make([]string, 0, len(parts))
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			result = append(result, part)
+		}
+	}
+
+	return result
+}
+
+// getDefaultSensitivePathsString 获取默认敏感路径配置字符串
+func getDefaultSensitivePathsString() string {
+	return "/etc/passwd,/etc/shadow,/etc/group,/etc/gshadow,/etc/hosts,/etc/hostname,/etc/resolv.conf,/etc/ssh/,/var/log/,/.ssh/,/.bash_history,/.profile,/.bashrc,/etc/crontab,/var/spool/cron/,/etc/apache2/,/etc/nginx/,/etc/httpd/,/var/www/,/usr/share/,/var/tmp/,/var/run/,c:\\windows\\,c:\\program files\\,c:\\program files (x86)\\,c:\\users\\,c:\\documents and settings\\,c:\\windows\\system32\\,c:\\windows\\syswow64\\,c:\\boot.ini,c:\\autoexec.bat,c:\\config.sys,\\windows\\,\\program files\\,\\program files (x86)\\,\\users\\,\\documents and settings\\,\\windows\\system32\\,\\windows\\syswow64\\,boot.ini,autoexec.bat,config.sys,ntuser.dat,pagefile.sys,hiberfil.sys,swapfile.sys"
+}
+
+// getDefaultSensitiveExtensionsString 获取默认敏感文件扩展名字符串
+func getDefaultSensitiveExtensionsString() string {
+	return ".key,.pem,.crt,.p12,.pfx,.jks,.bak,.backup,.old,.orig,.save,.sql,.db,.sqlite,.mdb,.env,.htaccess,.htpasswd,.git,.svn,.hg,.bzr,.DS_Store,Thumbs.db,desktop.ini,.tmp,.temp,.lock,.pid"
+}
+
+// getDefaultAllowedExtensionsString 获取默认允许的文件扩展名字符串
+func getDefaultAllowedExtensionsString() string {
+	return ".html,.htm,.css,.js,.json,.png,.jpg,.jpeg,.gif,.svg,.ico,.webp,.pdf,.txt,.md,.xml,.woff,.woff2,.ttf,.eot,.mp4,.webm,.ogg,.mp3,.wav,.zip,.tar,.gz,.rar"
+}
+
+// getDefaultSensitivePatternsString 获取默认敏感文件名模式字符串
+func getDefaultSensitivePatternsString() string {
+	return `(?i)\.git(/|\\),(?i)\.svn(/|\\),(?i)\.env,(?i)database\.(php|xml|json|yaml|yml),(?i)(backup|dump|export)\.(sql|db|tar|zip|gz),(?i)(id_rsa|id_dsa|id_ecdsa|id_ed25519),(?i)\.ssh(/|\\).*,(?i)(access|error|debug)\.log,(?i)web\.config,(?i)phpinfo\.php`
+}
+
+// getSensitivePathsFromConfig 从配置获取敏感路径数组
+func getSensitivePathsFromConfig(config model.StaticSiteConfig) []string {
+	if config.SensitivePaths != "" {
+		return splitConfigString(config.SensitivePaths)
+	}
+	return splitConfigString(getDefaultSensitivePathsString())
+}
+
+// getSensitiveExtensionsFromConfig 从配置获取敏感扩展名数组
+func getSensitiveExtensionsFromConfig(config model.StaticSiteConfig) []string {
+	if config.SensitiveExtensions != "" {
+		return splitConfigString(config.SensitiveExtensions)
+	}
+	return splitConfigString(getDefaultSensitiveExtensionsString())
+}
+
+// getAllowedExtensionsFromConfig 从配置获取允许扩展名数组
+func getAllowedExtensionsFromConfig(config model.StaticSiteConfig) []string {
+	if config.AllowedExtensions != "" {
+		return splitConfigString(config.AllowedExtensions)
+	}
+	return splitConfigString(getDefaultAllowedExtensionsString())
+}
+
+// getSensitivePatternsFromConfig 从配置获取敏感模式数组
+func getSensitivePatternsFromConfig(config model.StaticSiteConfig) []string {
+	if config.SensitivePatterns != "" {
+		return splitConfigString(config.SensitivePatterns)
+	}
+	return splitConfigString(getDefaultSensitivePatternsString())
+}
 
 // serveStaticFile 提供静态文件服务
 func (waf *WafEngine) serveStaticFile(w http.ResponseWriter, r *http.Request, config model.StaticSiteConfig, weblog *innerbean.WebLog, hostsafe *wafenginmodel.HostSafe) bool {
@@ -133,7 +154,7 @@ func (waf *WafEngine) serveStaticFile(w http.ResponseWriter, r *http.Request, co
 	}
 
 	// 敏感路径检查
-	if waf.isSensitivePath(relativePath) {
+	if waf.isSensitivePath(relativePath, config) {
 		waf.logSecurityEvent("访问敏感路径", originalPath, r.RemoteAddr, "", weblog)
 		w.WriteHeader(http.StatusForbidden)
 		w.Write([]byte("403 Forbidden: Access to sensitive path denied"))
@@ -141,7 +162,7 @@ func (waf *WafEngine) serveStaticFile(w http.ResponseWriter, r *http.Request, co
 	}
 
 	// 敏感文件检查
-	if waf.isSensitiveFile(relativePath) {
+	if waf.isSensitiveFile(relativePath, config) {
 		waf.logSecurityEvent("访问敏感文件", originalPath, r.RemoteAddr, "", weblog)
 		w.WriteHeader(http.StatusForbidden)
 		w.Write([]byte("403 Forbidden: Access to sensitive file denied"))
@@ -216,7 +237,7 @@ func (waf *WafEngine) serveStaticFile(w http.ResponseWriter, r *http.Request, co
 	}
 
 	// 检查文件类型（基于扩展名）
-	if !waf.isAllowedFileType(absFullPath) {
+	if !waf.isAllowedFileType(absFullPath, config) {
 		waf.logSecurityEvent("不允许的文件类型", originalPath, r.RemoteAddr, "", weblog)
 		w.WriteHeader(http.StatusForbidden)
 		w.Write([]byte("403 Forbidden: File type not allowed"))
@@ -285,18 +306,14 @@ func (waf *WafEngine) containsEncodedThreats(filePath string) bool {
 }
 
 // isSensitivePath 检查是否为敏感路径
-func (waf *WafEngine) isSensitivePath(filePath string) bool {
+func (waf *WafEngine) isSensitivePath(filePath string, config model.StaticSiteConfig) bool {
 	lowerPath := strings.ToLower(filePath)
 
-	// 检查Linux敏感路径
-	for _, sensitivePath := range linuxSensitivePaths {
-		if strings.Contains(lowerPath, strings.ToLower(sensitivePath)) {
-			return true
-		}
-	}
+	// 从配置获取敏感路径数组
+	sensitivePaths := getSensitivePathsFromConfig(config)
 
-	// 检查Windows敏感路径
-	for _, sensitivePath := range windowsSensitivePaths {
+	// 检查敏感路径
+	for _, sensitivePath := range sensitivePaths {
 		if strings.Contains(lowerPath, strings.ToLower(sensitivePath)) {
 			return true
 		}
@@ -306,9 +323,12 @@ func (waf *WafEngine) isSensitivePath(filePath string) bool {
 }
 
 // isSensitiveFile 检查是否为敏感文件
-func (waf *WafEngine) isSensitiveFile(filePath string) bool {
+func (waf *WafEngine) isSensitiveFile(filePath string, config model.StaticSiteConfig) bool {
 	lowerPath := strings.ToLower(filePath)
 	fileName := filepath.Base(lowerPath)
+
+	// 从配置获取敏感扩展名数组
+	sensitiveExtensions := getSensitiveExtensionsFromConfig(config)
 
 	// 检查敏感文件扩展名
 	for _, ext := range sensitiveExtensions {
@@ -317,10 +337,15 @@ func (waf *WafEngine) isSensitiveFile(filePath string) bool {
 		}
 	}
 
+	// 从配置获取敏感模式数组
+	sensitivePatterns := getSensitivePatternsFromConfig(config)
+
 	// 检查敏感文件名模式
-	for _, pattern := range sensitiveFilePatterns {
-		if pattern.MatchString(lowerPath) {
-			return true
+	for _, patternStr := range sensitivePatterns {
+		if pattern, err := regexp.Compile(patternStr); err == nil {
+			if pattern.MatchString(lowerPath) {
+				return true
+			}
 		}
 	}
 
@@ -333,16 +358,9 @@ func (waf *WafEngine) isSensitiveFile(filePath string) bool {
 }
 
 // isAllowedFileType 检查是否为允许的文件类型
-func (waf *WafEngine) isAllowedFileType(filePath string) bool {
-	// 允许的文件扩展名白名单
-	allowedExtensions := []string{
-		".html", ".htm", ".css", ".js", ".json",
-		".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp",
-		".pdf", ".txt", ".md", ".xml",
-		".woff", ".woff2", ".ttf", ".eot",
-		".mp4", ".webm", ".ogg", ".mp3", ".wav",
-		".zip", ".tar", ".gz", ".rar",
-	}
+func (waf *WafEngine) isAllowedFileType(filePath string, config model.StaticSiteConfig) bool {
+	// 从配置获取允许扩展名数组
+	allowedExtensions := getAllowedExtensionsFromConfig(config)
 
 	ext := strings.ToLower(filepath.Ext(filePath))
 	if ext == "" {
@@ -415,4 +433,17 @@ func (waf *WafEngine) logSecurityEvent(eventType, path, remoteAddr, details stri
 		zap.String("path", path),
 		zap.String("remote_addr", remoteAddr),
 		zap.String("details", details))
+}
+
+// 初始化静态站点配置的默认值
+func InitDefaultStaticSiteConfig() model.StaticSiteConfig {
+	return model.StaticSiteConfig{
+		IsEnableStaticSite:  0,
+		StaticSitePath:      "",
+		StaticSitePrefix:    "/",
+		SensitivePaths:      getDefaultSensitivePathsString(),
+		SensitiveExtensions: getDefaultSensitiveExtensionsString(),
+		AllowedExtensions:   getDefaultAllowedExtensionsString(),
+		SensitivePatterns:   getDefaultSensitivePatternsString(),
+	}
 }

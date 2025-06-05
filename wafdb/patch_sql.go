@@ -186,12 +186,22 @@ func pathCoreSql(db *gorm.DB) {
 	}
 
 	//20250604 静态网站配置初始化
-	defaultStaticSiteConfig := `{"is_enable_static_site":0,"static_site_path":"","static_site_prefix":"/"}`
+	defaultStaticSiteConfig := `{"is_enable_static_site":0,"static_site_path":"","static_site_prefix":"/","sensitive_paths":"/etc/passwd,/etc/shadow,/etc/group,/etc/gshadow,/etc/hosts,/etc/hostname,/etc/resolv.conf,/etc/ssh/,/var/log/,/.ssh/,/.bash_history,/.profile,/.bashrc,/etc/crontab,/var/spool/cron/,/etc/apache2/,/etc/nginx/,/etc/httpd/,/var/www/,/usr/share/,/var/tmp/,/var/run/,c:\\windows\\,c:\\program files\\,c:\\program files (x86)\\,c:\\users\\,c:\\documents and settings\\,c:\\windows\\system32\\,c:\\windows\\syswow64\\,c:\\boot.ini,c:\\autoexec.bat,c:\\config.sys,\\windows\\,\\program files\\,\\program files (x86)\\,\\users\\,\\documents and settings\\,\\windows\\system32\\,\\windows\\syswow64\\,boot.ini,autoexec.bat,config.sys,ntuser.dat,pagefile.sys,hiberfil.sys,swapfile.sys","sensitive_extensions":".key,.pem,.crt,.p12,.pfx,.jks,.bak,.backup,.old,.orig,.save,.sql,.db,.sqlite,.mdb,.env,.htaccess,.htpasswd,.git,.svn,.hg,.bzr,.DS_Store,Thumbs.db,desktop.ini,.tmp,.temp,.lock,.pid","allowed_extensions":".html,.htm,.css,.js,.json,.png,.jpg,.jpeg,.gif,.svg,.ico,.webp,.pdf,.txt,.md,.xml,.woff,.woff2,.ttf,.eot,.mp4,.webm,.ogg,.mp3,.wav,.zip,.tar,.gz,.rar","sensitive_patterns":"(?i)\\.git(/|\\\\),(?i)\\.svn(/|\\\\),(?i)\\.env,(?i)database\\.(php|xml|json|yaml|yml),(?i)(backup|dump|export)\\.(sql|db|tar|zip|gz),(?i)(id_rsa|id_dsa|id_ecdsa|id_ed25519),(?i)\\.ssh(/|\\\\).*,(?i)(access|error|debug)\\.log,(?i)web\\.config,(?i)phpinfo\\.php"}`
+
+	// 处理static_site_json为null的情况
 	err = db.Exec("UPDATE hosts SET static_site_json=? WHERE static_site_json IS NULL", defaultStaticSiteConfig).Error
 	if err != nil {
 		panic("failed to hosts :static_site_json " + err.Error())
 	} else {
 		zlog.Info("db", "hosts :static_site_json init successfully")
+	}
+
+	// 处理static_site_json不包含sensitive_paths字段的情况
+	err = db.Exec("UPDATE hosts SET static_site_json=? WHERE static_site_json IS NOT NULL AND static_site_json NOT LIKE '%sensitive_paths%'", defaultStaticSiteConfig).Error
+	if err != nil {
+		panic("failed to hosts :static_site_json sensitive_paths update " + err.Error())
+	} else {
+		zlog.Info("db", "hosts :static_site_json sensitive_paths update successfully")
 	}
 	// 记录结束时间并计算耗时
 	duration := time.Since(startTime)

@@ -22,13 +22,12 @@ var (
 	linuxSensitivePaths = []string{
 		"/etc/passwd", "/etc/shadow", "/etc/group", "/etc/gshadow",
 		"/etc/hosts", "/etc/hostname", "/etc/resolv.conf",
-		"/etc/ssh/", "/root/", "/home/", "/var/log/",
-		"/proc/", "/sys/", "/dev/", "/boot/",
+		"/etc/ssh/", "/var/log/",
 		"/.ssh/", "/.bash_history", "/.profile", "/.bashrc",
 		"/etc/crontab", "/var/spool/cron/",
 		"/etc/apache2/", "/etc/nginx/", "/etc/httpd/",
-		"/var/www/", "/usr/share/", "/opt/",
-		"/tmp/", "/var/tmp/", "/run/", "/var/run/",
+		"/var/www/", "/usr/share/",
+		"/var/tmp/", "/var/run/",
 	}
 
 	// Windows 敏感路径和文件
@@ -41,15 +40,13 @@ var (
 		"\\users\\", "\\documents and settings\\",
 		"\\windows\\system32\\", "\\windows\\syswow64\\",
 		"boot.ini", "autoexec.bat", "config.sys",
-		"ntuser.dat", "sam", "security", "software", "system",
-		"pagefile.sys", "hiberfil.sys", "swapfile.sys",
+		"ntuser.dat", "pagefile.sys", "hiberfil.sys", "swapfile.sys",
 	}
 
 	// 敏感文件扩展名
 	sensitiveExtensions = []string{
 		".key", ".pem", ".crt", ".p12", ".pfx", ".jks",
-		".conf", ".config", ".ini", ".cfg", ".properties",
-		".log", ".bak", ".backup", ".old", ".orig", ".save",
+		".bak", ".backup", ".old", ".orig", ".save",
 		".sql", ".db", ".sqlite", ".mdb",
 		".env", ".htaccess", ".htpasswd",
 		".git", ".svn", ".hg", ".bzr",
@@ -62,7 +59,6 @@ var (
 		regexp.MustCompile(`(?i)\.git(/|\\)`),
 		regexp.MustCompile(`(?i)\.svn(/|\\)`),
 		regexp.MustCompile(`(?i)\.env`),
-		regexp.MustCompile(`(?i)config\.(php|xml|json|yaml|yml)`),
 		regexp.MustCompile(`(?i)database\.(php|xml|json|yaml|yml)`),
 		regexp.MustCompile(`(?i)(backup|dump|export)\.(sql|db|tar|zip|gz)`),
 		regexp.MustCompile(`(?i)(id_rsa|id_dsa|id_ecdsa|id_ed25519)`),
@@ -70,7 +66,6 @@ var (
 		regexp.MustCompile(`(?i)(access|error|debug)\.log`),
 		regexp.MustCompile(`(?i)web\.config`),
 		regexp.MustCompile(`(?i)phpinfo\.php`),
-		regexp.MustCompile(`(?i)(admin|administrator|root|test|demo)\.`),
 	}
 
 	// 路径穿越攻击模式

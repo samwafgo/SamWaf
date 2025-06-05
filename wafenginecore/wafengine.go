@@ -189,11 +189,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 静态站点服务检查
-		staticSiteConfig := model.StaticSiteConfig{
-			IsEnableStaticSite: 0,
-			StaticSitePath:     "",
-			StaticSitePrefix:   "/",
-		}
+		staticSiteConfig := InitDefaultStaticSiteConfig()
 		err := json.Unmarshal([]byte(hostTarget.Host.StaticSiteJSON), &staticSiteConfig)
 		if err != nil {
 			zlog.Debug("解析static site json失败")

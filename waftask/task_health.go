@@ -35,27 +35,24 @@ func TaskHealth() {
 	sem := make(chan struct{}, maxConcurrent)
 	var wg sync.WaitGroup
 
-	// 创建一个上下文，用于在收到关闭信号时取消所有正在进行的检查
+	// 创建一个带超时的上下文
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// 启动一个协程监控关闭信号
-	go func() {
-		for {
-			if global.GWAF_SHUTDOWN_SIGNAL {
-				zlog.Debug("TaskHealth - Shutdown ")
-				cancel()
-				return
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
-	}()
-
+	// 移除监控goroutine，直接在主循环中检查
 	for _, host := range hosts {
+		// 检查关闭信号
+		if global.GWAF_SHUTDOWN_SIGNAL {
+			zlog.Debug("TaskHealth - Shutdown detected")
+			cancel()
+			break
+		}
+
 		// 检查上下文是否已取消
 		if ctx.Err() != nil {
 			break
 		}
+
 		wg.Add(1)
 		sem <- struct{}{}
 		go func(h model.Hosts) {

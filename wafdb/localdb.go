@@ -66,7 +66,7 @@ func InitCoreDb(currentDir string) (bool, error) {
 
 		// 创建自定义日志记录器
 		gormLogger := NewGormZLogger()
-		if global.GWAF_RELEASE == "false" && utils.CheckDebugEnvInfo() {
+		if global.GWAF_LOG_DEBUG_DB_ENABLE == true {
 			gormLogger = gormLogger.LogMode(logger.Info).(*GormZLogger)
 			// 启用调试模式
 			db = db.Session(&gorm.Session{
@@ -195,7 +195,7 @@ func InitLogDb(currentDir string) (bool, error) {
 		_ = db.Exec("PRAGMA journal_mode=WAL;")
 		// 创建自定义日志记录器
 		gormLogger := NewGormZLogger()
-		if global.GWAF_RELEASE == "false" && utils.CheckDebugEnvInfo() {
+		if global.GWAF_LOG_DEBUG_DB_ENABLE == true {
 			gormLogger = gormLogger.LogMode(logger.Info).(*GormZLogger)
 			// 启用调试模式
 			db = db.Session(&gorm.Session{
@@ -264,7 +264,7 @@ func InitManaulLogDb(currentDir string, custFileName string) {
 		_ = db.Exec("PRAGMA journal_mode=WAL;")
 		// 创建自定义日志记录器
 		gormLogger := NewGormZLogger()
-		if global.GWAF_RELEASE == "false" && utils.CheckDebugEnvInfo() {
+		if global.GWAF_LOG_DEBUG_DB_ENABLE == true {
 			gormLogger = gormLogger.LogMode(logger.Info).(*GormZLogger)
 			// 启用调试模式
 			db = db.Session(&gorm.Session{
@@ -312,7 +312,7 @@ func InitStatsDb(currentDir string) (bool, error) {
 		_ = db.Exec("PRAGMA journal_mode=WAL;")
 		// 创建自定义日志记录器
 		gormLogger := NewGormZLogger()
-		if global.GWAF_RELEASE == "false" && utils.CheckDebugEnvInfo() {
+		if global.GWAF_LOG_DEBUG_DB_ENABLE == true {
 			gormLogger = gormLogger.LogMode(logger.Info).(*GormZLogger)
 			// 启用调试模式
 			db = db.Session(&gorm.Session{

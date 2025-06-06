@@ -114,7 +114,7 @@ func TestReplaceURLContent(t *testing.T) {
 	t.Parallel()
 
 	//初始化日志
-	zlog.InitZLog(global.GWAF_RELEASE, "json")
+	zlog.InitZLog(global.GWAF_LOG_DEBUG_ENABLE, "json")
 	if v := recover(); v != nil {
 		zlog.Error("error")
 	}
@@ -150,7 +150,7 @@ func TestGetOrgContent(t *testing.T) {
 	t.Parallel()
 
 	//初始化日志
-	zlog.InitZLog(global.GWAF_RELEASE, "json")
+	zlog.InitZLog(global.GWAF_LOG_DEBUG_ENABLE, "json")
 	// 初始化WAF引擎
 	waf := &WafEngine{}
 
@@ -320,7 +320,7 @@ func TestGetOrgContentWithChunkedEncoding(t *testing.T) {
 	t.Parallel()
 
 	//初始化日志
-	zlog.InitZLog(global.GWAF_RELEASE, "json")
+	zlog.InitZLog(global.GWAF_LOG_DEBUG_ENABLE, "json")
 	// 初始化WAF引擎
 	waf := &WafEngine{}
 
@@ -352,7 +352,7 @@ func TestGetOrgContentWithEmptyBody(t *testing.T) {
 	t.Parallel()
 
 	//初始化日志
-	zlog.InitZLog(global.GWAF_RELEASE, "json")
+	zlog.InitZLog(global.GWAF_LOG_DEBUG_ENABLE, "json")
 	// 初始化WAF引擎
 	waf := &WafEngine{}
 
@@ -384,7 +384,7 @@ func TestGetOrgContentWithErrors(t *testing.T) {
 	t.Parallel()
 
 	//初始化日志
-	zlog.InitZLog(global.GWAF_RELEASE, "json")
+	zlog.InitZLog(global.GWAF_LOG_DEBUG_ENABLE, "json")
 	// 初始化WAF引擎
 	waf := &WafEngine{}
 
@@ -411,7 +411,7 @@ func TestGetOrgContentWithErrors(t *testing.T) {
 
 func TestGetOrgContent_MetaAndDoctypeCharset(t *testing.T) {
 	t.Parallel()
-	zlog.InitZLog(global.GWAF_RELEASE, "json")
+	zlog.InitZLog(global.GWAF_LOG_DEBUG_ENABLE, "json")
 	waf := &WafEngine{}
 
 	// 1. meta标签指定utf-8

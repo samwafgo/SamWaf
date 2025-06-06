@@ -16,7 +16,7 @@ func TestCheckDenyURL(t *testing.T) {
 	t.Parallel()
 
 	//初始化日志
-	zlog.InitZLog(global.GWAF_RELEASE, "json")
+	zlog.InitZLog(global.GWAF_LOG_DEBUG_ENABLE, "json")
 	// 初始化 WAF 引擎
 	waf := &WafEngine{
 		HostTarget: make(map[string]*wafenginmodel.HostSafe),

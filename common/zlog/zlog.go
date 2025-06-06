@@ -20,7 +20,7 @@ import (
 var logger *zap.Logger
 
 // InitZLog 初始化zlog
-func InitZLog(releaseFlag string, outputFormat string) {
+func InitZLog(debugEnable bool, outputFormat string) {
 	encoderConfig := zap.NewProductionEncoderConfig()
 	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	var encoder zapcore.Encoder
@@ -34,9 +34,9 @@ func InitZLog(releaseFlag string, outputFormat string) {
 	}
 	fileWriteSyncer := getFileLogWriter()
 
-	if releaseFlag == "false" {
+	if debugEnable == true {
 		core := zapcore.NewTee(
-			// 同时向控制台和文件写日志， 生产环境记得把控制台写入去掉
+			// 调试默认
 			zapcore.NewCore(encoder, zapcore.AddSync(os.Stdout), zapcore.DebugLevel),
 			zapcore.NewCore(encoder, fileWriteSyncer, zapcore.DebugLevel),
 		)
@@ -58,20 +58,36 @@ func getFileLogWriter() (writeSyncer zapcore.WriteSyncer) {
 	// 检测环境变量是否存在
 	envVar := "SamWafIDE"
 	if _, exists := os.LookupEnv(envVar); exists {
-		//fmt.Println("当前在IDE,环境变量" + value)
 		exeDir = "."
 	} else {
 		exePath, err := os.Executable()
 		if err != nil {
-			fmt.Errorf(err.Error())
-			exeDir = ""
+			fmt.Printf("Samwaf GetCurrent Exe Error: %v\n", err)
+			// 使用当前工作目录作为备选方案
+			if wd, wdErr := os.Getwd(); wdErr == nil {
+				exeDir = wd
+			} else {
+				exeDir = "."
+			}
 		} else {
 			exeDir = filepath.Dir(exePath)
 		}
 	}
+
+	// 确保logs目录存在
+	logDir := filepath.Join(exeDir, "logs")
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		fmt.Printf("Samwaf Log Create logs error: %v\n", err)
+		// 如果无法创建目录，使用临时目录
+		logDir = os.TempDir()
+	}
+
+	logFile := filepath.Join(logDir, "log.log")
+	fmt.Printf("Samwaf Log Path: %s\n", logFile)
+
 	// 使用 lumberjack 实现 log rotate
 	lumberJackLogger := &lumberjack.Logger{
-		Filename:   exeDir + "/logs/log.log",
+		Filename:   logFile,
 		MaxSize:    100,
 		MaxBackups: 60,
 		MaxAge:     1,

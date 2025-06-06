@@ -102,6 +102,14 @@ func LoadAndInitConfig() {
 		configChanged = true
 	}
 
+	// 添加debug日志开关配置
+	if config.IsSet("zlog.debug_enable") {
+		global.GWAF_LOG_DEBUG_ENABLE = config.GetBool("zlog.debug_enable")
+	} else {
+		config.Set("zlog.debug_enable", global.GWAF_LOG_DEBUG_ENABLE)
+		configChanged = true
+	}
+
 	//配置和提取白名单
 	if config.IsSet("security.ip_whitelist") {
 		global.GWAF_IP_WHITELIST = config.GetString("security.ip_whitelist")

@@ -12,7 +12,7 @@ import (
 // TestCreateIndexWithConcurrentOperations 测试在创建索引的同时进行读写操作
 func TestCreateIndexWithConcurrentOperations(t *testing.T) {
 	//初始化日志
-	zlog.InitZLog(global.GWAF_RELEASE, "json")
+	zlog.InitZLog(global.GWAF_LOG_DEBUG_ENABLE, "json")
 	//初始化本地数据库
 	wafdb.InitCoreDb("../")
 	wafdb.InitLogDb("../")

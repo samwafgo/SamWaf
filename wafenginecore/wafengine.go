@@ -520,17 +520,30 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						return
 					}
 					if content != "" {
-						r.Response.StatusCode = http.StatusOK
-						r.Response.Status = http.StatusText(http.StatusOK)
-						r.Response.Body = io.NopCloser(bytes.NewBuffer([]byte(content)))
-						r.Response.ContentLength = int64(len(content))
+						// 创建新的Response对象
+						r.Response = &http.Response{
+							StatusCode:    http.StatusOK,
+							Status:        http.StatusText(http.StatusOK),
+							Body:          io.NopCloser(bytes.NewBuffer([]byte(content))),
+							ContentLength: int64(len(content)),
+							Header:        make(http.Header),
+							Proto:         "HTTP/1.1",
+							ProtoMajor:    1,
+							ProtoMinor:    1,
+						}
 						r.Response.Header.Set("Content-Length", strconv.FormatInt(int64(len(content)), 10))
+
+						// 直接写入响应到客户端
+						w.Header().Set("Content-Length", strconv.FormatInt(int64(len(content)), 10))
+						w.WriteHeader(http.StatusOK)
+						w.Write([]byte(content))
 
 						weblogbean.ACTION = "放行"
 						weblogbean.STATUS = r.Response.Status
 						weblogbean.STATUS_CODE = r.Response.StatusCode
 						weblogbean.TASK_FLAG = 1
 						global.GQEQUE_LOG_DB.Enqueue(weblogbean)
+						return
 					}
 				}
 			} else {
@@ -978,7 +991,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 
 				// 根据配置决定是否检查HTTP响应代码并重定向到本地
 				if strings.HasPrefix(weblogfrist.URL, global.GSSL_HTTP_CHANGLE_PATH) {
-					zlog.Debug("TEST_Challenge", weblogfrist.HOST, weblogfrist.URL)
+					zlog.Info("acme-challenge", weblogfrist.HOST, weblogfrist.URL)
 					if global.GCONFIG_RECORD_SSLHTTP_CHECK == 0 || resp.StatusCode == 404 || resp.StatusCode == 301 || resp.StatusCode == 302 {
 						//如果远端HTTP01不存在挑战验证文件，那么我们映射到走本地再试一下
 						//或者配置为不检查HTTP响应代码，直接走本地
@@ -989,6 +1002,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 							challengeFile := urls[3]
 							//检测challengeFile是否合法
 							if !utils.IsValidChallengeFile(challengeFile) {
+								zlog.Error("challengeFile is invalid", challengeFile)
 								return nil
 							}
 							//当前路径 data/vhost/domain code 变量下

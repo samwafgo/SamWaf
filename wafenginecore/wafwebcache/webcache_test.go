@@ -22,7 +22,7 @@ func setupTestEnv() {
 		global.GCACHE_WAFCACHE = cache.InitWafCache()
 	}
 	//初始化日志
-	zlog.InitZLog(global.GWAF_RELEASE, "json")
+	zlog.InitZLog(global.GWAF_LOG_DEBUG_ENABLE, "json")
 }
 
 // 清理测试环境

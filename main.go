@@ -709,7 +709,7 @@ func main() {
 	//加载配置
 	wafconfig.LoadAndInitConfig()
 	//初始化日志
-	zlog.InitZLog(global.GWAF_RELEASE, global.GWAF_LOG_OUTPUT_FORMAT)
+	zlog.InitZLog(global.GWAF_LOG_DEBUG_ENABLE, global.GWAF_LOG_OUTPUT_FORMAT)
 	if v := recover(); v != nil {
 		zlog.Error("主流程上被异常了")
 	}

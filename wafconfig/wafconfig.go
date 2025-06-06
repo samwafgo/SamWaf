@@ -110,6 +110,14 @@ func LoadAndInitConfig() {
 		configChanged = true
 	}
 
+	// 添加数据库日志开关配置
+	if config.IsSet("zlog.db_debug_enable") {
+		global.GWAF_LOG_DEBUG_DB_ENABLE = config.GetBool("zlog.db_debug_enable")
+	} else {
+		config.Set("zlog.db_debug_enable", global.GWAF_LOG_DEBUG_DB_ENABLE)
+		configChanged = true
+	}
+
 	//配置和提取白名单
 	if config.IsSet("security.ip_whitelist") {
 		global.GWAF_IP_WHITELIST = config.GetString("security.ip_whitelist")

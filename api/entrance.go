@@ -42,6 +42,7 @@ type APIGroup struct {
 	WafCacheRuleApi
 	WafTunnelApi
 	WafVpConfigApi
+	WafFileApi
 }
 
 var APIGroupAPP = new(APIGroup)

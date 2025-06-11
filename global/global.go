@@ -98,6 +98,7 @@ var (
 	GWAF_CHAN_CLEAR_CC_WINDOWS                      = make(chan int, 10)                 //清除cc缓存信息
 	GWAF_CHAN_CLEAR_CC_IP                           = make(chan string, 10)              //清除cc缓存信息IP
 	GWAF_QUEUE_SHUTDOWN_SIGNAL        chan struct{} = make(chan struct{})                // 队列关闭信号
+	GWAF_CHAN_CREATE_LOG_INDEX                      = make(chan string, 10)              // 创建日志索引
 
 	GWAF_SHUTDOWN_SIGNAL bool = false // 系统关闭信号
 	/*****CACHE相关*********/

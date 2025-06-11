@@ -650,6 +650,10 @@ func (m *wafSystenService) run() {
 			zlog.Debug("定时清空CCip", clearCcWindowsIp)
 			globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ClearCcWindowsForIP(clearCcWindowsIp)
 			break
+		case createLogIndex := <-global.GWAF_CHAN_CREATE_LOG_INDEX:
+			zlog.Debug("定时创建日志索引", createLogIndex)
+			waftask.TaskCreateIndexByDbName(enums.DB_LOG)
+			break
 		}
 
 	}

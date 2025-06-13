@@ -1,26 +1,92 @@
 package utils
 
 import (
+	"SamWaf/common/zlog"
+	"fmt"
 	"net/http"
 	"strings"
 )
 
-// IsStaticAssist 是否是静态资源
-func IsStaticAssist(res *http.Response, contentType string) bool {
-	// 1. 静态资源类型列表可以扩充一些常见类型
-	var allowedSortFields = []string{"application/javascript", "text/css", "image/jpeg",
-		"image/png", "image/gif", "image/x-icon", "text/js", "application/octet-stream",
-		"image/svg+xml", "image/webp", "font/woff", "font/woff2", "font/ttf", "font/otf",
-		"application/vnd.ms-fontobject", "application/x-font-ttf", "audio/mpeg", "audio/wav",
-		"video/mp4", "video/webm", "application/pdf",
-		"image/bmp", "video/ogg", "audio/ogg", "application/wasm"}
+// 附件检测 - 多种方式综合判断
+func checkAttachment(res *http.Response, contentType string) bool {
 
-	for _, allowedField := range allowedSortFields {
-		if strings.Contains(contentType, allowedField) {
+	contentDisposition := res.Header.Get("Content-Disposition")
+	if contentDisposition != "" {
+		// 1. 检查 attachment 标识
+		if strings.Contains(strings.ToLower(contentDisposition), "attachment") {
+			return true
+		}
+		// 2. 检查 filename 参数（即使没有 attachment，有 filename 也可能是下载）
+		if strings.Contains(strings.ToLower(contentDisposition), "filename") {
 			return true
 		}
 	}
 
+	// 3. 检查常见的下载文件 Content-Type
+	downloadContentTypes := []string{
+		"application/octet-stream",
+		"application/force-download",
+		"application/download",
+		"application/x-download",
+		"application/vnd.ms-excel",
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
+		"application/vnd.ms-powerpoint",
+		"application/vnd.openxmlformats-officedocument.presentationml.presentation", // .pptx
+		"application/msword",
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+		"application/zip",
+		"application/x-zip-compressed",
+		"application/rar",
+		"application/x-rar-compressed",
+		"application/x-7z-compressed",
+		"application/gzip",
+		"application/x-tar",
+	}
+
+	for _, downloadType := range downloadContentTypes {
+		if strings.Contains(strings.ToLower(contentType), downloadType) {
+			return true
+		}
+	}
+
+	// 4. 检查 URL 中的下载相关关键词
+	if res.Request != nil && res.Request.URL != nil {
+		urlPath := strings.ToLower(res.Request.URL.Path)
+		urlQuery := strings.ToLower(res.Request.URL.RawQuery)
+
+		// 检查查询参数中的下载标识
+		downloadParams := []string{"download=", "export=", "attachment=", "file="}
+		for _, param := range downloadParams {
+			if strings.Contains(urlQuery, param) {
+				return true
+			}
+		}
+
+		// 5. 检查常见的下载文件扩展名
+		downloadExtensions := []string{
+			".zip", ".rar", ".7z", ".tar", ".gz", ".bz2",
+			".exe", ".msi", ".dmg", ".pkg", ".deb", ".rpm",
+			".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+			".backup",
+			".iso", ".img", ".bin",
+		}
+
+		for _, ext := range downloadExtensions {
+			if strings.HasSuffix(urlPath, ext) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// IsStaticAssist 是否是静态资源
+func IsStaticAssist(res *http.Response, contentType string) bool {
+	//检测附件
+	if checkAttachment(res, contentType) {
+		zlog.Debug(fmt.Sprintf("检测到附件 %s", res.Request.URL.String()))
+		return true
+	}
 	// 检查请求的Accept头，判断是否为资源类型请求
 	if res.Request != nil {
 		// 检查Sec-Fetch-Dest头，这是一个更明确的指示

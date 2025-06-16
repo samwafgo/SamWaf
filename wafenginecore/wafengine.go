@@ -15,6 +15,7 @@ import (
 	"SamWaf/utils"
 	"SamWaf/wafenginecore/loadbalance"
 	"SamWaf/wafenginecore/wafhttpcore"
+	"SamWaf/wafenginecore/wafhttpserver"
 	"SamWaf/wafenginecore/wafwebcache"
 	"SamWaf/wafproxy"
 	"bytes"
@@ -1225,39 +1226,64 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 					zlog.Warn("https recover ", e)
 				}
 			}()
-			svr := &http.Server{
-				Addr:    ":" + strconv.Itoa(innruntime.Port),
-				Handler: waf,
-				TLSConfig: &tls.Config{
-					GetCertificate: waf.GetCertificateFunc,
-				},
-			}
-			serclone := waf.ServerOnline[innruntime.Port]
-			serclone.Svr = svr
-			serclone.Status = 0
-			waf.ServerOnline[innruntime.Port] = serclone
-			zlog.Info("启动HTTPS 服务器" + strconv.Itoa(innruntime.Port))
-			err := svr.ListenAndServeTLS("", "")
-			if err == http.ErrServerClosed {
-				zlog.Error("[HTTPServer] https server has been close, cause:[%v]", err)
-			} else {
-				//TODO 记录如果https 端口被占用的情况 记录日志 且应该推送websocket
-				wafSysLog := model.WafSysLog{
-					BaseOrm: baseorm.BaseOrm{
-						Id:          uuid.GenUUID(),
-						USER_CODE:   global.GWAF_USER_CODE,
-						Tenant_ID:   global.GWAF_TENANT_ID,
-						CREATE_TIME: customtype.JsonTime(time.Now()),
-						UPDATE_TIME: customtype.JsonTime(time.Now()),
+			var svr *http.Server
+			// 检查是否启用HTTPS重定向服务器
+			if global.GCONFIG_ENABLE_HTTPS_REDIRECT == 1 {
+				// 使用新的重定向服务器
+				redirectServer := &wafhttpserver.RedirectingHTTPSServer{
+					Server: &http.Server{
+						Addr:    ":" + strconv.Itoa(innruntime.Port),
+						Handler: waf,
+						TLSConfig: &tls.Config{
+							GetCertificate: waf.GetCertificateFunc,
+						},
 					},
-					OpType:    "系统运行错误",
-					OpContent: "HTTPS端口被占用: " + strconv.Itoa(innruntime.Port) + ",请检查",
 				}
-				global.GQEQUE_LOG_DB.Enqueue(wafSysLog)
-				zlog.Error("[HTTPServer] https server start fail, cause:[%v]", err)
-			}
-			zlog.Info("server https shutdown")
+				svr = redirectServer.Server
 
+				serclone := waf.ServerOnline[innruntime.Port]
+				serclone.Svr = svr
+				serclone.Status = 0
+				waf.ServerOnline[innruntime.Port] = serclone
+				zlog.Info("启动HTTPS重定向服务器" + strconv.Itoa(innruntime.Port))
+				err := redirectServer.ListenAndServeTLS("", "")
+				if err == http.ErrServerClosed {
+					zlog.Error("[HTTPServer] https redirect server has been close, cause:[%v]", err)
+				}
+			} else {
+				svr = &http.Server{
+					Addr:    ":" + strconv.Itoa(innruntime.Port),
+					Handler: waf,
+					TLSConfig: &tls.Config{
+						GetCertificate: waf.GetCertificateFunc,
+					},
+				}
+				serclone := waf.ServerOnline[innruntime.Port]
+				serclone.Svr = svr
+				serclone.Status = 0
+				waf.ServerOnline[innruntime.Port] = serclone
+				zlog.Info("启动HTTPS 服务器" + strconv.Itoa(innruntime.Port))
+				err := svr.ListenAndServeTLS("", "")
+				if err == http.ErrServerClosed {
+					zlog.Error("[HTTPServer] https server has been close, cause:[%v]", err)
+				} else {
+					//TODO 记录如果https 端口被占用的情况 记录日志 且应该推送websocket
+					wafSysLog := model.WafSysLog{
+						BaseOrm: baseorm.BaseOrm{
+							Id:          uuid.GenUUID(),
+							USER_CODE:   global.GWAF_USER_CODE,
+							Tenant_ID:   global.GWAF_TENANT_ID,
+							CREATE_TIME: customtype.JsonTime(time.Now()),
+							UPDATE_TIME: customtype.JsonTime(time.Now()),
+						},
+						OpType:    "系统运行错误",
+						OpContent: "HTTPS端口被占用: " + strconv.Itoa(innruntime.Port) + ",请检查",
+					}
+					global.GQEQUE_LOG_DB.Enqueue(wafSysLog)
+					zlog.Error("[HTTPServer] https server start fail, cause:[%v]", err)
+				}
+				zlog.Info("server https shutdown")
+			}
 		} else {
 			defer func() {
 				e := recover()

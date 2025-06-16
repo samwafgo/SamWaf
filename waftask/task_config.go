@@ -88,6 +88,8 @@ func setConfigIntValue(name string, value int64, change int) {
 	case "sslhttp_check":
 		global.GCONFIG_RECORD_SSLHTTP_CHECK = value
 		break
+	case "enable_https_redirect":
+		global.GCONFIG_ENABLE_HTTPS_REDIRECT = value
 	default:
 		zlog.Warn("Unknown config item:", name)
 	}
@@ -207,6 +209,8 @@ func TaskLoadSetting(initLoad bool) {
 	updateConfigStringItem(initLoad, "kafka", "kafka_topic", global.GCONFIG_RECORD_KAFKA_TOPIC, "kafka topic", "string", "")
 
 	updateConfigIntItem(initLoad, "system", "redirect_https_code", global.GCONFIG_RECORD_REDIRECT_HTTPS_CODE, "80重定向https时候跳转代码", "int", "")
+	updateConfigIntItem(initLoad, "system", "enable_https_redirect", global.GCONFIG_ENABLE_HTTPS_REDIRECT, "是否启用HTTPS重定向服务器（0关闭 1开启）", "int", "")
+
 	updateConfigIntItem(initLoad, "system", "login_max_error_time", global.GCONFIG_RECORD_LOGIN_MAX_ERROR_TIME, "登录周期里错误最大次数 请大于0 ", "int", "")
 	updateConfigIntItem(initLoad, "system", "login_limit_mintutes", global.GCONFIG_RECORD_LOGIN_LIMIT_MINTUTES, "登录错误记录周期 单位分钟数，默认1分钟", "int", "")
 	updateConfigIntItem(initLoad, "system", "enable_owasp", global.GCONFIG_RECORD_ENABLE_OWASP, "启动OWASP数据检测（1启动 0关闭）", "int", "")

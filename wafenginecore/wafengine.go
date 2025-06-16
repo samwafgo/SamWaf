@@ -307,10 +307,18 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if host == hostTarget.Host.Host+":80" && !strings.HasPrefix(weblogbean.URL, global.GSSL_HTTP_CHANGLE_PATH) && hostTarget.Host.AutoJumpHTTPS == 1 && hostTarget.Host.Ssl == 1 {
+			domainJump := ""
+			if strings.Contains(host, ":") {
+				partsJump := strings.Split(host, ":")
+				if len(partsJump) == 2 {
+					domainJump = partsJump[0]
+				}
+			}
 			// 重定向到 HTTPS 版本的 URL
-			targetHttpsUrl := fmt.Sprintf("%s%s%s", "https://", r.Host, r.URL.Path)
+			targetHttpsUrl := fmt.Sprintf("%s%s%s", "https://", domainJump, r.URL.Path)
+			// 只有在非标准端口时才显示端口号（443是标准端口）
 			if hostTarget.Host.Port != 443 {
-				targetHttpsUrl = fmt.Sprintf("%s%s:%d%s", "https://", r.Host, hostTarget.Host.Port, r.URL.Path)
+				targetHttpsUrl = fmt.Sprintf("%s%s:%d%s", "https://", domainJump, hostTarget.Host.Port, r.URL.Path)
 			}
 			if r.URL.RawQuery != "" {
 				targetHttpsUrl += "?" + r.URL.RawQuery

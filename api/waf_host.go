@@ -30,7 +30,7 @@ func (w *WafHostAPi) AddApi(c *gin.Context) {
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		//端口从未在本系统加过，检测端口是否被其他应用占用
-		_, svrOk := globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ServerOnline[req.Port]
+		_, svrOk := globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ServerOnline.Get(req.Port)
 		if !svrOk && utils.PortCheck(req.Port) == false {
 			//发送websocket 推送消息
 			global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OpResultMessageInfo{
@@ -199,7 +199,7 @@ func (w *WafHostAPi) ModifyHostApi(c *gin.Context) {
 		wafHostOld := wafHostService.GetDetailByCodeApi(req.CODE)
 		//端口从未在本系统加过，检测端口是否被其他应用占用
 
-		_, svrOk := globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ServerOnline[req.Port]
+		_, svrOk := globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ServerOnline.Get(req.Port)
 		if !svrOk && utils.PortCheck(req.Port) == false {
 			//发送websocket 推送消息
 			global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OpResultMessageInfo{
@@ -295,7 +295,7 @@ func (w *WafHostAPi) ModifyStartStatusApi(c *gin.Context) {
 	if err == nil {
 		wafHostOld := wafHostService.GetDetailByCodeApi(req.CODE)
 
-		_, svrOk := globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ServerOnline[wafHostOld.Port]
+		_, svrOk := globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ServerOnline.Get(wafHostOld.Port)
 
 		if req.START_STATUS == 0 && !svrOk && utils.PortCheck(wafHostOld.Port) == false {
 			//发送websocket 推送消息

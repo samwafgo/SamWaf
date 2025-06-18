@@ -7,7 +7,6 @@ import (
 	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/globalobj"
-	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/model/wafenginmodel"
 	"SamWaf/utils"
@@ -275,7 +274,7 @@ func (m *wafSystenService) run() {
 		HostCode:             map[string]string{},
 		HostTargetNoPort:     map[string]string{},
 		HostTargetMoreDomain: map[string]string{},
-		ServerOnline:         map[int]innerbean.ServerRunTime{},
+		ServerOnline:         wafenginmodel.NewSafeServerMap(),
 		//所有证书情况 对应端口 可能多个端口都是https 443，或者其他非标准端口也要实现https证书
 		AllCertificate: wafenginecore.AllCertificate{
 			Mux: sync.Mutex{},

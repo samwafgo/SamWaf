@@ -42,16 +42,16 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 	if inHost.GLOBAL_HOST == 1 {
 		global.GWAF_GLOBAL_HOST_CODE = inHost.Code
 	}
-	onlineServer, ok := waf.ServerOnline[inHost.Port]
+	onlineServer, ok := waf.ServerOnline.Get(inHost.Port)
 	if ok == false && inHost.GLOBAL_HOST == 0 {
 		if inHost.START_STATUS == 0 {
-			waf.ServerOnline[inHost.Port] = innerbean.ServerRunTime{
+			waf.ServerOnline.Set(inHost.Port, innerbean.ServerRunTime{
 				ServerType: utils.GetServerByHosts(inHost),
 				Port:       inHost.Port,
 				Status:     1,
-			}
+			})
 		} else {
-			delete(waf.ServerOnline, inHost.Port)
+			waf.ServerOnline.Delete(inHost.Port)
 		}
 
 	} else if ok {
@@ -71,16 +71,16 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 	//检查是否存在强制跳转HTTPS的情况
 	if inHost.AutoJumpHTTPS == 1 {
 		default80Port := 80
-		_, ok := waf.ServerOnline[default80Port]
+		_, ok := waf.ServerOnline.Get(default80Port)
 		if ok == false && inHost.GLOBAL_HOST == 0 {
 			if inHost.START_STATUS == 0 {
-				waf.ServerOnline[default80Port] = innerbean.ServerRunTime{
+				waf.ServerOnline.Set(default80Port, innerbean.ServerRunTime{
 					ServerType: "http",
 					Port:       default80Port,
 					Status:     1,
-				}
+				})
 			} else {
-				delete(waf.ServerOnline, default80Port)
+				waf.ServerOnline.Delete(default80Port)
 			}
 		}
 	}
@@ -95,21 +95,21 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 				continue
 			}
 			ports = append(ports, port)
-			_, ok := waf.ServerOnline[port]
+			_, ok := waf.ServerOnline.Get(port)
 			if ok == false {
 				if inHost.START_STATUS == 0 {
 					if port == 443 {
-						waf.ServerOnline[port] = innerbean.ServerRunTime{
+						waf.ServerOnline.Set(port, innerbean.ServerRunTime{
 							ServerType: "https",
 							Port:       port,
 							Status:     1,
-						}
+						})
 					} else {
-						waf.ServerOnline[port] = innerbean.ServerRunTime{
+						waf.ServerOnline.Set(port, innerbean.ServerRunTime{
 							ServerType: "http",
 							Port:       port,
 							Status:     1,
-						}
+						})
 					}
 
 				}
@@ -263,11 +263,14 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 	}
 
 	var serverOnlines = []innerbean.ServerRunTime{}
-	serverOnlines = append(serverOnlines, waf.ServerOnline[inHost.Port])
+	serverOnline, isExist := waf.ServerOnline.Get(inHost.Port)
+	if isExist {
+		serverOnlines = append(serverOnlines, serverOnline)
+	}
 	for _, port := range ports {
-		_, ok := waf.ServerOnline[port]
-		if ok == true {
-			serverOnlines = append(serverOnlines, waf.ServerOnline[port])
+		serverOnline, isExist := waf.ServerOnline.Get(port)
+		if isExist {
+			serverOnlines = append(serverOnlines, serverOnline)
 		}
 	}
 	return serverOnlines
@@ -275,23 +278,32 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 
 // RemovePortServer 检测如果没有端口在占用了，可以关闭相应端口
 func (waf *WafEngine) RemovePortServer() {
-	for onlinePort := range waf.ServerOnline {
+	// 使用Range方法安全地遍历ServerOnline
+	portsToRemove := make([]int, 0)
+
+	waf.ServerOnline.Range(func(onlinePort int, serverRuntime innerbean.ServerRunTime) bool {
 		if waf_service.WafHostServiceApp.CheckAvailablePortExistApi(onlinePort) == 0 {
 			//暂停服务 并 移除服务信息
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
-			_, svrOk := waf.ServerOnline[onlinePort]
-			if svrOk {
-				err := waf.ServerOnline[onlinePort].Svr.Shutdown(ctx)
+			if serverRuntime.Svr != nil {
+				err := serverRuntime.Svr.Shutdown(ctx)
 				if err != nil {
 					zlog.Error("shutting down: " + err.Error())
 				} else {
 					zlog.Info("shutdown processed successfully port" + strconv.Itoa(onlinePort))
 				}
-				delete(waf.ServerOnline, onlinePort)
 			}
+			// 记录需要删除的端口
+			portsToRemove = append(portsToRemove, onlinePort)
 		}
+		return true // 继续遍历
+	})
+
+	// 删除已关闭的端口
+	for _, port := range portsToRemove {
+		waf.ServerOnline.Delete(port)
 	}
 }
 

@@ -50,7 +50,7 @@ type WafEngine struct {
 	//更多域名和配置防护关系 (key:主机域名,value:主机的hostCode)  一个主机绑定很多域名的情况
 	HostTargetMoreDomain map[string]string
 	//服务在线情况（key：端口，value :服务情况）
-	ServerOnline map[int]innerbean.ServerRunTime
+	ServerOnline *wafenginmodel.SafeServerMap
 
 	AllCertificate      AllCertificate //所有证书
 	EngineCurrentStatus int            // 当前waf引擎状态
@@ -177,7 +177,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			zlog.Error("get client error", ipErr.Error())
 			return
 		}
-		_, ok := waf.ServerOnline[hostTarget.Host.Remote_port]
+		_, ok := waf.ServerOnline.Get(hostTarget.Host.Remote_port)
 		//检测如果访问IP和远程IP是同一个IP，且远程端口在本地Server已存在则显示配置错误
 		if clientIP == hostTarget.Host.Remote_ip && ok == true {
 			resBytes := []byte("500: 配置有误" + host + " 当前IP和访问远端IP一样，且端口也一样，会造成循环问题")
@@ -1174,7 +1174,7 @@ func (waf *WafEngine) CloseWaf() {
 	waf.HostTarget = map[string]*wafenginmodel.HostSafe{}
 	waf.HostCode = map[string]string{}
 	waf.HostTargetNoPort = map[string]string{}
-	waf.ServerOnline = map[int]innerbean.ServerRunTime{}
+	waf.ServerOnline.Clear()
 	waf.AllCertificate = AllCertificate{
 		Mux: sync.Mutex{},
 		Map: map[string]*tls.Certificate{},
@@ -1198,9 +1198,10 @@ func (waf *WafEngine) ClearProxy(hostCode string) {
 // 开启所有代理
 func (waf *WafEngine) StartAllProxyServer() {
 
-	for _, v := range waf.ServerOnline {
+	waf.ServerOnline.Range(func(port int, v innerbean.ServerRunTime) bool {
 		waf.StartProxyServer(v)
-	}
+		return true
+	})
 	waf.EnumAllPortProxyServer()
 
 	waf.ReLoadSensitive()
@@ -1209,9 +1210,10 @@ func (waf *WafEngine) StartAllProxyServer() {
 // 罗列端口
 func (waf *WafEngine) EnumAllPortProxyServer() {
 	onlinePorts := ""
-	for _, v := range waf.ServerOnline {
+	waf.ServerOnline.Range(func(port int, v innerbean.ServerRunTime) bool {
 		onlinePorts = strconv.Itoa(v.Port) + "," + onlinePorts
-	}
+		return true
+	})
 	global.GWAF_RUNTIME_CURRENT_WEBPORT = onlinePorts
 }
 
@@ -1249,10 +1251,10 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 				}
 				svr = redirectServer.Server
 
-				serclone := waf.ServerOnline[innruntime.Port]
+				serclone, _ := waf.ServerOnline.Get(innruntime.Port)
 				serclone.Svr = svr
 				serclone.Status = 0
-				waf.ServerOnline[innruntime.Port] = serclone
+				waf.ServerOnline.Set(innruntime.Port, serclone)
 				zlog.Info("启动HTTPS重定向服务器" + strconv.Itoa(innruntime.Port))
 				err := redirectServer.ListenAndServeTLS("", "")
 				if err == http.ErrServerClosed {
@@ -1266,10 +1268,10 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 						GetCertificate: waf.GetCertificateFunc,
 					},
 				}
-				serclone := waf.ServerOnline[innruntime.Port]
+				serclone, _ := waf.ServerOnline.Get(innruntime.Port)
 				serclone.Svr = svr
 				serclone.Status = 0
-				waf.ServerOnline[innruntime.Port] = serclone
+				waf.ServerOnline.Set(innruntime.Port, serclone)
 				zlog.Info("启动HTTPS 服务器" + strconv.Itoa(innruntime.Port))
 				err := svr.ListenAndServeTLS("", "")
 				if err == http.ErrServerClosed {
@@ -1303,11 +1305,11 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 				Addr:    ":" + strconv.Itoa(innruntime.Port),
 				Handler: waf,
 			}
-			serclone := waf.ServerOnline[innruntime.Port]
+			serclone, _ := waf.ServerOnline.Get(innruntime.Port)
 			serclone.Svr = svr
 			serclone.Status = 0
 
-			waf.ServerOnline[innruntime.Port] = serclone
+			waf.ServerOnline.Set(innruntime.Port, serclone)
 
 			zlog.Info("启动HTTP 服务器" + strconv.Itoa(innruntime.Port))
 			err := svr.ListenAndServe()
@@ -1337,9 +1339,10 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 
 // 关闭所有代理服务
 func (waf *WafEngine) StopAllProxyServer() {
-	for _, v := range waf.ServerOnline {
+	waf.ServerOnline.Range(func(port int, v innerbean.ServerRunTime) bool {
 		waf.StopProxyServer(v)
-	}
+		return true
+	})
 }
 
 // 关闭指定代理服务

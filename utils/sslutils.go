@@ -1,9 +1,11 @@
 package utils
 
 import (
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"strings"
 )
 
 // PrintSSLCert 打印证书信息
@@ -39,4 +41,22 @@ func PrintSSLCert(cert string) string {
 		result = "格式错误"
 	}
 	return result
+}
+
+// TLSVersionMap maps string representations to tls version constants
+var TLSVersionMap = map[string]uint16{
+	"SSLv3":   tls.VersionSSL30, //这个已经废弃了
+	"TLS 1.0": tls.VersionTLS10,
+	"TLS 1.1": tls.VersionTLS11,
+	"TLS 1.2": tls.VersionTLS12,
+	"TLS 1.3": tls.VersionTLS13,
+}
+
+// ParseTLSVersion parses string like "TLS 1.2" into uint16 version constant
+func ParseTLSVersion(ver string) uint16 {
+	ver = strings.TrimSpace(ver)
+	if v, ok := TLSVersionMap[ver]; ok {
+		return v
+	}
+	return tls.VersionTLS12 // Default to TLS 1.2 if not found
 }

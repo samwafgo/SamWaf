@@ -1246,6 +1246,8 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 						Handler: waf,
 						TLSConfig: &tls.Config{
 							GetCertificate: waf.GetCertificateFunc,
+							MinVersion:     utils.ParseTLSVersion(global.GCONFIG_RECORD_SSLMinVerson),
+							MaxVersion:     utils.ParseTLSVersion(global.GCONFIG_RECORD_SSLMaxVerson),
 						},
 					},
 				}
@@ -1266,6 +1268,8 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 					Handler: waf,
 					TLSConfig: &tls.Config{
 						GetCertificate: waf.GetCertificateFunc,
+						MinVersion:     utils.ParseTLSVersion(global.GCONFIG_RECORD_SSLMinVerson),
+						MaxVersion:     utils.ParseTLSVersion(global.GCONFIG_RECORD_SSLMaxVerson),
 					},
 				}
 				serclone, _ := waf.ServerOnline.Get(innruntime.Port)

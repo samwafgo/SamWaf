@@ -2,6 +2,7 @@ package model
 
 import (
 	"SamWaf/model/baseorm"
+	"encoding/json"
 )
 
 type Hosts struct {
@@ -70,6 +71,41 @@ type CaptchaConfig struct {
 	ExcludeURLs     string `json:"exclude_urls"`      // 排除验证码的URL列表
 	ExpireTime      int    `json:"expire_time"`       // 验证通过后的有效期(小时)
 	IPMode          string `json:"ip_mode"`           // IP提取模式: "nic" 网卡模式 或 "proxy" 代理模式
+	EngineType      string `json:"engine_type"`       // 验证码引擎类型: 传统方式 "traditional",capJS工作量证明 "capJs"
+	CapJsConfig     struct {
+		ChallengeCount      int `json:"challengeCount,omitempty"`      // Number of challenges to generate (default: 50)
+		ChallengeSize       int `json:"challengeSize,omitempty"`       // Size of each challenge in bytes (default: 32)
+		ChallengeDifficulty int `json:"challengeDifficulty,omitempty"` // Difficulty level (default: 4)
+		ExpiresMs           int `json:"expiresMs,omitempty"`           // Expiration time in milliseconds (default: 600000)
+	} `json:"cap_js_config"`
+}
+
+// ParseCaptchaConfig 解析验证码配置
+func ParseCaptchaConfig(captchaJSON string) CaptchaConfig {
+	var config CaptchaConfig
+
+	// 设置默认值
+	config.IsEnableCaptcha = 0
+	config.ExcludeURLs = ""
+	config.ExpireTime = 24
+	config.IPMode = "nic"             // 默认使用网卡模式
+	config.EngineType = "traditional" // 默认使用传统方式
+
+	// 初始化CapJsConfig默认值
+	config.CapJsConfig.ChallengeCount = 50     // 默认生成50个挑战
+	config.CapJsConfig.ChallengeSize = 32      // 默认每个挑战32字节
+	config.CapJsConfig.ChallengeDifficulty = 4 // 默认难度级别4
+	config.CapJsConfig.ExpiresMs = 600000      // 默认过期时间600秒(10分钟)
+
+	// 如果JSON不为空，则解析覆盖默认值
+	if captchaJSON != "" {
+		err := json.Unmarshal([]byte(captchaJSON), &config)
+		if err != nil {
+			// 解析失败时使用默认值，可以记录日志
+			return config
+		}
+	}
+	return config
 }
 
 // AntiLeechConfig 防盗链配置

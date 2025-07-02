@@ -21,6 +21,7 @@ require (
 	github.com/oschwald/geoip2-golang v1.11.0
 	github.com/pquerna/otp v1.4.0
 	github.com/samwafgo/ahocorasick v1.0.0
+	github.com/samwafgo/cap_go_server v1.0.0
 	github.com/samwafgo/go-wxsqlite3 v1.0.1
 	github.com/samwafgo/sqlitedriver v1.0.2
 	github.com/shirou/gopsutil v3.21.11+incompatible

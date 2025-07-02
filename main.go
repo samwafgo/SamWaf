@@ -73,6 +73,9 @@ var spiderBotAssets embed.FS
 //go:embed exedata/captcha
 var captchaAssets embed.FS
 
+//go:embed exedata/capjs
+var capjs embed.FS
+
 // wafSystenService 实现了 service.Service 接口
 type wafSystenService struct{}
 
@@ -188,6 +191,11 @@ func (m *wafSystenService) run() {
 	err = wafinit.CheckAndReleaseDataset(captchaAssets, utils.GetCurrentDir()+"/data/captcha", "captcha")
 	if err != nil {
 		zlog.Error("captcha", err.Error())
+	}
+	// 验证码工作量证明资源释放
+	err = wafinit.CheckAndReleaseDataset(capjs, utils.GetCurrentDir()+"/data/capjs", "capjs")
+	if err != nil {
+		zlog.Error("capJs", err.Error())
 	}
 	//TODO 准备释放最新spider bot
 

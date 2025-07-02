@@ -4,16 +4,17 @@ import (
 	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/innerbean"
+	"SamWaf/model"
 	"SamWaf/wafenginecore/wafcaptcha"
 	"net/http"
 	"strings"
 )
 
 // checkCaptchaToken 返回false 要验证信息 ，true 不验证信息
-func (waf *WafEngine) checkCaptchaToken(r *http.Request, webLog innerbean.WebLog, ipMode string) bool {
+func (waf *WafEngine) checkCaptchaToken(r *http.Request, webLog innerbean.WebLog, captchaConfig model.CaptchaConfig) bool {
 	// 根据IP模式选择使用的IP
 	clientIP := webLog.NetSrcIp
-	if ipMode == "proxy" {
+	if captchaConfig.IPMode == "proxy" {
 		clientIP = webLog.SRC_IP
 	}
 
@@ -56,8 +57,8 @@ func (waf *WafEngine) checkCaptchaToken(r *http.Request, webLog innerbean.WebLog
 }
 
 // 处理验证码
-func (waf *WafEngine) handleCaptchaRequest(w http.ResponseWriter, r *http.Request, expireTime int, log innerbean.WebLog, ipMode string) {
+func (waf *WafEngine) handleCaptchaRequest(w http.ResponseWriter, r *http.Request, log innerbean.WebLog, captchaConfig model.CaptchaConfig) {
 	// 使用验证码服务处理请求
 	captchaService := wafcaptcha.GetService()
-	captchaService.HandleCaptchaRequest(w, r, expireTime, log, ipMode)
+	captchaService.HandleCaptchaRequest(w, r, log, captchaConfig)
 }

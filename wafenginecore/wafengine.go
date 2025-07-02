@@ -439,20 +439,10 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 
 				// 验证码检测
-				captchaConfig := model.CaptchaConfig{
-					IsEnableCaptcha: 0,
-					ExcludeURLs:     "",
-					ExpireTime:      24,
-					IPMode:          "nic", // 默认使用网卡模式
-				}
-
-				err = json.Unmarshal([]byte(hostTarget.Host.CaptchaJSON), &captchaConfig)
-				if err != nil {
-					zlog.Debug("解析captcha json失败")
-				}
+				captchaConfig := model.ParseCaptchaConfig(hostTarget.Host.CaptchaJSON)
 
 				if captchaConfig.IsEnableCaptcha == 1 {
-					if !waf.checkCaptchaToken(r, weblogbean, captchaConfig.IPMode) {
+					if !waf.checkCaptchaToken(r, weblogbean, captchaConfig) {
 						// 检查当前URL是否在排除列表中
 						currentURL := strings.ToLower(r.URL.Path)
 						isExcluded := false
@@ -470,7 +460,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 							}
 						}
 						if !isExcluded {
-							waf.handleCaptchaRequest(w, r, captchaConfig.ExpireTime, weblogbean, captchaConfig.IPMode)
+							waf.handleCaptchaRequest(w, r, weblogbean, captchaConfig)
 							return
 						}
 					}

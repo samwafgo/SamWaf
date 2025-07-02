@@ -195,7 +195,7 @@ func (s *CaptchaService) HandleCaptchaRequest(w http.ResponseWriter, r *http.Req
 		} else {
 			// 记录日志信息
 			weblog.ACTION = "禁止"
-			weblog.RULE = "显示图形验证码"
+			weblog.RULE = "显示CapJs验证码"
 			global.GQEQUE_LOG_DB.Enqueue(weblog)
 			// 默认显示验证码选择页面
 			s.ShowCaptchaHomePage(w, r, captchaConfig)

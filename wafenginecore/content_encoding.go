@@ -9,6 +9,7 @@ import (
 	"compress/gzip"
 	"errors"
 	"fmt"
+	"github.com/andybalholm/brotli"
 	"golang.org/x/net/html/charset"
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/simplifiedchinese"
@@ -69,6 +70,8 @@ func (waf *WafEngine) compressContent(res *http.Response, isStaticAssist bool, i
 		respBytes, err = utils.GZipEncode(encodedBytes)
 	case "deflate":
 		respBytes, err = utils.DeflateEncode(encodedBytes)
+	case "br":
+		respBytes, err = utils.BrotliEncode(encodedBytes)
 	default:
 		respBytes = encodedBytes
 	}
@@ -106,6 +109,9 @@ func (waf *WafEngine) getOrgContent(resp *http.Response, isStaticAssist bool, de
 		deflateReader := flate.NewReader(resp.Body)
 		bodyReader = deflateReader
 		defer deflateReader.Close()
+	case "br":
+		brotliReader := brotli.NewReader(resp.Body)
+		bodyReader = brotliReader
 	default:
 		bodyReader = resp.Body
 	}

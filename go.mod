@@ -3,6 +3,7 @@ module SamWaf
 go 1.23.0
 
 require (
+	github.com/andybalholm/brotli v1.2.0
 	github.com/bytedance/godlp v1.2.15
 	github.com/corazawaf/coraza/v3 v3.2.2
 	github.com/corazawaf/libinjection-go v0.2.2

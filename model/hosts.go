@@ -77,6 +77,14 @@ type CaptchaConfig struct {
 		ChallengeSize       int `json:"challengeSize,omitempty"`       // Size of each challenge in bytes (default: 32)
 		ChallengeDifficulty int `json:"challengeDifficulty,omitempty"` // Difficulty level (default: 4)
 		ExpiresMs           int `json:"expiresMs,omitempty"`           // Expiration time in milliseconds (default: 600000)
+		InfoTitle           struct {
+			En string `json:"en,omitempty"` // English title
+			Zh string `json:"zh,omitempty"` // Chinese title
+		} `json:"infoTitle,omitempty"` // Multi-language info title
+		InfoText struct {
+			En string `json:"en,omitempty"` // English text
+			Zh string `json:"zh,omitempty"` // Chinese text
+		} `json:"infoText,omitempty"` // Multi-language info text
 	} `json:"cap_js_config"`
 }
 
@@ -96,6 +104,14 @@ func ParseCaptchaConfig(captchaJSON string) CaptchaConfig {
 	config.CapJsConfig.ChallengeSize = 32      // 默认每个挑战32字节
 	config.CapJsConfig.ChallengeDifficulty = 4 // 默认难度级别4
 	config.CapJsConfig.ExpiresMs = 600000      // 默认过期时间600秒(10分钟)
+
+	// 初始化InfoTitle默认值
+	config.CapJsConfig.InfoTitle.Zh = "安全验证"
+	config.CapJsConfig.InfoTitle.En = "Security Verification"
+
+	// 初始化InfoText默认值
+	config.CapJsConfig.InfoText.Zh = "为了确保您的访问安全，请完成以下验证"
+	config.CapJsConfig.InfoText.En = "To ensure the security of your access, please complete the following verification"
 
 	// 如果JSON不为空，则解析覆盖默认值
 	if captchaJSON != "" {

@@ -19,6 +19,7 @@ import (
 	"github.com/wenlng/go-captcha/v2/base/option"
 	"github.com/wenlng/go-captcha/v2/click"
 	"go.uber.org/zap"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -512,8 +513,49 @@ func (s *CaptchaService) ShowCaptchaHomePage(w http.ResponseWriter, r *http.Requ
 		// 从指定目录加载index.html
 		http.ServeFile(w, r, utils.GetCurrentDir()+"/data/captcha/index.html")
 	} else if configStruct.EngineType == "capJs" {
-		// 从指定目录加载index.html
-		http.ServeFile(w, r, utils.GetCurrentDir()+"/data/capjs/index.html")
+		// 读取HTML模板文件
+		htmlPath := utils.GetCurrentDir() + "/data/capjs/index.html"
+		htmlContent, err := ioutil.ReadFile(htmlPath)
+		if err != nil {
+			http.Error(w, "Failed to load page", http.StatusInternalServerError)
+			return
+		}
+
+		// 准备替换的数据
+		htmlStr := string(htmlContent)
+
+		// 替换中文提示信息
+		zhInfoTitle := configStruct.CapJsConfig.InfoTitle.Zh
+		zhInfoText := configStruct.CapJsConfig.InfoText.Zh
+		if zhInfoTitle == "" {
+			zhInfoTitle = "安全验证"
+		}
+		if zhInfoText == "" {
+			zhInfoText = "为了确保您的访问安全，请完成以下验证"
+		}
+
+		// 替换英文提示信息
+		enInfoTitle := configStruct.CapJsConfig.InfoTitle.En
+		enInfoText := configStruct.CapJsConfig.InfoText.En
+		if enInfoTitle == "" {
+			enInfoTitle = "Security Verification"
+		}
+		if enInfoText == "" {
+			enInfoText = "To ensure the security of your access, please complete the following verification"
+		}
+
+		// 使用strings.Replace替换HTML中的静态文本
+		htmlStr = strings.Replace(htmlStr, "infoTitle: '安全验证',", fmt.Sprintf("infoTitle: '%s',", zhInfoTitle), 1)
+		htmlStr = strings.Replace(htmlStr, "infoText: '为了确保您的访问安全，请完成以下验证',", fmt.Sprintf("infoText: '%s',", zhInfoText), 1)
+		htmlStr = strings.Replace(htmlStr, "infoTitle: 'Security Verification',", fmt.Sprintf("infoTitle: '%s',", enInfoTitle), 1)
+		htmlStr = strings.Replace(htmlStr, "infoText: 'To ensure the security of your access, please complete the following verification',", fmt.Sprintf("infoText: '%s',", enInfoText), 1)
+
+		// 同时替换HTML中的默认显示文本
+		htmlStr = strings.Replace(htmlStr, "<h2 id=\"info-title\">安全验证</h2>", fmt.Sprintf("<h2 id=\"info-title\">%s</h2>", zhInfoTitle), 1)
+		htmlStr = strings.Replace(htmlStr, "<p id=\"info-text\">为了确保您的访问安全，请完成以下验证</p>", fmt.Sprintf("<p id=\"info-text\">%s</p>", zhInfoText), 1)
+
+		// 输出修改后的HTML
+		w.Write([]byte(htmlStr))
 	}
 }
 

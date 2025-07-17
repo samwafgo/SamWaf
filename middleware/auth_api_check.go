@@ -7,6 +7,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/service/waf_service"
+	"SamWaf/utils"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"strings"
@@ -46,40 +47,76 @@ func Auth() gin.HandlerFunc {
 				return
 			} else {
 				tokenInfo := global.GCACHE_WAFCACHE.Get(enums.CACHE_TOKEN + tokenStr).(model.TokenInfo)
-				if tokenInfo.LoginIp != c.ClientIP() {
-					zlog.Error(fmt.Sprintf("登录IP不一致，请求拒绝,原IP:%v 当前IP:%v", tokenInfo.LoginIp, c.ClientIP()))
+
+				// IP检查逻辑
+				currentIP := c.ClientIP()
+				ipMatched := false
+
+				// 如果启用严格IP绑定，进行严格IP检查
+				if global.GCONFIG_ENABLE_STRICT_IP_BINDING == 1 {
+					if tokenInfo.LoginIp == currentIP {
+						ipMatched = true
+					} else {
+						ipMatched = false
+					}
+				} else {
+					ipMatched = true
+				}
+
+				// 指纹检查逻辑
+				fingerprintMatched := true
+				if global.GCONFIG_ENABLE_DEVICE_FINGERPRINT == 1 && tokenInfo.DeviceFingerprint != "" {
+					currentFingerprint := utils.GenerateFingerprint(c.Request)
+					if tokenInfo.DeviceFingerprint == currentFingerprint {
+						fingerprintMatched = true
+					} else {
+						fingerprintMatched = false
+					}
+				}
+
+				// 如果指纹不匹配，则拒绝请求
+				if !fingerprintMatched {
+					zlog.Error(fmt.Sprintf("设备指纹都不匹配，请求拒绝。原IP:%v 当前IP:%v 原指纹:%v 当前指纹:%v",
+						tokenInfo.LoginIp, currentIP, tokenInfo.DeviceFingerprint, utils.GenerateFingerprint(c.Request)))
+					//令牌有效但是指纹不匹配，删除缓存
 					global.GCACHE_WAFCACHE.Remove(enums.CACHE_TOKEN + tokenStr)
-					response.AuthFailWithMessage("本次登录IP和上次登录IP不一致需要重新登录", c)
+					response.AuthFailWithMessage("设备验证失败，需要重新登录", c)
 					c.Abort()
 					return
-				} else {
-					//刷新token时间
-					if global.GWAF_RELEASE == "false" {
-						tokenList := global.GCACHE_WAFCACHE.ListAvailableKeysWithPrefix(enums.CACHE_TOKEN)
+				}
 
-						for _, duration := range tokenList {
-							remainTime := fmt.Sprintf("%02d时%02d分", int(duration.Hours()), int(duration.Minutes())%60)
-							zlog.Debug(fmt.Sprintf("%v 当前token有效缓存剩余时间 %v", innerName, remainTime))
-						}
-					}
-					expireTime, err := global.GCACHE_WAFCACHE.GetExpireTime(enums.CACHE_TOKEN + tokenStr)
-					if err == nil {
-						remainingTime := time.Until(expireTime) // 计算剩余有效时间
-						if remainingTime > 0 && remainingTime < 2*time.Minute {
-							zlog.Debug(fmt.Sprintf("%v 当前token有效缓存剩余时间 %v  小于2分钟进行缓存可用时间延期处理", innerName, expireTime))
-							global.GCACHE_WAFCACHE.SetWithTTlRenewTime(enums.CACHE_TOKEN+tokenStr, tokenInfo, time.Duration(global.GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES)*time.Minute)
-						}
-					}
+				// 如果只是IP不匹配但指纹匹配，记录警告日志但允许通过
+				if !ipMatched && fingerprintMatched {
+					zlog.Warn(fmt.Sprintf("IP不匹配但设备指纹匹配，允许通过。原IP:%v 当前IP:%v 指纹:%v",
+						tokenInfo.LoginIp, currentIP, tokenInfo.DeviceFingerprint))
+				}
 
-					//检测是否强制2Fa绑定
-					if global.GCONFIG_RECORD_FORCE_BIND_2FA == 1 && c.Request.RequestURI != "/samwaf/ws" && c.Request.RequestURI != "/samwaf/logout" {
-						otpBean := wafOtpService.GetDetailByUserNameApi(tokenInfo.LoginAccount)
-						if otpBean.UserName == "" {
-							//需要强制跳转2fa绑定界面
-							response.NeedBind2FAWithMessage("系统已开启强制 【双因素认证】 ，请进行绑定", c)
-							c.Abort()
-							return
-						}
+				//刷新token时间
+				if global.GWAF_RELEASE == "false" {
+					tokenList := global.GCACHE_WAFCACHE.ListAvailableKeysWithPrefix(enums.CACHE_TOKEN)
+
+					for _, duration := range tokenList {
+						remainTime := fmt.Sprintf("%02d时%02d分", int(duration.Hours()), int(duration.Minutes())%60)
+						zlog.Debug(fmt.Sprintf("%v 当前token有效缓存剩余时间 %v", innerName, remainTime))
+					}
+				}
+				expireTime, err := global.GCACHE_WAFCACHE.GetExpireTime(enums.CACHE_TOKEN + tokenStr)
+				if err == nil {
+					remainingTime := time.Until(expireTime) // 计算剩余有效时间
+					if remainingTime > 0 && remainingTime < 2*time.Minute {
+						zlog.Debug(fmt.Sprintf("%v 当前token有效缓存剩余时间 %v  小于2分钟进行缓存可用时间延期处理", innerName, expireTime))
+						global.GCACHE_WAFCACHE.SetWithTTlRenewTime(enums.CACHE_TOKEN+tokenStr, tokenInfo, time.Duration(global.GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES)*time.Minute)
+					}
+				}
+
+				//检测是否强制2Fa绑定
+				if global.GCONFIG_RECORD_FORCE_BIND_2FA == 1 && c.Request.RequestURI != "/samwaf/ws" && c.Request.RequestURI != "/samwaf/logout" {
+					otpBean := wafOtpService.GetDetailByUserNameApi(tokenInfo.LoginAccount)
+					if otpBean.UserName == "" {
+						//需要强制跳转2fa绑定界面
+						response.NeedBind2FAWithMessage("系统已开启强制 【双因素认证】 ，请进行绑定", c)
+						c.Abort()
+						return
 					}
 				}
 			}

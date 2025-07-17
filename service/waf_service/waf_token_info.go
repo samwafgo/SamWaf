@@ -34,6 +34,27 @@ func (receiver *WafTokenInfoService) AddApi(loginAccount string, AccessToken str
 	return &mod
 }
 
+// AddApiWithFingerprint 添加带指纹的token信息
+func (receiver *WafTokenInfoService) AddApiWithFingerprint(loginAccount string, AccessToken string, LoginIp string, deviceFingerprint string) *model.TokenInfo {
+
+	var bean = &model.TokenInfo{
+		BaseOrm: baseorm.BaseOrm{
+			Id:          uuid.GenUUID(),
+			USER_CODE:   global.GWAF_USER_CODE,
+			Tenant_ID:   global.GWAF_TENANT_ID,
+			CREATE_TIME: customtype.JsonTime(time.Now()),
+			UPDATE_TIME: customtype.JsonTime(time.Now()),
+		},
+		LoginAccount:      loginAccount,
+		AccessToken:       AccessToken,
+		LoginIp:           LoginIp,
+		DeviceFingerprint: deviceFingerprint,
+	}
+	global.GWAF_LOCAL_DB.Create(bean)
+	mod := receiver.GetInfoByLoginAccount(loginAccount)
+	return &mod
+}
+
 func (receiver *WafTokenInfoService) CheckIsExistByLoginAccountApi(loginAccount string) error {
 	return global.GWAF_LOCAL_DB.First(&model.TokenInfo{}, "login_account = ? ", loginAccount).Error
 }

@@ -113,9 +113,15 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 				}
 			}
 
+			//生成设备指纹
+			deviceFingerprint := ""
+			if global.GCONFIG_ENABLE_DEVICE_FINGERPRINT == 1 {
+				deviceFingerprint = utils.GenerateFingerprint(c.Request)
+			}
+
 			//记录状态
 			accessToken := utils.Md5String(uuid.GenUUID())
-			tokenInfo := wafTokenInfoService.AddApi(bean.LoginAccount, accessToken, c.ClientIP())
+			tokenInfo := wafTokenInfoService.AddApiWithFingerprint(bean.LoginAccount, accessToken, c.ClientIP(), deviceFingerprint)
 
 			//令牌记录到cache里
 			global.GCACHE_WAFCACHE.SetWithTTl(enums.CACHE_TOKEN+accessToken, *tokenInfo, time.Duration(global.GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES)*time.Minute)

@@ -21,7 +21,8 @@ type AccountLog struct {
 }
 type TokenInfo struct {
 	baseorm.BaseOrm
-	LoginAccount string `json:"login_account"`             //登录账号
-	LoginIp      string `json:"login_ip"`                  //登录IP
-	AccessToken  string `json:"access_token" crypto:"aes"` //访问码
+	LoginAccount      string `json:"login_account"`             //登录账号
+	LoginIp           string `json:"login_ip"`                  //登录IP
+	AccessToken       string `json:"access_token" crypto:"aes"` //访问码
+	DeviceFingerprint string `json:"device_fingerprint"`        //设备指纹
 }

@@ -16,4 +16,6 @@ func (receiver *BlockIpRouter) InitBlockIpRouter(group *gin.RouterGroup) {
 	router.POST("/samwaf/wafhost/ipblock/add", api.AddApi)
 	router.GET("/samwaf/wafhost/ipblock/del", api.DelBlockIpApi)
 	router.POST("/samwaf/wafhost/ipblock/edit", api.ModifyBlockIpApi)
+	router.POST("/samwaf/wafhost/ipblock/batch/del", api.BatchDelBlockIpApi)
+	router.POST("/samwaf/wafhost/ipblock/delall", api.DelAllBlockIpApi)
 }

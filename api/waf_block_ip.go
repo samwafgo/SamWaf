@@ -8,6 +8,7 @@ import (
 	"SamWaf/model/request"
 	"SamWaf/model/spec"
 	"errors"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -96,6 +97,61 @@ func (w *WafBlockIpApi) ModifyBlockIpApi(c *gin.Context) {
 			response.OkWithMessage("编辑成功", c)
 		}
 
+	} else {
+		response.FailWithMessage("解析失败", c)
+	}
+}
+
+// BatchDelBlockIpApi 批量删除IP黑名单
+func (w *WafBlockIpApi) BatchDelBlockIpApi(c *gin.Context) {
+	var req request.WafBlockIpBatchDelReq
+	err := c.ShouldBindJSON(&req)
+	if err == nil {
+		// 先获取要删除的记录对应的HostCode，用于后续通知WAF引擎
+		hostCodes, err := wafIpBlockService.GetHostCodesByIds(req.Ids)
+		if err != nil {
+			response.FailWithMessage("获取网站信息失败", c)
+			return
+		}
+
+		// 执行批量删除
+		err = wafIpBlockService.BatchDelApi(req)
+		if err != nil {
+			response.FailWithMessage("批量删除失败: "+err.Error(), c)
+		} else {
+			// 通知所有相关的网站更新配置
+			for _, hostCode := range hostCodes {
+				w.NotifyWaf(hostCode)
+			}
+			response.OkWithMessage(fmt.Sprintf("成功删除 %d 条记录", len(req.Ids)), c)
+		}
+	} else {
+		response.FailWithMessage("解析失败", c)
+	}
+}
+
+// DelAllBlockIpApi 删除指定网站的所有IP黑名单
+func (w *WafBlockIpApi) DelAllBlockIpApi(c *gin.Context) {
+	var req request.WafBlockIpDelAllReq
+	err := c.ShouldBindJSON(&req)
+	if err == nil {
+		// 先获取要删除的记录对应的HostCode，用于后续通知WAF引擎
+		hostCodes, err := wafIpBlockService.GetHostCodes()
+		if err != nil {
+			response.FailWithMessage("获取网站信息失败", c)
+			return
+		}
+
+		err = wafIpBlockService.DelAllApi(req)
+		if err != nil {
+			response.FailWithMessage("全量删除失败: "+err.Error(), c)
+		} else {
+			// 通知所有相关的网站更新配置
+			for _, hostCode := range hostCodes {
+				w.NotifyWaf(hostCode)
+			}
+			response.OkWithMessage("成功删除该网站的所有IP黑名单", c)
+		}
 	} else {
 		response.FailWithMessage("解析失败", c)
 	}

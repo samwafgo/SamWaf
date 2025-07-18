@@ -110,3 +110,65 @@ func (receiver *WafBlockIpService) DelApi(req request.WafBlockIpDelReq) error {
 	err = global.GWAF_LOCAL_DB.Where("id = ?", req.Id).Delete(model.IPBlockList{}).Error
 	return err
 }
+
+// BatchDelApi 批量删除指定ID的IP黑名单
+func (receiver *WafBlockIpService) BatchDelApi(req request.WafBlockIpBatchDelReq) error {
+	if len(req.Ids) == 0 {
+		return errors.New("删除ID列表不能为空")
+	}
+
+	// 先检查所有ID是否存在
+	var count int64
+	err := global.GWAF_LOCAL_DB.Model(&model.IPBlockList{}).Where("id IN ?", req.Ids).Count(&count).Error
+	if err != nil {
+		return err
+	}
+
+	if count != int64(len(req.Ids)) {
+		return errors.New("部分ID不存在")
+	}
+
+	// 执行批量删除
+	err = global.GWAF_LOCAL_DB.Where("id IN ?", req.Ids).Delete(&model.IPBlockList{}).Error
+	return err
+}
+
+// DelAllApi 删除指定网站的所有IP黑名单
+func (receiver *WafBlockIpService) DelAllApi(req request.WafBlockIpDelAllReq) error {
+	// 先检查是否存在记录
+	var count int64
+	err := global.GWAF_LOCAL_DB.Model(&model.IPBlockList{}).Count(&count).Error
+	if err != nil {
+		return err
+	}
+
+	if count == 0 {
+		return errors.New("没有IP黑名单记录")
+	}
+
+	// 执行全量删除 - 限制在当前租户和用户范围内
+	err = global.GWAF_LOCAL_DB.
+		Where("user_code = ? AND tenant_id = ?", global.GWAF_USER_CODE, global.GWAF_TENANT_ID).
+		Delete(&model.IPBlockList{}).Error
+	return err
+}
+
+// GetHostCodesByIds 根据ID列表获取对应的HostCode列表（用于通知WAF引擎）
+func (receiver *WafBlockIpService) GetHostCodesByIds(ids []string) ([]string, error) {
+	var hostCodes []string
+	err := global.GWAF_LOCAL_DB.Model(&model.IPBlockList{}).
+		Where("id IN ?", ids).
+		Distinct("host_code").
+		Pluck("host_code", &hostCodes).Error
+	return hostCodes, err
+}
+
+// GetHostCodes 获取所有HostCode列表（用于通知WAF引擎）
+func (receiver *WafBlockIpService) GetHostCodes() ([]string, error) {
+	var hostCodes []string
+	err := global.GWAF_LOCAL_DB.Model(&model.IPBlockList{}).
+		Distinct("host_code").
+		Where("user_code = ? AND tenant_id = ?", global.GWAF_USER_CODE, global.GWAF_TENANT_ID).
+		Pluck("host_code", &hostCodes).Error
+	return hostCodes, err
+}

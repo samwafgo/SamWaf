@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type WafLogService struct{}
@@ -203,6 +204,18 @@ func (receiver *WafLogService) GetAttackIpListApi(req request.WafAttackIpTagSear
 	var results []model.AttackIPTag
 	var total int64
 
+	// 获取本地时区偏移量（秒）
+	_, offset := time.Now().Zone()
+	offsetMinutes := offset / 60
+
+	// 构建时区偏移修饰符
+	var offsetModifier string
+	if offsetMinutes >= 0 {
+		offsetModifier = fmt.Sprintf("'+%d minutes'", offsetMinutes)
+	} else {
+		offsetModifier = fmt.Sprintf("'%d minutes'", offsetMinutes) // 负数自带负号
+	}
+
 	// 基础查询部分
 	query := `
 	SELECT 
@@ -211,8 +224,8 @@ func (receiver *WafLogService) GetAttackIpListApi(req request.WafAttackIpTagSear
 		ip, 
 		SUM(CASE WHEN ip_tag = '正常' THEN cnt ELSE 0 END) AS pass_num, 
 		SUM(CASE WHEN ip_tag <> '正常' THEN cnt ELSE 0 END) AS deny_num,
-		strftime('%Y-%m-%d %H:%M:%S', MIN(update_time)) AS first_time, 
-		strftime('%Y-%m-%d %H:%M:%S', MAX(update_time)) AS latest_time,
+		strftime('%Y-%m-%d %H:%M:%S', MIN(update_time), ` + offsetModifier + `) AS first_time, 
+		strftime('%Y-%m-%d %H:%M:%S', MAX(update_time), ` + offsetModifier + `) AS latest_time,
 		GROUP_CONCAT(DISTINCT CASE WHEN ip_tag <> '正常' THEN ip_tag END) AS ip_total_tag
 	FROM 
 		ip_tags

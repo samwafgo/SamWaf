@@ -118,21 +118,34 @@ func (w *WafHostAPi) GetAllListApi(c *gin.Context) {
 	wafHosts := wafHostService.GetAllHostApi()
 	allHostRep := make([]response2.AllHostRep, len(wafHosts)) // 创建数组
 	for i, _ := range wafHosts {
+		var hostDisplay string
+		var preHost string = fmt.Sprintf("%s:%d", wafHosts[i].Host, wafHosts[i].Port)
 
+		// 构建括号内的内容
+		var bracketContent []string
+
+		// 如果是SSL，添加SSL标识
 		if wafHosts[i].Ssl == 1 {
-			allHostRep[i] = response2.AllHostRep{
-				Host:    fmt.Sprintf("%s:%d(SSL)", wafHosts[i].Host, wafHosts[i].Port),
-				Code:    wafHosts[i].Code,
-				PreHost: fmt.Sprintf("%s:%d", wafHosts[i].Host, wafHosts[i].Port),
-			}
-		} else {
-			allHostRep[i] = response2.AllHostRep{
-				Host:    fmt.Sprintf("%s:%d", wafHosts[i].Host, wafHosts[i].Port),
-				Code:    wafHosts[i].Code,
-				PreHost: fmt.Sprintf("%s:%d", wafHosts[i].Host, wafHosts[i].Port),
-			}
+			bracketContent = append(bracketContent, "SSL")
 		}
 
+		// 如果有备注，添加备注
+		if wafHosts[i].REMARKS != "" {
+			bracketContent = append(bracketContent, wafHosts[i].REMARKS)
+		}
+
+		// 构建最终的Host显示字符串
+		if len(bracketContent) > 0 {
+			hostDisplay = fmt.Sprintf("%s:%d(%s)", wafHosts[i].Host, wafHosts[i].Port, strings.Join(bracketContent, ","))
+		} else {
+			hostDisplay = fmt.Sprintf("%s:%d", wafHosts[i].Host, wafHosts[i].Port)
+		}
+
+		allHostRep[i] = response2.AllHostRep{
+			Host:    hostDisplay,
+			Code:    wafHosts[i].Code,
+			PreHost: preHost,
+		}
 	}
 	response.OkWithDetailed(allHostRep, "获取成功", c)
 }

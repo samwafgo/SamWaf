@@ -27,3 +27,14 @@ type WafSensitiveSearchReq struct {
 	Remarks string `json:"remarks" form:"remarks"  ` //备注
 	request.PageInfo
 }
+
+// WafSensitiveBatchDelReq 批量删除敏感词请求
+type WafSensitiveBatchDelReq struct {
+	Ids []string `json:"ids" binding:"required"` //敏感词唯一键数组
+}
+
+// WafSensitiveDelAllReq 删除所有敏感词请求
+type WafSensitiveDelAllReq struct {
+	// 可以添加一些过滤条件，比如按检测方向删除
+	CheckDirection string `json:"check_direction"` //可选：按检测方向删除 in,out,all
+}

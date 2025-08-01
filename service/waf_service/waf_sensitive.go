@@ -107,3 +107,52 @@ func (receiver *WafSensitiveService) DelApi(req request.WafSensitiveDelReq) erro
 	err = global.GWAF_LOCAL_DB.Where("id = ?", req.Id).Delete(model.Sensitive{}).Error
 	return err
 }
+
+// BatchDelApi 批量删除指定ID的敏感词
+func (receiver *WafSensitiveService) BatchDelApi(req request.WafSensitiveBatchDelReq) error {
+	if len(req.Ids) == 0 {
+		return errors.New("删除ID列表不能为空")
+	}
+
+	// 先检查所有ID是否存在
+	var count int64
+	err := global.GWAF_LOCAL_DB.Model(&model.Sensitive{}).Where("id IN ?", req.Ids).Count(&count).Error
+	if err != nil {
+		return err
+	}
+
+	if count != int64(len(req.Ids)) {
+		return errors.New("部分ID不存在")
+	}
+
+	// 执行批量删除
+	err = global.GWAF_LOCAL_DB.Where("id IN ?", req.Ids).Delete(&model.Sensitive{}).Error
+	return err
+}
+
+// DelAllApi 删除所有敏感词
+func (receiver *WafSensitiveService) DelAllApi(req request.WafSensitiveDelAllReq) error {
+	// 构建查询条件
+	query := global.GWAF_LOCAL_DB.Model(&model.Sensitive{}).
+		Where("user_code = ? AND tenant_id = ?", global.GWAF_USER_CODE, global.GWAF_TENANT_ID)
+
+	// 如果指定了检测方向，添加过滤条件
+	if req.CheckDirection != "" {
+		query = query.Where("check_direction = ?", req.CheckDirection)
+	}
+
+	// 先检查是否存在记录
+	var count int64
+	err := query.Count(&count).Error
+	if err != nil {
+		return err
+	}
+
+	if count == 0 {
+		return errors.New("没有符合条件的敏感词记录")
+	}
+
+	// 执行删除
+	err = query.Delete(&model.Sensitive{}).Error
+	return err
+}

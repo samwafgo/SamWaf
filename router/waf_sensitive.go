@@ -16,4 +16,6 @@ func (receiver *SensitiveRouter) InitSensitiveRouter(group *gin.RouterGroup) {
 	router.POST("/samwaf/wafhost/sensitive/add", SensitiveRouterApi.AddApi)
 	router.GET("/samwaf/wafhost/sensitive/del", SensitiveRouterApi.DelSensitiveApi)
 	router.POST("/samwaf/wafhost/sensitive/edit", SensitiveRouterApi.ModifySensitiveApi)
+	router.POST("/samwaf/wafhost/sensitive/batch/del", SensitiveRouterApi.BatchDelSensitiveApi)
+	router.POST("/samwaf/wafhost/sensitive/delall", SensitiveRouterApi.DelAllSensitiveApi)
 }

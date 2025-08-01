@@ -153,7 +153,7 @@
         selectedRowKeys: [],
         value: 'first',
         columns: [
-
+        { colKey: 'row-select', type: 'multiple', width: 64, fixed: 'left' },
         [[range .Fields]]
          [[- if not (or (eq .Name "Id") (eq .Name "USER_CODE") (eq .Name "Tenant_ID") (eq .Name "CREATE_TIME")  (eq .Name "UPDATE_TIME"))]]
 
@@ -172,7 +172,7 @@
             title: this.$t('common.op'),
           },
         ],
-        rowKey: 'code',
+        rowKey: 'id',
         tableLayout: 'auto',
         verticalAlign: 'top',
         hover: true,

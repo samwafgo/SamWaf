@@ -5,6 +5,7 @@ import (
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	"errors"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -80,6 +81,46 @@ func (w *WafSensitiveApi) DelSensitiveApi(c *gin.Context) {
 	}
 }
 
+// BatchDelSensitiveApi 批量删除敏感词
+func (w *WafSensitiveApi) BatchDelSensitiveApi(c *gin.Context) {
+	var req request.WafSensitiveBatchDelReq
+	err := c.ShouldBindJSON(&req)
+	if err == nil {
+		// 执行批量删除
+		err = wafSensitiveService.BatchDelApi(req)
+		if err != nil {
+			response.FailWithMessage("批量删除失败: "+err.Error(), c)
+		} else {
+			// 通知WAF引擎更新配置
+			w.NotifyWaf()
+			response.OkWithMessage(fmt.Sprintf("成功删除 %d 条敏感词记录", len(req.Ids)), c)
+		}
+	} else {
+		response.FailWithMessage("解析失败", c)
+	}
+}
+
+// DelAllSensitiveApi 删除所有敏感词
+func (w *WafSensitiveApi) DelAllSensitiveApi(c *gin.Context) {
+	var req request.WafSensitiveDelAllReq
+	err := c.ShouldBindJSON(&req)
+	if err == nil {
+		err = wafSensitiveService.DelAllApi(req)
+		if err != nil {
+			response.FailWithMessage("全量删除失败: "+err.Error(), c)
+		} else {
+			// 通知WAF引擎更新配置
+			w.NotifyWaf()
+			if req.CheckDirection != "" {
+				response.OkWithMessage(fmt.Sprintf("成功删除所有检测方向为 %s 的敏感词", req.CheckDirection), c)
+			} else {
+				response.OkWithMessage("成功删除所有敏感词", c)
+			}
+		}
+	} else {
+		response.FailWithMessage("解析失败", c)
+	}
+}
 func (w *WafSensitiveApi) ModifySensitiveApi(c *gin.Context) {
 	var req request.WafSensitiveEditReq
 	err := c.ShouldBindJSON(&req)

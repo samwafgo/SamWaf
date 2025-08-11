@@ -41,6 +41,7 @@ func checkAttachment(res *http.Response, contentType string) bool {
 		"application/x-7z-compressed",
 		"application/gzip",
 		"application/x-tar",
+		"application/vnd.android.package-archive", //apk
 	}
 
 	for _, downloadType := range downloadContentTypes {
@@ -69,6 +70,7 @@ func checkAttachment(res *http.Response, contentType string) bool {
 			".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
 			".backup",
 			".iso", ".img", ".bin",
+			".apk",
 		}
 
 		for _, ext := range downloadExtensions {

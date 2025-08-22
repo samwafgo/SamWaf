@@ -110,3 +110,68 @@ func (receiver *WafWhiteIpService) DelApi(req request.WafAllowIpDelReq) error {
 	err = global.GWAF_LOCAL_DB.Where("id = ?", req.Id).Delete(model.IPAllowList{}).Error
 	return err
 }
+
+// BatchDelApi 批量删除指定ID的IP白名单
+func (receiver *WafWhiteIpService) BatchDelApi(req request.WafAllowIpBatchDelReq) error {
+	if len(req.Ids) == 0 {
+		return errors.New("删除ID列表不能为空")
+	}
+
+	// 先检查所有ID是否存在
+	var count int64
+	err := global.GWAF_LOCAL_DB.Model(&model.IPAllowList{}).Where("id IN ?", req.Ids).Count(&count).Error
+	if err != nil {
+		return err
+	}
+
+	if count != int64(len(req.Ids)) {
+		return errors.New("部分ID不存在")
+	}
+
+	// 执行批量删除
+	err = global.GWAF_LOCAL_DB.Where("id IN ?", req.Ids).Delete(&model.IPAllowList{}).Error
+	return err
+}
+
+// DelAllApi 删除指定网站的所有IP白名单
+func (receiver *WafWhiteIpService) DelAllApi(req request.WafAllowIpDelAllReq) error {
+	var whereCondition string
+	var whereValues []interface{}
+
+	if len(req.HostCode) > 0 {
+		whereCondition = "host_code = ? AND user_code = ? AND tenant_id = ?"
+		whereValues = append(whereValues, req.HostCode, global.GWAF_USER_CODE, global.GWAF_TENANT_ID)
+	} else {
+		whereCondition = "user_code = ? AND tenant_id = ?"
+		whereValues = append(whereValues, global.GWAF_USER_CODE, global.GWAF_TENANT_ID)
+	}
+
+	// 先检查是否存在记录
+	var count int64
+	err := global.GWAF_LOCAL_DB.Model(&model.IPAllowList{}).Where(whereCondition, whereValues...).Count(&count).Error
+	if err != nil {
+		return err
+	}
+
+	if count == 0 {
+		return errors.New("没有IP白名单记录")
+	}
+
+	// 执行删除
+	err = global.GWAF_LOCAL_DB.Where(whereCondition, whereValues...).Delete(&model.IPAllowList{}).Error
+	return err
+}
+
+// GetHostCodesByIds 根据ID数组获取对应的HostCode列表
+func (receiver *WafWhiteIpService) GetHostCodesByIds(ids []string) ([]string, error) {
+	var hostCodes []string
+	err := global.GWAF_LOCAL_DB.Model(&model.IPAllowList{}).Where("id IN ?", ids).Distinct("host_code").Pluck("host_code", &hostCodes).Error
+	return hostCodes, err
+}
+
+// GetHostCodes 获取所有HostCode列表
+func (receiver *WafWhiteIpService) GetHostCodes() ([]string, error) {
+	var hostCodes []string
+	err := global.GWAF_LOCAL_DB.Model(&model.IPAllowList{}).Where("user_code = ? AND tenant_id = ?", global.GWAF_USER_CODE, global.GWAF_TENANT_ID).Distinct("host_code").Pluck("host_code", &hostCodes).Error
+	return hostCodes, err
+}

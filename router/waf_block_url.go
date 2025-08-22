@@ -16,4 +16,6 @@ func (receiver *BlockUrlRouter) InitBlockUrlRouter(group *gin.RouterGroup) {
 	router.POST("/samwaf/wafhost/urlblock/add", api.AddApi)
 	router.GET("/samwaf/wafhost/urlblock/del", api.DelBlockUrlApi)
 	router.POST("/samwaf/wafhost/urlblock/edit", api.ModifyBlockUrlApi)
+	router.POST("/samwaf/wafhost/urlblock/batchdel", api.BatchDelBlockUrlApi)
+	router.POST("/samwaf/wafhost/urlblock/delall", api.DelAllBlockUrlApi)
 }

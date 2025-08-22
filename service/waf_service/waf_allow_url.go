@@ -107,3 +107,53 @@ func (receiver *WafWhiteUrlService) DelApi(req request.WafAllowUrlDelReq) error 
 	err = global.GWAF_LOCAL_DB.Where("id = ?", req.Id).Delete(model.URLAllowList{}).Error
 	return err
 }
+
+// 批量删除方法
+func (receiver *WafWhiteUrlService) BatchDelApi(req request.WafAllowUrlBatchDelReq) error {
+	// 添加用户和租户验证
+	err := global.GWAF_LOCAL_DB.Where("id IN ? AND user_code = ? AND tenant_id = ?", req.Ids, global.GWAF_USER_CODE, global.GWAF_TENANT_ID).Delete(&model.URLAllowList{}).Error
+	return err
+}
+
+// 全部删除方法
+func (receiver *WafWhiteUrlService) DelAllApi(req request.WafAllowUrlDelAllReq) error {
+	var whereCondition string
+	var whereValues []interface{}
+
+	if len(req.HostCode) > 0 {
+		whereCondition = "host_code = ? AND user_code = ? AND tenant_id = ?"
+		whereValues = append(whereValues, req.HostCode, global.GWAF_USER_CODE, global.GWAF_TENANT_ID)
+	} else {
+		whereCondition = "user_code = ? AND tenant_id = ?"
+		whereValues = append(whereValues, global.GWAF_USER_CODE, global.GWAF_TENANT_ID)
+	}
+
+	// 先检查是否存在记录
+	var count int64
+	err := global.GWAF_LOCAL_DB.Model(&model.URLAllowList{}).Where(whereCondition, whereValues...).Count(&count).Error
+	if err != nil {
+		return err
+	}
+
+	if count == 0 {
+		return errors.New("没有URL白名单记录")
+	}
+
+	// 执行删除
+	err = global.GWAF_LOCAL_DB.Where(whereCondition, whereValues...).Delete(&model.URLAllowList{}).Error
+	return err
+}
+
+// GetHostCodesByIds 根据ID数组获取对应的HostCode列表
+func (receiver *WafWhiteUrlService) GetHostCodesByIds(ids []string) ([]string, error) {
+	var hostCodes []string
+	err := global.GWAF_LOCAL_DB.Model(&model.URLAllowList{}).Where("id IN ?", ids).Distinct("host_code").Pluck("host_code", &hostCodes).Error
+	return hostCodes, err
+}
+
+// GetHostCodes 获取所有HostCode列表
+func (receiver *WafWhiteUrlService) GetHostCodes() ([]string, error) {
+	var hostCodes []string
+	err := global.GWAF_LOCAL_DB.Model(&model.URLAllowList{}).Where("user_code = ? AND tenant_id = ?", global.GWAF_USER_CODE, global.GWAF_TENANT_ID).Distinct("host_code").Pluck("host_code", &hostCodes).Error
+	return hostCodes, err
+}

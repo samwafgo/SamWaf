@@ -8,6 +8,7 @@ import (
 	"SamWaf/model/request"
 	"SamWaf/model/spec"
 	"errors"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -114,4 +115,63 @@ func (w *WafLdpUrlApi) NotifyWaf(host_code string) {
 		Content:  idpUrls,
 	}
 	global.GWAF_CHAN_MSG <- chanInfo
+}
+
+// BatchDelLdpUrlApi 批量删除隐私保护URL
+func (w *WafLdpUrlApi) BatchDelLdpUrlApi(c *gin.Context) {
+	var req request.WafLdpUrlBatchDelReq
+	err := c.ShouldBindJSON(&req)
+	if err == nil {
+		// 先获取要删除的记录对应的HostCode，用于后续通知WAF引擎
+		hostCodes, err := wafLdpUrlService.GetHostCodesByIds(req.Ids)
+		if err != nil {
+			response.FailWithMessage("获取网站信息失败", c)
+			return
+		}
+
+		// 执行批量删除
+		err = wafLdpUrlService.BatchDelApi(req)
+		if err != nil {
+			response.FailWithMessage("批量删除失败: "+err.Error(), c)
+		} else {
+			// 通知所有相关的网站更新配置
+			for _, hostCode := range hostCodes {
+				w.NotifyWaf(hostCode)
+			}
+			response.OkWithMessage(fmt.Sprintf("成功删除 %d 条记录", len(req.Ids)), c)
+		}
+	} else {
+		response.FailWithMessage("解析失败", c)
+	}
+}
+
+// DelAllLdpUrlApi 删除指定网站的所有隐私保护URL
+func (w *WafLdpUrlApi) DelAllLdpUrlApi(c *gin.Context) {
+	var req request.WafLdpUrlDelAllReq
+	err := c.ShouldBindJSON(&req)
+	if err == nil {
+		// 先获取要删除的记录对应的HostCode，用于后续通知WAF引擎
+		hostCodes, err := wafLdpUrlService.GetHostCodes()
+		if err != nil {
+			response.FailWithMessage("获取网站信息失败", c)
+			return
+		}
+
+		err = wafLdpUrlService.DelAllApi(req)
+		if err != nil {
+			response.FailWithMessage("全部删除失败: "+err.Error(), c)
+		} else {
+			// 通知所有相关的网站更新配置
+			for _, hostCode := range hostCodes {
+				w.NotifyWaf(hostCode)
+			}
+			if len(req.HostCode) > 0 {
+				response.OkWithMessage("成功删除该网站的所有隐私保护URL", c)
+			} else {
+				response.OkWithMessage("成功删除所有隐私保护URL", c)
+			}
+		}
+	} else {
+		response.FailWithMessage("解析失败", c)
+	}
 }

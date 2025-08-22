@@ -16,4 +16,6 @@ func (receiver *LdpUrlRouter) InitLdpUrlRouter(group *gin.RouterGroup) {
 	ldpUrlRouter.POST("/samwaf/wafhost/ldpurl/add", LdpUrlRouterApi.AddApi)
 	ldpUrlRouter.GET("/samwaf/wafhost/ldpurl/del", LdpUrlRouterApi.DelLdpUrlApi)
 	ldpUrlRouter.POST("/samwaf/wafhost/ldpurl/edit", LdpUrlRouterApi.ModifyLdpUrlApi)
+	ldpUrlRouter.POST("/samwaf/wafhost/ldpurl/batchdel", LdpUrlRouterApi.BatchDelLdpUrlApi)
+	ldpUrlRouter.POST("/samwaf/wafhost/ldpurl/delall", LdpUrlRouterApi.DelAllLdpUrlApi)
 }

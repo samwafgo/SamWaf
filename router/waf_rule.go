@@ -16,4 +16,6 @@ func (receiver *RuleRouter) InitRuleRouter(group *gin.RouterGroup) {
 	wafRuleRouter.POST("/samwaf/wafhost/rule/add", ruleApi.AddApi)
 	wafRuleRouter.GET("/samwaf/wafhost/rule/del", ruleApi.DelRuleApi)
 	wafRuleRouter.POST("/samwaf/wafhost/rule/edit", ruleApi.ModifyRuleApi)
+	wafRuleRouter.POST("/samwaf/wafhost/rule/batchdel", ruleApi.BatchDelRuleApi)
+	wafRuleRouter.POST("/samwaf/wafhost/rule/delall", ruleApi.DelAllRuleApi)
 }

@@ -203,6 +203,32 @@ func pathCoreSql(db *gorm.DB) {
 	} else {
 		zlog.Info("db", "hosts :static_site_json sensitive_paths update successfully")
 	}
+	//20250827 初始化 letsencrypt CA 服务器记录
+	var letsencryptCount int64
+	db.Model(&model.CaServerInfo{}).Where("ca_server_name = ?", "letsencrypt").Count(&letsencryptCount)
+
+	// 如果不存在 letsencrypt 记录，则创建
+	if letsencryptCount == 0 {
+		letsencryptCA := model.CaServerInfo{
+			BaseOrm: baseorm.BaseOrm{
+				Id:          uuid.GenUUID(),
+				USER_CODE:   global.GWAF_USER_CODE,
+				Tenant_ID:   global.GWAF_TENANT_ID,
+				CREATE_TIME: customtype.JsonTime(time.Now()),
+				UPDATE_TIME: customtype.JsonTime(time.Now()),
+			},
+			CaServerName:    "letsencrypt",
+			CaServerAddress: "https://acme-v02.api.letsencrypt.org/directory",
+			Remarks:         "Let's Encrypt",
+		}
+
+		err := db.Create(&letsencryptCA).Error
+		if err != nil {
+			zlog.Error("db", "init letsencrypt CA server fail", "error", err.Error())
+		} else {
+			zlog.Info("db", "init letsencrypt CA server success")
+		}
+	}
 	// 记录结束时间并计算耗时
 	duration := time.Since(startTime)
 	zlog.Info("create core default value completely", "duration", duration.String())

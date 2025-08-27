@@ -171,3 +171,27 @@ func (receiver *WafSSLOrderService) GetLastedInfo(hostCode string) (model.SslOrd
 
 	return bean, nil
 }
+
+// GetCAServerAddress 根据CA服务器名称获取地址
+func GetCAServerAddress(caServerName string) string {
+	// 如果没有指定CA服务器名称，默认使用letsencrypt
+	if caServerName == "" {
+		caServerName = "letsencrypt"
+	}
+
+	// 从数据库查询CA服务器信息
+	var caServer model.CaServerInfo
+	err := global.GWAF_LOCAL_DB.Where("ca_server_name = ?", caServerName).First(&caServer).Error
+
+	// 如果查询失败或没有找到记录，返回默认的letsencrypt地址
+	if err != nil {
+		return "https://acme-v02.api.letsencrypt.org/directory"
+	}
+
+	// 如果找到记录但地址为空，也返回默认地址
+	if caServer.CaServerAddress == "" {
+		return "https://acme-v02.api.letsencrypt.org/directory"
+	}
+
+	return caServer.CaServerAddress
+}

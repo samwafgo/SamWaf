@@ -38,7 +38,7 @@ func (u *MyUser) GetPrivateKey() crypto.PrivateKey {
 	return u.key
 }
 
-func RegistrationSSL(order model.SslOrder, savePath string) (model.SslOrder, error) {
+func RegistrationSSL(order model.SslOrder, savePath string, caServerAddress string) (model.SslOrder, error) {
 	myUser := MyUser{
 		Email: order.ApplyEmail,
 	}
@@ -67,8 +67,7 @@ func RegistrationSSL(order model.SslOrder, savePath string) (model.SslOrder, err
 	//order.ApplyKey = privateKey
 	config := lego.NewConfig(&myUser)
 
-	// This CA URL is configured for a local dev instance of Boulder running in Docker in a VM.
-	config.CADirURL = lego.LEDirectoryProduction //  测试用 LEDirectoryStaging  正式用 LEDirectoryProduction
+	config.CADirURL = caServerAddress
 	config.Certificate.KeyType = certcrypto.RSA2048
 
 	// A client facilitates communication with the CA server.
@@ -137,7 +136,7 @@ func RegistrationSSL(order model.SslOrder, savePath string) (model.SslOrder, err
 	return order, nil
 }
 
-func ReNewSSL(order model.SslOrder, savePath string) (model.SslOrder, error) {
+func ReNewSSL(order model.SslOrder, savePath string, caServerAddress string) (model.SslOrder, error) {
 	myUser := MyUser{
 		Email: order.ApplyEmail,
 	}
@@ -165,9 +164,7 @@ func ReNewSSL(order model.SslOrder, savePath string) (model.SslOrder, error) {
 
 	//order.ApplyKey = privateKey
 	config := lego.NewConfig(&myUser)
-
-	// This CA URL is configured for a local dev instance of Boulder running in Docker in a VM.
-	config.CADirURL = lego.LEDirectoryProduction // 测试用 LEDirectoryStaging  正式用 LEDirectoryProduction
+	config.CADirURL = caServerAddress
 	config.Certificate.KeyType = certcrypto.RSA2048
 
 	// A client facilitates communication with the CA server.

@@ -41,7 +41,7 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 		if filePathErr != nil {
 			zlog.Error("ApplySSLOrder", filePathErr.Error())
 		}
-		updateSSLOrder, err := ssl.RegistrationSSL(bean, filePath)
+		updateSSLOrder, err := ssl.RegistrationSSL(bean, filePath, waf_service.GetCAServerAddress(bean.ApplyPlatform))
 		if err == nil {
 			zlog.Info(fmt.Sprintf("%s 首次证书申请成功", bean.ApplyDomain))
 
@@ -75,7 +75,7 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 		if filePathErr != nil {
 			zlog.Error("ApplySSLOrder", filePathErr.Error())
 		}
-		updateSSLOrder, err := ssl.ReNewSSL(bean, filePath)
+		updateSSLOrder, err := ssl.ReNewSSL(bean, filePath, waf_service.GetCAServerAddress(bean.ApplyPlatform))
 		if err == nil {
 			zlog.Info(fmt.Sprintf("%s 证书续期申请成功", bean.ApplyDomain))
 

@@ -3,8 +3,11 @@ package waftunnelengine
 import (
 	"SamWaf/common/zlog"
 	"SamWaf/model/waftunnelmodel"
+	"context"
+	"io"
 	"net"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -131,30 +134,51 @@ func (waf *WafTunnelEngine) handleTCPConnection(clientConn net.Conn, port int) {
 		targetConn.SetWriteDeadline(time.Now().Add(time.Duration(tunnelInfo.Tunnel.WriteTimeout) * time.Second))
 	}
 
-	// 双向转发数据
+	// 使用context和WaitGroup管理连接生命周期
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	// 客户端到目标服务器的数据转发
 	go func() {
-		buffer := make([]byte, 4096)
-		for {
-			n, err := clientConn.Read(buffer)
-			if err != nil {
-				return
-			}
-			_, err = targetConn.Write(buffer[:n])
-			if err != nil {
-				return
-			}
+		defer wg.Done()
+		defer cancel() // 任一方向断开时取消context
+
+		// 使用io.Copy，当连接断开时会自动返回
+		_, err := io.Copy(targetConn, clientConn)
+		if err != nil {
+			zlog.Error("客户端->目标 数据转发结束: " + err.Error())
+		} else {
+			zlog.Debug("客户端->目标 数据转发正常结束")
 		}
 	}()
 
-	buffer := make([]byte, 4096)
-	for {
-		n, err := targetConn.Read(buffer)
+	// 目标服务器到客户端的数据转发
+	go func() {
+		defer wg.Done()
+		defer cancel() // 任一方向断开时取消context
+
+		// 使用io.Copy，当连接断开时会自动返回
+		_, err := io.Copy(clientConn, targetConn)
 		if err != nil {
-			return
+			zlog.Error("目标->客户端 数据转发结束: " + err.Error())
+		} else {
+			zlog.Debug("目标->客户端 数据转发正常结束")
 		}
-		_, err = clientConn.Write(buffer[:n])
-		if err != nil {
-			return
-		}
-	}
+	}()
+
+	// 监控context取消，主动关闭连接
+	go func() {
+		<-ctx.Done()
+		// context被取消时，主动关闭两个连接
+		clientConn.Close()
+		targetConn.Close()
+		zlog.Debug("Context取消，主动关闭连接")
+	}()
+
+	// 等待任一方向的连接断开
+	wg.Wait()
+	zlog.Info("TCP连接处理完成，端口: " + strconv.Itoa(port))
 }

@@ -237,3 +237,58 @@ func (waf *WafEngine) getOrgContent(resp *http.Response, isStaticAssist bool, de
 
 	return resBodyBytes, charsetNameFinal, nil
 }
+
+// 处理请求的Content-Encoding解压
+func (waf *WafEngine) decompressRequestContent(req *http.Request) ([]byte, error) {
+	if req.Body == nil || req.Body == http.NoBody {
+		return nil, nil
+	}
+
+	// 读取原始请求体
+	bodyBytes, err := io.ReadAll(req.Body)
+	if err != nil {
+		return nil, fmt.Errorf("读取请求体失败: %v", err)
+	}
+
+	// 重新设置请求体
+	req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	// 根据Content-Encoding进行解压
+	var bodyReader io.Reader
+	switch req.Header.Get("Content-Encoding") {
+	case "gzip":
+		gzipReader, gzipErr := gzip.NewReader(bytes.NewReader(bodyBytes))
+		if gzipErr != nil {
+			zlog.Warn("请求gzip解压失败: %v", gzipErr)
+			return bodyBytes, fmt.Errorf("请求gzip解压失败: %v", gzipErr)
+		}
+		bodyReader = gzipReader
+		defer gzipReader.Close()
+	case "deflate":
+		deflateReader := flate.NewReader(bytes.NewReader(bodyBytes))
+		bodyReader = deflateReader
+		defer deflateReader.Close()
+	case "br":
+		brotliReader := brotli.NewReader(bytes.NewReader(bodyBytes))
+		bodyReader = brotliReader
+	default:
+		// 没有压缩或不支持的压缩格式，直接返回原始内容
+		return bodyBytes, nil
+	}
+
+	// 读取解压后的内容
+	decompressedBytes, readErr := io.ReadAll(bodyReader)
+	if readErr != nil {
+		zlog.Warn("读取解压后的请求体失败: %v", readErr)
+		return bodyBytes, fmt.Errorf("读取解压后的请求体失败: %v", readErr)
+	}
+
+	// 更新请求体为解压后的内容
+	req.Body = io.NopCloser(bytes.NewBuffer(decompressedBytes))
+	// 移除Content-Encoding头，因为内容已经解压
+	req.Header.Del("Content-Encoding")
+	// 更新Content-Length
+	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(decompressedBytes)))
+
+	return decompressedBytes, nil
+}

@@ -41,6 +41,7 @@ type Hosts struct {
 	CacheJSON            string `json:"cache_json"`               //缓存配置 json
 	StaticSiteJSON       string `json:"static_site_json"`         //静态站点配置 json
 	DefaultEncoding      string `json:"default_encoding"`         //默认编码 utf-8 或者 gbk  auto字符串自动选择
+	LogOnlyMode          int    `json:"log_only_mode"`            //仅记录模式 1开启 0关闭
 }
 
 type HostsDefense struct {

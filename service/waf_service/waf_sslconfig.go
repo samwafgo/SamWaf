@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"gorm.io/gorm"
+	"os"
 	"path/filepath"
 	"time"
 )
@@ -176,6 +177,20 @@ func (receiver *WafSslConfigService) ModifyApi(req request.SslConfigEditReq) err
 		"CertPath":    req.CertPath,
 		"KeyPath":     req.KeyPath,
 	}
+	dir := filepath.Dir(req.CertPath)
+	if err = os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	dir = filepath.Dir(req.KeyPath)
+	if err = os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	if err = os.WriteFile(req.CertPath, []byte(req.CertContent), 0644); err != nil {
+		return err
+	}
+	if err = os.WriteFile(req.KeyPath, []byte(req.KeyContent), 0644); err != nil {
+		return err
+	}
 	err = global.GWAF_LOCAL_DB.Model(model.SslConfig{}).Where("id = ?", req.Id).Updates(beanMap).Error
 
 	return err
@@ -201,7 +216,22 @@ func (receiver *WafSslConfigService) ModifyInner(config model.SslConfig) error {
 		"CertPath":    config.CertPath,
 		"KeyPath":     config.KeyPath,
 	}
-	err := global.GWAF_LOCAL_DB.Model(model.SslConfig{}).Where("id = ?", config.Id).Updates(beanMap).Error
+	dir := filepath.Dir(config.CertPath)
+	var err error
+	if err = os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	dir = filepath.Dir(config.KeyPath)
+	if err = os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	if err = os.WriteFile(config.CertPath, []byte(config.CertContent), 0644); err != nil {
+		return err
+	}
+	if err = os.WriteFile(config.KeyPath, []byte(config.KeyContent), 0644); err != nil {
+		return err
+	}
+	err = global.GWAF_LOCAL_DB.Model(model.SslConfig{}).Where("id = ?", config.Id).Updates(beanMap).Error
 	return err
 }
 

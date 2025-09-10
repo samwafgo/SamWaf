@@ -66,6 +66,7 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 		CacheJSON:            wafHostAddReq.CacheJSON,
 		StaticSiteJSON:       wafHostAddReq.StaticSiteJSON,
 		DefaultEncoding:      wafHostAddReq.DefaultEncoding,
+		LogOnlyMode:          wafHostAddReq.LogOnlyMode,
 	}
 	global.GWAF_LOCAL_DB.Create(wafHost)
 	return wafHost.Code, nil
@@ -122,6 +123,7 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 		"CacheJSON":            wafHostEditReq.CacheJSON,
 		"StaticSiteJSON":       wafHostEditReq.StaticSiteJSON,
 		"DefaultEncoding":      wafHostEditReq.DefaultEncoding,
+		"LogOnlyMode":          wafHostEditReq.LogOnlyMode,
 	}
 	err := global.GWAF_LOCAL_DB.Debug().Model(model.Hosts{}).Where("CODE=?", wafHostEditReq.CODE).Updates(hostMap).Error
 

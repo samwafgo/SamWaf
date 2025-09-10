@@ -22,11 +22,11 @@ type WafAttackLogSearch struct {
 	UnixAddTimeBegin string `json:"unix_add_time_begin" form:"unix_add_time_begin"` //开始时间
 	UnixAddTimeEnd   string `json:"unix_add_time_end" form:"unix_add_time_end"`     //结束时间
 	Method           string `json:"method" form:"method"`                           //访问方法
-
-	SortBy         string `json:"sort_by" form:"sort_by"`                 //排序字段
-	SortDescending string `json:"sort_descending" form:"sort_descending"` //排序方式
-	FilterBy       string `json:"filter_by" form:"filter_by"`             //筛选字段
-	FilterValue    string `json:"filter_value" form:"filter_value"`       //筛选值
+	LogOnlyMode      string `json:"log_only_mode" form:"log_only_mode"`             //日志模式
+	SortBy           string `json:"sort_by" form:"sort_by"`                         //排序字段
+	SortDescending   string `json:"sort_descending" form:"sort_descending"`         //排序方式
+	FilterBy         string `json:"filter_by" form:"filter_by"`                     //筛选字段
+	FilterValue      string `json:"filter_value" form:"filter_value"`               //筛选值
 	request.PageInfo
 }
 

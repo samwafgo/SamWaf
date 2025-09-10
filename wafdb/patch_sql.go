@@ -229,6 +229,13 @@ func pathCoreSql(db *gorm.DB) {
 			zlog.Info("db", "init letsencrypt CA server success")
 		}
 	}
+	// 2025-09-10 host的log_only_mode 初始化 默认是0 不启用
+	err = db.Exec("UPDATE hosts SET log_only_mode=? WHERE log_only_mode IS NULL", 0).Error
+	if err != nil {
+		panic("failed to hosts :log_only_mode " + err.Error())
+	} else {
+		zlog.Info("db", "hosts :log_only_mode init successfully")
+	}
 	// 记录结束时间并计算耗时
 	duration := time.Since(startTime)
 	zlog.Info("create core default value completely", "duration", duration.String())

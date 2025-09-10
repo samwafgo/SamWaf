@@ -87,6 +87,12 @@ func (receiver *WafLogService) GetListApi(req request.WafAttackLogSearch) ([]inn
 			}
 			whereField = whereField + " method=? "
 		}
+		if len(req.LogOnlyMode) > 0 {
+			if len(whereField) > 0 {
+				whereField = whereField + " and "
+			}
+			whereField = whereField + " log_only_mode=? "
+		}
 		for _, by := range splitFilterBys {
 
 			if len(by) > 0 {
@@ -146,6 +152,9 @@ func (receiver *WafLogService) GetListApi(req request.WafAttackLogSearch) ([]inn
 		}
 		if len(req.Method) > 0 {
 			whereValues = append(whereValues, req.Method)
+		}
+		if len(req.LogOnlyMode) > 0 {
+			whereValues = append(whereValues, req.LogOnlyMode)
 		}
 		for _, val := range splitFilterValues {
 			if len(val) > 0 {

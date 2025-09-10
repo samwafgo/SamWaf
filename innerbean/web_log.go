@@ -46,6 +46,7 @@ type WebLog struct {
 	BackendCheckCost     int64  `json:"backend_check_cost"`                // 后端处理耗时(ms)
 	ResHeader            string `json:"res_header"`                        // 返回header情况
 	BodyHash             string `json:"body_hash"`                         // body hash值
+	LogOnlyMode          int    `json:"log_only_mode"`                     //是否只记录日志 1 是 0 不是
 }
 
 // 在 GORM 的 Model 方法中定义复合索引

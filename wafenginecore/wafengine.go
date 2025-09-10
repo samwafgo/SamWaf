@@ -351,9 +351,16 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			handleBlock := func(checkFunc func(*http.Request, *innerbean.WebLog, url.Values, *wafenginmodel.HostSafe, *wafenginmodel.HostSafe) detection.Result) bool {
 				detectionResult := checkFunc(r, &weblogbean, formValues, hostTarget, waf.HostTarget[waf.HostCode[global.GWAF_GLOBAL_HOST_CODE]])
 				if detectionResult.IsBlock {
-					decrementMonitor(hostCode)
-					EchoErrorInfo(w, r, weblogbean, detectionResult.Title, detectionResult.Content, hostTarget, waf.HostTarget[waf.HostCode[global.GWAF_GLOBAL_HOST_CODE]], true)
-					return true
+					if hostTarget.Host.LogOnlyMode == 1 {
+						// 仅记录模式：记录攻击日志但不阻断请求
+						weblogbean.LogOnlyMode = 1
+						weblogbean.RULE = detectionResult.Title
+						return false
+					} else {
+						decrementMonitor(hostCode)
+						EchoErrorInfo(w, r, weblogbean, detectionResult.Title, detectionResult.Content, hostTarget, waf.HostTarget[waf.HostCode[global.GWAF_GLOBAL_HOST_CODE]], true)
+						return true
+					}
 				}
 				return false
 			}
@@ -949,7 +956,6 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 
 					//处理敏感词
 					if waf.CheckResponseSensitive() {
-						//敏感词检测
 						matchBodyResult := waf.SensitiveManager.MultiPatternSearch([]rune(string(orgContentBytes)), false)
 						if len(matchBodyResult) > 0 {
 							sensitive := matchBodyResult[0].CustomData.(model.Sensitive)
@@ -957,9 +963,16 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 							if sensitive.CheckDirection != "in" {
 								weblogfrist.RISK_LEVEL = 1
 								if sensitive.Action == "deny" {
-									EchoResponseErrorInfo(resp, *weblogfrist, "敏感词检测："+string(matchBodyResult[0].Word), "敏感词内容", waf.HostTarget[host], waf.HostTarget[waf.HostCode[global.GWAF_GLOBAL_HOST_CODE]], true)
-									return nil
+									if waf.HostTarget[host].Host.LogOnlyMode == 1 {
+										// 仅记录模式：记录攻击日志但不阻断请求
+										weblogfrist.LogOnlyMode = 1
+										weblogfrist.GUEST_IDENTIFICATION = "触发敏感词"
+										weblogfrist.RULE = "敏感词检测：" + string(matchBodyResult[0].Word)
 
+									} else {
+										EchoResponseErrorInfo(resp, *weblogfrist, "敏感词检测："+string(matchBodyResult[0].Word), "敏感词内容", waf.HostTarget[host], waf.HostTarget[waf.HostCode[global.GWAF_GLOBAL_HOST_CODE]], true)
+										return nil
+									}
 								} else {
 									words := processSensitiveWords(matchBodyResult, "in")
 									weblogfrist.GUEST_IDENTIFICATION = "触发敏感词"

@@ -58,15 +58,20 @@ type WafEngine struct {
 	//敏感词管理
 	Sensitive        []model.Sensitive //敏感词
 	SensitiveManager *goahocorasick.Machine
+
+	TransportPool map[string]*http.Transport // 添加Transport缓存池
+	TransportMux  sync.RWMutex               // 保护Transport池的读写锁
 }
 
 func (waf *WafEngine) Error() string {
 	fs := "HTTP: %d, HostCode: %d, Message: %s"
+	zlog.Error(fmt.Sprintf(fs))
 	return fmt.Sprintf(fs)
 }
 func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	innerLogName := "WafEngine ServeHTTP"
 	atomic.AddUint64(&global.GWAF_RUNTIME_QPS, 1) // 原子增加计数器
+
 	port := ""
 	host := r.Host
 	if !strings.Contains(host, ":") {
@@ -318,7 +323,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "CC封禁提醒"},
 				OperaCnt:        visitIPError,
 			})
-			EchoErrorInfo(w, r, weblogbean, "", "当前IP由于访问频次太高暂时无法访问", hostTarget, waf.HostTarget[waf.HostCode[global.GWAF_GLOBAL_HOST_CODE]], false)
+			EchoErrorInfo(w, r, &weblogbean, "", "当前IP由于访问频次太高暂时无法访问", hostTarget, waf.HostTarget[waf.HostCode[global.GWAF_GLOBAL_HOST_CODE]], false)
 			return
 		}
 
@@ -358,7 +363,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						return false
 					} else {
 						decrementMonitor(hostCode)
-						EchoErrorInfo(w, r, weblogbean, detectionResult.Title, detectionResult.Content, hostTarget, waf.HostTarget[waf.HostCode[global.GWAF_GLOBAL_HOST_CODE]], true)
+						EchoErrorInfo(w, r, &weblogbean, detectionResult.Title, detectionResult.Content, hostTarget, waf.HostTarget[waf.HostCode[global.GWAF_GLOBAL_HOST_CODE]], true)
 						return true
 					}
 				}
@@ -483,7 +488,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 							}
 						}
 						if !isExcluded {
-							waf.handleCaptchaRequest(w, r, weblogbean, captchaConfig)
+							waf.handleCaptchaRequest(w, r, &weblogbean, captchaConfig)
 							return
 						}
 					}
@@ -564,7 +569,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						weblogbean.STATUS = r.Response.Status
 						weblogbean.STATUS_CODE = r.Response.StatusCode
 						weblogbean.TASK_FLAG = 1
-						global.GQEQUE_LOG_DB.Enqueue(weblogbean)
+						global.GQEQUE_LOG_DB.Enqueue(&weblogbean)
 						return
 					}
 				}
@@ -584,7 +589,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				// 记录日志
 				weblogbean.RES_BODY = sHttpAuthBaseResult
 				weblogbean.ACTION = "禁止"
-				global.GQEQUE_LOG_DB.Enqueue(weblogbean)
+				global.GQEQUE_LOG_DB.Enqueue(&weblogbean)
 				return
 			}
 		}
@@ -682,7 +687,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		//记录响应body
 		weblogbean.RES_BODY = string(resBytes)
 		weblogbean.ACTION = "禁止"
-		global.GQEQUE_LOG_DB.Enqueue(weblogbean)
+		global.GQEQUE_LOG_DB.Enqueue(&weblogbean)
 	}
 }
 func (waf *WafEngine) getClientIP(r *http.Request, headers ...string) (error, string, string) {
@@ -970,7 +975,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 										weblogfrist.RULE = "敏感词检测：" + string(matchBodyResult[0].Word)
 
 									} else {
-										EchoResponseErrorInfo(resp, *weblogfrist, "敏感词检测："+string(matchBodyResult[0].Word), "敏感词内容", waf.HostTarget[host], waf.HostTarget[waf.HostCode[global.GWAF_GLOBAL_HOST_CODE]], true)
+										EchoResponseErrorInfo(resp, weblogfrist, "敏感词检测："+string(matchBodyResult[0].Word), "敏感词内容", waf.HostTarget[host], waf.HostTarget[waf.HostCode[global.GWAF_GLOBAL_HOST_CODE]], true)
 										return nil
 									}
 								} else {
@@ -1150,7 +1155,7 @@ func (waf *WafEngine) StartWaf() {
 	//第一步 检测合法性并加入到全局
 	waf.LoadAllHost()
 
-	wafSysLog := &model.WafSysLog{
+	wafSysLog := model.WafSysLog{
 		BaseOrm: baseorm.BaseOrm{
 			Id:          uuid.GenUUID(),
 			USER_CODE:   global.GWAF_USER_CODE,
@@ -1161,7 +1166,7 @@ func (waf *WafEngine) StartWaf() {
 		OpType:    "信息",
 		OpContent: "WAF启动",
 	}
-	global.GQEQUE_LOG_DB.Enqueue(wafSysLog)
+	global.GQEQUE_LOG_DB.Enqueue(&wafSysLog)
 
 	waf.StartAllProxyServer()
 }
@@ -1198,6 +1203,12 @@ func (waf *WafEngine) CloseWaf() {
 		Mux: sync.Mutex{},
 		Map: map[string]*tls.Certificate{},
 	}
+	// 清除Transport缓存池
+
+	waf.TransportMux.Lock()
+	waf.TransportPool = map[string]*http.Transport{}
+	defer waf.TransportMux.Unlock()
+
 }
 
 // 清除代理
@@ -1312,7 +1323,7 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 						OpType:    "系统运行错误",
 						OpContent: "HTTPS端口被占用: " + strconv.Itoa(innruntime.Port) + ",请检查",
 					}
-					global.GQEQUE_LOG_DB.Enqueue(wafSysLog)
+					global.GQEQUE_LOG_DB.Enqueue(&wafSysLog)
 					zlog.Error("[HTTPServer] https server start fail, cause:[%v]", err)
 				}
 				zlog.Info("server https shutdown")
@@ -1351,7 +1362,7 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 					OpType:    "系统运行错误",
 					OpContent: "HTTP端口被占用: " + strconv.Itoa(innruntime.Port) + ",请检查",
 				}
-				global.GQEQUE_LOG_DB.Enqueue(wafSysLog)
+				global.GQEQUE_LOG_DB.Enqueue(&wafSysLog)
 				zlog.Error("[HTTPServer] http server start fail, cause:[%v]", err)
 			}
 			zlog.Info("server  http shutdown")

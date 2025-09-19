@@ -79,7 +79,7 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 					OpType:    "登录信息",
 					OpContent: loginError,
 				}
-				global.GQEQUE_LOG_DB.Enqueue(wafSysLog)
+				global.GQEQUE_LOG_DB.Enqueue(&wafSysLog)
 
 				global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
 					BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "登录错误"},
@@ -144,7 +144,7 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 				OpType:    "登录信息",
 				OpContent: noticeStr,
 			}
-			global.GQEQUE_LOG_DB.Enqueue(wafSysLog)
+			global.GQEQUE_LOG_DB.Enqueue(&wafSysLog)
 
 			response.OkWithDetailed(response2.LoginRep{
 				AccessToken: tokenInfo.AccessToken,

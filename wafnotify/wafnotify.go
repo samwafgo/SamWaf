@@ -27,7 +27,7 @@ func (ls *WafNotifyService) ChangeEnable(enable int64) {
 }
 
 // 处理并发送单条日志
-func (ls *WafNotifyService) ProcessSingleLog(log innerbean.WebLog) error {
+func (ls *WafNotifyService) ProcessSingleLog(log *innerbean.WebLog) error {
 	if ls.enable == 0 {
 		return nil
 	}
@@ -47,7 +47,7 @@ func (ls *WafNotifyService) ProcessSingleLog(log innerbean.WebLog) error {
 }
 
 // 处理并发送多条日志
-func (ls *WafNotifyService) ProcessBatchLogs(logs []innerbean.WebLog) error {
+func (ls *WafNotifyService) ProcessBatchLogs(logs []*innerbean.WebLog) error {
 	if ls.enable == 0 {
 		zlog.Debug("kafka没有开启")
 		return nil

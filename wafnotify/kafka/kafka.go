@@ -79,7 +79,7 @@ func (kn *KafkaNotifier) ReConnect() error {
 }
 
 // 实现 WafNotify 接口中的 NotifySingle 方法
-func (kn *KafkaNotifier) NotifySingle(log innerbean.WebLog) error {
+func (kn *KafkaNotifier) NotifySingle(log *innerbean.WebLog) error {
 	err := kn.sendMessage(log)
 	if err != nil {
 		return err
@@ -89,7 +89,7 @@ func (kn *KafkaNotifier) NotifySingle(log innerbean.WebLog) error {
 }
 
 // 实现 WafNotify 接口中的 NotifyBatch 方法
-func (kn *KafkaNotifier) NotifyBatch(logs []innerbean.WebLog) error {
+func (kn *KafkaNotifier) NotifyBatch(logs []*innerbean.WebLog) error {
 	go func() {
 		for _, log := range logs {
 			if err := kn.sendMessage(log); err != nil {
@@ -102,7 +102,7 @@ func (kn *KafkaNotifier) NotifyBatch(logs []innerbean.WebLog) error {
 }
 
 // 发送消息到 Kafka
-func (kn *KafkaNotifier) sendMessage(log innerbean.WebLog) error {
+func (kn *KafkaNotifier) sendMessage(log *innerbean.WebLog) error {
 	if kn.client == nil {
 		err := kn.ReConnect()
 		if err != nil {

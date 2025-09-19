@@ -36,6 +36,7 @@ type WafHostAddReq struct {
 	CacheJSON            string `json:"cache_json"`               //缓存配置 json
 	DefaultEncoding      string `json:"default_encoding"`         //默认编码 utf-8 或者 gbk auto字符串自动选择
 	LogOnlyMode          int    `json:"log_only_mode"`            //是否只记录日志 1 是 0 不是
+	TransportJSON        string `json:"transport_json"`           //Transport配置 json
 }
 
 type WafHostDelReq struct {
@@ -80,6 +81,7 @@ type WafHostEditReq struct {
 	StaticSiteJSON       string `json:"static_site_json"`         //静态站点配置 json
 	DefaultEncoding      string `json:"default_encoding"`         //默认编码 utf-8 或者 gbk auto字符串自动选择
 	LogOnlyMode          int    `json:"log_only_mode"`            //是否只记录日志 1 是 0 不是
+	TransportJSON        string `json:"transport_json"`           //Transport配置 json
 }
 type WafHostGuardStatusReq struct {
 	CODE         string `json:"code"`

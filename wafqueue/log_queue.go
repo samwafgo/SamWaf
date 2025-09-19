@@ -4,6 +4,8 @@ import (
 	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/innerbean"
+	"SamWaf/waftask"
+	"strconv"
 	"sync/atomic"
 	"time"
 )
@@ -25,7 +27,8 @@ func ProcessLogDequeEngine() {
 				zlog.Debug("正在切换数据库等待中队列")
 
 			} else {
-				var webLogArray []innerbean.WebLog
+				var webLogArray []*innerbean.WebLog
+				batchCount := 0
 				for !global.GQEQUE_LOG_DB.Empty() {
 					atomic.AddUint64(&global.GWAF_RUNTIME_LOG_PROCESS, 1) // 原子增加计数器
 					weblogbean, ok := global.GQEQUE_LOG_DB.Dequeue()
@@ -34,8 +37,12 @@ func ProcessLogDequeEngine() {
 					}
 					if weblogbean != nil {
 						// 进行类型断言将其转为具体的结构
-						if logValue, ok := weblogbean.(innerbean.WebLog); ok {
+						if logValue, ok := weblogbean.(*innerbean.WebLog); ok {
 							webLogArray = append(webLogArray, logValue)
+							batchCount++
+							if batchCount > int(global.GDATA_BATCH_INSERT) {
+								break
+							}
 						} else {
 							//插入其他类型内容
 							global.GWAF_LOCAL_LOG_DB.Create(weblogbean)
@@ -43,7 +50,12 @@ func ProcessLogDequeEngine() {
 					}
 				}
 				if len(webLogArray) > 0 {
-					global.GWAF_LOCAL_LOG_DB.CreateInBatches(webLogArray, global.GDATA_BATCH_INSERT)
+					zlog.Info("日志队列处理协程处理日志数量:" + strconv.Itoa(len(webLogArray)))
+					if global.GCONFIG_LOG_PERSIST_ENABLED == 1 {
+						global.GWAF_LOCAL_LOG_DB.CreateInBatches(webLogArray, len(webLogArray))
+					}
+					// 日志流做统计
+					waftask.CollectStatsFromLogs(webLogArray)
 					global.GNOTIFY_KAKFA_SERVICE.ProcessBatchLogs(webLogArray)
 				}
 			}

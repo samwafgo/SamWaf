@@ -97,6 +97,9 @@ func setConfigIntValue(name string, value int64, change int) {
 	case "enable_strict_ip_binding":
 		global.GCONFIG_ENABLE_STRICT_IP_BINDING = value
 		break
+	case "batch_insert":
+		global.GDATA_BATCH_INSERT = value
+		break
 	default:
 		zlog.Warn("Unknown config item:", name)
 	}
@@ -253,5 +256,6 @@ func TaskLoadSetting(initLoad bool) {
 	// 指纹认证相关配置
 	updateConfigIntItem(initLoad, "security", "enable_device_fingerprint", global.GCONFIG_ENABLE_DEVICE_FINGERPRINT, "是否启用设备指纹认证（1启用 0禁用）", "options", "0|禁用,1|启用")
 	updateConfigIntItem(initLoad, "security", "enable_strict_ip_binding", global.GCONFIG_ENABLE_STRICT_IP_BINDING, "是否启用严格IP绑定（1启用 0禁用，启用指纹时建议禁用）", "options", "0|禁用,1|启用")
-
+	//数据库相关
+	updateConfigIntItem(initLoad, "database", "batch_insert", global.GDATA_BATCH_INSERT, "数据库批量插入数量", "int", "")
 }

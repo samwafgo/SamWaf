@@ -134,7 +134,7 @@ var (
 	GSSL_HTTP_CHANGLE_PATH string = "/.well-known/acme-challenge/" // http01证书验证路径
 
 	/******数据库处理参数*****/
-	GDATA_BATCH_INSERT       int                 = 1000        //最大批量插入
+	GDATA_BATCH_INSERT       int64               = 100         //最大批量插入数量
 	GDATA_SHARE_DB_SIZE      int64               = 100 * 10000 //100w 进行分库 100*10000
 	GDATA_SHARE_DB_FILE_SIZE int64               = 1024        //1024M 进行分库
 	GDATA_CURRENT_CHANGE     bool                = false       //当前是否正在切换

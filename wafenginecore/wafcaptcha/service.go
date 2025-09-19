@@ -157,7 +157,7 @@ func GetService() *CaptchaService {
 }
 
 // HandleCaptchaRequest 处理验证码请求
-func (s *CaptchaService) HandleCaptchaRequest(w http.ResponseWriter, r *http.Request, weblog innerbean.WebLog, captchaConfig model.CaptchaConfig) {
+func (s *CaptchaService) HandleCaptchaRequest(w http.ResponseWriter, r *http.Request, weblog *innerbean.WebLog, captchaConfig model.CaptchaConfig) {
 
 	path := r.URL.Path
 	// 记录访问日志
@@ -400,7 +400,7 @@ func (s *CaptchaService) GetClickBasicCaptData(w http.ResponseWriter, r *http.Re
 }
 
 // VerifyCaptcha 验证验证码
-func (s *CaptchaService) VerifyCaptcha(w http.ResponseWriter, r *http.Request, captchaType string, webLog innerbean.WebLog, captchaConfig model.CaptchaConfig) {
+func (s *CaptchaService) VerifyCaptcha(w http.ResponseWriter, r *http.Request, captchaType string, webLog *innerbean.WebLog, captchaConfig model.CaptchaConfig) {
 	// 根据IP模式选择使用的IP
 	clientIP := webLog.NetSrcIp
 	if captchaConfig.IPMode == "proxy" {
@@ -638,7 +638,7 @@ func (s *CaptchaService) VerifyCapJsCaptcha(w http.ResponseWriter, r *http.Reque
 	json.NewEncoder(w).Encode(response)
 }
 
-func (s *CaptchaService) ValidateCapJsCaptcha(w http.ResponseWriter, r *http.Request, configStruct model.CaptchaConfig, webLog innerbean.WebLog) {
+func (s *CaptchaService) ValidateCapJsCaptcha(w http.ResponseWriter, r *http.Request, configStruct model.CaptchaConfig, webLog *innerbean.WebLog) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return

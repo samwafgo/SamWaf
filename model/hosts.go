@@ -40,6 +40,7 @@ type Hosts struct {
 	AntiLeechJSON        string `json:"anti_leech_json"`          //防盗链配置 json
 	CacheJSON            string `json:"cache_json"`               //缓存配置 json
 	StaticSiteJSON       string `json:"static_site_json"`         //静态站点配置 json
+	TransportJSON        string `json:"transport_json"`           //传输配置 json
 	DefaultEncoding      string `json:"default_encoding"`         //默认编码 utf-8 或者 gbk  auto字符串自动选择
 	LogOnlyMode          int    `json:"log_only_mode"`            //仅记录模式 1开启 0关闭
 }
@@ -153,4 +154,37 @@ type StaticSiteConfig struct {
 	SensitiveExtensions string `json:"sensitive_extensions"`  // 敏感文件扩展名，逗号分隔
 	AllowedExtensions   string `json:"allowed_extensions"`    // 允许的文件扩展名白名单，逗号分隔
 	SensitivePatterns   string `json:"sensitive_patterns"`    // 敏感文件名模式（正则表达式），逗号分隔
+}
+
+// TransportConfig 传输配置
+type TransportConfig struct {
+	MaxIdleConns          int `json:"max_idle_conns"`          // 最大空闲连接数
+	MaxIdleConnsPerHost   int `json:"max_idle_conns_per_host"` // 每个主机的最大空闲连接数
+	MaxConnsPerHost       int `json:"max_conns_per_host"`      // 每个主机的最大连接数
+	IdleConnTimeout       int `json:"idle_conn_timeout"`       // 空闲连接超时时间(秒)
+	TLSHandshakeTimeout   int `json:"tls_handshake_timeout"`   // TLS握手超时时间(秒)
+	ExpectContinueTimeout int `json:"expect_continue_timeout"` // Expect Continue超时时间(秒)
+}
+
+// ParseTransportConfig 解析传输配置
+func ParseTransportConfig(transportJSON string) TransportConfig {
+	var config TransportConfig
+
+	// 设置默认值
+	config.MaxIdleConns = 0
+	config.MaxIdleConnsPerHost = 0
+	config.MaxConnsPerHost = 0
+	config.IdleConnTimeout = 0
+	config.TLSHandshakeTimeout = 0
+	config.ExpectContinueTimeout = 0
+
+	// 如果JSON不为空，则解析覆盖默认值
+	if transportJSON != "" {
+		err := json.Unmarshal([]byte(transportJSON), &config)
+		if err != nil {
+			// 解析失败时使用默认值，可以记录日志
+			return config
+		}
+	}
+	return config
 }

@@ -3,7 +3,6 @@ package cache
 import (
 	"SamWaf/common/zlog"
 	"errors"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -33,7 +32,6 @@ func (wafCache *WafCache) Set(key string, value interface{}) {
 }
 
 func (wafCache *WafCache) SetWithTTl(key string, value interface{}, ttl time.Duration) {
-	fmt.Println(ttl)
 	wafCache.mu.Lock()
 	defer wafCache.mu.Unlock()
 	createTime := time.Now()

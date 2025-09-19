@@ -33,7 +33,7 @@ func renderTemplate(templateContent string, data map[string]interface{}) ([]byte
 }
 
 // EchoErrorInfo  ruleName 对内记录  blockInfo 对外展示
-func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean innerbean.WebLog, ruleName string, blockInfo string, hostsafe *wafenginmodel.HostSafe, globalHostSafe *wafenginmodel.HostSafe, isLog bool) {
+func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean *innerbean.WebLog, ruleName string, blockInfo string, hostsafe *wafenginmodel.HostSafe, globalHostSafe *wafenginmodel.HostSafe, isLog bool) {
 	resBytes := []byte("")
 	var responseCode int = 403
 
@@ -136,7 +136,7 @@ func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean innerbean.
 }
 
 // EchoResponseErrorInfo  ruleName 对内记录  blockInfo 对外展示
-func EchoResponseErrorInfo(resp *http.Response, weblogbean innerbean.WebLog, ruleName string, blockInfo string, hostsafe *wafenginmodel.HostSafe, globalHostSafe *wafenginmodel.HostSafe, isLog bool) {
+func EchoResponseErrorInfo(resp *http.Response, weblogbean *innerbean.WebLog, ruleName string, blockInfo string, hostsafe *wafenginmodel.HostSafe, globalHostSafe *wafenginmodel.HostSafe, isLog bool) {
 	resBytes := []byte("")
 	var responseCode int = 403
 

@@ -57,7 +57,7 @@ func (waf *WafEngine) checkCaptchaToken(r *http.Request, webLog innerbean.WebLog
 }
 
 // 处理验证码
-func (waf *WafEngine) handleCaptchaRequest(w http.ResponseWriter, r *http.Request, log innerbean.WebLog, captchaConfig model.CaptchaConfig) {
+func (waf *WafEngine) handleCaptchaRequest(w http.ResponseWriter, r *http.Request, log *innerbean.WebLog, captchaConfig model.CaptchaConfig) {
 	// 使用验证码服务处理请求
 	captchaService := wafcaptcha.GetService()
 	captchaService.HandleCaptchaRequest(w, r, log, captchaConfig)

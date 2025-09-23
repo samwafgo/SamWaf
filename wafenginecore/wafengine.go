@@ -1267,6 +1267,9 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 				}
 			}()
 			var svr *http.Server
+			host := wafHostService.GetHostByPort(innruntime.Port)
+			sslConfigId := host.BindSslId
+			sslConfig := wafSslConfigService.GetDetailInner(sslConfigId)
 			// 检查是否启用HTTPS重定向服务器
 			if global.GCONFIG_ENABLE_HTTPS_REDIRECT == 1 {
 				// 使用新的重定向服务器
@@ -1288,7 +1291,12 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 				serclone.Status = 0
 				waf.ServerOnline.Set(innruntime.Port, serclone)
 				zlog.Info("启动HTTPS重定向服务器" + strconv.Itoa(innruntime.Port))
-				err := redirectServer.ListenAndServeTLS("", "")
+				var err error
+				if sslConfig.CertPath != "" && sslConfig.KeyPath != "" {
+					err = svr.ListenAndServeTLS(sslConfig.CertPath, sslConfig.KeyPath)
+				} else {
+					err = svr.ListenAndServeTLS("", "")
+				}
 				if err == http.ErrServerClosed {
 					zlog.Error("[HTTPServer] https redirect server has been close, cause:[%v]", err)
 				}
@@ -1307,7 +1315,12 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 				serclone.Status = 0
 				waf.ServerOnline.Set(innruntime.Port, serclone)
 				zlog.Info("启动HTTPS 服务器" + strconv.Itoa(innruntime.Port))
-				err := svr.ListenAndServeTLS("", "")
+				var err error
+				if sslConfig.CertPath != "" && sslConfig.KeyPath != "" {
+					err = svr.ListenAndServeTLS(sslConfig.CertPath, sslConfig.KeyPath)
+				} else {
+					err = svr.ListenAndServeTLS("", "")
+				}
 				if err == http.ErrServerClosed {
 					zlog.Error("[HTTPServer] https server has been close, cause:[%v]", err)
 				} else {

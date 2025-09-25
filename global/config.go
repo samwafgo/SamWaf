@@ -2,7 +2,7 @@ package global
 
 var (
 	/******记录参数配置****************/
-	GCONFIG_LOG_PERSIST_ENABLED         int64  = 1                   //是否将web日志持久化到日志库（默认0维持老行为） 1开启 0维持老行为
+	GCONFIG_LOG_PERSIST_ENABLED         int64  = 1                   //是否将web日志持久化到日志库（默认1 ） 1 持久化入库 0 不入库
 	GCONFIG_RECORD_MAX_BODY_LENGTH      int64  = 1024 * 2            //限制记录最大请求的body长度 record_max_req_body_length
 	GCONFIG_RECORD_MAX_RES_BODY_LENGTH  int64  = 1024 * 4            //限制记录最大响应的body长度 record_max_rep_body_length
 	GCONFIG_RECORD_RESP                 int64  = 0                   // 是否记录响应记录 record_resp

@@ -100,6 +100,9 @@ func setConfigIntValue(name string, value int64, change int) {
 	case "batch_insert":
 		global.GDATA_BATCH_INSERT = value
 		break
+	case "log_persist_enable":
+		global.GCONFIG_LOG_PERSIST_ENABLED = value
+		break
 	default:
 		zlog.Warn("Unknown config item:", name)
 	}
@@ -258,4 +261,5 @@ func TaskLoadSetting(initLoad bool) {
 	updateConfigIntItem(initLoad, "security", "enable_strict_ip_binding", global.GCONFIG_ENABLE_STRICT_IP_BINDING, "是否启用严格IP绑定（1启用 0禁用，启用指纹时建议禁用）", "options", "0|禁用,1|启用")
 	//数据库相关
 	updateConfigIntItem(initLoad, "database", "batch_insert", global.GDATA_BATCH_INSERT, "数据库批量插入数量", "int", "")
+	updateConfigIntItem(initLoad, "database", "log_persist_enable", global.GCONFIG_LOG_PERSIST_ENABLED, "是否开启日志持久化（1开启 0关闭）", "options", "0|关闭,1|开启")
 }

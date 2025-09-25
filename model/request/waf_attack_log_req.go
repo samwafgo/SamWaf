@@ -16,6 +16,7 @@ type WafAttackLogSearch struct {
 	CurrrentDbName   string `json:"current_db_name"`
 	HostCode         string `json:"host_code" form:"host_code"`                     //主机码
 	Rule             string `json:"rule" form:"rule"`                               //规则名
+	ReqUuid          string `json:"req_uuid" form:"req_uuid"`                       //请求UUID
 	Action           string `json:"action" form:"action"`                           //状态
 	SrcIp            string `json:"src_ip" form:"src_ip"`                           //请求IP
 	StatusCode       string `json:"status_code" form:"status_code"`                 //响应码

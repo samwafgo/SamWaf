@@ -14,7 +14,7 @@ func IsValidHostFilterField(field string) bool {
 
 // IsValidWebLogFilterField 检测log字段是否合法
 func IsValidWebLogFilterField(field string) bool {
-	var allowedFilterFields = []string{"header", "guest_identification"}
+	var allowedFilterFields = []string{"header", "guest_identification", "req_uuid"}
 
 	for _, allowedField := range allowedFilterFields {
 		if field == allowedField {

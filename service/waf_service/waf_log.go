@@ -63,6 +63,12 @@ func (receiver *WafLogService) GetListApi(req request.WafAttackLogSearch) ([]inn
 			}
 			whereField = whereField + " rule=? "
 		}
+		if len(req.ReqUuid) > 0 {
+			if len(whereField) > 0 {
+				whereField = whereField + " and "
+			}
+			whereField = whereField + " req_uuid=? "
+		}
 		if len(req.Action) > 0 {
 			if len(whereField) > 0 {
 				whereField = whereField + " and "
@@ -140,6 +146,9 @@ func (receiver *WafLogService) GetListApi(req request.WafAttackLogSearch) ([]inn
 		}
 		if len(req.Rule) > 0 {
 			whereValues = append(whereValues, req.Rule)
+		}
+		if len(req.ReqUuid) > 0 {
+			whereValues = append(whereValues, req.ReqUuid)
 		}
 		if len(req.Action) > 0 {
 			whereValues = append(whereValues, req.Action)

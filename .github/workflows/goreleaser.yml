@@ -143,10 +143,10 @@ jobs:
       - name: Revert Golang1.24 commit for Windows7/8
         run: |
           cd $(go env GOROOT)
-          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go123/2a406dc9f1ea7323d6ca9fccb2fe9ddebb6b1cc8.diff
-          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go123/7b1fd7d39c6be0185fbe1d929578ab372ac5c632.diff
-          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go123/979d6d8bab3823ff572ace26767fd2ce3cf351ae.diff
-          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go123/ac3e93c061779dfefc0dd13a5b6e6f764a25621e.diff
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go124/2a406dc9f1ea7323d6ca9fccb2fe9ddebb6b1cc8.diff
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go124/7b1fd7d39c6be0185fbe1d929578ab372ac5c632.diff
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go124/979d6d8bab3823ff572ace26767fd2ce3cf351ae.diff
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go124/ac3e93c061779dfefc0dd13a5b6e6f764a25621e.diff
 
       - name: Get current tag
         id: get_tag

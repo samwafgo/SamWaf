@@ -1,7 +1,9 @@
 package wafhttpserver
 
 import (
+	"SamWaf/global"
 	"fmt"
+	"github.com/pires/go-proxyproto"
 	"net"
 	"net/http"
 	"strings"
@@ -21,6 +23,10 @@ func (s *RedirectingHTTPSServer) ListenAndServeTLS(certFile, keyFile string) err
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
+	}
+
+	if global.GCONFIG_ENABLE_PROXY_PROTOCOL == 1 {
+		listener = &proxyproto.Listener{Listener: listener}
 	}
 
 	return s.ServeTLS(&redirectingListener{

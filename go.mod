@@ -1,6 +1,8 @@
 module SamWaf
 
-go 1.23.0
+go 1.24
+
+toolchain go1.24.7
 
 require (
 	github.com/andybalholm/brotli v1.2.0
@@ -20,6 +22,7 @@ require (
 	github.com/kardianos/service v1.2.2
 	github.com/lionsoul2014/ip2region/binding/golang v0.0.0-20220907060842-b2ba5d58e48d
 	github.com/oschwald/geoip2-golang v1.11.0
+	github.com/pires/go-proxyproto v0.8.1
 	github.com/pquerna/otp v1.4.0
 	github.com/samwafgo/ahocorasick v1.0.0
 	github.com/samwafgo/cap_go_server v1.0.0
@@ -35,9 +38,9 @@ require (
 	github.com/xuri/excelize/v2 v2.9.0
 	go.uber.org/zap v1.25.0
 	golang.org/x/mod v0.23.0
-	golang.org/x/net v0.37.0
-	golang.org/x/sys v0.31.0
-	golang.org/x/text v0.23.0
+	golang.org/x/net v0.39.0
+	golang.org/x/sys v0.32.0
+	golang.org/x/text v0.24.0
 	golang.org/x/time v0.11.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gorm.io/gorm v1.25.2-0.20230530020048-26663ab9bf55
@@ -137,10 +140,10 @@ require (
 	go.mongodb.org/mongo-driver v1.13.1 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/arch v0.12.0 // indirect
-	golang.org/x/crypto v0.36.0 // indirect
+	golang.org/x/crypto v0.37.0 // indirect
 	golang.org/x/exp v0.0.0-20241210194714-1829a127f884 // indirect
 	golang.org/x/image v0.18.0 // indirect
-	golang.org/x/sync v0.12.0 // indirect
+	golang.org/x/sync v0.13.0 // indirect
 	golang.org/x/tools v0.30.0 // indirect
 	google.golang.org/protobuf v1.36.5 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect

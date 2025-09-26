@@ -103,6 +103,9 @@ func setConfigIntValue(name string, value int64, change int) {
 	case "log_persist_enable":
 		global.GCONFIG_LOG_PERSIST_ENABLED = value
 		break
+	case "enable_proxy_protocol":
+		global.GCONFIG_ENABLE_PROXY_PROTOCOL = value
+		break
 	default:
 		zlog.Warn("Unknown config item:", name)
 	}
@@ -255,6 +258,7 @@ func TaskLoadSetting(initLoad bool) {
 	updateConfigIntItem(initLoad, "security", "hide_server_header", global.GCONFIG_RECORD_HIDE_SERVER_HEADER, "是否隐藏Server响应头(1隐藏 0不隐藏)", "int", "")
 	updateConfigIntItem(initLoad, "security", "force_bind_2fa", global.GCONFIG_RECORD_FORCE_BIND_2FA, "是否强制绑定双因素认证(1强制 0不强制)", "options", "0|不强制,1|强制")
 	updateConfigIntItem(initLoad, "system", "fake_spider_captcha", global.GCONFIG_RECORD_FAKE_SPIDER_CAPTCHA, "伪爬虫进行图形挑战开关 0 放过 1 显示图形验证码", "int", "")
+	updateConfigIntItem(initLoad, "system", "enable_proxy_protocol", global.GCONFIG_ENABLE_PROXY_PROTOCOL, "是否启用Proxy Protocol（1启用 0禁用）", "options", "0|禁用,1|启用")
 
 	// 指纹认证相关配置
 	updateConfigIntItem(initLoad, "security", "enable_device_fingerprint", global.GCONFIG_ENABLE_DEVICE_FINGERPRINT, "是否启用设备指纹认证（1启用 0禁用）", "options", "0|禁用,1|启用")

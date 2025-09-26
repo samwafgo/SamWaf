@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/pires/go-proxyproto"
 	goahocorasick "github.com/samwafgo/ahocorasick"
 	"go.uber.org/zap"
 	"io"
@@ -1307,7 +1308,16 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 				serclone.Status = 0
 				waf.ServerOnline.Set(innruntime.Port, serclone)
 				zlog.Info("启动HTTPS 服务器" + strconv.Itoa(innruntime.Port))
-				err := svr.ListenAndServeTLS("", "")
+
+				ln, err := net.Listen("tcp", svr.Addr)
+				if err != nil {
+					zlog.Error("https listen fail", err.Error())
+					return
+				}
+				if global.GCONFIG_ENABLE_PROXY_PROTOCOL == 1 {
+					ln = &proxyproto.Listener{Listener: ln}
+				}
+				err = svr.ServeTLS(ln, "", "")
 				if err == http.ErrServerClosed {
 					zlog.Error("[HTTPServer] https server has been close, cause:[%v]", err)
 				} else {
@@ -1346,7 +1356,16 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 			waf.ServerOnline.Set(innruntime.Port, serclone)
 
 			zlog.Info("启动HTTP 服务器" + strconv.Itoa(innruntime.Port))
-			err := svr.ListenAndServe()
+			ln, err := net.Listen("tcp", svr.Addr)
+			if err != nil {
+				zlog.Error("http listen fail", err.Error())
+				return
+			}
+			if global.GCONFIG_ENABLE_PROXY_PROTOCOL == 1 {
+				ln = &proxyproto.Listener{Listener: ln}
+
+			}
+			err = svr.Serve(ln)
 			if err == http.ErrServerClosed {
 				zlog.Warn("[HTTPServer] http server has been close, cause:[%v]", err)
 			} else {

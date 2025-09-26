@@ -16,6 +16,9 @@ var (
 	GCONFIG_RECORD_LOGIN_MAX_ERROR_TIME int64  = 3                   //登录周期里错误最大次数
 	GCONFIG_RECORD_LOGIN_LIMIT_MINTUTES int64  = 1                   //登录错误记录周期 单位分钟最小1
 
+	// Proxy Protocol 开关（0：关闭；1：开启）
+	GCONFIG_ENABLE_PROXY_PROTOCOL int64 = 0
+
 	// 指纹认证相关配置
 	GCONFIG_ENABLE_DEVICE_FINGERPRINT int64 = 1 // 是否启用设备指纹认证 1启用 0禁用
 	GCONFIG_ENABLE_STRICT_IP_BINDING  int64 = 1 // 是否启用严格IP绑定 1启用 0禁用

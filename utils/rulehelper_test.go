@@ -59,6 +59,72 @@ rule R1ca0bf1c409e4c1b823c995afe7733b0 "禁止一些robotahrefs" salience 10 {
 
 }
 
+// TestWebLog_GetHeaderValue 测试WebLog的GetHeaderValue方法
+func TestWebLog_GetHeaderValue(t *testing.T) {
+	//加载主机对于的规则
+	ruleHelper := &RuleHelper{}
+	ruleHelper.InitRuleEngine()
+
+	drls := `
+	
+rule R1ca0bf1c409e4c1b823c995afe7733b0 "判断header里面的组合信息" salience 10 {
+    when 
+        MF.GetHeaderValue("Accept").Contains("text/plain") == True &&  MF.GetHeaderValue("X-Real-IP").Contains("10.0.0.1") == True 
+    then
+        
+		Retract("R1ca0bf1c409e4c1b823c995afe7733b0");
+} `
+	var ruleconfigs []model.Rules
+	rule := model.Rules{
+		HostCode:        "",
+		RuleCode:        "",
+		RuleName:        "我是规则",
+		RuleContent:     drls,
+		RuleContentJSON: "",
+		RuleVersionName: "",
+		RuleVersion:     0,
+		IsPublicRule:    0,
+		IsManualRule:    0,
+		RuleStatus:      0,
+	}
+	ruleconfigs = append(ruleconfigs, rule)
+	ruleHelper.LoadRules(ruleconfigs)
+
+	//weblog
+	logs := innerbean.WebLog{
+		USER_AGENT: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/600.2.5 (KHTML, like Gecko) Version/8.0.2 Safari/600.2.5 (Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot)",
+		HEADER: "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36\r\n" +
+			"Accept: application/json, text/plain, */*\r\n" +
+			"Accept-Language: zh-CN,zh;q=0.9,en;q=0.8\r\n" +
+			"Accept-Encoding: gzip, deflate, br\r\n" +
+			"Content-Type: application/json\r\n" +
+			"Content-Length: 123\r\n" +
+			"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\r\n" +
+			"X-Forwarded-For: 10.0.0.1, 192.168.1.1\r\n" +
+			"X-Real-IP: 10.0.0.1\r\n" +
+			"X-Custom-Header: custom-value-123\r\n" +
+			"Cookie: session_id=abc123; user_pref=dark_mode\r\n" +
+			"Referer: https://example.com/login\r\n" +
+			"Origin: https://example.com\r\n" +
+			"Connection: keep-alive\r\n" +
+			"Cache-Control: no-cache\r\n",
+	}
+	ruleMatchs, err := ruleHelper.Match("MF", &logs)
+	if err == nil {
+		if len(ruleMatchs) > 0 {
+			fmt.Printf("header里面的组合信息匹配成功，规则描述：%s\n", ruleMatchs[0].RuleDescription)
+			rulestr := ""
+			for _, v := range ruleMatchs {
+				rulestr = rulestr + v.RuleDescription + ","
+			}
+			fmt.Printf("%s", rulestr)
+			return
+		} else {
+			fmt.Printf("header里面的组合信息匹配失败\n")
+		}
+	}
+}
+
 // TestAllRulesInDirectory 测试rule_tests目录下所有规则文件
 func TestAllRulesInDirectory(t *testing.T) {
 	// 初始化规则引擎

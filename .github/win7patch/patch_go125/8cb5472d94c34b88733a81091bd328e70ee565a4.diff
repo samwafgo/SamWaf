@@ -1,0 +1,156 @@
+diff --git a/src/crypto/internal/sysrand/rand_windows.go b/src/crypto/internal/sysrand/rand_windows.go
+index 91f1490c15cda3..0c9f06787d0fb3 100644
+--- a/src/crypto/internal/sysrand/rand_windows.go
++++ b/src/crypto/internal/sysrand/rand_windows.go
+@@ -7,5 +7,26 @@ package sysrand
+ import "internal/syscall/windows"
+ 
+ func read(b []byte) error {
+-	return windows.ProcessPrng(b)
++	// RtlGenRandom only returns 1<<32-1 bytes at a time. We only read at
++	// most 1<<31-1 bytes at a time so that  this works the same on 32-bit
++	// and 64-bit systems.
++	return batched(windows.RtlGenRandom, 1<<31-1)(b)
++}
++
++// batched returns a function that calls f to populate a []byte by chunking it
++// into subslices of, at most, readMax bytes.
++func batched(f func([]byte) error, readMax int) func([]byte) error {
++	return func(out []byte) error {
++		for len(out) > 0 {
++			read := len(out)
++			if read > readMax {
++				read = readMax
++			}
++			if err := f(out[:read]); err != nil {
++				return err
++			}
++			out = out[read:]
++		}
++		return nil
++	}
+ }
+diff --git a/src/crypto/rand/rand.go b/src/crypto/rand/rand.go
+index 1ca16caa9563e6..88e40b72024db4 100644
+--- a/src/crypto/rand/rand.go
++++ b/src/crypto/rand/rand.go
+@@ -22,7 +22,7 @@ import (
+ //   - On legacy Linux (< 3.17), Reader opens /dev/urandom on first use.
+ //   - On macOS, iOS, and OpenBSD Reader, uses arc4random_buf(3).
+ //   - On NetBSD, Reader uses the kern.arandom sysctl.
+-//   - On Windows, Reader uses the ProcessPrng API.
++//   - On Windows systems, Reader uses the RtlGenRandom API.
+ //   - On js/wasm, Reader uses the Web Crypto API.
+ //   - On wasip1/wasm, Reader uses random_get.
+ //
+diff --git a/src/internal/syscall/windows/syscall_windows.go b/src/internal/syscall/windows/syscall_windows.go
+index 905cabc81e4798..94d280b4b470d0 100644
+--- a/src/internal/syscall/windows/syscall_windows.go
++++ b/src/internal/syscall/windows/syscall_windows.go
+@@ -419,7 +419,7 @@ func ErrorLoadingGetTempPath2() error {
+ //sys	DestroyEnvironmentBlock(block *uint16) (err error) = userenv.DestroyEnvironmentBlock
+ //sys	CreateEvent(eventAttrs *SecurityAttributes, manualReset uint32, initialState uint32, name *uint16) (handle syscall.Handle, err error) = kernel32.CreateEventW
+ 
+-//sys	ProcessPrng(buf []byte) (err error) = bcryptprimitives.ProcessPrng
++//sys	RtlGenRandom(buf []byte) (err error) = advapi32.SystemFunction036
+ 
+ type FILE_ID_BOTH_DIR_INFO struct {
+ 	NextEntryOffset uint32
+diff --git a/src/internal/syscall/windows/zsyscall_windows.go b/src/internal/syscall/windows/zsyscall_windows.go
+index 90cf0b92a49bc4..87d0b9e214f783 100644
+--- a/src/internal/syscall/windows/zsyscall_windows.go
++++ b/src/internal/syscall/windows/zsyscall_windows.go
+@@ -38,7 +38,6 @@ func errnoErr(e syscall.Errno) error {
+ 
+ var (
+ 	modadvapi32         = syscall.NewLazyDLL(sysdll.Add("advapi32.dll"))
+-	modbcryptprimitives = syscall.NewLazyDLL(sysdll.Add("bcryptprimitives.dll"))
+ 	modiphlpapi         = syscall.NewLazyDLL(sysdll.Add("iphlpapi.dll"))
+ 	modkernel32         = syscall.NewLazyDLL(sysdll.Add("kernel32.dll"))
+ 	modnetapi32         = syscall.NewLazyDLL(sysdll.Add("netapi32.dll"))
+@@ -63,7 +62,7 @@ var (
+ 	procQueryServiceStatus                = modadvapi32.NewProc("QueryServiceStatus")
+ 	procRevertToSelf                      = modadvapi32.NewProc("RevertToSelf")
+ 	procSetTokenInformation               = modadvapi32.NewProc("SetTokenInformation")
+-	procProcessPrng                       = modbcryptprimitives.NewProc("ProcessPrng")
++	procSystemFunction036                 = modadvapi32.NewProc("SystemFunction036")
+ 	procGetAdaptersAddresses              = modiphlpapi.NewProc("GetAdaptersAddresses")
+ 	procCreateEventW                      = modkernel32.NewProc("CreateEventW")
+ 	procCreateIoCompletionPort            = modkernel32.NewProc("CreateIoCompletionPort")
+@@ -242,12 +241,12 @@ func SetTokenInformation(tokenHandle syscall.Token, tokenInformationClass uint32
+ 	return
+ }
+ 
+-func ProcessPrng(buf []byte) (err error) {
++func RtlGenRandom(buf []byte) (err error) {
+ 	var _p0 *byte
+ 	if len(buf) > 0 {
+ 		_p0 = &buf[0]
+ 	}
+-	r1, _, e1 := syscall.Syscall(procProcessPrng.Addr(), 2, uintptr(unsafe.Pointer(_p0)), uintptr(len(buf)), 0)
++	r1, _, e1 := syscall.Syscall(procSystemFunction036.Addr(), 2, uintptr(unsafe.Pointer(_p0)), uintptr(len(buf)), 0)
+ 	if r1 == 0 {
+ 		err = errnoErr(e1)
+ 	}
+diff --git a/src/runtime/os_windows.go b/src/runtime/os_windows.go
+index 04752f26036d22..4fbe913adbcced 100644
+--- a/src/runtime/os_windows.go
++++ b/src/runtime/os_windows.go
+@@ -127,8 +127,15 @@ var (
+ 	_WriteFile,
+ 	_ stdFunction
+ 
+-	// Use ProcessPrng to generate cryptographically random data.
+-	_ProcessPrng stdFunction
++	// Use RtlGenRandom to generate cryptographically random data.
++	// This approach has been recommended by Microsoft (see issue
++	// 15589 for details).
++	// The RtlGenRandom is not listed in advapi32.dll, instead
++	// RtlGenRandom function can be found by searching for SystemFunction036.
++	// Also some versions of Mingw cannot link to SystemFunction036
++	// when building executable as Cgo. So load SystemFunction036
++	// manually during runtime startup.
++	_RtlGenRandom stdFunction
+ 
+ 	// Load ntdll.dll manually during startup, otherwise Mingw
+ 	// links wrong printf function to cgo executable (see issue
+@@ -146,10 +153,10 @@ var (
+ )
+ 
+ var (
+-	bcryptprimitivesdll = [...]uint16{'b', 'c', 'r', 'y', 'p', 't', 'p', 'r', 'i', 'm', 'i', 't', 'i', 'v', 'e', 's', '.', 'd', 'l', 'l', 0}
+-	ntdlldll            = [...]uint16{'n', 't', 'd', 'l', 'l', '.', 'd', 'l', 'l', 0}
+-	powrprofdll         = [...]uint16{'p', 'o', 'w', 'r', 'p', 'r', 'o', 'f', '.', 'd', 'l', 'l', 0}
+-	winmmdll            = [...]uint16{'w', 'i', 'n', 'm', 'm', '.', 'd', 'l', 'l', 0}
++	advapi32dll = [...]uint16{'a', 'd', 'v', 'a', 'p', 'i', '3', '2', '.', 'd', 'l', 'l', 0}
++	ntdlldll    = [...]uint16{'n', 't', 'd', 'l', 'l', '.', 'd', 'l', 'l', 0}
++	powrprofdll = [...]uint16{'p', 'o', 'w', 'r', 'p', 'r', 'o', 'f', '.', 'd', 'l', 'l', 0}
++	winmmdll    = [...]uint16{'w', 'i', 'n', 'm', 'm', '.', 'd', 'l', 'l', 0}
+ )
+ 
+ // Function to be called by windows CreateThread
+@@ -263,11 +270,11 @@ func windows_QueryPerformanceFrequency() int64 {
+ }
+ 
+ func loadOptionalSyscalls() {
+-	bcryptPrimitives := windowsLoadSystemLib(bcryptprimitivesdll[:])
+-	if bcryptPrimitives == 0 {
+-		throw("bcryptprimitives.dll not found")
++	a32 := windowsLoadSystemLib(advapi32dll[:])
++	if a32 == 0 {
++		throw("advapi32.dll not found")
+ 	}
+-	_ProcessPrng = windowsFindfunc(bcryptPrimitives, []byte("ProcessPrng\000"))
++	_RtlGenRandom = windowsFindfunc(a32, []byte("SystemFunction036\000"))
+ 
+ 	n32 := windowsLoadSystemLib(ntdlldll[:])
+ 	if n32 == 0 {
+@@ -500,7 +507,7 @@ func osinit() {
+ //go:nosplit
+ func readRandom(r []byte) int {
+ 	n := 0
+-	if stdcall2(_ProcessPrng, uintptr(unsafe.Pointer(&r[0])), uintptr(len(r)))&0xff != 0 {
++	if stdcall2(_RtlGenRandom, uintptr(unsafe.Pointer(&r[0])), uintptr(len(r)))&0xff != 0 {
+ 		n = len(r)
+ 	}
+ 	return n

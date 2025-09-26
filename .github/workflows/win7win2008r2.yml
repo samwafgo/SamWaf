@@ -21,7 +21,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: '1.24'
 
       - name: Install dependencies for Windows cross-compilation
         run: |
@@ -39,13 +39,13 @@ jobs:
           ls public
           ls public/dist
 
-      - name: Revert Golang1.23 commit for Windows7/8
+      - name: Revert Golang1.24 commit for Windows7/8
         run: |
           cd $(go env GOROOT)
-          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go123/9ac42137ef6730e8b7daca016ece831297a1d75b.diff
-          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go123/21290de8a4c91408de7c2b5b68757b1e90af49dd.diff
-          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go123/6a31d3fa8e47ddabc10bd97bff10d9a85f4cfb76.diff
-          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go123/69e2eed6dd0f6d815ebf15797761c13f31213dd6.diff
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go124/2a406dc9f1ea7323d6ca9fccb2fe9ddebb6b1cc8.diff
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go124/7b1fd7d39c6be0185fbe1d929578ab372ac5c632.diff
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go124/979d6d8bab3823ff572ace26767fd2ce3cf351ae.diff
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go124/ac3e93c061779dfefc0dd13a5b6e6f764a25621e.diff
 
       - name: Get current tag
         id: get_tag

@@ -9,7 +9,7 @@ import (
 	"SamWaf/utils"
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"github.com/shirou/gopsutil/host"
+	"github.com/shirou/gopsutil/v4/host"
 	"runtime"
 	"strconv"
 	"sync/atomic"

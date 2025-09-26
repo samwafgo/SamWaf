@@ -1,5 +1,7 @@
 package innerbean
 
+import "strings"
+
 type WebLog struct {
 	WafInnerDFlag        string `json:"waf_inner_dflag"` //日志队列处理方式
 	HOST                 string `json:"host"`
@@ -47,6 +49,46 @@ type WebLog struct {
 	ResHeader            string `json:"res_header"`                        // 返回header情况
 	BodyHash             string `json:"body_hash"`                         // body hash值
 	LogOnlyMode          int    `json:"log_only_mode"`                     //是否只记录日志 1 是 0 不是
+}
+
+// GetHeaderValue 从HEADER字段中提取指定header的值
+// headerName: 要查找的header名称（不区分大小写）
+// 返回: header的值，如果不存在则返回空字符串
+func (w *WebLog) GetHeaderValue(headerName string) string {
+	if w.HEADER == "" || headerName == "" {
+		return ""
+	}
+
+	// 将header名称转换为小写进行比较
+	headerName = strings.ToLower(headerName)
+
+	// 按行分割header字符串
+	lines := strings.Split(w.HEADER, "\r\n")
+
+	for _, line := range lines {
+		// 跳过空行
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+
+		// 查找冒号分隔符
+		colonIndex := strings.Index(line, ":")
+		if colonIndex == -1 {
+			continue
+		}
+
+		// 提取header名称和值
+		key := strings.ToLower(strings.TrimSpace(line[:colonIndex]))
+		value := strings.TrimSpace(line[colonIndex+1:])
+
+		// 如果找到匹配的header，返回其值
+		if key == headerName {
+			return value
+		}
+	}
+
+	// 未找到指定的header，返回空字符串
+	return ""
 }
 
 // 在 GORM 的 Model 方法中定义复合索引

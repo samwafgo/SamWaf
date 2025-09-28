@@ -46,7 +46,7 @@ func (w *WafHostAPi) AddApi(c *gin.Context) {
 			hostCode, err := wafHostService.AddApi(req)
 			if err == nil {
 				w.NotifyWaf(hostCode, nil)
-				response.OkWithMessage("添加成功", c)
+				response.OkWithDetailed(hostCode, "添加成功", c)
 			} else {
 
 				response.FailWithMessage("添加失败", c)

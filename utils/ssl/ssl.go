@@ -14,6 +14,7 @@ import (
 	"github.com/go-acme/lego/v4/challenge"
 	"github.com/go-acme/lego/v4/lego"
 	"github.com/go-acme/lego/v4/providers/dns/alidns"
+	"github.com/go-acme/lego/v4/providers/dns/baiducloud"
 	"github.com/go-acme/lego/v4/providers/dns/cloudflare"
 	"github.com/go-acme/lego/v4/providers/dns/huaweicloud"
 	"github.com/go-acme/lego/v4/providers/dns/tencentcloud"
@@ -286,6 +287,9 @@ func GetDnsProvider(dnsName string) (challenge.Provider, error) {
 	case "cloudflare":
 
 		return cloudflare.NewDNSProvider()
+	case "baiducloud":
+
+		return baiducloud.NewDNSProvider()
 	default:
 		return nil, fmt.Errorf("unrecognized DNS provider: %s", dnsName)
 	}

@@ -37,7 +37,19 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 
 	//检测https
 	if inHost.Ssl == 1 {
+		// 为主域名加载证书
 		waf.AllCertificate.LoadSSL(inHost.Host, inHost.Certfile, inHost.Keyfile)
+
+		// 为绑定的多个域名也加载相同的证书
+		if inHost.BindMoreHost != "" {
+			lines := strings.Split(inHost.BindMoreHost, "\n")
+			for _, line := range lines {
+				line = strings.TrimSpace(line)
+				if line != "" {
+					waf.AllCertificate.LoadSSL(line, inHost.Certfile, inHost.Keyfile)
+				}
+			}
+		}
 	}
 	if inHost.GLOBAL_HOST == 1 {
 		global.GWAF_GLOBAL_HOST_CODE = inHost.Code
@@ -317,6 +329,18 @@ func (waf *WafEngine) RemoveHost(host model.Hosts) {
 	delete(waf.HostTarget, host.Host+":"+strconv.Itoa(host.Port))
 	//c.移除某个端口下的证书数据
 	waf.AllCertificate.RemoveSSL(host.Host)
+
+	// 移除绑定的多个域名的证书
+	if host.BindMoreHost != "" {
+		lines := strings.Split(host.BindMoreHost, "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line != "" {
+				waf.AllCertificate.RemoveSSL(line)
+			}
+		}
+	}
+
 	//d.删除更多内容里面域名信息
 	for moreHost, hostCode := range waf.HostTargetMoreDomain {
 		if hostCode == host.Code {

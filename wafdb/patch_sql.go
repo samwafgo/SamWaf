@@ -102,8 +102,8 @@ func pathCoreSql(db *gorm.DB) {
 		zlog.Info("db", "hosts: default_encoding init successfully")
 	}
 	//20250527 初始化分组信息  model.PrivateGroup
-	// 初始化四个云服务提供商的默认分组
-	cloudProviders := []string{"alidns", "huaweicloud", "tencentcloud", "cloudflare"}
+	// 初始化五个云服务提供商的默认分组
+	cloudProviders := []string{"alidns", "huaweicloud", "tencentcloud", "cloudflare", "baiducloud"}
 	for _, cloudProvider := range cloudProviders {
 		// 检查该云服务提供商是否已有分组记录
 		var count int64
@@ -157,6 +157,8 @@ func pathCoreSql(db *gorm.DB) {
 		"TENCENTCLOUD_SECRET_ID":        "tencentcloud",
 		"TENCENTCLOUD_SECRET_KEY":       "tencentcloud",
 		"CF_DNS_API_TOKEN":              "cloudflare",
+		"BAIDUCLOUD_ACCESS_KEY_ID":      "baiducloud",
+		"BAIDUCLOUD_SECRET_ACCESS_KEY":  "baiducloud",
 	}
 
 	// 遍历环境变量映射，更新对应的所属云信息

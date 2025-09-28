@@ -6,6 +6,7 @@ import (
 	"SamWaf/customtype"
 	"SamWaf/enums"
 	"SamWaf/global"
+	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
 	"SamWaf/model/spec"
@@ -52,11 +53,51 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 				updateSSLOrder.ResultCertificate = nil
 				updateSSLOrder.ResultError = err.Error()
 				wafSslOrderService.ModifyById(updateSSLOrder)
+
+				// 发送SSL证书申请失败的系统日志和消息通知
+				sslError := fmt.Sprintf("SSL证书申请失败 - 域名: %s, 错误: %v", bean.ApplyDomain, err.Error())
+				wafSysLog := model.WafSysLog{
+					BaseOrm: baseorm.BaseOrm{
+						Id:          uuid.GenUUID(),
+						USER_CODE:   global.GWAF_USER_CODE,
+						Tenant_ID:   global.GWAF_TENANT_ID,
+						CREATE_TIME: customtype.JsonTime(time.Now()),
+						UPDATE_TIME: customtype.JsonTime(time.Now()),
+					},
+					OpType:    "SSL证书申请",
+					OpContent: sslError,
+				}
+				global.GQEQUE_LOG_DB.Enqueue(&wafSysLog)
+
+				global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
+					BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "SSL证书申请失败"},
+					OperaCnt:        sslError,
+				})
 			} else {
 				zlog.Info(fmt.Sprintf("%s 证书首次申请后续 成功", bean.ApplyDomain))
 				updateSSLOrder.ApplyStatus = "success"
 				updateSSLOrder.ResultError = ""
 				wafSslOrderService.ModifyById(updateSSLOrder)
+
+				// 发送SSL证书申请成功的系统日志和消息通知
+				sslSuccess := fmt.Sprintf("SSL证书申请成功 - 域名: %s, 有效期至: %s", bean.ApplyDomain, updateSSLOrder.ResultValidTo.Format("2006-01-02"))
+				wafSysLog := model.WafSysLog{
+					BaseOrm: baseorm.BaseOrm{
+						Id:          uuid.GenUUID(),
+						USER_CODE:   global.GWAF_USER_CODE,
+						Tenant_ID:   global.GWAF_TENANT_ID,
+						CREATE_TIME: customtype.JsonTime(time.Now()),
+						UPDATE_TIME: customtype.JsonTime(time.Now()),
+					},
+					OpType:    "SSL证书申请",
+					OpContent: sslSuccess,
+				}
+				global.GQEQUE_LOG_DB.Enqueue(&wafSysLog)
+
+				global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
+					BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "SSL证书申请成功"},
+					OperaCnt:        sslSuccess,
+				})
 			}
 		} else {
 			//设置数据
@@ -65,6 +106,26 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 			updateSSLOrder.ResultCertificate = nil
 			updateSSLOrder.ResultError = err.Error()
 			wafSslOrderService.ModifyById(updateSSLOrder)
+
+			// 发送SSL证书申请失败的系统日志和消息通知
+			sslError := fmt.Sprintf("SSL证书申请失败 - 域名: %s, 错误: %v", bean.ApplyDomain, err.Error())
+			wafSysLog := model.WafSysLog{
+				BaseOrm: baseorm.BaseOrm{
+					Id:          uuid.GenUUID(),
+					USER_CODE:   global.GWAF_USER_CODE,
+					Tenant_ID:   global.GWAF_TENANT_ID,
+					CREATE_TIME: customtype.JsonTime(time.Now()),
+					UPDATE_TIME: customtype.JsonTime(time.Now()),
+				},
+				OpType:    "SSL证书申请",
+				OpContent: sslError,
+			}
+			global.GQEQUE_LOG_DB.Enqueue(&wafSysLog)
+
+			global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
+				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "SSL证书申请失败"},
+				OperaCnt:        sslError,
+			})
 		}
 
 	} else if chanType == enums.ChanSslOrderrenew {
@@ -85,11 +146,51 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 				updateSSLOrder.ApplyStatus = "fail"
 				updateSSLOrder.ResultError = err.Error()
 				wafSslOrderService.ModifyById(updateSSLOrder)
+
+				// 发送SSL证书续期失败的系统日志和消息通知
+				sslError := fmt.Sprintf("SSL证书续期失败 - 域名: %s, 错误: %v", bean.ApplyDomain, err.Error())
+				wafSysLog := model.WafSysLog{
+					BaseOrm: baseorm.BaseOrm{
+						Id:          uuid.GenUUID(),
+						USER_CODE:   global.GWAF_USER_CODE,
+						Tenant_ID:   global.GWAF_TENANT_ID,
+						CREATE_TIME: customtype.JsonTime(time.Now()),
+						UPDATE_TIME: customtype.JsonTime(time.Now()),
+					},
+					OpType:    "SSL证书续期",
+					OpContent: sslError,
+				}
+				global.GQEQUE_LOG_DB.Enqueue(&wafSysLog)
+
+				global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
+					BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "SSL证书续期失败"},
+					OperaCnt:        sslError,
+				})
 			} else {
 				zlog.Info(fmt.Sprintf("%s 证书续期处理后续 成功", bean.ApplyDomain))
 				updateSSLOrder.ApplyStatus = "success"
 				updateSSLOrder.ResultError = ""
 				wafSslOrderService.ModifyById(updateSSLOrder)
+
+				// 发送SSL证书续期成功的系统日志和消息通知
+				sslSuccess := fmt.Sprintf("SSL证书续期成功 - 域名: %s, 有效期至: %s", bean.ApplyDomain, updateSSLOrder.ResultValidTo.Format("2006-01-02"))
+				wafSysLog := model.WafSysLog{
+					BaseOrm: baseorm.BaseOrm{
+						Id:          uuid.GenUUID(),
+						USER_CODE:   global.GWAF_USER_CODE,
+						Tenant_ID:   global.GWAF_TENANT_ID,
+						CREATE_TIME: customtype.JsonTime(time.Now()),
+						UPDATE_TIME: customtype.JsonTime(time.Now()),
+					},
+					OpType:    "SSL证书续期",
+					OpContent: sslSuccess,
+				}
+				global.GQEQUE_LOG_DB.Enqueue(&wafSysLog)
+
+				global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
+					BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "SSL证书续期成功"},
+					OperaCnt:        sslSuccess,
+				})
 			}
 		} else {
 			//设置数据
@@ -97,6 +198,26 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 			updateSSLOrder.ApplyStatus = "fail"
 			updateSSLOrder.ResultError = err.Error()
 			wafSslOrderService.ModifyById(updateSSLOrder)
+
+			// 发送SSL证书续期失败的系统日志和消息通知
+			sslError := fmt.Sprintf("SSL证书续期失败 - 域名: %s, 错误: %v", bean.ApplyDomain, err.Error())
+			wafSysLog := model.WafSysLog{
+				BaseOrm: baseorm.BaseOrm{
+					Id:          uuid.GenUUID(),
+					USER_CODE:   global.GWAF_USER_CODE,
+					Tenant_ID:   global.GWAF_TENANT_ID,
+					CREATE_TIME: customtype.JsonTime(time.Now()),
+					UPDATE_TIME: customtype.JsonTime(time.Now()),
+				},
+				OpType:    "SSL证书续期",
+				OpContent: sslError,
+			}
+			global.GQEQUE_LOG_DB.Enqueue(&wafSysLog)
+
+			global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
+				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "SSL证书续期失败"},
+				OperaCnt:        sslError,
+			})
 		}
 	}
 }

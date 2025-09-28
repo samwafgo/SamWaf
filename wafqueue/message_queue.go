@@ -10,6 +10,7 @@ import (
 	"SamWaf/utils"
 	"SamWaf/wafsec"
 	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -206,6 +207,10 @@ func ProcessMessageDequeEngine() {
 // checkCanSend 抑止发送频率
 func checkCanSend(key string) bool {
 	isCanSend := false
+	if strings.HasPrefix(key, "SSL证书申请") {
+		isCanSend = true
+		return isCanSend
+	}
 	noticeKeyInfo := enums.CACHE_NOTICE_PRE + key
 	// 检查规则信息是否存在
 	if global.GCACHE_WAFCACHE.IsKeyExist(noticeKeyInfo) {

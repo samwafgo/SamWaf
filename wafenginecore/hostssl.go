@@ -81,15 +81,33 @@ func (ac *AllCertificate) RemoveSSL(domain string) error {
 	return nil
 }
 
-// GetSSL 加载证书
+// GetSSL 加载证书 - 支持通配符域名匹配
 func (ac *AllCertificate) GetSSL(domain string) *tls.Certificate {
 	ac.Mux.Lock()
 	defer ac.Mux.Unlock()
 	domain = strings.ToLower(domain)
+
+	// 首先尝试精确匹配
 	certificate, ok := ac.Map[domain]
-	if ok {
+	if ok && certificate != nil {
 		return certificate
 	}
+
+	// 如果精确匹配失败，尝试通配符匹配
+	// 例如：ssl1.samwaf.com 匹配 *.samwaf.com
+	domainParts := strings.Split(domain, ".")
+	if len(domainParts) >= 2 {
+		// 构造通配符域名，从最具体的开始匹配
+		for i := 0; i < len(domainParts)-1; i++ {
+			// 构造通配符域名
+			wildcardDomain := "*." + strings.Join(domainParts[i+1:], ".")
+			certificate, ok := ac.Map[wildcardDomain]
+			if ok && certificate != nil {
+				return certificate
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -100,5 +118,5 @@ func (waf *WafEngine) GetCertificateFunc(clientInfo *tls.ClientHelloInfo) (*tls.
 	if x509Cert != nil {
 		return x509Cert, nil
 	}
-	return nil, errors.New("config error")
+	return nil, errors.New("certificate not found for domain: " + clientInfo.ServerName)
 }

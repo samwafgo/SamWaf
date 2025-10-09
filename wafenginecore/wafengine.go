@@ -619,6 +619,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	} else {
+		w.WriteHeader(403)
 		resBytes := []byte("403: Host forbidden " + host)
 		_, err := w.Write(resBytes)
 		if err != nil {

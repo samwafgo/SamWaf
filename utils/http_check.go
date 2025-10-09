@@ -24,16 +24,21 @@ func checkAttachment(res *http.Response, contentType string) bool {
 
 	// 3. 检查常见的下载文件 Content-Type
 	downloadContentTypes := []string{
+		// 通用下载类型
 		"application/octet-stream",
 		"application/force-download",
 		"application/download",
 		"application/x-download",
+
+		// Office 文档
 		"application/vnd.ms-excel",
 		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
 		"application/vnd.ms-powerpoint",
 		"application/vnd.openxmlformats-officedocument.presentationml.presentation", // .pptx
 		"application/msword",
 		"application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+
+		// 压缩包
 		"application/zip",
 		"application/x-zip-compressed",
 		"application/rar",
@@ -41,7 +46,58 @@ func checkAttachment(res *http.Response, contentType string) bool {
 		"application/x-7z-compressed",
 		"application/gzip",
 		"application/x-tar",
-		"application/vnd.android.package-archive", //apk
+
+		// APK
+		"application/vnd.android.package-archive", // .apk
+
+		// 虚拟机/磁盘镜像
+		"application/x-qemu-disk",           // .qcow2
+		"application/x-vmdk",                // .vmdk
+		"application/x-vdi",                 // .vdi
+		"application/x-vhd",
+		"application/x-vhdx",
+		"application/x-ovf",
+		"application/ovf",
+		"application/x-ova",
+		"application/ova",
+		"application/x-disk-image",          // .img, .raw
+
+		// 其他压缩格式
+		"application/x-7z-compressed",
+		"application/x-gzip",
+		"application/x-bzip2",
+		"application/x-lzip",
+		"application/x-lzma",
+		"application/x-xz",
+		"application/zstd",
+
+		// 安装包/可执行文件
+		"application/x-msdownload",          // .exe
+		"application/x-msi",                 // .msi
+		"application/x-apple-diskimage",     // .dmg
+		"application/x-executable",          // Linux binary
+		"application/x-sharedlib",           // .so
+		"application/vnd.debian.binary-package", // .deb
+		"application/x-rpm",                 // .rpm
+
+		// 音视频
+		"video/*",
+		"video/mp4",
+		"video/x-matroska",
+		"video/x-msvideo",
+		"video/quicktime",
+		"video/x-flv",
+		"audio/*",
+		"audio/mpeg",
+		"audio/x-wav",
+		"audio/flac",
+		"audio/aac",
+
+		// 文档
+		"application/pdf",
+		"application/postscript",
+		"application/epub+zip",
+		"application/fb2+zip",
 	}
 
 	for _, downloadType := range downloadContentTypes {
@@ -63,14 +119,47 @@ func checkAttachment(res *http.Response, contentType string) bool {
 			}
 		}
 
+
 		// 5. 检查常见的下载文件扩展名
 		downloadExtensions := []string{
+			// 压缩包 / 归档
 			".zip", ".rar", ".7z", ".tar", ".gz", ".bz2",
+			".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz",
+			".lz", ".lzma", ".zst", ".sz", ".cpio",
+			".iso.gz", ".img.gz",
+
+			// 可执行文件 / 安装包
 			".exe", ".msi", ".dmg", ".pkg", ".deb", ".rpm",
+			".app", ".pkg.tar.zst", ".snap", ".flatpak",
+			".crx", ".xapk", ".ipsw",
+			".ppam", ".xlam", ".dotm",
+
+			// Office 文档
 			".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-			".backup",
-			".iso", ".img", ".bin",
+
+			// 虚拟机 / 磁盘镜像
+			".qcow2", ".qcow", ".vmdk", ".vdi", ".vhdx", ".vhd",
+			".ova", ".ovf", ".hdd", ".wim", ".esd",
+
+			// 光盘 / 镜像
+			".iso", ".img", ".bin", ".cue", ".nrg", ".dmg",
+
+			// APK
 			".apk",
+
+			// 备份 / 数据库
+			".backup", ".bak", ".sql", ".dump", ".db", ".sqlite",
+			".mdb", ".fdb", ".snapshot", ".img.backup",
+
+			// 音视频
+			".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".mpg", ".mpeg",
+			".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a",
+
+			// 文档 / 电子书
+			".pdf", ".epub", ".mobi", ".azw3", ".fb2", ".cbr", ".cbz", ".djvu", ".ps", ".tex",
+
+			// 容器 / 云原生
+			".oci", ".swu",
 		}
 
 		for _, ext := range downloadExtensions {

@@ -177,6 +177,11 @@ func IsStaticAssist(res *http.Response, contentType string) bool {
 		zlog.Debug(fmt.Sprintf("检测到附件 %s", res.Request.URL.String()))
 		return true
 	}
+	// 检查返回内容，accept-ranges头，如果为bytes，则表示支持断点续传，是静态资源
+	acceptRanges := res.Header.Get("Accept-Ranges")
+	if acceptRanges == "bytes"  {
+		return true
+	}
 	// 检查请求的Accept头，判断是否为资源类型请求
 	if res.Request != nil {
 		// 检查Sec-Fetch-Dest头，这是一个更明确的指示

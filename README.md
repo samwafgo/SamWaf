@@ -238,6 +238,10 @@ SamWaf is continuously iterating. We welcome feedback and suggestions.
 - [GitHub Issues](https://github.com/samwafgo/SamWaf/issues)
 - Email feedback: samwafgo@gmail.com
 
+# WeChat Public Account
+
+<img alt="SamWaf" width="400px"  src="./docs/images/mp_samwaf.png"> 
+
 ## Star history
 
 [![Star History Chart](https://api.star-history.com/svg?repos=samwafgo/samwaf&type=Date)](https://star-history.com/#samwafgo/samwaf&Date)

@@ -237,6 +237,10 @@ How to compile
 - [github issues](https://github.com/samwafgo/SamWaf/issues)
 - 邮件反馈:samwafgo@gmail.com
 
+# 微信公众号
+
+<img alt="SamWaf" width="400px"  src="./docs/images/mp_samwaf.png"> 
+
 ## Star 历史趋势
 
 [![Star History Chart](https://api.star-history.com/svg?repos=samwafgo/samwaf&type=Date)](https://star-history.com/#samwafgo/samwaf&Date)

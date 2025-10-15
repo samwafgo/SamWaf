@@ -53,6 +53,7 @@ type HostsDefense struct {
 	DEFENSE_RCE           int `json:"rce"`       //防御-scan工具扫描
 	DEFENSE_SENSITIVE     int `json:"sensitive"` //敏感词检测
 	DEFENSE_DIR_TRAVERSAL int `json:"traversal"` //目录穿越检测
+	DEFENSE_OWASP_SET     int `json:"owaspset"`  //OWASP集检测
 }
 
 // HealthyConfig 健康度检测
@@ -187,4 +188,29 @@ func ParseTransportConfig(transportJSON string) TransportConfig {
 		}
 	}
 	return config
+}
+
+// ParseHostsDefense 解析防御配置
+func ParseHostsDefense(defenseJSON string) HostsDefense {
+	var defense HostsDefense
+
+	// 设置默认值
+	defense.DEFENSE_BOT = 1
+	defense.DEFENSE_SQLI = 1
+	defense.DEFENSE_XSS = 1
+	defense.DEFENSE_SCAN = 1
+	defense.DEFENSE_RCE = 1
+	defense.DEFENSE_SENSITIVE = 1
+	defense.DEFENSE_DIR_TRAVERSAL = 1
+	defense.DEFENSE_OWASP_SET = 0
+
+	// 如果JSON不为空，则解析覆盖默认值
+	if defenseJSON != "" {
+		err := json.Unmarshal([]byte(defenseJSON), &defense)
+		if err != nil {
+			// 解析失败时使用默认值，可以记录日志
+			return defense
+		}
+	}
+	return defense
 }

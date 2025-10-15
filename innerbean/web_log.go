@@ -49,6 +49,8 @@ type WebLog struct {
 	ResHeader            string `json:"res_header"`                        // 返回header情况
 	BodyHash             string `json:"body_hash"`                         // body hash值
 	LogOnlyMode          int    `json:"log_only_mode"`                     //是否只记录日志 1 是 0 不是
+	IsBalance            int    `json:"is_balance"`                        //是否是负载均衡 1 是 0 不是
+	BalanceInfo          string `json:"balance_info"`                      //负载均衡IP端口信息
 }
 
 // GetHeaderValue 从HEADER字段中提取指定header的值

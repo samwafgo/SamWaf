@@ -603,7 +603,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		})
 
 		// 代理请求
-		waf.ProxyHTTP(w, r, host, remoteUrl, clientIP, ctx, weblogbean, hostTarget)
+		waf.ProxyHTTP(w, r, host, remoteUrl, clientIP, ctx, &weblogbean, hostTarget)
 
 		return
 	} else {

@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-func (waf *WafEngine) ProxyHTTP(w http.ResponseWriter, r *http.Request, host string, remoteUrl *url.URL, clientIp string, ctx context.Context, weblog innerbean.WebLog, hostTarget *wafenginmodel.HostSafe) {
+func (waf *WafEngine) ProxyHTTP(w http.ResponseWriter, r *http.Request, host string, remoteUrl *url.URL, clientIp string, ctx context.Context, weblog *innerbean.WebLog, hostTarget *wafenginmodel.HostSafe) {
 
 	//检测是否启动负载
 	if hostTarget.Host.IsEnableLoadBalance > 0 {
@@ -57,6 +57,16 @@ func (waf *WafEngine) ProxyHTTP(w http.ResponseWriter, r *http.Request, host str
 			http.Error(w, "No Available BackServer", http.StatusBadRequest)
 			return
 		}
+
+		// 记录使用的负载均衡IP和端口信息
+		if proxyIndex >= 0 && proxyIndex < len(hostTarget.LoadBalanceLists) {
+			selectedLoadBalance := hostTarget.LoadBalanceLists[proxyIndex]
+			balanceInfo := fmt.Sprintf("%s:%d", selectedLoadBalance.Remote_ip, selectedLoadBalance.Remote_port)
+
+			// 记录到WebLog的BalanceInfo字段
+			weblog.BalanceInfo = balanceInfo
+		}
+
 		proxy := hostTarget.LoadBalanceRuntime.RevProxies[proxyIndex]
 		if proxy != nil {
 			// 添加转发耗时记录
@@ -64,6 +74,7 @@ func (waf *WafEngine) ProxyHTTP(w http.ResponseWriter, r *http.Request, host str
 				forwardStart := time.Now().UnixNano() / 1e6
 				defer func() {
 					wafCtx.Weblog.ForwardCost = time.Now().UnixNano()/1e6 - forwardStart
+					wafCtx.Weblog.IsBalance = 1
 				}()
 			}
 			proxy.ServeHTTP(w, r.WithContext(ctx))
@@ -86,6 +97,7 @@ func (waf *WafEngine) ProxyHTTP(w http.ResponseWriter, r *http.Request, host str
 			forwardStart := time.Now().UnixNano() / 1e6
 			defer func() {
 				wafCtx.Weblog.ForwardCost = time.Now().UnixNano()/1e6 - forwardStart
+				wafCtx.Weblog.IsBalance = 0
 			}()
 		}
 

@@ -19,8 +19,7 @@ func (waf *WafEngine) CheckOwasp(r *http.Request, weblogbean *innerbean.WebLog, 
 		Content:         "",
 	}
 	hostDefense := model.ParseHostsDefense(hostTarget.Host.DEFENSE_JSON)
-	globalHostDefense := model.ParseHostsDefense(globalHostTarget.Host.DEFENSE_JSON)
-	if global.GCONFIG_RECORD_ENABLE_OWASP == 1 || hostDefense.DEFENSE_OWASP_SET == 1 || globalHostDefense.DEFENSE_OWASP_SET == 1 {
+	if global.GCONFIG_RECORD_ENABLE_OWASP == 1 || hostDefense.DEFENSE_OWASP_SET == 1 {
 		isInteeruption, interruption, err := global.GWAF_OWASP.ProcessRequest(r, *weblogbean)
 		if err == nil && isInteeruption {
 			result.IsBlock = true

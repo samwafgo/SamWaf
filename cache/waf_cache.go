@@ -134,6 +134,8 @@ func (wafCache *WafCache) GetExpireTime(key string) (time.Time, error) {
 	return time.Time{}, errors.New("数据已过期")
 }
 func (wafCache *WafCache) ClearExpirationCache() {
+	wafCache.mu.Lock()
+	defer wafCache.mu.Unlock()
 	now := time.Now()
 	for key, item := range wafCache.cache {
 		if now.Sub(item.createTime) > item.ttl {

@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/wafsec"
 	"bytes"
@@ -32,6 +33,14 @@ func SecApi() gin.HandlerFunc {
 			if err == nil {
 				c.Request.Body = io.NopCloser(bytes.NewBuffer(decryptBytes))
 			}
+		} else if c.Request.Header.Get("X-Login-Type") == "mobile" && c.Request.Header.Get("Content-Type") == "application/json" {
+			decryptBytes, err := wafsec.AesDecrypt(string(bodyBytes), global.GWAF_COMMUNICATION_KEY)
+			if err == nil {
+				c.Request.Body = io.NopCloser(bytes.NewBuffer(decryptBytes))
+			} else {
+				zlog.Debug("Decrypt error", err.Error())
+			}
+
 		}
 		c.Next()
 	}

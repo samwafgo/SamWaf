@@ -25,12 +25,19 @@ func Auth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 获取请求头中 token，实际是一个完整被签名过的 token；a complete, signed token
 		tokenStr := ""
+		loginType := c.GetHeader("X-Login-Type")
+
 		if c.Request.RequestURI == "/samwaf/ws" {
 			tokenStr = c.GetHeader("Sec-WebSocket-Protocol")
 		} else if strings.HasPrefix(c.Request.RequestURI, "/samwaf/waflog/attack/download") {
 			tokenStr = c.Query("X-Token")
 		} else {
-			tokenStr = c.GetHeader("X-Token")
+			// 根据登录类型获取不同的token头部
+			if loginType == "mobile" {
+				tokenStr = c.GetHeader("X-Mobile-Token")
+			} else {
+				tokenStr = c.GetHeader("X-Token")
+			}
 		}
 		if tokenStr == "" {
 			zlog.Debug("无token")

@@ -28,6 +28,7 @@ func (receiver *WafTokenInfoService) AddApi(loginAccount string, AccessToken str
 		LoginAccount: loginAccount,
 		AccessToken:  AccessToken,
 		LoginIp:      LoginIp,
+		LoginType:    "web", // 默认为web类型
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
 	mod := receiver.GetInfoByLoginAccount(loginAccount)
@@ -49,9 +50,32 @@ func (receiver *WafTokenInfoService) AddApiWithFingerprint(loginAccount string, 
 		AccessToken:       AccessToken,
 		LoginIp:           LoginIp,
 		DeviceFingerprint: deviceFingerprint,
+		LoginType:         "web", // 默认为web类型
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
 	mod := receiver.GetInfoByLoginAccount(loginAccount)
+	return &mod
+}
+
+// AddApiWithFingerprintAndType 添加带指纹和登录类型的token信息
+func (receiver *WafTokenInfoService) AddApiWithFingerprintAndType(loginAccount string, AccessToken string, LoginIp string, deviceFingerprint string, loginType string) *model.TokenInfo {
+
+	var bean = &model.TokenInfo{
+		BaseOrm: baseorm.BaseOrm{
+			Id:          uuid.GenUUID(),
+			USER_CODE:   global.GWAF_USER_CODE,
+			Tenant_ID:   global.GWAF_TENANT_ID,
+			CREATE_TIME: customtype.JsonTime(time.Now()),
+			UPDATE_TIME: customtype.JsonTime(time.Now()),
+		},
+		LoginAccount:      loginAccount,
+		AccessToken:       AccessToken,
+		LoginIp:           LoginIp,
+		DeviceFingerprint: deviceFingerprint,
+		LoginType:         loginType,
+	}
+	global.GWAF_LOCAL_DB.Create(bean)
+	mod := receiver.GetInfoByLoginAccountAndType(loginAccount, loginType)
 	return &mod
 }
 
@@ -87,6 +111,20 @@ func (receiver *WafTokenInfoService) GetInfoByLoginAccount(loginAccount string) 
 func (receiver *WafTokenInfoService) GetAllTokenInfoByLoginAccount(loginAccount string) []model.TokenInfo {
 	var bean []model.TokenInfo
 	global.GWAF_LOCAL_DB.Where("login_account=? ", loginAccount).Find(&bean)
+	return bean
+}
+
+// GetInfoByLoginAccountAndType 通过登录account和类型获取账号信息
+func (receiver *WafTokenInfoService) GetInfoByLoginAccountAndType(loginAccount string, loginType string) model.TokenInfo {
+	var bean model.TokenInfo
+	global.GWAF_LOCAL_DB.Where("login_account=? AND login_type=? ", loginAccount, loginType).Limit(1).Find(&bean)
+	return bean
+}
+
+// GetAllTokenInfoByLoginAccountAndType 通过登录account和类型获取所有账号信息
+func (receiver *WafTokenInfoService) GetAllTokenInfoByLoginAccountAndType(loginAccount string, loginType string) []model.TokenInfo {
+	var bean []model.TokenInfo
+	global.GWAF_LOCAL_DB.Where("login_account=? AND login_type=? ", loginAccount, loginType).Find(&bean)
 	return bean
 }
 
@@ -135,6 +173,20 @@ func (receiver *WafTokenInfoService) DelApiByAccount(loginAccount string) error 
 		return err
 	}
 	err = global.GWAF_LOCAL_DB.Where("login_account = ?", loginAccount).Delete(model.TokenInfo{}).Error
+	return err
+}
+
+/*
+*
+通过账号和登录类型删除关联状态
+*/
+func (receiver *WafTokenInfoService) DelApiByAccountAndType(loginAccount string, loginType string) error {
+	var bean model.TokenInfo
+	err := global.GWAF_LOCAL_DB.Where("login_account = ? AND login_type = ?", loginAccount, loginType).First(&bean).Error
+	if err != nil {
+		return err
+	}
+	err = global.GWAF_LOCAL_DB.Where("login_account = ? AND login_type = ?", loginAccount, loginType).Delete(model.TokenInfo{}).Error
 	return err
 }
 

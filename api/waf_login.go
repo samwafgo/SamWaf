@@ -101,13 +101,19 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 			// 密码正确，清除错误计数
 			global.GCACHE_WAFCACHE.Remove(cacheKey)
 
-			//如果存在旧的状态删除 相同帐号 只允许一个
-			allTokenInfo := wafTokenInfoService.GetAllTokenInfoByLoginAccount(req.LoginAccount)
+			// 获取登录类型
+			loginType := c.GetHeader("X-Login-Type")
+			if loginType == "" {
+				loginType = "web" // 默认为web类型
+			}
+
+			//如果存在旧的状态删除 相同帐号和登录类型 只允许一个
+			allTokenInfo := wafTokenInfoService.GetAllTokenInfoByLoginAccountAndType(req.LoginAccount, loginType)
 			if allTokenInfo != nil {
 				for i := 0; i < len(allTokenInfo); i++ {
 					oldTokenInfo := allTokenInfo[i]
 					if oldTokenInfo.Id != "" {
-						wafTokenInfoService.DelApiByAccount(oldTokenInfo.LoginAccount)
+						wafTokenInfoService.DelApiByAccountAndType(oldTokenInfo.LoginAccount, oldTokenInfo.LoginType)
 						global.GCACHE_WAFCACHE.Remove(enums.CACHE_TOKEN + oldTokenInfo.AccessToken)
 					}
 				}
@@ -121,7 +127,7 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 
 			//记录状态
 			accessToken := utils.Md5String(uuid.GenUUID())
-			tokenInfo := wafTokenInfoService.AddApiWithFingerprint(bean.LoginAccount, accessToken, c.ClientIP(), deviceFingerprint)
+			tokenInfo := wafTokenInfoService.AddApiWithFingerprintAndType(bean.LoginAccount, accessToken, c.ClientIP(), deviceFingerprint, loginType)
 
 			//令牌记录到cache里
 			global.GCACHE_WAFCACHE.SetWithTTl(enums.CACHE_TOKEN+accessToken, *tokenInfo, time.Duration(global.GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES)*time.Minute)
@@ -165,10 +171,20 @@ func (w *WafLoginApi) LoginOutApi(c *gin.Context) {
 	var req request.WafLoginOutReq
 	err := c.ShouldBind(&req)
 	if err == nil {
-		tokenStr := c.GetHeader("X-Token")
+		// 根据登录类型获取不同的token头部
+		loginType := c.GetHeader("X-Login-Type")
+		var tokenStr string
+
+		if loginType == "mobile" {
+			tokenStr = c.GetHeader("X-Mobile-Token")
+		} else {
+			tokenStr = c.GetHeader("X-Token")
+		}
+
 		bean := wafTokenInfoService.GetInfoByAccessToken(tokenStr)
 		if bean.Id != "" {
 			wafTokenInfoService.DelApi(bean.LoginAccount, bean.AccessToken)
+			global.GCACHE_WAFCACHE.Remove(enums.CACHE_TOKEN + bean.AccessToken)
 			response.OkWithDetailed("json", "注销成功"+tokenStr, c)
 			return
 		} else {

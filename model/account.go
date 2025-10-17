@@ -25,4 +25,5 @@ type TokenInfo struct {
 	LoginIp           string `json:"login_ip"`                  //登录IP
 	AccessToken       string `json:"access_token" crypto:"aes"` //访问码
 	DeviceFingerprint string `json:"device_fingerprint"`        //设备指纹
+	LoginType         string `json:"login_type"`                //登录类型 web/mobile
 }

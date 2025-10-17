@@ -543,6 +543,12 @@ func (u *Updater) fetchInfoGithub() error {
 	if !strings.Contains(githubRelease.TagName, "beta") {
 		//return errors.New("not beta version")
 	}
+
+	// 过滤掉debug版本，防止用户意外升级到debug版本
+	if strings.Contains(githubRelease.TagName, "debug") || strings.Contains(strings.ToLower(githubRelease.Name), "debug") {
+		return errors.New("debug version detected, skipping update to prevent accidental upgrade")
+	}
+
 	// 查找适合当前平台的资源
 	var downloadURL string
 
@@ -562,8 +568,12 @@ func (u *Updater) fetchInfoGithub() error {
 		platformSuffix = "Linux_arm64"
 	}
 
-	// 查找匹配当前平台的资源
+	// 查找匹配当前平台的资源，同时过滤掉debug版本
 	for _, asset := range githubRelease.Assets {
+		// 跳过包含DEBUG_SYMBOLS的文件
+		if strings.Contains(asset.Name, "DEBUG_SYMBOLS") || strings.Contains(strings.ToUpper(asset.Name), "DEBUG") {
+			continue
+		}
 		if strings.Contains(asset.Name, platformSuffix) {
 			downloadURL = asset.BrowserDownloadURL
 			break

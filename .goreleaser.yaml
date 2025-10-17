@@ -242,4 +242,3 @@ release:
     2. 如需问题排查，可下载对应的调试版本
     3. 提供详细的错误信息和日志
     
-    **Full Changelog**: https://github.com/samwafgo/SamWaf/compare/{{.PreviousTag}}...{{.Tag}}

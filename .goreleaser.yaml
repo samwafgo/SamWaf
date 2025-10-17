@@ -21,6 +21,7 @@ before:
     - mv -f dist public
     - rm -rf dist.tar.gz
 builds:
+  # 正式发布版本 (Release builds)
   - id: "samwaf_linux"
     binary: "SamWafLinux64"
     env:
@@ -75,6 +76,59 @@ builds:
       - -X SamWaf/global.GWAF_RELEASE_VERSION={{.Tag}}
       - -s -w
       - -extldflags "-static"
+  
+  # Debug版本 (Debug builds for troubleshooting only)
+  - id: "samwaf_linux_debug"
+    binary: "SamWafLinux64-DEBUG-SYMBOLS"
+    env:
+      - CGO_ENABLED=1
+      - CC=x86_64-linux-gnu-gcc
+      - CXX=x86_64-linux-gnu-g++
+      - CGO_CFLAGS=-Wno-unused-variable
+    goos:
+      - linux
+    goarch:
+      - amd64
+    ldflags:
+      - -X SamWaf/global.GWAF_RELEASE=true
+      - -X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=false
+      - -X SamWaf/global.GWAF_RELEASE_VERSION_NAME={{ time "20060102" }}
+      - -X SamWaf/global.GWAF_RELEASE_VERSION={{.Tag}}-debug
+      - -extldflags "-static"
+  - id: "samwaf_win_debug"
+    binary: "SamWaf64-DEBUG-SYMBOLS"
+    env:
+      - CGO_ENABLED=1
+      - CC=x86_64-w64-mingw32-gcc
+      - CXX=x86_64-w64-mingw32-g++
+      - CGO_CFLAGS=-Wno-unused-variable
+    goos:
+      - windows
+    goarch:
+      - amd64
+    ldflags:
+      - -X SamWaf/global.GWAF_RELEASE=true
+      - -X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=false
+      - -X SamWaf/global.GWAF_RELEASE_VERSION_NAME={{ time "20060102" }}
+      - -X SamWaf/global.GWAF_RELEASE_VERSION={{.Tag}}-debug
+      - -extldflags "-static"
+  - id: "samwaf_linux_arm64_debug"
+    binary: "SamWafLinuxArm64-DEBUG-SYMBOLS"
+    env:
+      - CGO_ENABLED=1
+      - CC=aarch64-linux-gnu-gcc
+      - CXX=aarch64-linux-gnu-g++
+      - CGO_CFLAGS=-Wno-unused-variable
+    goos:
+      - linux
+    goarch:
+      - arm64
+    ldflags:
+      - -X SamWaf/global.GWAF_RELEASE=true
+      - -X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=false
+      - -X SamWaf/global.GWAF_RELEASE_VERSION_NAME={{ time "20060102" }}
+      - -X SamWaf/global.GWAF_RELEASE_VERSION={{.Tag}}-debug
+      - -extldflags "-static"
 upx:
   - # Whether to enable it or not.
     #
@@ -89,7 +143,9 @@ upx:
     compress: best
 
 archives:
-  - format: tar.gz
+  - id: "release_archives"
+    builds: ["samwaf_linux", "samwaf_win", "samwaf_linux_arm64"]
+    format: tar.gz
     # this name template makes the OS and Arch compatible with the results of `uname`.
     name_template: >-
       {{ .ProjectName }}_
@@ -99,6 +155,22 @@ archives:
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
       {{.Tag}}
+    # use zip for windows archives
+    format_overrides:
+      - goos: windows
+        format: zip
+  - id: "debug_archives"
+    builds: ["samwaf_linux_debug", "samwaf_win_debug", "samwaf_linux_arm64_debug"]
+    format: tar.gz
+    # Debug版本使用特殊命名，以DEBUG开头便于用户识别和分组
+    name_template: >-
+      DEBUG_{{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+      {{.Tag}}_SYMBOLS
     # use zip for windows archives
     format_overrides:
       - goos: windows
@@ -118,3 +190,66 @@ changelog:
     exclude:
       - "^docs:"
       - "^test:"
+
+release:
+  # If you want to manually examine the release before its live, uncomment this line:
+  # draft: true
+  # Whether to remove existing draft releases with the same name before creating a new one.
+  # Only effective if `draft` is set to true.
+  # Default: false.
+  replace_existing_draft: true
+  # Useful if you want to delay the creation of the tag in the remote.
+  # You can create the tag locally, but not push it, and run GoReleaser.
+  # It'll then set the `target_commitish` portion of the GitHub release to the value of this field.
+  # Only works on GitHub.
+  #
+  # Default: ''
+  target_commitish: "{{ .Commit }}"
+  # If set to auto, will mark the release as not ready for production in case there is an indicator for this in the tag e.g. v1.0.0-rc1 .
+  # If set to true, will mark the release as not ready for production.
+  # Default is false.
+  prerelease: auto
+  # What to do with the release notes in case there the release already exists.
+  #
+  # Valid options are:
+  # - `keep-existing`: keep the existing notes
+  # - `append`: append the current release notes to the existing notes
+  # - `prepend`: prepend the current release notes to the existing notes
+  # - `replace`: replace existing notes
+  #
+  # Default is `keep-existing`.
+  mode: append
+  # Header for the release body.
+  #
+  # Templates: allowed
+  header: |
+    ## SamWaf Release {{.Tag}} ({{ .Date }})
+    
+    ### 📦 正式发布版本 (Release Builds)
+    推荐用户下载使用的正式版本，经过优化和测试：
+    
+    ### 🔧 调试版本 (Debug Builds - For Troubleshooting Only)
+    **⚠️ 注意：调试版本仅供问题排查使用，不建议在生产环境中使用**
+    
+    调试版本包含完整的调试符号，文件较大，仅在需要进行问题诊断时下载：
+    - 文件名包含 `DEBUG_SYMBOLS` 标识
+    - 版本号包含 `-debug` 后缀
+    - 保留了完整的调试信息，便于问题定位
+    
+  # Footer for the release body.
+  #
+  # Templates: allowed
+  footer: |
+    ---
+    
+    ### 📋 版本说明
+    - **正式版本**：推荐用户使用，经过优化，文件较小
+    - **调试版本**：仅供技术支持和问题排查使用，包含调试符号，文件较大
+    
+    ### 🆘 技术支持
+    如遇到问题需要技术支持，请：
+    1. 优先使用正式版本
+    2. 如需问题排查，可下载对应的调试版本
+    3. 提供详细的错误信息和日志
+    
+    **Full Changelog**: https://github.com/samwafgo/SamWaf/compare/{{.PreviousTag}}...{{.Tag}}

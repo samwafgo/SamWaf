@@ -283,12 +283,5 @@ func (waf *WafEngine) decompressRequestContent(req *http.Request) ([]byte, error
 		return bodyBytes, fmt.Errorf("读取解压后的请求体失败: %v", readErr)
 	}
 
-	// 更新请求体为解压后的内容
-	req.Body = io.NopCloser(bytes.NewBuffer(decompressedBytes))
-	// 移除Content-Encoding头，因为内容已经解压
-	req.Header.Del("Content-Encoding")
-	// 更新Content-Length
-	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(decompressedBytes)))
-
 	return decompressedBytes, nil
 }

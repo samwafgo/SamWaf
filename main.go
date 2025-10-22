@@ -670,12 +670,20 @@ func (m *wafSystenService) run() {
 // 停止要提前关闭的 是服务的主要逻辑
 func (m *wafSystenService) stopSamWaf() {
 	zlog.Info("Shutdown SamWaf Engine...")
-	globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.CloseWaf()
-	zlog.Info("Shutdown SamWaf Engine finished")
+	if globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE != nil {
+		globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.CloseWaf()
+		zlog.Info("Shutdown SamWaf Engine finished")
+	} else {
+		zlog.Warn("WAF Engine is nil, skipping shutdown")
+	}
 
 	zlog.Info("Shutdown SamWaf Tunnel Engine...")
-	globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE.CloseTunnel()
-	zlog.Info("Shutdown SamWaf Tunnel Engine finished")
+	if globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE != nil {
+		globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE.CloseTunnel()
+		zlog.Info("Shutdown SamWaf Tunnel Engine finished")
+	} else {
+		zlog.Warn("Tunnel Engine is nil, skipping shutdown")
+	}
 
 	zlog.Info("Shutdown SamWaf Queue Processors...")
 	// 关闭信号通道，通知所有队列处理协程退出

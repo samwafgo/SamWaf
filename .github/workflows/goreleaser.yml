@@ -202,8 +202,8 @@ jobs:
           
           # 创建压缩包
           mkdir -p release
-          tar -czf release/SamWaf_Darwin_x86_64${CURRENT_TAG}.tar.gz -C dist SamWafDarwinAmd64
-          tar -czf release/SamWaf_Darwin_arm64${CURRENT_TAG}.tar.gz -C dist SamWafDarwinArm64
+          tar -czf release/SamWaf_Darwin_x86_64.${CURRENT_TAG}.tar.gz -C dist SamWafDarwinAmd64
+          tar -czf release/SamWaf_Darwin_arm64.${CURRENT_TAG}.tar.gz -C dist SamWafDarwinArm64
       
       - name: Archive macOS artifacts
         if: steps.check_macos.outputs.skip_macos != 'true'

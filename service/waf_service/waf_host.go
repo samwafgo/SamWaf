@@ -8,7 +8,9 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
+	"encoding/json"
 	"errors"
+	"gorm.io/gorm"
 	"strings"
 	"time"
 )
@@ -370,6 +372,139 @@ func (receiver *WafHostService) ModifyAllGuardStatusApi(req request.WafHostBatch
 	// 更新所有非全局主机的防御状态，且只更新与目标状态不同的主机
 	err := global.GWAF_LOCAL_DB.Model(model.Hosts{}).Where("GLOBAL_HOST <> ? AND GUARD_STATUS <> ?", 1, req.GUARD_STATUS).Updates(hostMap).Error
 	return err
+}
+
+// CopyConfigApi 复制配置
+func (receiver *WafHostService) CopyConfigApi(req request.WafHostBatchCopyConfigReq) error {
+	// 获取源主机信息
+	sourceHost := receiver.GetDetailByCodeApi(req.SourceHostCode)
+	if sourceHost.Code == "" {
+		return errors.New("源主机不存在")
+	}
+
+	// 获取目标主机信息
+	targetHost := receiver.GetDetailByCodeApi(req.TargetHostCode)
+	if targetHost.Code == "" {
+		return errors.New("目标主机不存在")
+	}
+
+	// 开始事务
+	tx := global.GWAF_LOCAL_DB.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 遍历要复制的模块
+	for _, module := range req.Modules {
+		switch module {
+		case "cache":
+			// 复制缓存配置
+			err := receiver.copyCacheConfig(tx, sourceHost, targetHost)
+			if err != nil {
+				tx.Rollback()
+				return errors.New("复制缓存配置失败: " + err.Error())
+			}
+		// 可以在这里添加其他模块的复制逻辑
+		// case "defense":
+		//     err := receiver.copyDefenseConfig(tx, sourceHost, targetHost)
+		// case "ssl":
+		//     err := receiver.copySSLConfig(tx, sourceHost, targetHost)
+		default:
+			tx.Rollback()
+			return errors.New("不支持的模块: " + module)
+		}
+	}
+
+	// 提交事务
+	return tx.Commit().Error
+}
+
+// copyCacheConfig 复制缓存配置
+func (receiver *WafHostService) copyCacheConfig(tx *gorm.DB, sourceHost, targetHost model.Hosts) error {
+	// 解析源主机的缓存配置
+	var sourceCacheConfig model.CacheConfig
+	if sourceHost.CacheJSON != "" {
+		err := json.Unmarshal([]byte(sourceHost.CacheJSON), &sourceCacheConfig)
+		if err != nil {
+			return errors.New("解析源主机缓存配置失败: " + err.Error())
+		}
+	}
+
+	// 将缓存配置应用到目标主机
+	cacheJSON, err := json.Marshal(sourceCacheConfig)
+	if err != nil {
+		return errors.New("序列化缓存配置失败: " + err.Error())
+	}
+
+	// 更新目标主机的缓存配置和开启状态
+	updateMap := map[string]interface{}{
+		"CacheJSON":   string(cacheJSON),
+		"UPDATE_TIME": customtype.JsonTime(time.Now()),
+	}
+
+	err = tx.Model(&model.Hosts{}).Where("CODE = ?", targetHost.Code).Updates(updateMap).Error
+	if err != nil {
+		return errors.New("更新目标主机缓存配置失败: " + err.Error())
+	}
+
+	// 复制缓存规则
+	err = receiver.copyCacheRules(tx, sourceHost.Code, targetHost.Code)
+	if err != nil {
+		return errors.New("复制缓存规则失败: " + err.Error())
+	}
+
+	return nil
+}
+
+// copyCacheRules 复制缓存规则
+func (receiver *WafHostService) copyCacheRules(tx *gorm.DB, sourceHostCode, targetHostCode string) error {
+	// 查询源主机的所有缓存规则
+	var sourceCacheRules []model.CacheRule
+	err := tx.Where("host_code = ?", sourceHostCode).Find(&sourceCacheRules).Error
+	if err != nil {
+		return errors.New("查询源主机缓存规则失败: " + err.Error())
+	}
+
+	// 如果源主机没有缓存规则，直接返回
+	if len(sourceCacheRules) == 0 {
+		return nil
+	}
+
+	// 先删除目标主机的现有缓存规则
+	err = tx.Where("host_code = ?", targetHostCode).Delete(&model.CacheRule{}).Error
+	if err != nil {
+		return errors.New("删除目标主机现有缓存规则失败: " + err.Error())
+	}
+
+	// 复制缓存规则到目标主机
+	for _, rule := range sourceCacheRules {
+		newRule := model.CacheRule{
+			BaseOrm:       rule.BaseOrm,
+			HostCode:      targetHostCode, // 更改为目标主机代码
+			RuleName:      rule.RuleName,
+			RuleType:      rule.RuleType,
+			RuleContent:   rule.RuleContent,
+			ParamType:     rule.ParamType,
+			CacheTime:     rule.CacheTime,
+			Priority:      rule.Priority,
+			RequestMethod: rule.RequestMethod,
+			Remarks:       rule.Remarks,
+		}
+		// 生成新的ID和时间戳
+		newRule.Id = uuid.GenUUID()
+		newRule.USER_CODE = global.GWAF_USER_CODE
+		newRule.CREATE_TIME = customtype.JsonTime(time.Now())
+		newRule.UPDATE_TIME = customtype.JsonTime(time.Now())
+
+		err = tx.Create(&newRule).Error
+		if err != nil {
+			return errors.New("创建缓存规则失败: " + err.Error())
+		}
+	}
+
+	return nil
 }
 
 // GetHostsByGuardStatus 获取指定防御状态的主机

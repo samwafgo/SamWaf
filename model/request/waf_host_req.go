@@ -110,3 +110,10 @@ type WafHostAllDomainsReq struct {
 type WafHostBatchGuardStatusReq struct {
 	GUARD_STATUS int `json:"guard_status"` // 防御状态：0-关闭防御，1-开启防御
 }
+
+// WafHostBatchCopyConfigReq 批量复制配置请求
+type WafHostBatchCopyConfigReq struct {
+	SourceHostCode string   `json:"source_host_code"` // 源主机代码
+	TargetHostCode string   `json:"target_host_code"` // 目标主机代码
+	Modules        []string `json:"modules"`          // 要复制的模块列表，如：["cache"]
+}

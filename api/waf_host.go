@@ -61,6 +61,41 @@ func (w *WafHostAPi) AddApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// BatchCopyConfigApi 批量复制配置API
+func (w *WafHostAPi) BatchCopyConfigApi(c *gin.Context) {
+	var req request.WafHostBatchCopyConfigReq
+	err := c.ShouldBindJSON(&req)
+	if err == nil {
+		// 验证源主机是否存在
+		sourceHost := wafHostService.GetDetailByCodeApi(req.SourceHostCode)
+		if sourceHost.Code == "" {
+			response.FailWithMessage("源主机不存在", c)
+			return
+		}
+
+		// 验证目标主机是否存在
+		targetHost := wafHostService.GetDetailByCodeApi(req.TargetHostCode)
+		if targetHost.Code == "" {
+			response.FailWithMessage("目标主机 "+req.TargetHostCode+" 不存在", c)
+			return
+		}
+
+		// 执行配置复制
+		err = wafHostService.CopyConfigApi(req)
+		if err != nil {
+			response.FailWithMessage("复制配置失败: "+err.Error(), c)
+			return
+		}
+
+		// 通知WAF引擎更新配置
+		global.GWAF_CHAN_HOST <- targetHost
+
+		response.OkWithMessage("复制配置成功", c)
+	} else {
+		response.FailWithMessage("解析失败", c)
+	}
+}
 func (w *WafHostAPi) GetDetailApi(c *gin.Context) {
 	var req request.WafHostDetailReq
 	err := c.ShouldBind(&req)

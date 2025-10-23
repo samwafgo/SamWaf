@@ -10,7 +10,8 @@ permissions:
 env:
   REGISTRY: docker.io
 jobs:
-  goreleaser:
+  # Linux 和 Windows 编译任务
+  goreleaser-linux-windows:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -27,55 +28,22 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y tar gzip wget curl
       
-      # 缓存OSXCross工具链
-      - name: Cache OSXCross toolchain
-        uses: actions/cache@v3
-        id: osxcross-cache
-        with:
-          path: /tmp/osxcross
-          key: osxcross-${{ runner.os }}-14.5-v2
-          restore-keys: |
-            osxcross-${{ runner.os }}-14.5-
-            osxcross-${{ runner.os }}-
-      
       - name: Install dependencies for cross-compilation
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu build-essential clang llvm lld
-          
-          # 只有在缓存未命中时才构建OSXCross
-          if [ "${{ steps.osxcross-cache.outputs.cache-hit }}" != "true" ]; then
-            echo "Building OSXCross toolchain (cache miss)..."
-            
-            # Install osxcross for macOS cross-compilation
-            git clone https://github.com/tpoechtrager/osxcross /tmp/osxcross
-            cd /tmp/osxcross
-            
-            # Download a more stable macOS SDK (14.5 instead of 15.5)
-            wget -O tarballs/MacOSX14.5.sdk.tar.xz https://github.com/joseluisq/macosx-sdks/releases/download/14.5/MacOSX14.5.sdk.tar.xz
-            
-            # Build osxcross with more verbose output and error handling
-            OSX_VERSION_MIN=10.15 UNATTENDED=1 ./build.sh || {
-              echo "OSXCross build failed, trying with alternative approach..."
-              # Try with a simpler configuration
-              OSX_VERSION_MIN=10.15 UNATTENDED=1 TARGET_DIR=/tmp/osxcross/target ./build.sh
-            }
-          else
-            echo "Using cached OSXCross toolchain"
-          fi
-      - name: Run GoReleaser
+          sudo apt-get install -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu build-essential
+      
+      - name: Run GoReleaser (Linux/Windows only)
         uses: goreleaser/goreleaser-action@v4
         with:
-          # either 'goreleaser' (default) or 'goreleaser-pro'
           distribution: goreleaser
           version: '2.1.0'
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CGO_ENABLED: 1
-          PATH: /tmp/osxcross/target/bin:${{ env.PATH }}
-          # Your GoReleaser Pro key, if you are using the 'goreleaser-pro' distribution
-          # GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+          # 设置环境变量跳过macOS编译
+          SKIP_MACOS: "true"
       - name: List Folder
         run: |
           ls
@@ -167,29 +135,138 @@ jobs:
           # 停止并移除容器
           docker stop samwaf-current-instance
           docker rm samwaf-current-instance
-  win7win2008r2:
-    runs-on: ubuntu-latest
+
+  # macOS 编译任务 (使用原生 macOS runner)
+  goreleaser-macos:
+    runs-on: macos-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21.4'
+      
+      - name: Install basic tools
+        run: |
+          # macOS 已经有 tar, gzip 等基础工具
+          brew install wget curl || true
+      
+      - name: Download SamWafWeb
+        run: |
+          curl -L https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
+          tar -zxvf dist.tar.gz
+          rm -rf public/dist
+          mv -f dist public
+          rm -rf dist.tar.gz
+      
+      - name: Check if should build macOS
+        id: check_macos
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          echo "Checking tag: $TAG_NAME"
+          
+          # 检查是否应该编译 macOS
+          if echo "$TAG_NAME" | grep -qE "(macos|darwin|all)" || ! echo "$TAG_NAME" | grep -qE "(linux|windows|win)"; then
+            echo "Building macOS binaries"
+            echo "skip_macos=false" >> $GITHUB_OUTPUT
+          else
+            echo "Skipping macOS build for platform-specific tag"
+            echo "skip_macos=true" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Build macOS binaries
+        if: steps.check_macos.outputs.skip_macos != 'true'
+        env:
+          CGO_ENABLED: 1
+          MACOSX_DEPLOYMENT_TARGET: "10.15"
+        run: |
+          # 获取当前标签
+          CURRENT_TAG="${GITHUB_REF#refs/tags/}"
+          BUILDTIME=$(date +'%Y%m%d')
+          
+          # 编译 AMD64 版本
+          echo "Building macOS AMD64..."
+          GOOS=darwin GOARCH=amd64 go build \
+            -ldflags="-X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=false -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=${CURRENT_TAG} -s -w" \
+            -o ./dist/SamWafDarwinAmd64 main.go
+          
+          # 编译 ARM64 版本 (Apple Silicon)
+          echo "Building macOS ARM64..."
+          GOOS=darwin GOARCH=arm64 go build \
+            -ldflags="-X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=false -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=${CURRENT_TAG} -s -w" \
+            -o ./dist/SamWafDarwinArm64 main.go
+          
+          # 创建压缩包
+          mkdir -p release
+          tar -czf release/SamWaf_Darwin_x86_64${CURRENT_TAG}.tar.gz -C dist SamWafDarwinAmd64
+          tar -czf release/SamWaf_Darwin_arm64${CURRENT_TAG}.tar.gz -C dist SamWafDarwinArm64
+      
+      - name: Archive macOS artifacts
+        if: steps.check_macos.outputs.skip_macos != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: SamWaf-macOS-binaries
+          path: |
+            release/SamWaf_Darwin_x86_64*.tar.gz
+            release/SamWaf_Darwin_arm64*.tar.gz
+      
+      - name: Release macOS binaries
+        if: steps.check_macos.outputs.skip_macos != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/SamWaf_Darwin_x86_64*.tar.gz
+            release/SamWaf_Darwin_arm64*.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  win7win2008r2:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if should build Win7
+        id: check_win7_build
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          echo "Checking tag: $TAG_NAME"
+          
+          # 检查是否应该跳过 Win7 编译
+          if echo "$TAG_NAME" | grep -qE "(linux|macos|darwin|debug|arm64)" && ! echo "$TAG_NAME" | grep -q "all"; then
+            echo "Platform-specific tag detected, skipping Win7 build"
+            echo "skip_win7_build=true" >> $GITHUB_OUTPUT
+          else
+            echo "Building Win7 version"
+            echo "skip_win7_build=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout
+        if: steps.check_win7_build.outputs.skip_win7_build != 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Go
+        if: steps.check_win7_build.outputs.skip_win7_build != 'true'
         uses: actions/setup-go@v5
         with:
           go-version: '1.24'
 
       - name: Install dependencies for Windows cross-compilation
+        if: steps.check_win7_build.outputs.skip_win7_build != 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 build-essential
 
       - name: Install UPX
+        if: steps.check_win7_build.outputs.skip_win7_build != 'true'
         run: |
           sudo apt-get install -y upx
 
       - name: DownLoad New SamWafWeb
+        if: steps.check_win7_build.outputs.skip_win7_build != 'true'
         run: |
           curl -L https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
           tar -zxvf dist.tar.gz
@@ -201,6 +278,7 @@ jobs:
           ls public/dist
 
       - name: Revert Golang1.24 commit for Windows7/8
+        if: steps.check_win7_build.outputs.skip_win7_build != 'true'
         run: |
           cd $(go env GOROOT)
           patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go124/2a406dc9f1ea7323d6ca9fccb2fe9ddebb6b1cc8.diff
@@ -209,13 +287,16 @@ jobs:
           patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go124/ac3e93c061779dfefc0dd13a5b6e6f764a25621e.diff
 
       - name: Get current tag
+        if: steps.check_win7_build.outputs.skip_win7_build != 'true'
         id: get_tag
         run: echo "CURRENT_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
 
       - name: Set BUILDTIME environment variable
+        if: steps.check_win7_build.outputs.skip_win7_build != 'true'
         run: echo "BUILDTIME=$(date +'%Y%m%d')" >> $GITHUB_ENV
 
       - name: Build Win7/Win8/Windows2008r2
+        if: steps.check_win7_build.outputs.skip_win7_build != 'true'
         env:
           GOOS: windows
           GOARCH: amd64
@@ -229,14 +310,17 @@ jobs:
           go build -ldflags="-X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=true -X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=${CURRENT_TAG} -s -w -extldflags '-static'" -o ./release/SamWaf64ForWin7Win8Win2008.exe main.go
 
       - name: Archive artifacts
+        if: steps.check_win7_build.outputs.skip_win7_build != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: SamWaf64ForWin7Win8Win2008
           path: release/SamWaf64ForWin7Win8Win2008.exe
+      
       - name: Release
+        if: steps.check_win7_build.outputs.skip_win7_build != 'true'
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
             release/SamWaf64ForWin7Win8Win2008.exe
-    needs: goreleaser
+    needs: [goreleaser-linux-windows, goreleaser-macos]

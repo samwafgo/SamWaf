@@ -136,7 +136,7 @@ jobs:
           docker stop samwaf-current-instance
           docker rm samwaf-current-instance
 
-  # macOS 编译任务 (使用原生 macOS runner)
+  # macOS 编译任务 (使用原生 macOS runner )
   goreleaser-macos:
     runs-on: macos-latest
     steps:

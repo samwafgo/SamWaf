@@ -566,6 +566,10 @@ func (u *Updater) fetchInfoGithub() error {
 		platformSuffix = "Linux_x86_64"
 	case "linux-arm64":
 		platformSuffix = "Linux_arm64"
+	case "darwin-amd64":
+		platformSuffix = "Darwin_x86_64"
+	case "darwin-arm64":
+		platformSuffix = "Darwin_arm64"
 	}
 
 	// 查找匹配当前平台的资源，同时过滤掉debug版本

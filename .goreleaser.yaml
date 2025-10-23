@@ -24,6 +24,7 @@ builds:
   # 正式发布版本 (Release builds)
   - id: "samwaf_linux"
     binary: "SamWafLinux64"
+    skip: '{{ if or (contains .Tag "linux") (contains .Tag "all") (contains .Tag "windows") (contains .Tag "win") (contains .Tag "macos") (contains .Tag "darwin") }}{{ and (not (contains .Tag "linux")) (not (contains .Tag "all")) }}{{ else }}false{{ end }}'
     env:
       - CGO_ENABLED=1
       - CC=x86_64-linux-gnu-gcc
@@ -42,6 +43,7 @@ builds:
       - -extldflags "-static"
   - id: "samwaf_win"
     binary: "SamWaf64"
+    skip: '{{ if or (contains .Tag "linux") (contains .Tag "all") (contains .Tag "windows") (contains .Tag "win") (contains .Tag "macos") (contains .Tag "darwin") }}{{ and (not (contains .Tag "windows")) (not (contains .Tag "win")) (not (contains .Tag "all")) }}{{ else }}false{{ end }}'
     env:
       - CGO_ENABLED=1
       - CC=x86_64-w64-mingw32-gcc
@@ -60,6 +62,7 @@ builds:
       - -extldflags "-static"
   - id: "samwaf_linux_arm64"
     binary: "SamWafLinuxArm64"
+    skip: '{{ if or (contains .Tag "linux") (contains .Tag "all") (contains .Tag "windows") (contains .Tag "win") (contains .Tag "macos") (contains .Tag "darwin") }}{{ and (not (contains .Tag "linux")) (not (contains .Tag "arm64")) (not (contains .Tag "all")) }}{{ else }}false{{ end }}'
     env:
       - CGO_ENABLED=1
       - CC=aarch64-linux-gnu-gcc
@@ -76,10 +79,51 @@ builds:
       - -X SamWaf/global.GWAF_RELEASE_VERSION={{.Tag}}
       - -s -w
       - -extldflags "-static"
+  - id: "samwaf_darwin_amd64"
+    binary: "SamWafDarwinAmd64"
+    skip: '{{ if or (contains .Tag "linux") (contains .Tag "all") (contains .Tag "windows") (contains .Tag "win") (contains .Tag "macos") (contains .Tag "darwin") }}{{ and (not (contains .Tag "macos")) (not (contains .Tag "darwin")) (not (contains .Tag "all")) }}{{ else }}false{{ end }}'
+    env:
+      - CGO_ENABLED=1
+      - CC=o64-clang
+      - CXX=o64-clang++
+      - MACOSX_DEPLOYMENT_TARGET=10.15
+      - CGO_CFLAGS=-Wno-unused-variable
+      - CGO_LDFLAGS=-mmacosx-version-min=10.15
+    goos:
+      - darwin
+    goarch:
+      - amd64
+    ldflags:
+      - -X SamWaf/global.GWAF_RELEASE=true
+      - -X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=false
+      - -X SamWaf/global.GWAF_RELEASE_VERSION_NAME={{ time "20060102" }}
+      - -X SamWaf/global.GWAF_RELEASE_VERSION={{.Tag}}
+      - -s -w
+  - id: "samwaf_darwin_arm64"
+    binary: "SamWafDarwinArm64"
+    skip: '{{ if or (contains .Tag "linux") (contains .Tag "all") (contains .Tag "windows") (contains .Tag "win") (contains .Tag "macos") (contains .Tag "darwin") }}{{ and (not (contains .Tag "macos")) (not (contains .Tag "darwin")) (not (contains .Tag "all")) }}{{ else }}false{{ end }}'
+    env:
+      - CGO_ENABLED=1
+      - CC=oa64-clang
+      - CXX=oa64-clang++
+      - MACOSX_DEPLOYMENT_TARGET=11.0
+      - CGO_CFLAGS=-Wno-unused-variable
+      - CGO_LDFLAGS=-mmacosx-version-min=11.0
+    goos:
+      - darwin
+    goarch:
+      - arm64
+    ldflags:
+      - -X SamWaf/global.GWAF_RELEASE=true
+      - -X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=false
+      - -X SamWaf/global.GWAF_RELEASE_VERSION_NAME={{ time "20060102" }}
+      - -X SamWaf/global.GWAF_RELEASE_VERSION={{.Tag}}
+      - -s -w
   
   # Debug版本 (Debug builds for troubleshooting only)
   - id: "samwaf_linux_debug"
     binary: "SamWafLinux64-DEBUG-SYMBOLS"
+    skip: '{{ and (not (contains .Tag "linux")) (not (contains .Tag "debug")) (not (contains .Tag "all")) (ne .Env.BUILD_LINUX "true") }}'
     env:
       - CGO_ENABLED=1
       - CC=x86_64-linux-gnu-gcc
@@ -97,6 +141,7 @@ builds:
       - -extldflags "-static"
   - id: "samwaf_win_debug"
     binary: "SamWaf64-DEBUG-SYMBOLS"
+    skip: '{{ and (not (contains .Tag "windows")) (not (contains .Tag "win")) (not (contains .Tag "debug")) (not (contains .Tag "all")) (ne .Env.BUILD_WINDOWS "true") }}'
     env:
       - CGO_ENABLED=1
       - CC=x86_64-w64-mingw32-gcc
@@ -114,6 +159,7 @@ builds:
       - -extldflags "-static"
   - id: "samwaf_linux_arm64_debug"
     binary: "SamWafLinuxArm64-DEBUG-SYMBOLS"
+    skip: '{{ and (not (contains .Tag "linux")) (not (contains .Tag "arm64")) (not (contains .Tag "debug")) (not (contains .Tag "all")) (ne .Env.BUILD_LINUX "true") }}'
     env:
       - CGO_ENABLED=1
       - CC=aarch64-linux-gnu-gcc
@@ -129,6 +175,44 @@ builds:
       - -X SamWaf/global.GWAF_RELEASE_VERSION_NAME={{ time "20060102" }}
       - -X SamWaf/global.GWAF_RELEASE_VERSION={{.Tag}}-debug
       - -extldflags "-static"
+  - id: "samwaf_darwin_amd64_debug"
+    binary: "SamWafDarwinAmd64-DEBUG-SYMBOLS"
+    skip: '{{ and (not (contains .Tag "macos")) (not (contains .Tag "darwin")) (not (contains .Tag "debug")) (not (contains .Tag "all")) (ne .Env.BUILD_MACOS "true") }}'
+    env:
+      - CGO_ENABLED=1
+      - CC=o64-clang
+      - CXX=o64-clang++
+      - MACOSX_DEPLOYMENT_TARGET=10.15
+      - CGO_CFLAGS=-Wno-unused-variable
+      - CGO_LDFLAGS=-mmacosx-version-min=10.15
+    goos:
+      - darwin
+    goarch:
+      - amd64
+    ldflags:
+      - -X SamWaf/global.GWAF_RELEASE=true
+      - -X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=false
+      - -X SamWaf/global.GWAF_RELEASE_VERSION_NAME={{ time "20060102" }}
+      - -X SamWaf/global.GWAF_RELEASE_VERSION={{.Tag}}-debug
+  - id: "samwaf_darwin_arm64_debug"
+    binary: "SamWafDarwinArm64-DEBUG-SYMBOLS"
+    skip: '{{ and (not (contains .Tag "macos")) (not (contains .Tag "darwin")) (not (contains .Tag "debug")) (not (contains .Tag "all")) (ne .Env.BUILD_MACOS "true") }}'
+    env:
+      - CGO_ENABLED=1
+      - CC=oa64-clang
+      - CXX=oa64-clang++
+      - MACOSX_DEPLOYMENT_TARGET=11.0
+      - CGO_CFLAGS=-Wno-unused-variable
+      - CGO_LDFLAGS=-mmacosx-version-min=11.0
+    goos:
+      - darwin
+    goarch:
+      - arm64
+    ldflags:
+      - -X SamWaf/global.GWAF_RELEASE=true
+      - -X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=false
+      - -X SamWaf/global.GWAF_RELEASE_VERSION_NAME={{ time "20060102" }}
+      - -X SamWaf/global.GWAF_RELEASE_VERSION={{.Tag}}-debug
 upx:
   - # Whether to enable it or not.
     #
@@ -144,7 +228,7 @@ upx:
 
 archives:
   - id: "release_archives"
-    builds: ["samwaf_linux", "samwaf_win", "samwaf_linux_arm64"]
+    builds: ["samwaf_linux", "samwaf_win", "samwaf_linux_arm64", "samwaf_darwin_amd64", "samwaf_darwin_arm64"]
     format: tar.gz
     # this name template makes the OS and Arch compatible with the results of `uname`.
     name_template: >-
@@ -160,7 +244,7 @@ archives:
       - goos: windows
         format: zip
   - id: "debug_archives"
-    builds: ["samwaf_linux_debug", "samwaf_win_debug", "samwaf_linux_arm64_debug"]
+    builds: ["samwaf_linux_debug", "samwaf_win_debug", "samwaf_linux_arm64_debug", "samwaf_darwin_amd64_debug", "samwaf_darwin_arm64_debug"]
     format: tar.gz
     # Debug版本使用特殊命名，以DEBUG开头便于用户识别和分组
     name_template: >-

@@ -21,24 +21,48 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: '1.21.4'
+      
+      - name: Install basic tools
+        run: | 
+          sudo apt-get update
+          sudo apt-get install -y tar gzip wget curl
+      
+      # 缓存OSXCross工具链
+      - name: Cache OSXCross toolchain
+        uses: actions/cache@v3
+        id: osxcross-cache
+        with:
+          path: /tmp/osxcross
+          key: osxcross-${{ runner.os }}-14.5-v2
+          restore-keys: |
+            osxcross-${{ runner.os }}-14.5-
+            osxcross-${{ runner.os }}-
+      
       - name: Install dependencies for cross-compilation
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu build-essential clang llvm lld
           
-          # Install osxcross for macOS cross-compilation
-          git clone https://github.com/tpoechtrager/osxcross /tmp/osxcross
-          cd /tmp/osxcross
-          
-          # Download a more stable macOS SDK (14.5 instead of 15.5)
-          wget -O tarballs/MacOSX14.5.sdk.tar.xz https://github.com/joseluisq/macosx-sdks/releases/download/14.5/MacOSX14.5.sdk.tar.xz
-          
-          # Build osxcross with more verbose output and error handling
-          OSX_VERSION_MIN=10.15 UNATTENDED=1 ./build.sh || {
-            echo "OSXCross build failed, trying with alternative approach..."
-            # Try with a simpler configuration
-            OSX_VERSION_MIN=10.15 UNATTENDED=1 TARGET_DIR=/tmp/osxcross/target ./build.sh
-          }
+          # 只有在缓存未命中时才构建OSXCross
+          if [ "${{ steps.osxcross-cache.outputs.cache-hit }}" != "true" ]; then
+            echo "Building OSXCross toolchain (cache miss)..."
+            
+            # Install osxcross for macOS cross-compilation
+            git clone https://github.com/tpoechtrager/osxcross /tmp/osxcross
+            cd /tmp/osxcross
+            
+            # Download a more stable macOS SDK (14.5 instead of 15.5)
+            wget -O tarballs/MacOSX14.5.sdk.tar.xz https://github.com/joseluisq/macosx-sdks/releases/download/14.5/MacOSX14.5.sdk.tar.xz
+            
+            # Build osxcross with more verbose output and error handling
+            OSX_VERSION_MIN=10.15 UNATTENDED=1 ./build.sh || {
+              echo "OSXCross build failed, trying with alternative approach..."
+              # Try with a simpler configuration
+              OSX_VERSION_MIN=10.15 UNATTENDED=1 TARGET_DIR=/tmp/osxcross/target ./build.sh
+            }
+          else
+            echo "Using cached OSXCross toolchain"
+          fi
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v4
         with:

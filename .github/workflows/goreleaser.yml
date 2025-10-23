@@ -24,17 +24,21 @@ jobs:
       - name: Install dependencies for cross-compilation
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu build-essential clang llvm
+          sudo apt-get install -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu build-essential clang llvm lld
           
           # Install osxcross for macOS cross-compilation
           git clone https://github.com/tpoechtrager/osxcross /tmp/osxcross
           cd /tmp/osxcross
           
-          # Download macOS SDK
-          wget -O tarballs/MacOSX15.5.sdk.tar.xz https://github.com/joseluisq/macosx-sdks/releases/download/15.5/MacOSX15.5.sdk.tar.xz
+          # Download a more stable macOS SDK (14.5 instead of 15.5)
+          wget -O tarballs/MacOSX14.5.sdk.tar.xz https://github.com/joseluisq/macosx-sdks/releases/download/14.5/MacOSX14.5.sdk.tar.xz
           
-          # Build osxcross
-          OSX_VERSION_MIN=10.15 ./build.sh
+          # Build osxcross with more verbose output and error handling
+          OSX_VERSION_MIN=10.15 UNATTENDED=1 ./build.sh || {
+            echo "OSXCross build failed, trying with alternative approach..."
+            # Try with a simpler configuration
+            OSX_VERSION_MIN=10.15 UNATTENDED=1 TARGET_DIR=/tmp/osxcross/target ./build.sh
+          }
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v4
         with:

@@ -316,8 +316,7 @@ jobs:
           name: SamWaf64ForWin7Win8Win2008
           path: release/SamWaf64ForWin7Win8Win2008.exe
       
-      - name: Release
-        if: steps.check_win7_build.outputs.skip_win7_build != 'true'
+      - name: Release 
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:

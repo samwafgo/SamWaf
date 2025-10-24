@@ -19,4 +19,5 @@ const (
 	TASK_CLEAR_CC_WINDOWS             = "task_clear_cc_windows"             //清除ccWindows记录
 	TASK_CREATE_DB_INDEX              = "task_create_db_index"              //创建索引
 	TASK_CLEAR_WEBCACHE               = "task_clear_webcache"               //清除缓存
+	TASK_GC                           = "task_gc"                           //GC回收
 )

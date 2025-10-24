@@ -21,10 +21,9 @@ before:
     - mv -f dist public
     - rm -rf dist.tar.gz
 builds:
-  # 正式发布版本 (Release builds) - 只编译 Linux 和 Windows
+  # 正式发布版本 (Release builds)
   - id: "samwaf_linux"
     binary: "SamWafLinux64"
-    skip: '{{ if or (contains .Tag "linux") (contains .Tag "all") (contains .Tag "windows") (contains .Tag "win") }}{{ and (not (contains .Tag "linux")) (not (contains .Tag "all")) }}{{ else }}{{ if or (contains .Tag "macos") (contains .Tag "darwin") }}true{{ else }}false{{ end }}{{ end }}'
     env:
       - CGO_ENABLED=1
       - CC=x86_64-linux-gnu-gcc
@@ -43,7 +42,6 @@ builds:
       - -extldflags "-static"
   - id: "samwaf_win"
     binary: "SamWaf64"
-    skip: '{{ if or (contains .Tag "linux") (contains .Tag "all") (contains .Tag "windows") (contains .Tag "win") }}{{ and (not (contains .Tag "windows")) (not (contains .Tag "win")) (not (contains .Tag "all")) }}{{ else }}{{ if or (contains .Tag "macos") (contains .Tag "darwin") }}true{{ else }}false{{ end }}{{ end }}'
     env:
       - CGO_ENABLED=1
       - CC=x86_64-w64-mingw32-gcc
@@ -62,7 +60,6 @@ builds:
       - -extldflags "-static"
   - id: "samwaf_linux_arm64"
     binary: "SamWafLinuxArm64"
-    skip: '{{ if or (contains .Tag "linux") (contains .Tag "all") (contains .Tag "arm64") }}{{ and (not (contains .Tag "linux")) (not (contains .Tag "arm64")) (not (contains .Tag "all")) }}{{ else }}{{ if or (contains .Tag "macos") (contains .Tag "darwin") (contains .Tag "windows") (contains .Tag "win") }}true{{ else }}false{{ end }}{{ end }}'
     env:
       - CGO_ENABLED=1
       - CC=aarch64-linux-gnu-gcc
@@ -80,10 +77,9 @@ builds:
       - -s -w
       - -extldflags "-static"
   
-  # Debug版本 (Debug builds for troubleshooting only) - 只编译 Linux 和 Windows
+  # Debug版本 (Debug builds for troubleshooting only)
   - id: "samwaf_linux_debug"
     binary: "SamWafLinux64-DEBUG-SYMBOLS"
-    skip: '{{ and (not (contains .Tag "linux")) (not (contains .Tag "debug")) (not (contains .Tag "all")) (ne .Env.BUILD_LINUX "true") }}'
     env:
       - CGO_ENABLED=1
       - CC=x86_64-linux-gnu-gcc
@@ -101,7 +97,6 @@ builds:
       - -extldflags "-static"
   - id: "samwaf_win_debug"
     binary: "SamWaf64-DEBUG-SYMBOLS"
-    skip: '{{ and (not (contains .Tag "windows")) (not (contains .Tag "win")) (not (contains .Tag "debug")) (not (contains .Tag "all")) (ne .Env.BUILD_WINDOWS "true") }}'
     env:
       - CGO_ENABLED=1
       - CC=x86_64-w64-mingw32-gcc
@@ -119,7 +114,6 @@ builds:
       - -extldflags "-static"
   - id: "samwaf_linux_arm64_debug"
     binary: "SamWafLinuxArm64-DEBUG-SYMBOLS"
-    skip: '{{ and (not (contains .Tag "linux")) (not (contains .Tag "arm64")) (not (contains .Tag "debug")) (not (contains .Tag "all")) (ne .Env.BUILD_LINUX "true") }}'
     env:
       - CGO_ENABLED=1
       - CC=aarch64-linux-gnu-gcc
@@ -246,5 +240,4 @@ release:
     如遇到问题需要技术支持，请：
     1. 优先使用正式版本，测试版本
     2. 如需问题排查，可下载对应的调试版本
-    3. 提供详细的错误信息和日志
-    
+    3. 提供详细的错误信息和日志 

@@ -12,6 +12,11 @@ import (
 // TaskStatsPush 定时推送系统统计数据到WebSocket客户端
 func TaskStatsPush() {
 	innerLogName := "TaskStatsPush"
+	// 检查是否启用系统统计数据推送
+	if global.GCONFIG_ENABLE_SYSTEM_STATS_PUSH != 1 {
+		zlog.Debug(innerLogName, "系统统计数据推送未启用，跳过推送")
+		return
+	}
 
 	// 先更新实时QPS计算
 	global.UpdateRealtimeQPS()

@@ -16,6 +16,9 @@ var (
 	GCONFIG_RECORD_LOGIN_MAX_ERROR_TIME int64  = 3                   //登录周期里错误最大次数
 	GCONFIG_RECORD_LOGIN_LIMIT_MINTUTES int64  = 1                   //登录错误记录周期 单位分钟最小1
 
+	//是否进行系统统计数据推送
+	GCONFIG_ENABLE_SYSTEM_STATS_PUSH int64 = 1 // 是否启用系统统计数据推送 1启用 0禁用
+
 	// Proxy Protocol 开关（0：关闭；1：开启）
 	GCONFIG_ENABLE_PROXY_PROTOCOL int64 = 0
 

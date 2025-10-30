@@ -113,6 +113,13 @@ func InitTaskDb() []model.Task {
 		TaskMethod: enums.TASK_GC,
 	})
 	syncTaskToDb(model.Task{
+		TaskName:   "每天凌晨01:20进行数据库监控",
+		TaskUnit:   enums.TASK_DAY,
+		TaskValue:  1,
+		TaskAt:     "01:20",
+		TaskMethod: enums.TASK_DB_MONITOR,
+	})
+	syncTaskToDb(model.Task{
 		TaskName:   "每天02:13进行SSL证书申请",
 		TaskUnit:   enums.TASK_DAY,
 		TaskValue:  1,

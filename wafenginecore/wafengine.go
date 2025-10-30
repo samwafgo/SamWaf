@@ -58,6 +58,8 @@ type WafEngine struct {
 	//敏感词管理
 	Sensitive        []model.Sensitive //敏感词
 	SensitiveManager *goahocorasick.Machine
+	// 敏感词检测方向映射，用于快速判断是否需要存在
+	SensitiveDirectionMap map[string]bool // key: "in"/"out"/"all", value: 是否存在
 
 	TransportPool map[string]*http.Transport // 添加Transport缓存池
 	TransportMux  sync.RWMutex               // 保护Transport池的读写锁

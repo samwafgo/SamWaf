@@ -66,7 +66,7 @@ func (receiver *WafSystemMonitorService) getCPUInfo() (response.WafCPUInfo, erro
 		return cpuInfo, err
 	}
 	if len(cpuPercent) > 0 {
-		cpuInfo.UsagePercent = receiver.roundToTwoDecimal(cpuPercent[0])
+		cpuInfo.UsagePercent = math.Round(cpuPercent[0])
 	}
 
 	// 获取CPU核心数
@@ -91,7 +91,7 @@ func (receiver *WafSystemMonitorService) getMemoryInfo() (response.WafMemoryInfo
 	memInfo.Total = receiver.formatBytes(vmStat.Total)
 	memInfo.Available = receiver.formatBytes(vmStat.Available)
 	memInfo.Used = receiver.formatBytes(vmStat.Used)
-	memInfo.UsagePercent = receiver.roundToTwoDecimal(vmStat.UsedPercent)
+	memInfo.UsagePercent = math.Round(vmStat.UsedPercent)
 
 	// 获取Go程序内存使用情况
 	var m runtime.MemStats

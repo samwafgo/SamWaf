@@ -4,12 +4,9 @@ import (
 	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/innerbean"
-	"math"
+	"SamWaf/service/waf_service"
 	"runtime"
 	"time"
-
-	"github.com/shirou/gopsutil/v3/cpu"
-	"github.com/shirou/gopsutil/v3/mem"
 )
 
 // TaskStatsPush 定时推送系统统计数据到WebSocket客户端
@@ -19,18 +16,14 @@ func TaskStatsPush() {
 	// 先更新实时QPS计算
 	global.UpdateRealtimeQPS()
 
-	// 获取CPU使用率
-	var cpuPercent float64
-	cpuPercentSlice, err := cpu.Percent(100*time.Millisecond, false)
-	if err == nil && len(cpuPercentSlice) > 0 {
-		cpuPercent = math.Round(cpuPercentSlice[0])
-	}
-
-	// 获取内存使用率
-	var memoryPercent float64
-	vmStat, err := mem.VirtualMemory()
+	// 通过系统监控服务获取CPU和内存信息
+	systemInfo, err := waf_service.WafSystemMonitorServiceApp.GetSystemMonitorInfo()
+	var cpuPercent, memoryPercent float64
 	if err == nil {
-		memoryPercent = math.Round(vmStat.UsedPercent)
+		cpuPercent = systemInfo.CPU.UsagePercent
+		memoryPercent = systemInfo.Memory.UsagePercent
+	} else {
+		zlog.Error(innerLogName, "获取系统监控信息失败", "error", err)
 	}
 
 	// 发送WebSocket消息

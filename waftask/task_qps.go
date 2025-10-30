@@ -5,7 +5,6 @@ import (
 	"SamWaf/global"
 	"SamWaf/utils"
 	"SamWaf/wafenginecore"
-	"sync/atomic"
 )
 
 // TaskLogQpsClean  清空LOG QPS
@@ -15,9 +14,8 @@ func TaskLogQpsClean() {
 		zlog.Debug(innerLogName, "准备进行TaskLogQpsClean")
 	}
 
-	// 清零计数器
-	atomic.StoreUint64(&global.GWAF_RUNTIME_QPS, 0)
-	atomic.StoreUint64(&global.GWAF_RUNTIME_LOG_PROCESS, 0)
+	// 更新实时QPS计算 (基于差分计算)
+	global.UpdateRealtimeQPS()
 }
 
 // TaskHostQpsClean  清空主机 QPS

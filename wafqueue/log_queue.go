@@ -6,7 +6,6 @@ import (
 	"SamWaf/innerbean"
 	"SamWaf/waftask"
 	"strconv"
-	"sync/atomic"
 	"time"
 )
 
@@ -30,7 +29,7 @@ func ProcessLogDequeEngine() {
 				var webLogArray []*innerbean.WebLog
 				batchCount := 0
 				for !global.GQEQUE_LOG_DB.Empty() {
-					atomic.AddUint64(&global.GWAF_RUNTIME_LOG_PROCESS, 1) // 原子增加计数器
+					global.IncrementLogQPS() // 使用统一的日志QPS增量函数
 					weblogbean, ok := global.GQEQUE_LOG_DB.Dequeue()
 					if !ok {
 						continue

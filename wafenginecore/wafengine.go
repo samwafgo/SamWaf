@@ -37,7 +37,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -71,7 +70,7 @@ func (waf *WafEngine) Error() string {
 }
 func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	innerLogName := "WafEngine ServeHTTP"
-	atomic.AddUint64(&global.GWAF_RUNTIME_QPS, 1) // 原子增加计数器
+	global.IncrementQPS() // 使用统一的QPS增量函数
 
 	port := ""
 	host := r.Host

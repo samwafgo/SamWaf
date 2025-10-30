@@ -5,7 +5,6 @@ import (
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"runtime"
-	"sync/atomic"
 	"time"
 )
 
@@ -13,14 +12,17 @@ import (
 func TaskStatsPush() {
 	innerLogName := "TaskStatsPush"
 
+	// 先更新实时QPS计算
+	global.UpdateRealtimeQPS()
+
 	// 发送WebSocket消息
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
 	var statsData = innerbean.SystemStatsData{
 		Timestamp:       time.Now().UnixMilli(),
-		QPS:             atomic.LoadUint64(&global.GWAF_RUNTIME_QPS),
-		LogQPS:          atomic.LoadUint64(&global.GWAF_RUNTIME_LOG_PROCESS),
+		QPS:             global.GetRealtimeQPS(),
+		LogQPS:          global.GetRealtimeLogQPS(),
 		MainQueue:       global.GQEQUE_DB.Size(),
 		LogQueue:        global.GQEQUE_LOG_DB.Size(),
 		StatsQueue:      global.GQEQUE_STATS_DB.Size(),

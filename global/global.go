@@ -14,6 +14,7 @@ import (
 	"github.com/oschwald/geoip2-golang"
 	"gorm.io/gorm"
 	"strconv"
+	"sync/atomic"
 	"time"
 )
 
@@ -32,8 +33,15 @@ var (
 	GWAF_RUNTIME_NEW_VERSION      string = ""      //最新版本号
 	GWAF_RUNTIME_NEW_VERSION_DESC string = ""      //最新版本描述
 	GWAF_RUNTIME_WIN7_VERSION     string = "false" //是否是win7内部版本
-	GWAF_RUNTIME_QPS              uint64 = 0       //当前qps
-	GWAF_RUNTIME_LOG_PROCESS      uint64 = 0       //log 处理速度
+	GWAF_RUNTIME_QPS              uint64 = 0       //当前qps (累积值)
+	GWAF_RUNTIME_LOG_PROCESS      uint64 = 0       //log 处理速度 (累积值)
+
+	// QPS实时计算相关变量 (用于差分计算)
+	GWAF_LAST_QPS_VALUE           uint64 = 0 //上次QPS计数值
+	GWAF_LAST_LOG_QPS_VALUE       uint64 = 0 //上次日志QPS计数值
+	GWAF_LAST_QPS_TIME            int64  = 0 //上次QPS计算时间
+	GWAF_CURRENT_REALTIME_QPS     uint64 = 0 //当前实时QPS
+	GWAF_CURRENT_REALTIME_LOG_QPS uint64 = 0 //当前实时日志QPS
 
 	GWAF_RUNTIME_DNS_SERVER  string = "119.29.29.29" //反向查询DNS的IP
 	GWAF_RUNTIME_DNS_TIMEOUT int64  = 500            // DNS 查询超时时间 单位毫秒
@@ -186,4 +194,95 @@ var (
 func GetCurrentVersionInt() int {
 	version, _ := strconv.Atoi(GWAF_RELEASE_VERSION)
 	return version
+}
+
+// GetRealtimeQPS 获取实时QPS (基于差分计算)
+func GetRealtimeQPS() uint64 {
+	return atomic.LoadUint64(&GWAF_CURRENT_REALTIME_QPS)
+}
+
+// GetRealtimeLogQPS 获取实时日志处理QPS (基于差分计算)
+func GetRealtimeLogQPS() uint64 {
+	return atomic.LoadUint64(&GWAF_CURRENT_REALTIME_LOG_QPS)
+}
+
+// GetCumulativeQPS 获取累积QPS (用于统计计算)
+func GetCumulativeQPS() uint64 {
+	return atomic.LoadUint64(&GWAF_RUNTIME_QPS)
+}
+
+// GetCumulativeLogQPS 获取累积日志处理QPS (用于统计计算)
+func GetCumulativeLogQPS() uint64 {
+	return atomic.LoadUint64(&GWAF_RUNTIME_LOG_PROCESS)
+}
+
+// IncrementQPS 增加QPS计数 (只增加累积计数)
+func IncrementQPS() {
+	atomic.AddUint64(&GWAF_RUNTIME_QPS, 1)
+}
+
+// IncrementLogQPS 增加日志处理QPS计数 (只增加累积计数)
+func IncrementLogQPS() {
+	atomic.AddUint64(&GWAF_RUNTIME_LOG_PROCESS, 1)
+}
+
+// UpdateRealtimeQPS 更新实时QPS (基于差分计算，定时调用)
+func UpdateRealtimeQPS() {
+	currentTime := time.Now().Unix()
+	currentQPS := atomic.LoadUint64(&GWAF_RUNTIME_QPS)
+	currentLogQPS := atomic.LoadUint64(&GWAF_RUNTIME_LOG_PROCESS)
+
+	lastTime := atomic.LoadInt64(&GWAF_LAST_QPS_TIME)
+	lastQPS := atomic.LoadUint64(&GWAF_LAST_QPS_VALUE)
+	lastLogQPS := atomic.LoadUint64(&GWAF_LAST_LOG_QPS_VALUE)
+
+	// 边界检查和安全计算
+	if lastTime > 0 && currentTime > lastTime {
+		timeDiff := currentTime - lastTime
+
+		// 防止时间差过小导致的计算不准确
+		if timeDiff >= 1 {
+			var realQPS, realLogQPS uint64
+
+			// 安全的差值计算，处理可能的溢出情况
+			if currentQPS >= lastQPS {
+				qpsDiff := currentQPS - lastQPS
+				realQPS = qpsDiff / uint64(timeDiff)
+			} else {
+				// 处理uint64溢出的情况
+				// 当计数器溢出时，使用当前值作为差值的近似
+				realQPS = currentQPS / uint64(timeDiff)
+			}
+
+			if currentLogQPS >= lastLogQPS {
+				logQpsDiff := currentLogQPS - lastLogQPS
+				realLogQPS = logQpsDiff / uint64(timeDiff)
+			} else {
+				// 处理uint64溢出的情况
+				realLogQPS = currentLogQPS / uint64(timeDiff)
+			}
+
+			// 设置合理的QPS上限，防止异常值
+			const MaxReasonableQps = 10000000 // 1000万QPS上限
+			if realQPS > MaxReasonableQps {
+				realQPS = MaxReasonableQps
+			}
+			if realLogQPS > MaxReasonableQps {
+				realLogQPS = MaxReasonableQps
+			}
+
+			atomic.StoreUint64(&GWAF_CURRENT_REALTIME_QPS, realQPS)
+			atomic.StoreUint64(&GWAF_CURRENT_REALTIME_LOG_QPS, realLogQPS)
+		}
+		// 如果时间差小于1秒，保持之前的QPS值不变
+	} else {
+		// 初始化情况或时间异常，设置QPS为0
+		atomic.StoreUint64(&GWAF_CURRENT_REALTIME_QPS, 0)
+		atomic.StoreUint64(&GWAF_CURRENT_REALTIME_LOG_QPS, 0)
+	}
+
+	// 更新记录值
+	atomic.StoreUint64(&GWAF_LAST_QPS_VALUE, currentQPS)
+	atomic.StoreUint64(&GWAF_LAST_LOG_QPS_VALUE, currentLogQPS)
+	atomic.StoreInt64(&GWAF_LAST_QPS_TIME, currentTime)
 }

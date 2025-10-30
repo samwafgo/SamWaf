@@ -117,11 +117,13 @@ type OperatorMessageInfo struct {
 // SystemStatsData 系统统计数据结构，用于ECharts展示
 type SystemStatsData struct {
 	BaseMessageInfo
-	Timestamp    int64  `json:"timestamp"`     // 时间戳
-	QPS          uint64 `json:"qps"`           // 当前QPS
-	LogQPS       uint64 `json:"log_qps"`       // 日志处理QPS
-	MainQueue    int    `json:"main_queue"`    // 主数据队列数量
-	LogQueue     int    `json:"log_queue"`     // 日志队列数量
-	StatsQueue   int    `json:"stats_queue"`   // 统计队列数量
-	MessageQueue int    `json:"message_queue"` // 消息队列数量
+	Timestamp     int64   `json:"timestamp"`      // 时间戳
+	QPS           uint64  `json:"qps"`            // 当前QPS
+	LogQPS        uint64  `json:"log_qps"`        // 日志处理QPS
+	MainQueue     int     `json:"main_queue"`     // 主数据队列数量
+	LogQueue      int     `json:"log_queue"`      // 日志队列数量
+	StatsQueue    int     `json:"stats_queue"`    // 统计队列数量
+	MessageQueue  int     `json:"message_queue"`  // 消息队列数量
+	CPUPercent    float64 `json:"cpu_percent"`    // CPU使用百分比
+	MemoryPercent float64 `json:"memory_percent"` // 内存使用百分比
 }

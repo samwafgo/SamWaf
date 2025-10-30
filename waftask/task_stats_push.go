@@ -4,6 +4,7 @@ import (
 	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/innerbean"
+	"SamWaf/model/response"
 	"SamWaf/service/waf_service"
 	"runtime"
 	"time"
@@ -25,6 +26,8 @@ func TaskStatsPush() {
 	systemInfo, err := waf_service.WafSystemMonitorServiceApp.GetSystemMonitorInfo()
 	var cpuPercent, memoryPercent float64
 	var networkRecv, networkSent, networkRecvRate, networkSentRate uint64
+	var systemMonitorPtr *response.WafSystemMonitor
+
 	if err == nil {
 		cpuPercent = systemInfo.CPU.UsagePercent
 		memoryPercent = systemInfo.Memory.UsagePercent
@@ -32,8 +35,11 @@ func TaskStatsPush() {
 		networkSent = systemInfo.Network.BytesSent
 		networkRecvRate = systemInfo.Network.RecvRateBytes
 		networkSentRate = systemInfo.Network.SendRateBytes
+		// 保存完整的系统监控信息
+		systemMonitorPtr = &systemInfo
 	} else {
 		zlog.Error(innerLogName, "获取系统监控信息失败", "error", err)
+		systemMonitorPtr = nil
 	}
 
 	// 发送WebSocket消息
@@ -54,6 +60,7 @@ func TaskStatsPush() {
 		NetworkSent:     networkSent,
 		NetworkRecvRate: networkRecvRate,
 		NetworkSentRate: networkSentRate,
+		SystemMonitor:   systemMonitorPtr, // 添加完整的系统监控信息
 		BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "系统统计信息", Server: global.GWAF_CUSTOM_SERVER_NAME},
 	}
 	zlog.Debug(innerLogName, "系统统计信息",
@@ -68,7 +75,8 @@ func TaskStatsPush() {
 		"网络接收", statsData.NetworkRecv,
 		"网络发送", statsData.NetworkSent,
 		"网络接收速率", statsData.NetworkRecvRate,
-		"网络发送速率", statsData.NetworkSentRate)
+		"网络发送速率", statsData.NetworkSentRate,
+		"系统监控信息", statsData.SystemMonitor)
 
 	global.GQEQUE_MESSAGE_DB.Enqueue(statsData)
 

@@ -160,6 +160,20 @@ func createStatDbIndex() {
 		zlog.Info("db", "idx_stats_ip_city_days_lookup created")
 	}
 
+	//20251030 创建iptagtag索引
+	err = db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS uni_iptags_full ON ip_tags (user_code, tenant_id, ip, ip_tag)").Error
+	if err != nil {
+		panic("failed to create index : uni_iptags_full " + err.Error())
+	} else {
+		zlog.Info("db", "uni_iptags_full created")
+	}
+	// 创建iptag ip索引
+	err = db.Exec("CREATE INDEX IF NOT EXISTS idx_iptag_ip ON ip_tags ( user_code, tenant_id, ip)").Error
+	if err != nil {
+		panic("failed to create index: idx_iptag_ip " + err.Error())
+	} else {
+		zlog.Info("db", "idx_iptag_ip created")
+	}
 	// 记录结束时间并计算耗时
 	duration := time.Since(startTime)
 	zlog.Info("create stats index completely", "duration", duration.String())

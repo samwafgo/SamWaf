@@ -142,11 +142,13 @@ var (
 	GSSL_HTTP_CHANGLE_PATH string = "/.well-known/acme-challenge/" // http01证书验证路径
 
 	/******数据库处理参数*****/
-	GDATA_BATCH_INSERT       int64               = 100         //最大批量插入数量
-	GDATA_SHARE_DB_SIZE      int64               = 100 * 10000 //100w 进行分库 100*10000
-	GDATA_SHARE_DB_FILE_SIZE int64               = 1024        //1024M 进行分库
-	GDATA_CURRENT_CHANGE     bool                = false       //当前是否正在切换
-	GDATA_CURRENT_LOG_DB_MAP map[string]*gorm.DB               //当前自定义的数据库连接 TODO 如果用户打开了多个 会不会影响内存
+	GDATA_BATCH_INSERT       int64 = 100         //最大批量插入数量
+	GDATA_SHARE_DB_SIZE      int64 = 100 * 10000 //100w 进行分库 100*10000
+	GDATA_SHARE_DB_FILE_SIZE int64 = 1024        //1024M 进行分库
+	GDATA_CURRENT_CHANGE     bool  = false       //当前是否正在切换
+	GDATA_IP_TAG_DB          int64 = 0           //IP Tag 存放位置 0 是主库  1是读取 stat库
+
+	GDATA_CURRENT_LOG_DB_MAP map[string]*gorm.DB //当前自定义的数据库连接 TODO 如果用户打开了多个 会不会影响内存
 	/******WebSocket*********/
 	GWebSocket *gwebsocket.WebSocketOnline
 
@@ -285,4 +287,12 @@ func UpdateRealtimeQPS() {
 	atomic.StoreUint64(&GWAF_LAST_QPS_VALUE, currentQPS)
 	atomic.StoreUint64(&GWAF_LAST_LOG_QPS_VALUE, currentLogQPS)
 	atomic.StoreInt64(&GWAF_LAST_QPS_TIME, currentTime)
+}
+
+// GetIPTagDB 根据配置获取IP标签数据库连接
+func GetIPTagDB() *gorm.DB {
+	if GDATA_IP_TAG_DB == 1 {
+		return GWAF_LOCAL_STATS_DB // 使用统计数据库
+	}
+	return GWAF_LOCAL_DB // 默认使用主数据库
 }

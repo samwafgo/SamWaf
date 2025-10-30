@@ -110,6 +110,9 @@ func setConfigIntValue(name string, value int64, change int) {
 	case "enable_system_stats_push":
 		global.GCONFIG_ENABLE_SYSTEM_STATS_PUSH = value
 		break
+	case "ip_tag_db":
+		global.GDATA_IP_TAG_DB = value
+		break
 	default:
 		zlog.Warn("Unknown config item:", name)
 	}
@@ -275,4 +278,5 @@ func TaskLoadSetting(initLoad bool) {
 	//数据库相关
 	updateConfigIntItem(initLoad, "database", "batch_insert", global.GDATA_BATCH_INSERT, "数据库批量插入数量", "int", "", configMap)
 	updateConfigIntItem(initLoad, "database", "log_persist_enable", global.GCONFIG_LOG_PERSIST_ENABLED, "是否开启日志持久化（1开启 0关闭）", "options", "0|关闭,1|开启", configMap)
+	updateConfigIntItem(initLoad, "database", "ip_tag_db", global.GDATA_IP_TAG_DB, "IP Tag 存放位置 0 是主库  1是读取 stat库", "int", "", configMap)
 }

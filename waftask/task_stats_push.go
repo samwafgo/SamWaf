@@ -24,9 +24,14 @@ func TaskStatsPush() {
 	// 通过系统监控服务获取CPU和内存信息
 	systemInfo, err := waf_service.WafSystemMonitorServiceApp.GetSystemMonitorInfo()
 	var cpuPercent, memoryPercent float64
+	var networkRecv, networkSent, networkRecvRate, networkSentRate uint64
 	if err == nil {
 		cpuPercent = systemInfo.CPU.UsagePercent
 		memoryPercent = systemInfo.Memory.UsagePercent
+		networkRecv = systemInfo.Network.BytesRecv
+		networkSent = systemInfo.Network.BytesSent
+		networkRecvRate = systemInfo.Network.RecvRateBytes
+		networkSentRate = systemInfo.Network.SendRateBytes
 	} else {
 		zlog.Error(innerLogName, "获取系统监控信息失败", "error", err)
 	}
@@ -45,6 +50,10 @@ func TaskStatsPush() {
 		MessageQueue:    global.GQEQUE_MESSAGE_DB.Size(),
 		CPUPercent:      cpuPercent,
 		MemoryPercent:   memoryPercent,
+		NetworkRecv:     networkRecv,
+		NetworkSent:     networkSent,
+		NetworkRecvRate: networkRecvRate,
+		NetworkSentRate: networkSentRate,
 		BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "系统统计信息", Server: global.GWAF_CUSTOM_SERVER_NAME},
 	}
 	zlog.Debug(innerLogName, "系统统计信息",
@@ -55,7 +64,11 @@ func TaskStatsPush() {
 		"统计队列", statsData.StatsQueue,
 		"消息队列", statsData.MessageQueue,
 		"CPU使用率", statsData.CPUPercent,
-		"内存使用率", statsData.MemoryPercent)
+		"内存使用率", statsData.MemoryPercent,
+		"网络接收", statsData.NetworkRecv,
+		"网络发送", statsData.NetworkSent,
+		"网络接收速率", statsData.NetworkRecvRate,
+		"网络发送速率", statsData.NetworkSentRate)
 
 	global.GQEQUE_MESSAGE_DB.Enqueue(statsData)
 

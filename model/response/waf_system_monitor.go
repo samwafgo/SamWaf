@@ -2,9 +2,10 @@ package response
 
 // 系统监控响应结构体
 type WafSystemMonitor struct {
-	CPU    WafCPUInfo    `json:"cpu"`    // CPU信息
-	Memory WafMemoryInfo `json:"memory"` // 内存信息
-	Disk   []WafDiskInfo `json:"disk"`   // 磁盘信息
+	CPU     WafCPUInfo     `json:"cpu"`     // CPU信息
+	Memory  WafMemoryInfo  `json:"memory"`  // 内存信息
+	Disk    []WafDiskInfo  `json:"disk"`    // 磁盘信息
+	Network WafNetworkInfo `json:"network"` // 网络信息
 }
 
 // CPU信息
@@ -34,4 +35,14 @@ type WafDiskInfo struct {
 	Available    string  `json:"available"`     // 可用容量
 	Used         string  `json:"used"`          // 已用容量
 	UsagePercent float64 `json:"usage_percent"` // 使用率百分比
+}
+
+// 网络信息
+type WafNetworkInfo struct {
+	BytesRecv     uint64 `json:"bytes_recv"`      // 接收字节数(累计)
+	BytesSent     uint64 `json:"bytes_sent"`      // 发送字节数(累计)
+	RecvRate      string `json:"recv_rate"`       // 接收速率(格式化后的字符串)
+	SendRate      string `json:"send_rate"`       // 发送速率(格式化后的字符串)
+	RecvRateBytes uint64 `json:"recv_rate_bytes"` // 接收速率(字节/秒)
+	SendRateBytes uint64 `json:"send_rate_bytes"` // 发送速率(字节/秒)
 }

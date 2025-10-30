@@ -13,4 +13,6 @@ func (receiver *WafCommonRouter) InitWafCommonRouter(group *gin.RouterGroup) {
 	router := group.Group("")
 	router.GET("/samwaf/export", api.ExportExcelApi)
 	router.POST("/samwaf/import", api.ImportExcelApi)
+	//心跳数据
+	router.GET("/samwaf/heartbeat", api.HeartbeatApi)
 }

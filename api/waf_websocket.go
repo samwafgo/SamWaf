@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"net/http"
+	"time"
 )
 
 type WafWebSocketApi struct {
@@ -19,6 +20,9 @@ func (w *WafWebSocketApi) WebSocketMessageApi(c *gin.Context) {
 		CheckOrigin: func(r *http.Request) bool {
 			return true
 		},
+		HandshakeTimeout: 45 * time.Second, // 握手超时时间
+		ReadBufferSize:   1024,             // 读缓冲区大小
+		WriteBufferSize:  1024,             // 写缓冲区大小
 	}
 	//获取用户账号：
 	tokenStr := c.GetHeader("Sec-WebSocket-Protocol")
@@ -30,6 +34,17 @@ func (w *WafWebSocketApi) WebSocketMessageApi(c *gin.Context) {
 		zlog.Error("websocketinit", err)
 		return
 	}
+
+	// 设置WebSocket连接的读写超时
+	ws.SetReadDeadline(time.Time{})  // 不设置读超时，保持长连接
+	ws.SetWriteDeadline(time.Time{}) // 不设置写超时，保持长连接
+
+	// 设置Pong处理器，用于心跳检测
+	ws.SetPongHandler(func(string) error {
+		zlog.Debug("收到pong消息，连接正常")
+		return nil
+	})
+
 	if tokenInfo.LoginAccount == "" {
 		//写入ws数据
 		msgBytes, _ := json.Marshal(model.MsgPacket{
@@ -40,28 +55,50 @@ func (w *WafWebSocketApi) WebSocketMessageApi(c *gin.Context) {
 		zlog.Debug("无鉴权信息，请检查")
 		return
 	}
-	global.GWebSocket.SetWebSocket(tokenInfo.BaseOrm.Tenant_ID+tokenInfo.BaseOrm.USER_CODE+tokenInfo.LoginAccount, ws)
+
+	// 生成用户标识和会话ID
+	userKey := tokenInfo.BaseOrm.Tenant_ID + tokenInfo.BaseOrm.USER_CODE + tokenInfo.LoginAccount
+	sessionID := global.GWebSocket.AddWebSocket(userKey, ws)
+
+	zlog.Debug("WebSocket连接建立，用户: " + userKey + ", 会话ID: " + sessionID)
 
 	defer func() {
-		websocket := global.GWebSocket.GetWebSocket(tokenInfo.BaseOrm.Tenant_ID + tokenInfo.BaseOrm.USER_CODE + tokenInfo.LoginAccount)
+		// 只关闭当前会话的连接
+		websocket := global.GWebSocket.GetWebSocketBySession(sessionID)
 		if websocket != nil {
 			websocket.Close()
-			global.GWebSocket.DelWebSocket(tokenInfo.BaseOrm.Tenant_ID + tokenInfo.BaseOrm.USER_CODE + tokenInfo.LoginAccount)
+			global.GWebSocket.DelWebSocketBySession(sessionID)
 		}
+		zlog.Debug("WebSocket连接已关闭，会话ID: " + sessionID)
 	}()
 
 	for {
+		//获取当前会话的WebSocket连接，检查是否存在
+		wsConn := global.GWebSocket.GetWebSocketBySession(sessionID)
+		if wsConn == nil {
+			zlog.Debug("WebSocket连接已断开，退出消息循环，会话ID: " + sessionID)
+			break
+		}
+
 		//读取ws中的数据
-		mt, message, err := global.GWebSocket.GetWebSocket(tokenInfo.BaseOrm.Tenant_ID + tokenInfo.BaseOrm.USER_CODE + tokenInfo.LoginAccount).ReadMessage()
+		mt, message, err := wsConn.ReadMessage()
 		if err != nil {
 			break
 		}
-		zlog.Debug("websocket msg=" + string(message))
+		zlog.Debug("websocket msg=" + string(message) + ", 会话ID: " + sessionID)
 		if string(message) == "ping" {
 			message = []byte("pong")
 		}
+
+		//再次检查连接是否存在，避免写入时的竞态条件
+		wsConn = global.GWebSocket.GetWebSocketBySession(sessionID)
+		if wsConn == nil {
+			zlog.Debug("WebSocket连接在处理消息时断开，会话ID: " + sessionID)
+			break
+		}
+
 		//写入ws数据
-		err = global.GWebSocket.GetWebSocket(tokenInfo.BaseOrm.Tenant_ID+tokenInfo.BaseOrm.USER_CODE+tokenInfo.LoginAccount).WriteMessage(mt, message)
+		err = wsConn.WriteMessage(mt, message)
 		if err != nil {
 			break
 		}

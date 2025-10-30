@@ -10,9 +10,12 @@ import (
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/mem"
+	"github.com/shirou/gopsutil/v3/net"
 )
 
 type WafSystemMonitorService struct {
+	lastNetStats     *net.IOCountersStat // 上次网络统计数据
+	lastNetStatsTime time.Time           // 上次统计时间
 }
 
 var WafSystemMonitorServiceApp = &WafSystemMonitorService{}
@@ -42,6 +45,13 @@ func (receiver *WafSystemMonitorService) GetSystemMonitorInfo() (response.WafSys
 	}
 	result.Disk = diskInfo
 
+	// 获取网络信息
+	networkInfo, err := receiver.getNetworkInfo()
+	if err != nil {
+		return result, fmt.Errorf("获取网络信息失败: %v", err)
+	}
+	result.Network = networkInfo
+
 	return result, nil
 }
 
@@ -66,7 +76,7 @@ func (receiver *WafSystemMonitorService) getCPUInfo() (response.WafCPUInfo, erro
 		return cpuInfo, err
 	}
 	if len(cpuPercent) > 0 {
-		cpuInfo.UsagePercent = receiver.roundToTwoDecimal(cpuPercent[0])
+		cpuInfo.UsagePercent = math.Round(cpuPercent[0])
 	}
 
 	// 获取CPU核心数
@@ -91,7 +101,7 @@ func (receiver *WafSystemMonitorService) getMemoryInfo() (response.WafMemoryInfo
 	memInfo.Total = receiver.formatBytes(vmStat.Total)
 	memInfo.Available = receiver.formatBytes(vmStat.Available)
 	memInfo.Used = receiver.formatBytes(vmStat.Used)
-	memInfo.UsagePercent = receiver.roundToTwoDecimal(vmStat.UsedPercent)
+	memInfo.UsagePercent = math.Round(vmStat.UsedPercent)
 
 	// 获取Go程序内存使用情况
 	var m runtime.MemStats
@@ -154,4 +164,54 @@ func (receiver *WafSystemMonitorService) formatBytes(bytes uint64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
+// getNetworkInfo 获取网络信息
+func (receiver *WafSystemMonitorService) getNetworkInfo() (response.WafNetworkInfo, error) {
+	var networkInfo response.WafNetworkInfo
+	currentTime := time.Now()
+
+	// 获取网络接口统计信息
+	netStats, err := net.IOCounters(false) // false表示获取所有接口的汇总信息
+	if err != nil {
+		return networkInfo, err
+	}
+
+	if len(netStats) > 0 {
+		// 取第一个（汇总）统计信息
+		stat := netStats[0]
+		networkInfo.BytesRecv = stat.BytesRecv
+		networkInfo.BytesSent = stat.BytesSent
+
+		// 计算实时流量速率
+		if receiver.lastNetStats != nil && !receiver.lastNetStatsTime.IsZero() {
+			// 计算时间差（秒）
+			timeDiff := currentTime.Sub(receiver.lastNetStatsTime).Seconds()
+			if timeDiff > 0 {
+				// 计算字节差
+				recvDiff := stat.BytesRecv - receiver.lastNetStats.BytesRecv
+				sentDiff := stat.BytesSent - receiver.lastNetStats.BytesSent
+
+				// 计算每秒速率
+				networkInfo.RecvRateBytes = uint64(float64(recvDiff) / timeDiff)
+				networkInfo.SendRateBytes = uint64(float64(sentDiff) / timeDiff)
+
+				// 格式化速率字符串
+				networkInfo.RecvRate = receiver.formatBytes(networkInfo.RecvRateBytes) + "/s"
+				networkInfo.SendRate = receiver.formatBytes(networkInfo.SendRateBytes) + "/s"
+			}
+		} else {
+			// 首次调用，速率为0
+			networkInfo.RecvRateBytes = 0
+			networkInfo.SendRateBytes = 0
+			networkInfo.RecvRate = "0 B/s"
+			networkInfo.SendRate = "0 B/s"
+		}
+
+		// 更新上次统计数据
+		receiver.lastNetStats = &stat
+		receiver.lastNetStatsTime = currentTime
+	}
+
+	return networkInfo, nil
 }

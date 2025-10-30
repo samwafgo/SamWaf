@@ -323,3 +323,8 @@ func checkHostPortData(host string, port string) (string, error) {
 	}
 	return "数据正常", nil
 }
+
+// HeartbeatApi 心跳数据
+func (w *WafCommonApi) HeartbeatApi(c *gin.Context) {
+	response.Ok(c)
+}

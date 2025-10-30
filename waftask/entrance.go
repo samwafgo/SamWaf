@@ -35,6 +35,13 @@ func InitTaskDb() []model.Task {
 		TaskMethod: enums.TASK_COUNTER,
 	})
 	syncTaskToDb(model.Task{
+		TaskName:   "每10s推送系统统计数据",
+		TaskUnit:   enums.TASK_SECOND,
+		TaskValue:  10,
+		TaskAt:     "",
+		TaskMethod: enums.TASK_STATS_PUSH,
+	})
+	syncTaskToDb(model.Task{
 		TaskName:   "每30s进行健康度检测",
 		TaskUnit:   enums.TASK_SECOND,
 		TaskValue:  30,

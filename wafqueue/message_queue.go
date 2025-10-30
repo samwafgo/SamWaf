@@ -196,6 +196,36 @@ func ProcessMessageDequeEngine() {
 						}
 					}
 					break
+				case innerbean.SystemStatsData:
+					statsData := messageinfo.(innerbean.SystemStatsData)
+					//发送websocket
+					for _, ws := range global.GWebSocket.GetAllWebSocket() {
+						if ws != nil {
+							//信息包体进行单独处理
+							msgBody, _ := json.Marshal(model.MsgDataPacket{
+								MessageId:           uuid.GenUUID(),
+								MessageType:         "系统统计信息",
+								MessageData:         "",
+								MessageAttach:       statsData,
+								MessageDateTime:     time.Now().Format("2006-01-02 15:04:05"),
+								MessageUnReadStatus: true,
+							})
+							encryptStr, _ := wafsec.AesEncrypt(msgBody, global.GWAF_COMMUNICATION_KEY)
+							//写入ws数据
+							msgBytes, err := json.Marshal(model.MsgPacket{
+								MsgCode:       "200",
+								MsgDataPacket: encryptStr,
+								MsgCmdType:    "SystemStats",
+							})
+							err = ws.WriteMessage(1, msgBytes)
+							if err != nil {
+								zlog.Info("发送websocket错误", err)
+								continue
+							}
+						}
+					}
+
+					break
 				}
 
 			}

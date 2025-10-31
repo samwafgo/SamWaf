@@ -238,6 +238,20 @@ func pathCoreSql(db *gorm.DB) {
 	} else {
 		zlog.Info("db", "hosts :log_only_mode init successfully")
 	}
+
+	// 2025-10-31 删除 主机里面host字段为空的记录加上租户id和用户id
+	//如果存在才删除 否则不删除
+	var hostEmptyCount int64
+	db.Model(&model.Hosts{}).Where("host = ? AND tenant_id = ? AND user_code = ?", "", global.GWAF_TENANT_ID, global.GWAF_USER_CODE).Count(&hostEmptyCount)
+	if hostEmptyCount > 0 {
+		err = db.Exec("DELETE FROM hosts WHERE host = '' AND tenant_id = ? AND user_code = ?", global.GWAF_TENANT_ID, global.GWAF_USER_CODE).Error
+		if err != nil {
+			panic("failed to hosts :delete host empty record " + err.Error())
+		} else {
+			zlog.Info("db", "hosts :delete host empty record successfully")
+		}
+	}
+
 	// 记录结束时间并计算耗时
 	duration := time.Since(startTime)
 	zlog.Info("create core default value completely", "duration", duration.String())

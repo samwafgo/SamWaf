@@ -193,8 +193,10 @@ func processImportData(dataType interface{}, tableName string, rows [][]string, 
 		break
 	}
 
+	isBadData := false
 	// 处理数据 获取数据并插入数据库
 	for _, row := range rows {
+		isBadData = false
 		if rowNumber == 0 && needJumpFristCol {
 			rowNumber++
 			continue
@@ -227,8 +229,9 @@ func processImportData(dataType interface{}, tableName string, rows [][]string, 
 			// 如果 dataMap 中有匹配的字段
 			if val, exists := dataMap[jsonTag]; exists {
 				//排除一些特定数据
-				if tableName == "hosts" && fieldName == "Host" && val == "全局网站" {
-					continue
+				if tableName == "hosts" && fieldName == "Host" && (val == "全局网站" || val == "") {
+					isBadData = true
+					break
 				}
 				//检查数据是否已经存在
 				if tableName == "hosts" && fieldName == "Host" {
@@ -237,14 +240,16 @@ func processImportData(dataType interface{}, tableName string, rows [][]string, 
 						if err != nil {
 							*msg += fmt.Sprintf("行 %d, 检测数据合法性时候 出错: %v |", rowNumber, errMsg)
 							*failInt++
-							continue
+							isBadData = true
+							break
 						}
 					}
 					errMsg, err := checkHostPortData(dataMap["host"], dataMap["port"])
 					if err != nil {
 						*msg += fmt.Sprintf("行 %d, 检测数据合法性时候 出错: %v |", rowNumber, errMsg)
 						*failInt++
-						continue
+						isBadData = true
+						break
 					}
 				}
 				// 将字段值设置到结构体中
@@ -266,12 +271,15 @@ func processImportData(dataType interface{}, tableName string, rows [][]string, 
 					if err != nil {
 						*msg += fmt.Sprintf("行 %d, 字段 %s 转换为 int 错误: %v |", rowNumber, fieldName, err)
 						*failInt++
-						continue
+						isBadData = true
+						break
 					}
 					fieldVal.SetInt(int64(intVal))
 				default:
 					*msg += fmt.Sprintf("不支持的字段类型: %s |", fieldVal.Kind())
 					*failInt++
+					isBadData = true
+					break
 				}
 			} else if fieldName == "BaseOrm" {
 				fieldVal := newInstance.Field(fieldIdx)
@@ -288,15 +296,19 @@ func processImportData(dataType interface{}, tableName string, rows [][]string, 
 			} else {
 				*msg += fmt.Sprintf("行 %d, 缺少字段 %s 数据 |", rowNumber, fieldName)
 				*failInt++
+				isBadData = true
+				break
 			}
 		}
-		if err := global.GWAF_LOCAL_DB.Create(newInstance.Interface()); err != nil {
-			errGorm := err.Error
-			if errGorm != nil {
-				*msg += fmt.Sprintf("行 %d 插入失败: %v |", rowNumber, err.Error)
-				*failInt++
-			} else {
-				*successInt++
+		if isBadData == false {
+			if err := global.GWAF_LOCAL_DB.Create(newInstance.Interface()); err != nil {
+				errGorm := err.Error
+				if errGorm != nil {
+					*msg += fmt.Sprintf("行 %d 插入失败: %v |", rowNumber, err.Error)
+					*failInt++
+				} else {
+					*successInt++
+				}
 			}
 		}
 

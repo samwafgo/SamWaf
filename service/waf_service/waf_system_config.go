@@ -119,3 +119,19 @@ func (receiver *WafSystemConfigService) DelApi(req request.WafSystemConfigDelReq
 	err = global.GWAF_LOCAL_DB.Where("id = ? and is_system=0", req.Id).Delete(model.SystemConfig{}).Error
 	return err
 }
+
+// GetAllConfigs 批量获取所有配置项，返回以item为key的map
+func (receiver *WafSystemConfigService) GetAllConfigs() map[string]model.SystemConfig {
+	var configs []model.SystemConfig
+	configMap := make(map[string]model.SystemConfig)
+
+	// 一次性查询所有配置
+	global.GWAF_LOCAL_DB.Find(&configs)
+
+	// 构建以item为key的map
+	for _, config := range configs {
+		configMap[config.Item] = config
+	}
+
+	return configMap
+}

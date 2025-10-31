@@ -254,11 +254,12 @@ func CollectStatsFromLogs(logs []*innerbean.WebLog) {
 	}
 	zlog.Debug("城市聚合处理完成", "更新记录数", cityUpdateCount, "插入记录数", cityInsertCount)
 
-	// 4) IPTag 增量（主库）
+	// 4) IPTag 增量（根据配置选择数据库）
 	ipTagUpdateCount := 0
 	ipTagInsertCount := 0
+	ipTagDB := global.GetIPTagDB() // 使用封装方法获取数据库连接
 	for k, delta := range ipTagAgg {
-		tx := global.GWAF_LOCAL_DB.Model(&model.IPTag{}).
+		tx := ipTagDB.Model(&model.IPTag{}).
 			Where("tenant_id = ? and user_code = ? and ip = ? and ip_tag = ?",
 				global.GWAF_TENANT_ID, global.GWAF_USER_CODE, k.IP, k.Rule).
 			Updates(map[string]interface{}{
@@ -270,7 +271,7 @@ func CollectStatsFromLogs(logs []*innerbean.WebLog) {
 			continue
 		}
 		if tx.RowsAffected == 0 {
-			err := global.GWAF_LOCAL_DB.Create(&model.IPTag{
+			err := ipTagDB.Create(&model.IPTag{
 				BaseOrm: baseorm.BaseOrm{
 					Id:          uuid.GenUUID(),
 					USER_CODE:   global.GWAF_USER_CODE,

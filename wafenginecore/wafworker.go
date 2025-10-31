@@ -358,6 +358,16 @@ func (waf *WafEngine) ReLoadSensitive() {
 	global.GWAF_LOCAL_DB.Find(&sensitiveList)
 	//敏感词
 	waf.Sensitive = sensitiveList
+
+	// 初始化敏感词检测方向映射
+	if waf.SensitiveDirectionMap == nil {
+		waf.SensitiveDirectionMap = make(map[string]bool)
+	}
+	// 重置映射
+	waf.SensitiveDirectionMap["in"] = false
+	waf.SensitiveDirectionMap["out"] = false
+	waf.SensitiveDirectionMap["all"] = false
+
 	if len(sensitiveList) == 0 {
 		return
 	}
@@ -368,6 +378,16 @@ func (waf *WafEngine) ReLoadSensitive() {
 	for _, sensitive := range waf.Sensitive {
 		keywords = append(keywords, []rune(sensitive.Content))
 		customData[sensitive.Content] = sensitive
+		if sensitive.CheckDirection == "in" && waf.SensitiveDirectionMap["in"] == false {
+			// 检测请求
+			waf.SensitiveDirectionMap["in"] = true
+		} else if sensitive.CheckDirection == "out" && waf.SensitiveDirectionMap["out"] == false {
+			// 检测响应
+			waf.SensitiveDirectionMap["out"] = true
+		} else if sensitive.CheckDirection == "all" && waf.SensitiveDirectionMap["all"] == false {
+			// 检测请求和响应
+			waf.SensitiveDirectionMap["all"] = true
+		}
 	}
 
 	m := new(goahocorasick.Machine)
@@ -377,11 +397,16 @@ func (waf *WafEngine) ReLoadSensitive() {
 		return
 	}
 	waf.SensitiveManager = m
-
 }
 
 // CheckRequestSensitive 检查是否需要请求敏感词检测
 func (waf *WafEngine) CheckRequestSensitive() bool {
+	// 优先使用预先计算的映射进行快速判断
+	if waf.SensitiveDirectionMap != nil {
+		// 检查是否有针对请求的敏感词检测
+		return waf.SensitiveDirectionMap["in"] || waf.SensitiveDirectionMap["all"]
+	}
+	// 如果内存中没有数据，则进行数据库查询
 	var bean model.Sensitive
 	//只要不是检测返回的，那说明是检查请求的
 	global.GWAF_LOCAL_DB.Where("check_direction!=?", "out").Find(&bean).Limit(1)
@@ -394,6 +419,13 @@ func (waf *WafEngine) CheckRequestSensitive() bool {
 
 // CheckResponseSensitive 检查是否需要响应敏感词检测
 func (waf *WafEngine) CheckResponseSensitive() bool {
+	// 优先使用预先计算的映射进行快速判断
+	if waf.SensitiveDirectionMap != nil {
+		// 检查是否有针对响应的敏感词检测
+		return waf.SensitiveDirectionMap["out"] || waf.SensitiveDirectionMap["all"]
+	}
+
+	// 如果内存中没有数据，则进行数据库查询
 	var bean model.Sensitive
 	//只要不是检测请求的，那说明是检查返回的
 	global.GWAF_LOCAL_DB.Where("check_direction!=?", "in").Find(&bean).Limit(1)

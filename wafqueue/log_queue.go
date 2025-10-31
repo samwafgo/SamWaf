@@ -49,7 +49,7 @@ func ProcessLogDequeEngine() {
 					}
 				}
 				if len(webLogArray) > 0 {
-					zlog.Info("日志队列处理协程处理日志数量:" + strconv.Itoa(len(webLogArray)))
+					zlog.Debug("日志队列处理协程处理日志数量:" + strconv.Itoa(len(webLogArray)))
 					if global.GCONFIG_LOG_PERSIST_ENABLED == 1 {
 						global.GWAF_LOCAL_LOG_DB.CreateInBatches(webLogArray, len(webLogArray))
 					}

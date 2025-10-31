@@ -112,11 +112,12 @@ func (receiver *WafStatService) StatHomeSumDayTopIPRangeApi(req request.WafStats
 		Scan(&AttackCountOfRange)
 
 	var AttackCountOfRangeMore []model.StatsIPCountMore
+	ipTagDB := global.GetIPTagDB() // 使用封装方法获取数据库连接
 	for i := range AttackCountOfRange {
 		region := utils.GetCountry(AttackCountOfRange[i].IP)
 		//查询IP标签
 		var ipTags []model.IPTag
-		global.GWAF_LOCAL_DB.Where("tenant_id = ? and user_code = ? and ip=?",
+		ipTagDB.Where("tenant_id = ? and user_code = ? and ip=?",
 			global.GWAF_TENANT_ID, global.GWAF_USER_CODE, AttackCountOfRange[i].IP).Find(&ipTags)
 
 		statMore := model.StatsIPCountMore{
@@ -143,7 +144,7 @@ func (receiver *WafStatService) StatHomeSumDayTopIPRangeApi(req request.WafStats
 
 		//查询IP标签
 		var ipTags []model.IPTag
-		global.GWAF_LOCAL_DB.Where("tenant_id = ? and user_code = ? and ip=?",
+		ipTagDB.Where("tenant_id = ? and user_code = ? and ip=?",
 			global.GWAF_TENANT_ID, global.GWAF_USER_CODE, NormalCountOfRange[i].IP).Find(&ipTags)
 
 		statMore := model.StatsIPCountMore{

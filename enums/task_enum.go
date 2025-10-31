@@ -21,4 +21,5 @@ const (
 	TASK_CLEAR_WEBCACHE               = "task_clear_webcache"               //清除缓存
 	TASK_GC                           = "task_gc"                           //GC回收
 	TASK_STATS_PUSH                   = "task_stats_push"                   //系统统计数据推送
+	TASK_DB_MONITOR                   = "task_db_monitor"                   //数据库监控
 )

@@ -332,6 +332,8 @@ func InitStatsDb(currentDir string) (bool, error) {
 		db.AutoMigrate(&model.StatsDay{})
 		db.AutoMigrate(&model.StatsIPDay{})
 		db.AutoMigrate(&model.StatsIPCityDay{})
+		//IPTag
+		db.AutoMigrate(&model.IPTag{})
 		global.GWAF_LOCAL_STATS_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 		global.GWAF_LOCAL_STATS_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
 

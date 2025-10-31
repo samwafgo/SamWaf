@@ -248,7 +248,5 @@ func (receiver *WafStatService) StatHomeRumtimeSysinfo() []response2.WafNameValu
 	data = append(data, response2.WafNameValue{Name: "当前web端口使用列表", Value: fmt.Sprintf("%v", global.GWAF_RUNTIME_CURRENT_WEBPORT)})
 	data = append(data, response2.WafNameValue{Name: "当前隧道端口使用列表", Value: fmt.Sprintf("%v", global.GWAF_RUNTIME_CURRENT_TUNNELPORT)})
 
-	lastTimeStr := time.Unix(0, global.GWAF_LAST_TIME_UNIX*int64(time.Millisecond)).Format("2006-01-02 15:04:05")
-	data = append(data, response2.WafNameValue{Name: "最后统计时间", Value: fmt.Sprintf("%v (%v)", lastTimeStr, global.GWAF_LAST_TIME_UNIX)})
 	return data
 }

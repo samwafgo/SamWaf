@@ -84,7 +84,6 @@ var (
 	GWAF_RELEASE_VERSION_NAME    string              = "20241028" // 发行版的版本号名称
 	GWAF_RELEASE_VERSION         string              = "v1.0.0"   // 发行版的版本号
 	GWAF_LAST_UPDATE_TIME        time.Time                        // 上次时间
-	GWAF_LAST_TIME_UNIX          int64               = 0          // 上次时间戳
 	GWAF_NOTICE_ENABLE           bool                = false      // 是否开启通知
 	GWAF_CAN_EXPORT_DOWNLOAD_LOG bool                = false      //是否可以导出下载日志
 	GWAF_DLP                     dlpheader.EngineAPI              // 脱敏引擎

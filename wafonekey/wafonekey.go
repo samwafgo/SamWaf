@@ -66,6 +66,7 @@ func OneKeyModifyBt(btSavePath string) (error, string) {
 						FilePath:      filePath,
 						BeforeContent: string(beforeContent),
 						AfterContent:  string(afterContent),
+						IsRestore:     0,
 						Remarks:       "",
 					})
 					successCnt++
@@ -110,5 +111,28 @@ func replaceListenPorts(filePath string) error {
 		return ioutil.WriteFile(filePath, []byte(strings.Join(lines, "\n")), 0644)
 	}
 
+	return nil
+}
+
+// 读取 model.OneKeyMod 表中 IsRestore 为 0 的记录，并还原文件
+func RestoreOneKeyMod(id string) error {
+	var oneKeyMod model.OneKeyMod
+	err := global.GWAF_LOCAL_LOG_DB.Where("id = ?", id).First(&oneKeyMod).Error
+	if err != nil {
+		return err
+	}
+	if oneKeyMod.IsRestore == 1 {
+		return errors.New("该记录已还原")
+	}
+	//还原文件
+	err = ioutil.WriteFile(oneKeyMod.FilePath, []byte(oneKeyMod.BeforeContent), 0644)
+	if err != nil {
+		return err
+	}
+	//更新 IsRestore 为 1
+	global.GWAF_LOCAL_LOG_DB.Model(&model.OneKeyMod{}).Where("id = ?", id).Update("is_restore", 1)
+	if err != nil {
+		return err
+	}
 	return nil
 }

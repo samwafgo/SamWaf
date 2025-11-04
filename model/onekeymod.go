@@ -12,5 +12,6 @@ type OneKeyMod struct {
 	FilePath      string `json:"file_path"`      //文件路径
 	BeforeContent string `json:"before_content"` //修改前内容
 	AfterContent  string `json:"after_content"`  //修改后内容
+	IsRestore     int    `json:"is_restore"`     //是否还原
 	Remarks       string `json:"remarks"`        //备注
 }

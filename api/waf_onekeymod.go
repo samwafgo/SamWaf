@@ -70,3 +70,17 @@ func (w *WafOneKeyModApi) DoOneKeyModifyApi(c *gin.Context) {
 		response.FailWithMessage("修改失败", c)
 	}
 }
+func (w *WafOneKeyModApi) RestoreApi(c *gin.Context) {
+	var req request.WafOneKeyModRestoreReq
+	err := c.ShouldBind(&req)
+	if err == nil {
+		err = wafonekey.RestoreOneKeyMod(req.Id)
+		if err != nil {
+			response.FailWithMessage("还原失败 "+err.Error(), c)
+		} else {
+			response.OkWithMessage("还原成功 请重启在宝塔面板上进行Nginx重启", c)
+		}
+	} else {
+		response.FailWithMessage("解析失败", c)
+	}
+}

@@ -16,6 +16,8 @@ type AntiCC struct {
 	LockIPMinutes int    `json:"lock_ip_minutes" gorm:"column:lock_ip_minutes"`
 	LimitMode     string `json:"limit_mode" gorm:"column:limit_mode"` // "rate" 或 "window"
 	IPMode        string `json:"ip_mode" gorm:"column:ip_mode"`       // "nic" 网卡模式 或 "proxy" 代理模式
-	Url           string `json:"url"`                                 //保护的url
-	Remarks       string `json:"remarks"`                             //备注
+	Url           string `json:"url"`
+	IsEnableRule  bool   `json:"is_enable_rule" gorm:"column:is_enable_rule"` //是否启动规则
+	RuleContent   string `json:"rule_content" gorm:"column:rule_content"`     //规则内容
+	Remarks       string `json:"remarks"`                                     //备注
 }

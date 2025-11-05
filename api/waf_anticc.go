@@ -11,18 +11,35 @@ import (
 	"SamWaf/utils"
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
-	"strings"
 )
 
 type WafAntiCCApi struct {
 }
 
 func (w *WafAntiCCApi) AddApi(c *gin.Context) {
+	ruleHelper := &utils.RuleHelper{}
 	var req request.WafAntiCCAddReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		// 检查是否启用了前置规则
+		if req.IsEnableRule {
+			// 检查规则内容是否为空
+			if req.RuleContent == "" {
+				response.FailWithMessage("前置规则内容不能为空", c)
+				return
+			}
+			// 检查规则内容是否合法
+			err = ruleHelper.CheckRuleAvailable(req.RuleContent)
+			if err != nil {
+				response.FailWithMessage("前置规则校验失败", c)
+				return
+			}
+		}
+
 		err = wafAntiCCService.CheckIsExistApi(req)
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 			err = wafAntiCCService.AddApi(req)
@@ -139,9 +156,25 @@ func (w *WafAntiCCApi) DelAntiCCApi(c *gin.Context) {
 }
 
 func (w *WafAntiCCApi) ModifyAntiCCApi(c *gin.Context) {
+	ruleHelper := &utils.RuleHelper{}
 	var req request.WafAntiCCEditReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		// 检查是否启用了前置规则
+		if req.IsEnableRule {
+			// 检查规则内容是否为空
+			if req.RuleContent == "" {
+				response.FailWithMessage("前置规则内容不能为空", c)
+				return
+			}
+			// 检查规则内容是否合法
+			err = ruleHelper.CheckRuleAvailable(req.RuleContent)
+			if err != nil {
+				response.FailWithMessage("前置规则校验失败", c)
+				return
+			}
+		}
+
 		err = wafAntiCCService.ModifyApi(req)
 		if err != nil {
 			response.FailWithMessage("编辑发生错误", c)

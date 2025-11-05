@@ -18,15 +18,13 @@ import (
 	"SamWaf/wafenginecore/wafhttpserver"
 	"SamWaf/wafenginecore/wafwebcache"
 	"SamWaf/wafproxy"
+	"SamWaf/webplugin"
 	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/pires/go-proxyproto"
-	goahocorasick "github.com/samwafgo/ahocorasick"
-	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
 	"net"
@@ -38,6 +36,11 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/pires/go-proxyproto"
+	goahocorasick "github.com/samwafgo/ahocorasick"
+	"go.uber.org/zap"
+	"golang.org/x/time/rate"
 )
 
 type WafEngine struct {
@@ -1430,4 +1433,43 @@ func (waf *WafEngine) ClearCcWindowsForIP(ip string) {
 	zlog.Debug(fmt.Sprintf("已清理 IP %s 在 %d 个主机上的 CC 限流记录", ip, hostCount),
 		zap.String("ip", ip),
 		zap.Int("hostCount", hostCount))
+}
+func (waf *WafEngine) ApplyAntiCCConfig(hostCode string, antiCC model.AntiCC) {
+	targetKey, ok := waf.HostCode[hostCode]
+	if !ok {
+		zlog.Debug("Anticc reload skip: hostCode not found", zap.String("hostCode", hostCode))
+		return
+	}
+	hostSafe, ok := waf.HostTarget[targetKey]
+	if !ok {
+		zlog.Debug("Anticc reload skip: hostTarget not found", zap.String("targetKey", targetKey))
+		return
+	}
+
+	hostSafe.Mux.Lock()
+	defer hostSafe.Mux.Unlock()
+
+	if antiCC.Id == "" {
+		// 关闭CC防护
+		hostSafe.PluginIpRateLimiter = nil
+		hostSafe.AntiCCBean = antiCC
+		zlog.Debug("Anticc disabled", zap.String("hostCode", hostCode))
+		return
+	}
+
+	// 与初始化逻辑保持一致：支持滑动窗口/平均速率
+	if antiCC.LimitMode == "window" {
+		hostSafe.PluginIpRateLimiter = webplugin.NewWindowIPRateLimiter(antiCC.Rate, antiCC.Limit)
+	} else {
+		hostSafe.PluginIpRateLimiter = webplugin.NewIPRateLimiter(rate.Limit(antiCC.Rate), antiCC.Limit)
+	}
+	if antiCC.IsEnableRule {
+		hostSafe.PluginIpRateLimiter.Rule = &utils.RuleHelper{}
+		hostSafe.PluginIpRateLimiter.Rule.InitRuleEngine()
+		hostSafe.PluginIpRateLimiter.Rule.LoadRuleString(antiCC.RuleContent)
+	}
+	hostSafe.AntiCCBean = antiCC
+
+	zlog.Debug("远程配置", zap.Any("Anticc", antiCC))
+	// ... existing code ...
 }

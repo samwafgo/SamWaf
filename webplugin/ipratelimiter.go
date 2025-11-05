@@ -1,6 +1,7 @@
 package webplugin
 
 import (
+	"SamWaf/utils"
 	"sync"
 	"time"
 
@@ -26,6 +27,7 @@ type IPRateLimiter struct {
 	mode     LimitMode
 	window   int                    // 时间窗口大小(秒)
 	requests map[string][]time.Time // 用于滑动窗口模式记录请求时间
+	Rule     *utils.RuleHelper
 }
 
 // NewIPRateLimiter 创建一个新的IP限流器

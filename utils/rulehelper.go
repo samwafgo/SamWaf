@@ -26,6 +26,16 @@ func (rulehelper *RuleHelper) InitRuleEngine() {
 	rulehelper.ruleBuilder = builder.NewRuleBuilder(rulehelper.knowledgeLibrary)
 	rulehelper.engine = engine.NewGruleEngine()
 }
+func (rulehelper *RuleHelper) LoadRuleString(ruleContent string) error {
+
+	byteArr := pkg.NewBytesResource([]byte(ruleContent))
+	err := rulehelper.ruleBuilder.BuildRuleFromResource("Region", "0.0.1", byteArr)
+	if err != nil {
+		zlog.Error("LoadRule", err)
+	}
+	rulehelper.KnowledgeBase, err = rulehelper.knowledgeLibrary.NewKnowledgeBaseInstance("Region", "0.0.1")
+	return err
+}
 func (rulehelper *RuleHelper) LoadRule(ruleconfig model.Rules) error {
 
 	byteArr := pkg.NewBytesResource([]byte(ruleconfig.RuleContent))

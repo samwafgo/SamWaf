@@ -1,6 +1,7 @@
 package wafenginecore
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/innerbean"
@@ -32,15 +33,34 @@ func (waf *WafEngine) CheckCC(r *http.Request, weblogbean *innerbean.WebLog, for
 			// 默认使用网卡模式
 			clientIP = weblogbean.NetSrcIp
 		}
-
-		if !hostTarget.PluginIpRateLimiter.Allow(clientIP) {
-			weblogbean.RISK_LEVEL = 1
-			result.IsBlock = true
-			result.Title = "【局部】触发IP频次访问限制"
-			result.Content = "您的访问被阻止超量了"
-			cacheKey := enums.CACHE_CCVISITBAN_PRE + clientIP
-			//将该IP添加到封禁里
-			global.GCACHE_WAFCACHE.SetWithTTl(cacheKey, 1, time.Duration(hostTarget.AntiCCBean.LockIPMinutes)*time.Minute)
+		isCheckCC := false
+		if hostTarget.AntiCCBean.IsEnableRule {
+			if hostTarget.PluginIpRateLimiter.Rule != nil {
+				if hostTarget.PluginIpRateLimiter.Rule.KnowledgeBase != nil {
+					ruleMatchs, err := hostTarget.PluginIpRateLimiter.Rule.Match("MF", weblogbean)
+					if err == nil {
+						if len(ruleMatchs) > 0 {
+							isCheckCC = true
+							zlog.Debug("CheckCC ruleMatchs: %v", ruleMatchs)
+						}
+					}
+				}
+			}
+		} else {
+			isCheckCC = true
+		}
+		if isCheckCC {
+			if !hostTarget.PluginIpRateLimiter.Allow(clientIP) {
+				weblogbean.RISK_LEVEL = 1
+				result.IsBlock = true
+				result.Title = "【局部】触发IP频次访问限制"
+				result.Content = "您的访问被阻止超量了"
+				cacheKey := enums.CACHE_CCVISITBAN_PRE + clientIP
+				//将该IP添加到封禁里
+				global.GCACHE_WAFCACHE.SetWithTTl(cacheKey, 1, time.Duration(hostTarget.AntiCCBean.LockIPMinutes)*time.Minute)
+				return result
+			}
+		} else {
 			return result
 		}
 	}

@@ -24,16 +24,10 @@ import (
 	"SamWaf/wafsnowflake"
 	"SamWaf/waftask"
 	"SamWaf/waftunnelengine"
-	"SamWaf/webplugin"
 	"crypto/tls"
 	"embed"
 	_ "embed"
 	"fmt"
-	dlp "github.com/bytedance/godlp"
-	"github.com/kardianos/service"
-	"go.uber.org/zap"
-	"golang.org/x/time/rate"
-	"gorm.io/gorm"
 	"io/ioutil"
 	"log"
 	"net"
@@ -50,6 +44,11 @@ import (
 	"syscall"
 	"time"
 	_ "time/tzdata"
+
+	dlp "github.com/bytedance/godlp"
+	"github.com/kardianos/service"
+	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 //go:embed exedata/ip2region.xdb
@@ -434,18 +433,7 @@ func (m *wafSystenService) run() {
 					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Unlock()
 					break
 				case enums.ChanTypeAnticc:
-					antiCC := msg.Content.(model.AntiCC)
-					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Lock()
-					if antiCC.Id == "" {
-						globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].PluginIpRateLimiter = nil
-						globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].AntiCCBean = antiCC
-					} else {
-						globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].PluginIpRateLimiter = webplugin.NewIPRateLimiter(rate.Limit(msg.Content.(model.AntiCC).Rate), msg.Content.(model.AntiCC).Limit)
-						globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].AntiCCBean = antiCC
-					}
-
-					zlog.Debug("远程配置", zap.Any("Anticc", msg.Content.(model.AntiCC)))
-					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Unlock()
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ApplyAntiCCConfig(msg.HostCode, msg.Content.(model.AntiCC))
 					break
 				case enums.ChanTypeHttpauth:
 					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Lock()

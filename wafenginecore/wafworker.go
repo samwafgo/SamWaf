@@ -14,12 +14,13 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	goahocorasick "github.com/samwafgo/ahocorasick"
-	"golang.org/x/time/rate"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	goahocorasick "github.com/samwafgo/ahocorasick"
+	"golang.org/x/time/rate"
 )
 
 // 加载全部host
@@ -162,6 +163,12 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 			zlog.Debug(fmt.Sprintf("初始化CC防护(平均速率模式) 主机%v 时间窗口(秒)%v 最大请求数%v 每秒速率%v",
 				inHost.Host, anticcBean.Rate, anticcBean.Limit, float64(anticcBean.Limit)/float64(anticcBean.Rate)))
 		}
+		if anticcBean.IsEnableRule {
+			pluginIpRateLimiter.Rule = &utils.RuleHelper{}
+			pluginIpRateLimiter.Rule.InitRuleEngine()
+			pluginIpRateLimiter.Rule.LoadRuleString(anticcBean.RuleContent)
+		}
+
 	}
 
 	//查询ip白名单

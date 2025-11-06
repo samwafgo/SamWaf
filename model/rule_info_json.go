@@ -102,55 +102,18 @@ func (receiver *RuleTool) GenRuleInfo(rule RuleInfo, remark string) string {
 
 		}
 	}
-	var doAssignmentTpl = ""
-	for _, doAssignment := range rule.RuleDoAssignment {
-		doAssignmentTpl = doAssignmentTpl +
-			fmt.Sprintf("%s.%s = %s;\n",
-				doAssignment.FactName, doAssignment.Attr,
-				IfCompare(doAssignment.AttrType == "string", "\""+doAssignment.AttrVal+"\"", doAssignment.AttrVal))
-
-	}
-	var doMethodTpl = ""
-	for _, doMethod := range rule.RuleDoMethod {
-		doMethodTpl = doMethodTpl +
-			fmt.Sprintf("%s.%s ",
-				doMethod.FactName, doMethod.MethodName)
-		var parmStr = ""
-		for _, doMethodParms := range doMethod.Parms {
-			if parmStr != "" {
-				parmStr = parmStr +
-					fmt.Sprintf(",%s",
-						IfCompare(doMethodParms.AttrType == "string",
-							"\""+doMethodParms.AttrVal+"\"", doMethodParms.AttrVal))
-			} else {
-
-				parmStr = parmStr +
-					fmt.Sprintf("%s",
-						IfCompare(doMethodParms.AttrType == "string",
-							"\""+doMethodParms.AttrVal+"\"", doMethodParms.AttrVal))
-			}
-		}
-		if parmStr != "" {
-			doMethodTpl = doMethodTpl + "(" + parmStr + ")" + ";\n"
-		} else {
-			doMethodTpl = doMethodTpl + "()" + ";\n"
-		}
-
-	}
 	var dev = map[string]string{
 		"rule_name":      rule.RuleBase.RuleName,
 		"rule_remark":    remark,
 		"rule_salience":  strconv.Itoa(rule.RuleBase.Salience),
 		"rule_condition": conditionTpl,
-		"rule_action":    doAssignmentTpl + doMethodTpl,
 	}
 
 	var ruleTpl = `
 rule R${rule_name} "${rule_remark}" salience ${rule_salience} {
     when 
         ${rule_condition}
-    then
-        ${rule_action}
+    then 
 		Retract("R${rule_name}");
 } `
 	s := os.Expand(ruleTpl, func(k string) string { return dev[k] })

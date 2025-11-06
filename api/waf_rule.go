@@ -12,9 +12,10 @@ import (
 	"SamWaf/utils"
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
-	"strings"
 )
 
 type WafRuleAPi struct {
@@ -40,6 +41,9 @@ func (w *WafRuleAPi) AddApi(c *gin.Context) {
 			if ruleCodeFormDRL != "{SamWafUUID}" {
 				ruleCode = ruleCodeFormDRL
 			}
+		} else {
+			//手工编码情况下 前端准备好的
+			ruleCode = req.RuleCode
 		}
 		if ruleInfo.RuleBase.RuleDomainCode == "请选择网站" {
 			response.FailWithMessage("请选择网站", c)
@@ -275,4 +279,47 @@ func (w *WafRuleAPi) DelAllRuleApi(c *gin.Context) {
 	} else {
 		response.FailWithMessage("解析失败", c)
 	}
+}
+
+// WafRulePreViewReq 规则格式预览
+func (w *WafRuleAPi) FormatRuleApi(c *gin.Context) {
+	ruleHelper := &utils.RuleHelper{}
+	var req request.WafRulePreViewReq
+	err := c.ShouldBindJSON(&req)
+	if err != nil {
+		response.FailWithMessage("解析失败", c)
+		return
+	}
+
+	var ruleTool = model.RuleTool{}
+	ruleInfo, err := ruleTool.LoadRule(req.RuleJson)
+	if err != nil {
+		response.FailWithMessage("规则解析错误", c)
+		return
+	}
+
+	// 与新增/编辑保持一致，先校验网站选择
+	if ruleInfo.RuleBase.RuleDomainCode == "请选择网站" && req.FormSource != "builder" {
+		response.FailWithMessage("请选择网站", c)
+		return
+	}
+
+	chsName := ruleInfo.RuleBase.RuleName
+	ruleInfo.RuleBase.RuleName = strings.Replace(req.RuleCode, "-", "", -1)
+	var ruleContent = ruleTool.GenRuleInfo(ruleInfo, chsName)
+
+	// 手工模式走合法性校验
+	if req.IsManualRule == 1 {
+		ruleContent = ruleInfo.RuleContent
+		err = ruleHelper.CheckRuleAvailable(ruleContent)
+		if err != nil {
+			response.FailWithMessage("规则校验失败", c)
+			return
+		}
+	}
+
+	// 返回格式化内容，供前端展示
+	response.OkWithDetailed(gin.H{
+		"rule_content": ruleContent,
+	}, "获取成功", c)
 }

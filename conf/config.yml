@@ -3,7 +3,11 @@ export_download: false
 local_port: 26666
 notice:
     isenable: false
+security:
+    ip_whitelist: 0.0.0.0/0,::/0
 soft_id: SamWafCom
 user_code: 8ad2bca0-4fd0-46aa-afe6-833132a05eee
 zlog:
+    db_debug_enable: false
+    debug_enable: false
     outputformat: console

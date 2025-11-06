@@ -2,6 +2,7 @@ package router
 
 import (
 	"SamWaf/api"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -18,4 +19,5 @@ func (receiver *RuleRouter) InitRuleRouter(group *gin.RouterGroup) {
 	wafRuleRouter.POST("/samwaf/wafhost/rule/edit", ruleApi.ModifyRuleApi)
 	wafRuleRouter.POST("/samwaf/wafhost/rule/batchdel", ruleApi.BatchDelRuleApi)
 	wafRuleRouter.POST("/samwaf/wafhost/rule/delall", ruleApi.DelAllRuleApi)
+	wafRuleRouter.POST("/samwaf/wafhost/rule/format", ruleApi.FormatRuleApi)
 }

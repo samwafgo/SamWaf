@@ -354,6 +354,8 @@ func (waf *WafEngine) RemoveHost(host model.Hosts) {
 			delete(waf.HostTargetMoreDomain, moreHost)
 		}
 	}
+	// 清理与该主机及后端绑定的 Transport 缓存
+	waf.purgeTransportForHost(host)
 	//检测如果端口已经没有关联服务就直接关闭掉
 	waf.RemovePortServer()
 }
@@ -513,4 +515,83 @@ func (waf *WafEngine) checkCredentials(hostSafe *wafenginmodel.HostSafe, usernam
 		}
 	}
 	return false
+}
+
+// purgeTransportForHost 清理指定主机相关的 TransportPool 键
+func (waf *WafEngine) purgeTransportForHost(host model.Hosts) {
+	// 构建需要匹配的 host:port 组合（主端口、80端口、绑定端口、绑定域名）
+	hostStrs := map[string]bool{
+		fmt.Sprintf("%s:%d", host.Host, host.Port): true,
+	}
+	if host.AutoJumpHTTPS == 1 {
+		hostStrs[fmt.Sprintf("%s:%d", host.Host, 80)] = true
+	}
+	// BindMorePort 绑定的端口
+	var morePorts []int
+	if host.BindMorePort != "" && host.GLOBAL_HOST == 0 {
+		lines := strings.Split(host.BindMorePort, ",")
+		for _, portStr := range lines {
+			portStr = strings.TrimSpace(portStr)
+			if portStr == "" {
+				continue
+			}
+			if p, err := strconv.Atoi(portStr); err == nil {
+				morePorts = append(morePorts, p)
+				hostStrs[fmt.Sprintf("%s:%d", host.Host, p)] = true
+			}
+		}
+	}
+	// 绑定多域名
+	if host.BindMoreHost != "" {
+		lines := strings.Split(host.BindMoreHost, "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			// 绑定域名 + 主端口
+			hostStrs[fmt.Sprintf("%s:%d", line, host.Port)] = true
+			// 绑定域名 + 其他端口
+			for _, p := range morePorts {
+				hostStrs[fmt.Sprintf("%s:%d", line, p)] = true
+			}
+		}
+	}
+
+	// 扫描并删除匹配的 Transport 缓存
+	waf.TransportMux.Lock()
+	defer waf.TransportMux.Unlock()
+	for key := range waf.TransportPool {
+		parts := strings.Split(key, "_")
+		if len(parts) != 5 {
+			if t, ok := waf.TransportPool[key]; ok && t != nil {
+				t.CloseIdleConnections()
+			}
+			delete(waf.TransportPool, key)
+			continue
+		}
+		hostPart := parts[0]
+
+		// 匹配 host：支持 hostPart 包含或不包含端口的情况
+		matchHost := false
+		// 1. 如果 hostPart 包含端口，直接匹配
+		if _, exists := hostStrs[hostPart]; exists {
+			matchHost = true
+		} else {
+			// 2. 如果 hostPart 不包含端口，检查 hostStrs 中是否有以 hostPart: 开头的项
+			// 例如：hostPart = "example.com"，检查 hostStrs 中是否有 "example.com:80" 等
+			for hostPortKey := range hostStrs {
+				if strings.HasPrefix(hostPortKey, hostPart+":") {
+					matchHost = true
+					break
+				}
+			}
+		}
+		if matchHost {
+			if t, ok := waf.TransportPool[key]; ok && t != nil {
+				t.CloseIdleConnections()
+			}
+			delete(waf.TransportPool, key)
+		}
+	}
 }

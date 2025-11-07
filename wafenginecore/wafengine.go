@@ -1047,7 +1047,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 								resp.Body = io.NopCloser(bytes.NewBuffer([]byte(content)))
 								resp.ContentLength = int64(len(content))
 								resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(content)), 10))
-
+								resp.Header.Del("Content-Encoding")
 								weblogfrist.ACTION = "放行"
 								weblogfrist.STATUS = resp.Status
 								weblogfrist.STATUS_CODE = resp.StatusCode

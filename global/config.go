@@ -29,7 +29,7 @@ var (
 	GCONFIG_RECORD_ENABLE_OWASP        int64  = 0         //启动OWASP数据检测
 	GCONFIG_RECORD_ENABLE_HTTP_80      int64  = 0         //启动80端口服务（为自动申请证书使用 HTTP文件验证类型，DNS验证不需要）
 	GCONFIG_RECORD_SSLOrder_EXPIRE_DAY int64  = 30        // 提前多少天进行自动申请
-	GCONFIG_RECORD_SSLHTTP_CHECK       int64  = 1         // ssl申请文件验证类型 是否校验原始路径HTTP响应代码 1 校验 0 不校验
+	GCONFIG_RECORD_SSLHTTP_CHECK       int64  = 0         // ssl申请文件验证类型 是否校验原始路径HTTP响应代码 1 校验 0 不校验
 	GCONFIG_RECORD_SSLMinVerson        string = "TLS 1.2" // ssl最低版本
 	GCONFIG_RECORD_SSLMaxVerson        string = "TLS 1.3" // ssl最大版本
 	GCONFIG_RECORD_CONNECT_TIME_OUT    int64  = 30        // 连接超时 默认30s

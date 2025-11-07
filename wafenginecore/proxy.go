@@ -222,12 +222,21 @@ func (waf *WafEngine) getOrCreateTransport(r *http.Request, host string, isEnabl
 
 // 生成Transport的唯一键
 func (waf *WafEngine) generateTransportKey(host string, isEnableLoadBalance int, loadBalance model.LoadBalance, hostTarget *wafenginmodel.HostSafe) string {
+
 	key := fmt.Sprintf("%s_%d_%s_%d_%v",
 		host,
 		isEnableLoadBalance,
-		loadBalance.Remote_ip,
-		loadBalance.Remote_port,
+		hostTarget.Host.Remote_ip,
+		hostTarget.Host.Remote_port,
 		hostTarget.Host.InsecureSkipVerify)
+	if isEnableLoadBalance == 1 {
+		key = fmt.Sprintf("%s_%d_%s_%d_%v",
+			host,
+			isEnableLoadBalance,
+			loadBalance.Remote_ip,
+			loadBalance.Remote_port,
+			hostTarget.Host.InsecureSkipVerify)
+	}
 	return key
 }
 

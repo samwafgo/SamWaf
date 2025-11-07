@@ -476,6 +476,14 @@ func (m *wafSystenService) run() {
 								if hosts[0].BindMoreHost != hostsOld.BindMoreHost {
 									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hosts[0])
 								}
+								// 远程 IP 或端口变化，需重载
+								if hosts[0].Remote_ip != hostsOld.Remote_ip || hosts[0].Remote_port != hostsOld.Remote_port {
+									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hosts[0])
+								}
+								// 负载状态或策略变化，需重载
+								if hosts[0].IsEnableLoadBalance != hostsOld.IsEnableLoadBalance || hosts[0].LoadBalanceStage != hostsOld.LoadBalanceStage {
+									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hosts[0])
+								}
 								globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.LoadHost(hosts[0])
 								globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartAllProxyServer()
 							} else if hosts[0].Host == hostsOld.Host && hosts[0].Port != hostsOld.Port {

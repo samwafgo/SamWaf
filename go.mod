@@ -15,6 +15,7 @@ require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-acme/lego/v4 v4.26.0
 	github.com/go-co-op/gocron v1.17.1
+	github.com/go-gormigrate/gormigrate/v2 v2.1.5
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.0
@@ -43,7 +44,7 @@ require (
 	golang.org/x/text v0.29.0
 	golang.org/x/time v0.13.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
-	gorm.io/gorm v1.25.2-0.20230530020048-26663ab9bf55
+	gorm.io/gorm v1.26.1
 )
 
 require (

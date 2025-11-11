@@ -12,17 +12,19 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"gorm.io/gorm/logger"
 	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+
+	"gorm.io/gorm/logger"
+
 	//"github.com/kangarooxin/gorm-webplugin-crypto"
 	//"github.com/kangarooxin/gorm-webplugin-crypto/strategy"
 	gowxsqlite3 "github.com/samwafgo/go-wxsqlite3"
-	"github.com/samwafgo/sqlitedriver"
+	sqlite "github.com/samwafgo/sqlitedriver"
 	"gorm.io/gorm"
 )
 
@@ -326,14 +328,15 @@ func InitStatsDb(currentDir string) (bool, error) {
 		//db.Use(crypto.NewCryptoPlugin())
 		// 注册默认的AES加解密策略
 		//crypto.RegisterCryptoStrategy(strategy.NewAesCryptoStrategy("3Y)(27EtO^tK8Bj~"))
-		// Migrate the schema
-		//统计处理
-		db.AutoMigrate(&model.StatsTotal{})
-		db.AutoMigrate(&model.StatsDay{})
-		db.AutoMigrate(&model.StatsIPDay{})
-		db.AutoMigrate(&model.StatsIPCityDay{})
-		//IPTag
-		db.AutoMigrate(&model.IPTag{})
+
+		// ============ 使用 gormigrate 替代 AutoMigrate（完全向后兼容） ============
+		zlog.Info("开始执行stats数据库迁移...")
+		if err := RunStatsDBMigrations(db); err != nil {
+			zlog.Error("stats数据库迁移失败", "error", err)
+			panic("stats database migration failed: " + err.Error())
+		}
+		// ============ 迁移代码结束 ============
+
 		global.GWAF_LOCAL_STATS_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 		global.GWAF_LOCAL_STATS_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
 

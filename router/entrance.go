@@ -43,6 +43,7 @@ type ApiGroup struct {
 	WafFileRouter
 	WafSystemMonitorRouter
 	WafCaServerInfoRouter
+	SqlQueryRouter
 }
 type PublicApiGroup struct {
 	LoginRouter

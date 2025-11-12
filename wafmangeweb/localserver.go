@@ -77,6 +77,7 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitWafFileRouter(RouterGroup)
 		router.ApiGroupApp.InitWafSystemMonitorRouter(RouterGroup)
 		router.ApiGroupApp.InitWafCaServerInfoRouter(RouterGroup)
+		router.ApiGroupApp.InitSqlQueryRouter(RouterGroup)
 	}
 
 	if global.GWAF_RELEASE == "true" {

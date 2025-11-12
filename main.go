@@ -782,8 +782,23 @@ func main() {
 		case "resetotp": //重置安全码
 			wafdb.InitCoreDb("")
 			wafdb.ResetAdminOTP()
+		case "repairdb": //修复数据库
+			fmt.Println("\n⚠️  数据库修复工具")
+			fmt.Println("如果您遇到数据库损坏错误")
+			fmt.Println("可以使用此工具尝试修复。\n")
+			wafdb.RepairAllDatabases("")
 		default:
 			fmt.Printf("Command '%s' is not recognized.\n", command)
+			fmt.Println("\n可用命令:")
+			fmt.Println("  install   - 安装为系统服务")
+			fmt.Println("  start     - 启动服务")
+			fmt.Println("  stop      - 停止服务")
+			fmt.Println("  restart   - 重启服务")
+			fmt.Println("  uninstall - 卸载服务")
+			fmt.Println("  resetpwd  - 重置管理员密码")
+			fmt.Println("  resetotp  - 重置安全码")
+			fmt.Println("  repairdb  - 修复损坏的数据库")
+			fmt.Println("")
 		}
 		return
 	}

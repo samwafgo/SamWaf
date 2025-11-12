@@ -484,3 +484,325 @@ func cleanupOldBackups(backupDir string, keepCount int) {
 		}
 	}
 }
+
+// RepairDatabase 修复损坏的SQLite数据库
+// dbPath: 数据库文件路径
+// password: 数据库密码（如果有加密）
+func RepairDatabase(dbPath string, password string) error {
+	zlog.Info("========================================")
+	zlog.Info("开始修复数据库:", dbPath)
+	zlog.Info("========================================")
+
+	// 检查数据库文件是否存在
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		return fmt.Errorf("数据库文件不存在: %s", dbPath)
+	}
+
+	// 创建备份文件名
+	backupPath := dbPath + ".backup_before_repair_" + time.Now().Format("20060102150405")
+
+	// 1. 先备份原数据库
+	zlog.Info("步骤1: 备份原数据库...")
+	input, err := os.ReadFile(dbPath)
+	if err != nil {
+		return fmt.Errorf("读取数据库文件失败: %w", err)
+	}
+	if err := os.WriteFile(backupPath, input, 0644); err != nil {
+		return fmt.Errorf("创建备份失败: %w", err)
+	}
+	zlog.Info("✓ 备份成功:", backupPath)
+
+	// 2. 打开数据库进行检查
+	zlog.Info("步骤2: 检查数据库完整性...")
+	key := url.QueryEscape(password)
+	dns := fmt.Sprintf("%s?_db_key=%s", dbPath, key)
+	db, err := gorm.Open(sqlite.Open(dns), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
+	if err != nil {
+		zlog.Error("✗ 无法打开数据库，尝试使用 dump 方式修复...")
+		return repairDatabaseByDump(dbPath, password, backupPath)
+	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		return fmt.Errorf("获取数据库连接失败: %w", err)
+	}
+	defer sqlDB.Close()
+
+	// 3. 运行完整性检查
+	var result string
+	err = db.Raw("PRAGMA integrity_check;").Scan(&result).Error
+	if err != nil {
+		zlog.Error("✗ 完整性检查失败:", err)
+		return repairDatabaseByDump(dbPath, password, backupPath)
+	}
+
+	zlog.Info("完整性检查结果:", result)
+
+	if result == "ok" {
+		zlog.Info("✓ 数据库完整性良好，尝试优化...")
+
+		// 4. 尝试 VACUUM 重建数据库
+		zlog.Info("步骤3: 执行 VACUUM 优化...")
+		if err := db.Exec("VACUUM;").Error; err != nil {
+			zlog.Warn("✗ VACUUM 失败:", err)
+		} else {
+			zlog.Info("✓ VACUUM 成功")
+		}
+
+		// 5. 重新索引
+		zlog.Info("步骤4: 重建索引...")
+		if err := db.Exec("REINDEX;").Error; err != nil {
+			zlog.Warn("✗ REINDEX 失败:", err)
+		} else {
+			zlog.Info("✓ REINDEX 成功")
+		}
+
+		zlog.Info("========================================")
+		zlog.Info("✓ 数据库修复完成!")
+		zlog.Info("========================================")
+		return nil
+	} else {
+		zlog.Error("✗ 数据库存在完整性问题，尝试使用 dump 方式修复...")
+		return repairDatabaseByDump(dbPath, password, backupPath)
+	}
+}
+
+// repairDatabaseByDump 使用 dump 和重建的方式修复数据库
+func repairDatabaseByDump(dbPath string, password string, backupPath string) error {
+	zlog.Info("使用导出重建方式修复数据库...")
+
+	// 创建临时修复文件
+	repairedPath := dbPath + ".repaired_" + time.Now().Format("20060102150405")
+
+	key := url.QueryEscape(password)
+
+	// 1. 尝试打开源数据库（忽略错误继续）
+	zlog.Info("步骤1: 读取源数据库数据...")
+	srcDns := fmt.Sprintf("%s?_db_key=%s", dbPath, key)
+	srcDB, err := gorm.Open(sqlite.Open(srcDns), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
+	if err != nil {
+		return fmt.Errorf("无法打开源数据库进行修复: %w", err)
+	}
+
+	srcSqlDB, err := srcDB.DB()
+	if err != nil {
+		return fmt.Errorf("获取源数据库连接失败: %w", err)
+	}
+	defer srcSqlDB.Close()
+
+	// 2. 创建新的数据库
+	zlog.Info("步骤2: 创建新数据库...")
+	dstDns := fmt.Sprintf("%s?_db_key=%s", repairedPath, key)
+	dstDB, err := gorm.Open(sqlite.Open(dstDns), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
+	if err != nil {
+		return fmt.Errorf("创建新数据库失败: %w", err)
+	}
+
+	dstSqlDB, err := dstDB.DB()
+	if err != nil {
+		return fmt.Errorf("获取新数据库连接失败: %w", err)
+	}
+	defer dstSqlDB.Close()
+
+	// 3. 获取所有表名
+	zlog.Info("步骤3: 读取表结构...")
+	var tables []string
+	err = srcDB.Raw("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name;").Scan(&tables).Error
+	if err != nil {
+		return fmt.Errorf("获取表列表失败: %w", err)
+	}
+
+	zlog.Info(fmt.Sprintf("找到 %d 个表", len(tables)))
+
+	// 4. 逐表复制数据
+	successCount := 0
+	errorCount := 0
+	for _, tableName := range tables {
+		zlog.Info("正在处理表:", tableName)
+
+		// 获取建表语句
+		var createSQL string
+		err := srcDB.Raw("SELECT sql FROM sqlite_master WHERE type='table' AND name=?", tableName).Scan(&createSQL).Error
+		if err != nil {
+			zlog.Error(fmt.Sprintf("✗ 获取表 %s 的建表语句失败: %v", tableName, err))
+			errorCount++
+			continue
+		}
+
+		// 在新数据库中创建表
+		if err := dstDB.Exec(createSQL).Error; err != nil {
+			zlog.Error(fmt.Sprintf("✗ 创建表 %s 失败: %v", tableName, err))
+			errorCount++
+			continue
+		}
+
+		// 复制数据
+		var count int64
+		if err := srcDB.Table(tableName).Count(&count).Error; err != nil {
+			zlog.Warn(fmt.Sprintf("✗ 获取表 %s 记录数失败: %v", tableName, err))
+		} else {
+			zlog.Info(fmt.Sprintf("  - 表 %s 有 %d 条记录", tableName, count))
+		}
+
+		// 附加源数据库并复制
+		attachSQL := fmt.Sprintf("ATTACH DATABASE '%s' AS source", dbPath)
+		if err := dstDB.Exec(attachSQL).Error; err != nil {
+			zlog.Error(fmt.Sprintf("✗ 附加源数据库失败: %v", err))
+			errorCount++
+			continue
+		}
+
+		copyDataSQL := fmt.Sprintf("INSERT INTO main.%s SELECT * FROM source.%s", tableName, tableName)
+		if err := dstDB.Exec(copyDataSQL).Error; err != nil {
+			zlog.Warn(fmt.Sprintf("✗ 复制表 %s 数据失败: %v", tableName, err))
+			errorCount++
+		} else {
+			zlog.Info(fmt.Sprintf("✓ 表 %s 复制成功", tableName))
+			successCount++
+		}
+
+		// 分离数据库
+		dstDB.Exec("DETACH DATABASE source")
+	}
+
+	// 5. 复制索引和其他对象
+	zlog.Info("步骤4: 复制索引...")
+	var indexes []string
+	err = srcDB.Raw("SELECT sql FROM sqlite_master WHERE type='index' AND sql IS NOT NULL ORDER BY name;").Scan(&indexes).Error
+	if err == nil {
+		for _, indexSQL := range indexes {
+			if err := dstDB.Exec(indexSQL).Error; err != nil {
+				zlog.Warn("创建索引失败:", err)
+			}
+		}
+	}
+
+	// 6. 关闭数据库连接
+	srcSqlDB.Close()
+	dstSqlDB.Close()
+
+	// 7. 替换原数据库
+	if successCount > 0 {
+		zlog.Info("步骤5: 替换原数据库...")
+
+		// 删除原数据库
+		if err := os.Remove(dbPath); err != nil {
+			return fmt.Errorf("删除原数据库失败: %w", err)
+		}
+
+		// 重命名修复后的数据库
+		if err := os.Rename(repairedPath, dbPath); err != nil {
+			return fmt.Errorf("重命名修复后数据库失败: %w", err)
+		}
+
+		zlog.Info("========================================")
+		zlog.Info(fmt.Sprintf("✓ 数据库修复完成! 成功: %d 个表, 失败: %d 个表", successCount, errorCount))
+		zlog.Info("原数据库备份在:", backupPath)
+		zlog.Info("========================================")
+		return nil
+	} else {
+		// 清理修复文件
+		os.Remove(repairedPath)
+		return fmt.Errorf("修复失败: 没有成功复制任何表")
+	}
+}
+
+// RepairAllDatabases 修复所有数据库
+func RepairAllDatabases(currentDir string) {
+	if currentDir == "" {
+		currentDir = utils.GetCurrentDir()
+	}
+
+	databases := []struct {
+		Path     string
+		Name     string
+		Password string
+	}{
+		{
+			Path:     currentDir + "/data/local.db",
+			Name:     "核心数据库 (local.db)",
+			Password: global.GWAF_PWD_COREDB,
+		},
+		{
+			Path:     currentDir + "/data/local_log.db",
+			Name:     "日志数据库 (local_log.db)",
+			Password: global.GWAF_PWD_LOGDB,
+		},
+		{
+			Path:     currentDir + "/data/local_stats.db",
+			Name:     "统计数据库 (local_stats.db)",
+			Password: global.GWAF_PWD_STATDB,
+		},
+	}
+
+	fmt.Println("\n================================================")
+	fmt.Println("         SamWaf 数据库修复工具")
+	fmt.Println("================================================")
+	fmt.Println("\n将检查并修复以下数据库：")
+	for i, db := range databases {
+		fmt.Printf("%d. %s\n", i+1, db.Name)
+		fmt.Printf("   路径: %s\n", db.Path)
+	}
+	fmt.Println("\n⚠️  警告：修复前会自动备份数据库")
+	fmt.Print("\n是否继续？请输入数据库编号 (1-3)，或输入 'all' 修复全部，输入 'q' 退出: ")
+
+	var input string
+	fmt.Scanln(&input)
+
+	if input == "q" || input == "Q" {
+		fmt.Println("已取消修复操作")
+		return
+	}
+
+	var selectedDBs []int
+	if input == "all" || input == "ALL" {
+		selectedDBs = []int{0, 1, 2}
+	} else {
+		// 解析用户输入的数字
+		var dbIndex int
+		_, err := fmt.Sscanf(input, "%d", &dbIndex)
+		if err != nil || dbIndex < 1 || dbIndex > 3 {
+			fmt.Println("✗ 无效的输入")
+			return
+		}
+		selectedDBs = []int{dbIndex - 1}
+	}
+
+	// 执行修复
+	successCount := 0
+	errorCount := 0
+
+	for _, idx := range selectedDBs {
+		db := databases[idx]
+		fmt.Printf("\n正在修复: %s\n", db.Name)
+
+		// 检查文件是否存在
+		if _, err := os.Stat(db.Path); os.IsNotExist(err) {
+			fmt.Printf("✗ 数据库文件不存在，跳过: %s\n", db.Path)
+			continue
+		}
+
+		err := RepairDatabase(db.Path, db.Password)
+		if err != nil {
+			fmt.Printf("✗ 修复失败: %v\n", err)
+			errorCount++
+		} else {
+			fmt.Printf("✓ 修复成功\n")
+			successCount++
+		}
+	}
+
+	fmt.Println("\n================================================")
+	fmt.Printf("修复完成! 成功: %d, 失败: %d\n", successCount, errorCount)
+	fmt.Println("================================================")
+
+	if errorCount > 0 {
+		fmt.Println("\n⚠️  部分数据库修复失败，请检查日志")
+	}
+}

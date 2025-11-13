@@ -5,6 +5,7 @@ notice:
     isenable: false
 security:
     ip_whitelist: 0.0.0.0/0,::/0
+    ssl_enable: true
 soft_id: SamWafCom
 user_code: 8ad2bca0-4fd0-46aa-afe6-833132a05eee
 zlog:

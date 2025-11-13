@@ -704,7 +704,7 @@ func (m *wafSystenService) stopSamWaf() {
 	zlog.Info("Shutdown SamWaf Cron finished")
 
 	zlog.Info("Shutdown SamWaf WebManager...")
-	webmanager.CloseLocalServer()
+	webmanager.Shutdown()
 	zlog.Info("Shutdown SamWaf WebManager finished")
 
 	zlog.Info("Shutdown SamWaf IPDatabase...")

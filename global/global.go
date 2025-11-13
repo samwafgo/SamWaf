@@ -9,13 +9,14 @@ import (
 	"SamWaf/wafnotify"
 	"SamWaf/wafowasp"
 	"SamWaf/wafsnowflake"
+	"strconv"
+	"sync/atomic"
+	"time"
+
 	"github.com/bytedance/godlp/dlpheader"
 	"github.com/lionsoul2014/ip2region/binding/golang/xdb"
 	"github.com/oschwald/geoip2-golang"
 	"gorm.io/gorm"
-	"strconv"
-	"sync/atomic"
-	"time"
 )
 
 const (
@@ -75,6 +76,7 @@ var (
 
 	//管理端访问控制
 	GWAF_IP_WHITELIST string = "0.0.0.0/0,::/0" //IP白名单 后台默认放行所有
+	GWAF_SSL_ENABLE   bool   = false            //是否启用SSL证书
 
 	//zlog 日志相关信息
 	GWAF_LOG_OUTPUT_FORMAT       string              = "console"  //zlog输出格式 控制台格式console,json格式
@@ -106,6 +108,7 @@ var (
 	GWAF_CHAN_CLEAR_CC_IP                           = make(chan string, 10)              //清除cc缓存信息IP
 	GWAF_QUEUE_SHUTDOWN_SIGNAL        chan struct{} = make(chan struct{})                // 队列关闭信号
 	GWAF_CHAN_CREATE_LOG_INDEX                      = make(chan string, 10)              // 创建日志索引
+	GWAF_CHAN_MANAGER_RESTART                       = make(chan int, 1)                  // 管理端重启信号
 
 	GWAF_SHUTDOWN_SIGNAL bool = false // 系统关闭信号
 	/*****CACHE相关*********/

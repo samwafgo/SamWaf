@@ -3,8 +3,6 @@ package waftask
 import (
 	"SamWaf/common/zlog"
 	"SamWaf/enums"
-	"SamWaf/global"
-	"time"
 )
 
 // TaskCreateIndex  创建索引
@@ -37,38 +35,19 @@ func TaskCreateIndexByDbName(dbName string) {
 }
 
 func createMainDbIndex() {
-	db := global.GWAF_LOCAL_DB
-	if db == nil {
-		return
-	}
-	startTime := time.Now()
+	// ============ 已废弃：索引创建已迁移到 gormigrate ============
+	// 从 2025-11-14 开始，core 数据库索引通过 gormigrate 在数据库初始化时自动创建
+	// ============================================================
 
-	zlog.Info("ready create core index maybe use a few minutes ")
-
-	//20241106 创建iptagtag索引
-	err := db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS uni_iptags_full ON ip_tags (user_code, tenant_id, ip, ip_tag)").Error
-	if err != nil {
-		panic("failed to create index : uni_iptags_full " + err.Error())
-	} else {
-		zlog.Info("db", "uni_iptags_full created")
-	}
-	// 创建iptag ip索引
-	err = db.Exec("CREATE INDEX IF NOT EXISTS idx_iptag_ip ON ip_tags ( user_code, tenant_id, ip)").Error
-	if err != nil {
-		panic("failed to create index: idx_iptag_ip " + err.Error())
-	} else {
-		zlog.Info("db", "idx_iptag_ip created")
-	}
-	// 记录结束时间并计算耗时
-	duration := time.Since(startTime)
-	zlog.Info("create core index completely", "duration", duration.String())
+	zlog.Info("createMainDbIndex 已废弃，索引由 gormigrate 自动管理")
+	return
 }
 func createLogDbIndex() {
 	// ============ 已废弃：索引创建已迁移到 gormigrate ============
 	// 从 2025-11-14 开始，log 数据库索引通过 gormigrate 在数据库初始化时自动创建
 	// ============================================================
 
-	zlog.Info("createStatDbIndex 已废弃，索引由 gormigrate 自动管理")
+	zlog.Info("createLogDbIndex 已废弃，索引由 gormigrate 自动管理")
 	return
 }
 func createStatDbIndex() {

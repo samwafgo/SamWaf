@@ -4,6 +4,7 @@ import (
 	"SamWaf/common/zlog"
 	"SamWaf/model/waftunnelmodel"
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"strconv"
@@ -16,7 +17,8 @@ func (waf *WafTunnelEngine) startTCPServer(netRuntime waftunnelmodel.NetRunTime)
 	addr := ":" + strconv.Itoa(netRuntime.Port)
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
-		zlog.Error("TCP服务器启动失败，端口: " + strconv.Itoa(netRuntime.Port) + ", 错误: " + err.Error())
+		serverPort := strconv.Itoa(netRuntime.Port)
+		zlog.Error(fmt.Sprintf("TCP服务器启动失败 [服务端口:%s 错误:%s]", serverPort, err.Error()))
 		return
 	}
 
@@ -27,19 +29,29 @@ func (waf *WafTunnelEngine) startTCPServer(netRuntime waftunnelmodel.NetRunTime)
 	netClone.Svr = listener
 	waf.NetListerOnline.Set(key, netClone)
 
-	zlog.Info("启动TCP服务器，端口: " + strconv.Itoa(netRuntime.Port))
+	serverPort := strconv.Itoa(netRuntime.Port)
+	zlog.Info(fmt.Sprintf("启动TCP服务器 [服务端口:%s]", serverPort))
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			zlog.Error("TCP连接接收失败: " + err.Error())
+			zlog.Error(fmt.Sprintf("TCP连接接收失败 [服务端口:%s 错误:%s]", serverPort, err.Error()))
 			break
 		}
 
 		// 获取隧道配置
 		tunnelInfo, ok := waf.TunnelTarget.Get("tcp" + strconv.Itoa(netRuntime.Port))
 		if !ok {
-			zlog.Error("未找到端口对应的隧道配置: " + "tcp" + strconv.Itoa(netRuntime.Port))
+			// 获取客户端信息用于日志
+			clientAddr := conn.RemoteAddr().String()
+			clientIP, clientPort, _ := net.SplitHostPort(clientAddr)
+			if clientIP == "" {
+				clientIP = clientAddr
+				clientPort = "unknown"
+			}
+			serverPort := strconv.Itoa(netRuntime.Port)
+			zlog.Error(fmt.Sprintf("未找到端口对应的隧道配置 [客户端IP:%s 客户端端口:%s 服务端口:%s]",
+				clientIP, clientPort, serverPort))
 			conn.Close()
 			continue
 		}
@@ -48,9 +60,16 @@ func (waf *WafTunnelEngine) startTCPServer(netRuntime waftunnelmodel.NetRunTime)
 		if tunnelInfo.Tunnel.MaxInConnect > 0 {
 			inConnCount := waf.TCPConnections.GetPortConnsCountByType(netRuntime.Port, waftunnelmodel.ConnTypeSource)
 			if inConnCount >= tunnelInfo.Tunnel.MaxInConnect {
-				zlog.Warn("TCP入站连接数超过限制，当前连接数: " + strconv.Itoa(inConnCount) +
-					", 最大限制: " + strconv.Itoa(tunnelInfo.Tunnel.MaxInConnect) +
-					", 端口: " + strconv.Itoa(netRuntime.Port))
+				// 获取客户端信息用于日志
+				clientAddr := conn.RemoteAddr().String()
+				clientIP, clientPort, _ := net.SplitHostPort(clientAddr)
+				if clientIP == "" {
+					clientIP = clientAddr
+					clientPort = "unknown"
+				}
+				serverPort := strconv.Itoa(netRuntime.Port)
+				zlog.Warn(fmt.Sprintf("TCP入站连接数超过限制 [客户端IP:%s 客户端端口:%s 服务端口:%s 当前连接数:%d 最大限制:%d]",
+					clientIP, clientPort, serverPort, inConnCount, tunnelInfo.Tunnel.MaxInConnect))
 				conn.Close()
 				continue
 			}
@@ -60,25 +79,31 @@ func (waf *WafTunnelEngine) startTCPServer(netRuntime waftunnelmodel.NetRunTime)
 		go waf.handleTCPConnection(conn, netRuntime.Port)
 	}
 
-	zlog.Info("TCP服务器关闭，端口: " + strconv.Itoa(netRuntime.Port))
+	zlog.Info(fmt.Sprintf("TCP服务器关闭 [服务端口:%s]", serverPort))
 }
 
 // handleTCPConnection 处理TCP连接
 func (waf *WafTunnelEngine) handleTCPConnection(clientConn net.Conn, port int) {
-	// 获取客户端IP
-	clientIP := clientConn.RemoteAddr().String()
+	// 获取客户端IP和端口
+	clientAddr := clientConn.RemoteAddr().String()
+	clientIP, clientPort, _ := net.SplitHostPort(clientAddr)
+	if clientIP == "" {
+		clientIP = clientAddr
+		clientPort = "unknown"
+	}
+	serverPort := strconv.Itoa(port)
 
 	// 获取隧道配置
 	tunnelInfo, ok := waf.TunnelTarget.Get("tcp" + strconv.Itoa(port))
 	if !ok {
-		zlog.Error("未找到端口对应的隧道配置: " + "tcp" + strconv.Itoa(port))
+		zlog.Error(fmt.Sprintf("未找到端口对应的隧道配置 [客户端IP:%s 客户端端口:%s 服务端口:%s]", clientIP, clientPort, serverPort))
 		clientConn.Close()
 		return
 	}
 
 	// 检查IP访问权限
-	if !CheckIPAccess(clientIP, tunnelInfo.Tunnel) {
-		zlog.Warn("TCP连接被拒绝，客户端IP: " + clientIP + ", 端口: " + strconv.Itoa(port))
+	if !CheckIPAccess("TCP", clientIP, clientPort, serverPort, tunnelInfo.Tunnel) {
+		zlog.Warn(fmt.Sprintf("TCP连接被拒绝 [客户端IP:%s 客户端端口:%s 服务端口:%s]", clientIP, clientPort, serverPort))
 		clientConn.Close()
 		return
 	}
@@ -94,9 +119,8 @@ func (waf *WafTunnelEngine) handleTCPConnection(clientConn net.Conn, port int) {
 	if tunnelInfo.Tunnel.MaxOutConnect > 0 {
 		outConnCount := waf.TCPConnections.GetPortConnsCountByType(port, waftunnelmodel.ConnTypeTarget)
 		if outConnCount >= tunnelInfo.Tunnel.MaxOutConnect {
-			zlog.Warn("TCP出站连接数超过限制，当前连接数: " + strconv.Itoa(outConnCount) +
-				", 最大限制: " + strconv.Itoa(tunnelInfo.Tunnel.MaxOutConnect) +
-				", 端口: " + strconv.Itoa(port))
+			zlog.Warn(fmt.Sprintf("TCP出站连接数超过限制 [客户端IP:%s 客户端端口:%s 服务端口:%s 当前连接数:%d 最大限制:%d]",
+				clientIP, clientPort, serverPort, outConnCount, tunnelInfo.Tunnel.MaxOutConnect))
 			return
 		}
 	}
@@ -105,7 +129,8 @@ func (waf *WafTunnelEngine) handleTCPConnection(clientConn net.Conn, port int) {
 	targetAddr := tunnelInfo.Tunnel.RemoteIp + ":" + strconv.Itoa(tunnelInfo.Tunnel.RemotePort)
 	targetConn, err := net.Dial("tcp", targetAddr)
 	if err != nil {
-		zlog.Error("连接目标服务器失败: " + targetAddr + ", 错误: " + err.Error())
+		zlog.Error(fmt.Sprintf("连接目标服务器失败 [客户端IP:%s 客户端端口:%s 服务端口:%s 目标地址:%s 错误:%s]",
+			clientIP, clientPort, serverPort, targetAddr, err.Error()))
 		return
 	}
 
@@ -149,9 +174,11 @@ func (waf *WafTunnelEngine) handleTCPConnection(clientConn net.Conn, port int) {
 		// 使用io.Copy，当连接断开时会自动返回
 		_, err := io.Copy(targetConn, clientConn)
 		if err != nil {
-			zlog.Error("客户端->目标 数据转发结束: " + err.Error())
+			zlog.Error(fmt.Sprintf("客户端->目标 数据转发结束 [客户端IP:%s 客户端端口:%s 服务端口:%s 错误:%s]",
+				clientIP, clientPort, serverPort, err.Error()))
 		} else {
-			zlog.Debug("客户端->目标 数据转发正常结束")
+			zlog.Debug(fmt.Sprintf("客户端->目标 数据转发正常结束 [客户端IP:%s 客户端端口:%s 服务端口:%s]",
+				clientIP, clientPort, serverPort))
 		}
 	}()
 
@@ -163,9 +190,11 @@ func (waf *WafTunnelEngine) handleTCPConnection(clientConn net.Conn, port int) {
 		// 使用io.Copy，当连接断开时会自动返回
 		_, err := io.Copy(clientConn, targetConn)
 		if err != nil {
-			zlog.Error("目标->客户端 数据转发结束: " + err.Error())
+			zlog.Error(fmt.Sprintf("目标->客户端 数据转发结束 [客户端IP:%s 客户端端口:%s 服务端口:%s 错误:%s]",
+				clientIP, clientPort, serverPort, err.Error()))
 		} else {
-			zlog.Debug("目标->客户端 数据转发正常结束")
+			zlog.Debug(fmt.Sprintf("目标->客户端 数据转发正常结束 [客户端IP:%s 客户端端口:%s 服务端口:%s]",
+				clientIP, clientPort, serverPort))
 		}
 	}()
 
@@ -175,10 +204,12 @@ func (waf *WafTunnelEngine) handleTCPConnection(clientConn net.Conn, port int) {
 		// context被取消时，主动关闭两个连接
 		clientConn.Close()
 		targetConn.Close()
-		zlog.Debug("Context取消，主动关闭连接")
+		zlog.Debug(fmt.Sprintf("Context取消，主动关闭连接 [客户端IP:%s 客户端端口:%s 服务端口:%s]",
+			clientIP, clientPort, serverPort))
 	}()
 
 	// 等待任一方向的连接断开
 	wg.Wait()
-	zlog.Info("TCP连接处理完成，端口: " + strconv.Itoa(port))
+	zlog.Info(fmt.Sprintf("TCP连接处理完成 [客户端IP:%s 客户端端口:%s 服务端口:%s]",
+		clientIP, clientPort, serverPort))
 }

@@ -81,87 +81,14 @@ func InitCoreDb(currentDir string) (bool, error) {
 		//db.Use(crypto.NewCryptoPlugin())
 		// 注册默认的AES加解密策略
 		//crypto.RegisterCryptoStrategy(strategy.NewAesCryptoStrategy("3Y)(27EtO^tK8Bj~"))
-		// Migrate the schema
-		db.AutoMigrate(&model.Hosts{})
-		db.AutoMigrate(&model.Rules{})
 
-		//隐私处理
-		db.AutoMigrate(&model.LDPUrl{})
-
-		//白名单处理
-		db.AutoMigrate(&model.IPAllowList{})
-		db.AutoMigrate(&model.URLAllowList{})
-
-		//限制处理
-		db.AutoMigrate(&model.IPBlockList{})
-		db.AutoMigrate(&model.URLBlockList{})
-
-		//抵抗CC
-		db.AutoMigrate(&model.AntiCC{})
-
-		//waf自身账号
-		db.AutoMigrate(&model.TokenInfo{})
-		db.AutoMigrate(&model.Account{})
-
-		//系统参数
-		db.AutoMigrate(&model.SystemConfig{})
-
-		//延迟信息
-		db.AutoMigrate(&model.DelayMsg{})
-
-		//分库信息表
-		db.AutoMigrate(&model.ShareDb{})
-
-		//中心管控数据
-		db.AutoMigrate(&model.Center{})
-
-		//敏感词管理
-		db.AutoMigrate(&model.Sensitive{})
-
-		//负载均衡
-		db.AutoMigrate(&model.LoadBalance{})
-
-		//SSL证书
-		db.AutoMigrate(&model.SslConfig{})
-
-		//IPTag
-		db.AutoMigrate(&model.IPTag{})
-
-		//自动任务
-		db.AutoMigrate(&model.BatchTask{})
-
-		//SSL证书申请订单
-		db.AutoMigrate(&model.SslOrder{})
-
-		//SSL到期检测
-		db.AutoMigrate(&model.SslExpire{})
-
-		//HTTP AUTH
-		db.AutoMigrate(&model.HttpAuthBase{})
-
-		//任务
-		db.AutoMigrate(&model.Task{})
-
-		//自定义拦截界面
-		db.AutoMigrate(&model.BlockingPage{})
-
-		//OTP
-		db.AutoMigrate(&model.Otp{})
-
-		//密钥信息
-		db.AutoMigrate(&model.PrivateInfo{})
-
-		//密钥分组信息
-		db.AutoMigrate(&model.PrivateGroup{})
-
-		//缓存规则
-		db.AutoMigrate(&model.CacheRule{})
-
-		//隧道
-		db.AutoMigrate(&model.Tunnel{})
-
-		//CA服务器信息
-		db.AutoMigrate(&model.CaServerInfo{})
+		// ============ 使用 gormigrate 替代 AutoMigrate（完全向后兼容） ============
+		zlog.Info("开始执行core数据库迁移...")
+		if err := RunCoreDBMigrations(db); err != nil {
+			zlog.Error("core数据库迁移失败", "error", err)
+			panic("core database migration failed: " + err.Error())
+		}
+		// ============ 迁移代码结束 ============
 
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
@@ -169,6 +96,7 @@ func InitCoreDb(currentDir string) (bool, error) {
 		//重启需要删除无效规则
 		db.Where("user_code = ? and rule_status = 999", global.GWAF_USER_CODE).Delete(model.Rules{})
 
+		// 执行数据补丁和默认值初始化（幂等操作，每次启动都执行）
 		pathCoreSql(db)
 		return isNewDb, nil
 	} else {
@@ -211,12 +139,15 @@ func InitLogDb(currentDir string) (bool, error) {
 		//logDB.Use(crypto.NewCryptoPlugin())
 		// 注册默认的AES加解密策略
 		//crypto.RegisterCryptoStrategy(strategy.NewAesCryptoStrategy("3Y)(27EtO^tK8Bj~"))
-		// Migrate the schema
-		//统计处理
-		db.AutoMigrate(&innerbean.WebLog{})
-		db.AutoMigrate(&model.AccountLog{})
-		db.AutoMigrate(&model.WafSysLog{})
-		db.AutoMigrate(&model.OneKeyMod{})
+
+		// ============ 使用 gormigrate 替代 AutoMigrate（完全向后兼容） ============
+		zlog.Info("开始执行log数据库迁移...")
+		if err := RunLogDBMigrations(db); err != nil {
+			zlog.Error("log数据库迁移失败", "error", err)
+			panic("log database migration failed: " + err.Error())
+		}
+		// ============ 迁移代码结束 ============
+
 		global.GWAF_LOCAL_LOG_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 		global.GWAF_LOCAL_LOG_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
 
@@ -280,12 +211,14 @@ func InitManaulLogDb(currentDir string, custFileName string) {
 		//logDB.Use(crypto.NewCryptoPlugin())
 		// 注册默认的AES加解密策略
 		//crypto.RegisterCryptoStrategy(strategy.NewAesCryptoStrategy("3Y)(27EtO^tK8Bj~"))
-		// Migrate the schema
-		//统计处理
-		db.AutoMigrate(&innerbean.WebLog{})
-		db.AutoMigrate(&model.AccountLog{})
-		db.AutoMigrate(&model.WafSysLog{})
-		db.AutoMigrate(&model.OneKeyMod{})
+
+		// ============ 使用 gormigrate 替代 AutoMigrate（完全向后兼容） ============
+		zlog.Info("开始执行手动log数据库迁移...", "file", custFileName)
+		if err := RunLogDBMigrations(db); err != nil {
+			zlog.Error("手动log数据库迁移失败", "file", custFileName, "error", err)
+			panic("manual log database migration failed: " + err.Error())
+		}
+		// ============ 迁移代码结束 ============
 
 		global.GDATA_CURRENT_LOG_DB_MAP[custFileName].Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 		global.GDATA_CURRENT_LOG_DB_MAP[custFileName].Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)

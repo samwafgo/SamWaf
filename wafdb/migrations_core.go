@@ -1,0 +1,279 @@
+package wafdb
+
+import (
+	"SamWaf/common/zlog"
+	"SamWaf/model"
+	"fmt"
+	"time"
+
+	"github.com/go-gormigrate/gormigrate/v2"
+	"gorm.io/gorm"
+)
+
+// RunCoreDBMigrations 执行主数据库迁移（完全兼容老用户）
+func RunCoreDBMigrations(db *gorm.DB) error {
+	zlog.Info("开始执行core数据库迁移检查...")
+
+	// 检测表和索引的存在情况
+	tablesExist := checkCoreTablesExist(db)
+	indexesExist := checkCoreIndexesExist(db)
+
+	zlog.Info("数据库状态检测",
+		"表是否存在", tablesExist,
+		"索引是否完整", indexesExist)
+
+	m := gormigrate.New(db, gormigrate.DefaultOptions, []*gormigrate.Migration{
+		// 迁移1: 创建表（如果不存在）
+		{
+			ID: "202511140001_initial_core_tables",
+			Migrate: func(tx *gorm.DB) error {
+				if tablesExist {
+					zlog.Info("迁移 202511140001: 表已存在，执行结构同步")
+					// 表已存在，只做结构同步（安全操作，不会删除字段/数据）
+					if err := tx.AutoMigrate(
+						&model.Hosts{},
+						&model.Rules{},
+						&model.LDPUrl{},
+						&model.IPAllowList{},
+						&model.URLAllowList{},
+						&model.IPBlockList{},
+						&model.URLBlockList{},
+						&model.AntiCC{},
+						&model.TokenInfo{},
+						&model.Account{},
+						&model.SystemConfig{},
+						&model.DelayMsg{},
+						&model.ShareDb{},
+						&model.Center{},
+						&model.Sensitive{},
+						&model.LoadBalance{},
+						&model.SslConfig{},
+						&model.IPTag{},
+						&model.BatchTask{},
+						&model.SslOrder{},
+						&model.SslExpire{},
+						&model.HttpAuthBase{},
+						&model.Task{},
+						&model.BlockingPage{},
+						&model.Otp{},
+						&model.PrivateInfo{},
+						&model.PrivateGroup{},
+						&model.CacheRule{},
+						&model.Tunnel{},
+						&model.CaServerInfo{},
+					); err != nil {
+						return fmt.Errorf("同步表结构失败: %w", err)
+					}
+					zlog.Info("表结构同步成功（数据完整保留）")
+				} else {
+					zlog.Info("迁移 202511140001: 创建新表")
+					// 表不存在，创建所有表
+					if err := tx.AutoMigrate(
+						&model.Hosts{},
+						&model.Rules{},
+						&model.LDPUrl{},
+						&model.IPAllowList{},
+						&model.URLAllowList{},
+						&model.IPBlockList{},
+						&model.URLBlockList{},
+						&model.AntiCC{},
+						&model.TokenInfo{},
+						&model.Account{},
+						&model.SystemConfig{},
+						&model.DelayMsg{},
+						&model.ShareDb{},
+						&model.Center{},
+						&model.Sensitive{},
+						&model.LoadBalance{},
+						&model.SslConfig{},
+						&model.IPTag{},
+						&model.BatchTask{},
+						&model.SslOrder{},
+						&model.SslExpire{},
+						&model.HttpAuthBase{},
+						&model.Task{},
+						&model.BlockingPage{},
+						&model.Otp{},
+						&model.PrivateInfo{},
+						&model.PrivateGroup{},
+						&model.CacheRule{},
+						&model.Tunnel{},
+						&model.CaServerInfo{},
+					); err != nil {
+						return fmt.Errorf("创建core表失败: %w", err)
+					}
+					zlog.Info("core表创建成功")
+				}
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				if tablesExist {
+					// 如果是老数据库，不执行删除操作（保护数据）
+					zlog.Info("回滚 202511140001: 检测到已存在数据，跳过表删除（保护用户数据）")
+					return nil
+				}
+				// 新数据库可以安全删除
+				zlog.Info("回滚 202511140001: 删除表")
+				return tx.Migrator().DropTable(
+					&model.Hosts{},
+					&model.Rules{},
+					&model.LDPUrl{},
+					&model.IPAllowList{},
+					&model.URLAllowList{},
+					&model.IPBlockList{},
+					&model.URLBlockList{},
+					&model.AntiCC{},
+					&model.TokenInfo{},
+					&model.Account{},
+					&model.SystemConfig{},
+					&model.DelayMsg{},
+					&model.ShareDb{},
+					&model.Center{},
+					&model.Sensitive{},
+					&model.LoadBalance{},
+					&model.SslConfig{},
+					&model.IPTag{},
+					&model.BatchTask{},
+					&model.SslOrder{},
+					&model.SslExpire{},
+					&model.HttpAuthBase{},
+					&model.Task{},
+					&model.BlockingPage{},
+					&model.Otp{},
+					&model.PrivateInfo{},
+					&model.PrivateGroup{},
+					&model.CacheRule{},
+					&model.Tunnel{},
+					&model.CaServerInfo{},
+				)
+			},
+		},
+		// 迁移2: 创建索引（幂等操作）
+		{
+			ID: "202511140002_create_core_indexes",
+			Migrate: func(tx *gorm.DB) error {
+				if indexesExist {
+					zlog.Info("迁移 202511140002: 索引已完整，跳过创建")
+					return nil
+				}
+				zlog.Info("迁移 202511140002: 开始创建索引")
+				return createCoreIndexes(tx)
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202511140002: 删除索引")
+				return dropCoreIndexes(tx)
+			},
+		},
+	})
+
+	// 执行迁移
+	if err := m.Migrate(); err != nil {
+		return fmt.Errorf("core数据库迁移失败: %w", err)
+	}
+
+	zlog.Info("core数据库迁移成功完成")
+	return nil
+}
+
+// checkCoreTablesExist 检查核心表是否存在（检查几个关键表）
+func checkCoreTablesExist(db *gorm.DB) bool {
+	// 检查几个关键表，如果都存在则认为是老数据库
+	keyTables := []interface{}{
+		&model.Hosts{},
+		&model.Rules{},
+		&model.Account{},
+		&model.SystemConfig{},
+	}
+
+	for _, table := range keyTables {
+		if !db.Migrator().HasTable(table) {
+			return false
+		}
+	}
+	return true
+}
+
+// checkCoreIndexesExist 检查所有core索引是否存在
+func checkCoreIndexesExist(db *gorm.DB) bool {
+	// 需要检查的索引列表（表名, 索引名）
+	indexes := []struct {
+		TableName string
+		IndexName string
+	}{
+		{"ip_tags", "uni_iptags_full"},
+		{"ip_tags", "idx_iptag_ip"},
+	}
+
+	for _, idx := range indexes {
+		if !checkIndexExists(db, idx.TableName, idx.IndexName) {
+			zlog.Info("索引不存在", "table", idx.TableName, "index", idx.IndexName)
+			return false
+		}
+	}
+	return true
+}
+
+// createCoreIndexes 创建所有core索引（幂等操作）
+func createCoreIndexes(tx *gorm.DB) error {
+	zlog.Info("开始创建core索引...")
+	startTime := time.Now()
+
+	indexes := []struct {
+		Name string
+		SQL  string
+	}{
+		{
+			Name: "uni_iptags_full",
+			SQL:  "CREATE UNIQUE INDEX IF NOT EXISTS uni_iptags_full ON ip_tags (user_code, tenant_id, ip, ip_tag)",
+		},
+		{
+			Name: "idx_iptag_ip",
+			SQL:  "CREATE INDEX IF NOT EXISTS idx_iptag_ip ON ip_tags (user_code, tenant_id, ip)",
+		},
+	}
+
+	for _, idx := range indexes {
+		if err := tx.Exec(idx.SQL).Error; err != nil {
+			return fmt.Errorf("创建索引失败 %s: %w", idx.Name, err)
+		}
+		zlog.Info("索引创建成功", "index", idx.Name)
+	}
+
+	duration := time.Since(startTime)
+	zlog.Info("所有core索引创建完成", "耗时", duration.String())
+	return nil
+}
+
+// dropCoreIndexes 删除所有core索引
+func dropCoreIndexes(tx *gorm.DB) error {
+	zlog.Info("开始删除core索引")
+
+	indexes := []string{
+		"uni_iptags_full",
+		"idx_iptag_ip",
+	}
+
+	for _, indexName := range indexes {
+		if err := tx.Exec(fmt.Sprintf("DROP INDEX IF EXISTS %s", indexName)).Error; err != nil {
+			zlog.Warn("删除索引失败（可能不存在）", "index", indexName, "error", err)
+		} else {
+			zlog.Info("索引删除成功", "index", indexName)
+		}
+	}
+
+	zlog.Info("所有core索引删除完成")
+	return nil
+}
+
+// RollbackCoreDBMigration 回滚到指定版本
+func RollbackCoreDBMigration(db *gorm.DB, migrationID string) error {
+	zlog.Info("准备回滚core迁移", "target_version", migrationID)
+
+	m := gormigrate.New(db, gormigrate.DefaultOptions, []*gormigrate.Migration{})
+	if err := m.RollbackTo(migrationID); err != nil {
+		return fmt.Errorf("回滚失败: %w", err)
+	}
+
+	zlog.Info("回滚成功完成", "version", migrationID)
+	return nil
+}

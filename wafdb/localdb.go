@@ -211,12 +211,15 @@ func InitLogDb(currentDir string) (bool, error) {
 		//logDB.Use(crypto.NewCryptoPlugin())
 		// 注册默认的AES加解密策略
 		//crypto.RegisterCryptoStrategy(strategy.NewAesCryptoStrategy("3Y)(27EtO^tK8Bj~"))
-		// Migrate the schema
-		//统计处理
-		db.AutoMigrate(&innerbean.WebLog{})
-		db.AutoMigrate(&model.AccountLog{})
-		db.AutoMigrate(&model.WafSysLog{})
-		db.AutoMigrate(&model.OneKeyMod{})
+
+		// ============ 使用 gormigrate 替代 AutoMigrate（完全向后兼容） ============
+		zlog.Info("开始执行log数据库迁移...")
+		if err := RunLogDBMigrations(db); err != nil {
+			zlog.Error("log数据库迁移失败", "error", err)
+			panic("log database migration failed: " + err.Error())
+		}
+		// ============ 迁移代码结束 ============
+
 		global.GWAF_LOCAL_LOG_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 		global.GWAF_LOCAL_LOG_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
 
@@ -280,12 +283,14 @@ func InitManaulLogDb(currentDir string, custFileName string) {
 		//logDB.Use(crypto.NewCryptoPlugin())
 		// 注册默认的AES加解密策略
 		//crypto.RegisterCryptoStrategy(strategy.NewAesCryptoStrategy("3Y)(27EtO^tK8Bj~"))
-		// Migrate the schema
-		//统计处理
-		db.AutoMigrate(&innerbean.WebLog{})
-		db.AutoMigrate(&model.AccountLog{})
-		db.AutoMigrate(&model.WafSysLog{})
-		db.AutoMigrate(&model.OneKeyMod{})
+
+		// ============ 使用 gormigrate 替代 AutoMigrate（完全向后兼容） ============
+		zlog.Info("开始执行手动log数据库迁移...", "file", custFileName)
+		if err := RunLogDBMigrations(db); err != nil {
+			zlog.Error("手动log数据库迁移失败", "file", custFileName, "error", err)
+			panic("manual log database migration failed: " + err.Error())
+		}
+		// ============ 迁移代码结束 ============
 
 		global.GDATA_CURRENT_LOG_DB_MAP[custFileName].Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
 		global.GDATA_CURRENT_LOG_DB_MAP[custFileName].Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)

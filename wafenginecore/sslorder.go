@@ -268,18 +268,36 @@ func (waf *WafEngine) processSSL(updateSSLOrder model.SslOrder, bean model.SslOr
 			newSslConfig.Id = oldSslConfig.Id
 			//把最新的配置上去
 			wafSslConfigService.ModifyInner(newSslConfig)
-			//1.更新主机信息 2.发送主机通知
-			err = wafHostService.UpdateSSLInfo(string(updateSSLOrder.ResultCertificate), string(updateSSLOrder.ResultPrivateKey), bean.HostCode)
-			if err == nil {
-				hostBean.Keyfile = string(updateSSLOrder.ResultPrivateKey)
-				hostBean.Certfile = string(updateSSLOrder.ResultCertificate)
+
+			//获取所有绑定了相同证书夹的主机
+			relatedHosts := wafHostService.GetHostBySSLConfigId(newSslConfig.Id)
+			zlog.Info(fmt.Sprintf("%s 找到 %d 个使用相同证书夹的主机", bean.ApplyDomain, len(relatedHosts)))
+
+			//更新所有关联主机的证书信息并发送通知
+			for _, host := range relatedHosts {
+				//更新主机的证书信息
+				err = wafHostService.UpdateSSLInfo(string(updateSSLOrder.ResultCertificate), string(updateSSLOrder.ResultPrivateKey), host.Code)
+				if err != nil {
+					zlog.Error(fmt.Sprintf("更新主机 %s(%s) 证书信息失败: %v", host.Host, host.Code, err))
+					continue
+				}
+
+				//重新查询主机信息，确保获取最新数据
+				updatedHost := wafHostService.GetDetailByCodeApi(host.Code)
+				if updatedHost.Code == "" {
+					zlog.Error(fmt.Sprintf("无法获取更新后的主机信息: %s", host.Code))
+					continue
+				}
+
+				//发送主机通知，触发证书重新加载
 				var chanInfo = spec.ChanCommonHost{
-					HostCode:   bean.HostCode,
+					HostCode:   updatedHost.Code,
 					Type:       enums.ChanTypeSSL,
-					Content:    hostBean,
-					OldContent: hostBean,
+					Content:    updatedHost,
+					OldContent: host,
 				}
 				global.GWAF_CHAN_MSG <- chanInfo
+				zlog.Info(fmt.Sprintf("成功更新主机 %s(%s) 的证书信息", updatedHost.Host, updatedHost.Code))
 			}
 		} else {
 			zlog.Info(fmt.Sprintf("%s 当前主机已绑定的证书和新证书相比后不允许更新", bean.ApplyDomain))

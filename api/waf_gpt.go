@@ -9,10 +9,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 type WafGPTApi struct {
@@ -117,8 +118,18 @@ func (w *WafGPTApi) ChatApi(c *gin.Context) {
 			bodyBytes, _ := json.Marshal(gptReq)
 			requestBody := string(bodyBytes)
 
+			// 兼容两种URL格式：https://api.deepseek.com 和 https://api.deepseek.com/v1
+			apiURL := global.GCONFIG_RECORD_GPT_URL
+			if strings.HasSuffix(apiURL, "/v1") {
+				// 如果URL已经以/v1结尾，只添加/chat/completions
+				apiURL += "/chat/completions"
+			} else {
+				// 否则添加/v1/chat/completions
+				apiURL += "/v1/chat/completions"
+			}
+
 			// 创建请求
-			req, err := http.NewRequest("POST", global.GCONFIG_RECORD_GPT_URL+"/v1/chat/completions", strings.NewReader(requestBody))
+			req, err := http.NewRequest("POST", apiURL, strings.NewReader(requestBody))
 			if err != nil {
 				stopChan <- true
 				return

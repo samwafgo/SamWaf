@@ -54,4 +54,10 @@ var (
 	GCONFIG_RECORD_GPT_TOKEN string = "SamWaf提示请输入密钥"            //GPT远程授权密钥
 	GCONFIG_RECORD_GPT_MODEL string = "deepseek-chat"            //GPT 模型名称
 
+	// IP失败封禁相关配置
+	GCONFIG_IP_FAILURE_STATUS_CODES    string = "401|403|404|444|429|503" //失败状态码配置，支持多个用|分隔，也支持正则表达式
+	GCONFIG_IP_FAILURE_BAN_ENABLED     int64  = 0                         //是否启用IP失败封禁 1启用 0禁用
+	GCONFIG_IP_FAILURE_BAN_TIME_WINDOW int64  = 5                         //IP失败封禁时间窗口（分钟）默认5分钟
+	GCONFIG_IP_FAILURE_BAN_MAX_COUNT   int64  = 10                        //IP失败封禁最大失败次数 默认10次
+
 )

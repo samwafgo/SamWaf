@@ -4,6 +4,7 @@ import (
 	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/innerbean"
+	"SamWaf/wafipban"
 	"SamWaf/waftask"
 	"strconv"
 	"time"
@@ -50,6 +51,15 @@ func ProcessLogDequeEngine() {
 				}
 				if len(webLogArray) > 0 {
 					zlog.Debug("日志队列处理协程处理日志数量:" + strconv.Itoa(len(webLogArray)))
+					// 检查失败状态码并记录IP失败
+					if global.GCONFIG_IP_FAILURE_BAN_ENABLED == 1 {
+						ipManager := wafipban.GetIPFailureManager()
+						for _, log := range webLogArray {
+							if ipManager.IsFailureStatusCode(log.STATUS_CODE) {
+								ipManager.RecordFailure(log.SRC_IP)
+							}
+						}
+					}
 					if global.GCONFIG_LOG_PERSIST_ENABLED == 1 {
 						global.GWAF_LOCAL_LOG_DB.CreateInBatches(webLogArray, len(webLogArray))
 					}

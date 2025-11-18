@@ -5,6 +5,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/model/request"
+	"SamWaf/wafipban"
 	"strconv"
 )
 
@@ -113,6 +114,15 @@ func setConfigIntValue(name string, value int64, change int) {
 	case "ip_tag_db":
 		global.GDATA_IP_TAG_DB = value
 		break
+	case "ip_failure_ban_enabled":
+		global.GCONFIG_IP_FAILURE_BAN_ENABLED = value
+		break
+	case "ip_failure_ban_time_window":
+		global.GCONFIG_IP_FAILURE_BAN_TIME_WINDOW = value
+		break
+	case "ip_failure_ban_max_count":
+		global.GCONFIG_IP_FAILURE_BAN_MAX_COUNT = value
+		break
 	default:
 		zlog.Warn("Unknown config item:", name)
 	}
@@ -159,6 +169,11 @@ func setConfigStringValue(name string, value string, change int) {
 		break
 	case "ssl_max_version":
 		global.GCONFIG_RECORD_SSLMaxVerson = value
+		break
+	case "ip_failure_status_codes":
+		global.GCONFIG_IP_FAILURE_STATUS_CODES = value
+		// 重新加载状态码配置
+		wafipban.GetIPFailureManager().ReloadStatusCodes()
 		break
 	default:
 		zlog.Warn("Unknown config item:", name)
@@ -279,4 +294,10 @@ func TaskLoadSetting(initLoad bool) {
 	updateConfigIntItem(initLoad, "database", "batch_insert", global.GDATA_BATCH_INSERT, "数据库批量插入数量", "int", "", configMap)
 	updateConfigIntItem(initLoad, "database", "log_persist_enable", global.GCONFIG_LOG_PERSIST_ENABLED, "是否开启日志持久化（1开启 0关闭）", "options", "0|关闭,1|开启", configMap)
 	updateConfigIntItem(initLoad, "database", "ip_tag_db", global.GDATA_IP_TAG_DB, "IP Tag 存放位置 0 是主库  1是读取 stat库", "int", "", configMap)
+
+	// IP失败封禁相关配置
+	updateConfigStringItem(initLoad, "security", "ip_failure_status_codes", global.GCONFIG_IP_FAILURE_STATUS_CODES, "失败状态码配置，支持多个用|分隔，也支持正则表达式，例如：401|403|404|444|429|503 或 ^4[0-9]{2}$", "string", "", configMap)
+	updateConfigIntItem(initLoad, "security", "ip_failure_ban_enabled", global.GCONFIG_IP_FAILURE_BAN_ENABLED, "是否启用IP失败封禁（1启用 0禁用）", "options", "0|禁用,1|启用", configMap)
+	updateConfigIntItem(initLoad, "security", "ip_failure_ban_time_window", global.GCONFIG_IP_FAILURE_BAN_TIME_WINDOW, "IP失败封禁时间窗口（单位：分钟，默认5分钟）", "int", "", configMap)
+	updateConfigIntItem(initLoad, "security", "ip_failure_ban_max_count", global.GCONFIG_IP_FAILURE_BAN_MAX_COUNT, "IP失败封禁最大失败次数（默认10次）", "int", "", configMap)
 }

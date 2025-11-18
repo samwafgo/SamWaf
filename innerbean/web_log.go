@@ -98,6 +98,25 @@ func (WebLog) TableName() string {
 	return "web_logs"
 }
 
+// GetIPFailureCount 获取IP在指定时间窗口内的失败次数（用于规则引擎）
+// minutes: 时间窗口（分钟）
+// 返回: 失败次数
+func (w *WebLog) GetIPFailureCount(minutes int64) int64 {
+	if w.SRC_IP == "" {
+		return 0
+	}
+	// 直接调用IP失败管理器（延迟导入避免编译时循环依赖）
+	return getIPFailureCount(w.SRC_IP, minutes)
+}
+
+// getIPFailureCount 获取IP失败次数（通过函数变量实现延迟导入）
+var getIPFailureCount func(string, int64) int64
+
+// SetIPFailureCountGetter 设置IP失败次数获取函数
+func SetIPFailureCountGetter(fn func(string, int64) int64) {
+	getIPFailureCount = fn
+}
+
 type WAFLog struct {
 	REQ_UUID    string `json:"req_uuid"`
 	ACTION      string `json:"action"`

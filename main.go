@@ -15,6 +15,7 @@ import (
 	"SamWaf/wafenginecore"
 	"SamWaf/wafenginecore/wafcaptcha"
 	"SamWaf/wafinit"
+	"SamWaf/wafipban"
 	"SamWaf/wafmangeweb"
 	"SamWaf/wafnotify"
 	"SamWaf/wafowasp"
@@ -209,6 +210,9 @@ func (m *wafSystenService) run() {
 
 	// 创建owasp
 	global.GWAF_OWASP = wafowasp.NewWafOWASP(true, utils.GetCurrentDir())
+
+	// 初始化ip ban
+	wafipban.InitIPBanManager()
 
 	//提前初始化
 	global.GDATA_CURRENT_LOG_DB_MAP = map[string]*gorm.DB{}

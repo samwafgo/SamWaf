@@ -56,7 +56,7 @@ func ProcessLogDequeEngine() {
 						ipManager := wafipban.GetIPFailureManager()
 						for _, log := range webLogArray {
 							if ipManager.IsFailureStatusCode(log.STATUS_CODE) {
-								ipManager.RecordFailure(log.SRC_IP)
+								ipManager.RecordFailure(log)
 							}
 						}
 					}

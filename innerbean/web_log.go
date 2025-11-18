@@ -105,8 +105,30 @@ func (w *WebLog) GetIPFailureCount(minutes int64) int64 {
 	if w.SRC_IP == "" {
 		return 0
 	}
+
+	// 如果是bot且危险程度是0，不统计失败次数
+	if w.IsBot == 1 && w.RISK_LEVEL == 0 {
+		return 0
+	}
+
+	// 如果是证书申请路径，不统计失败次数
+	if getSSLChallengePath != nil {
+		sslPath := getSSLChallengePath()
+		if sslPath != "" && strings.HasPrefix(w.URL, sslPath) {
+			return 0
+		}
+	}
+
 	// 直接调用IP失败管理器（延迟导入避免编译时循环依赖）
 	return getIPFailureCount(w.SRC_IP, minutes)
+}
+
+// getSSLChallengePath 获取SSL证书验证路径（延迟导入避免循环依赖）
+var getSSLChallengePath func() string
+
+// SetSSLChallengePathGetter 设置SSL证书验证路径获取函数
+func SetSSLChallengePathGetter(fn func() string) {
+	getSSLChallengePath = fn
 }
 
 // getIPFailureCount 获取IP失败次数（通过函数变量实现延迟导入）

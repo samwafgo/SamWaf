@@ -18,6 +18,10 @@ func InitIPBanManager() {
 	innerbean.SetIPFailureCountGetter(func(ip string, minutes int64) int64 {
 		return GetIPFailureManager().GetFailureCount(ip, minutes)
 	})
+	// 注册SSL证书验证路径获取函数
+	innerbean.SetSSLChallengePathGetter(func() string {
+		return global.GSSL_HTTP_CHANGLE_PATH
+	})
 }
 
 // IPFailureRecord IP失败记录
@@ -124,11 +128,22 @@ func (m *IPFailureManager) IsFailureStatusCode(statusCode int) bool {
 }
 
 // RecordFailure 记录IP失败
-func (m *IPFailureManager) RecordFailure(ip string) {
-	if ip == "" || global.GCONFIG_IP_FAILURE_BAN_ENABLED == 0 {
+func (m *IPFailureManager) RecordFailure(webLog *innerbean.WebLog) {
+	if webLog == nil || webLog.SRC_IP == "" || global.GCONFIG_IP_FAILURE_BAN_ENABLED == 0 {
 		return
 	}
 
+	// 如果是bot且危险程度是0，不记录失败
+	if webLog.IsBot == 1 && webLog.RISK_LEVEL == 0 {
+		return
+	}
+
+	// 如果是证书申请路径，不记录失败
+	if strings.HasPrefix(webLog.URL, global.GSSL_HTTP_CHANGLE_PATH) {
+		return
+	}
+
+	ip := webLog.SRC_IP
 	key := enums.CACHE_IP_FAILURE_PRE + ip
 	now := time.Now()
 

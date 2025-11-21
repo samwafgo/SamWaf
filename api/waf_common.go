@@ -10,14 +10,15 @@ import (
 	"SamWaf/model/request"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/xuri/excelize/v2"
 	"log"
 	"net/http"
 	"os"
 	"reflect"
 	"strconv"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/xuri/excelize/v2"
 )
 
 type WafCommonApi struct {
@@ -141,6 +142,10 @@ func getStructTypeValueByName(name string) (reflect.Type, reflect.Value) {
 		// 模拟获取数据
 		webHosts := wafHostService.GetAllHostApi()
 		return reflect.TypeOf(model.Hosts{}), reflect.ValueOf(webHosts)
+	case "ipblock":
+		// 获取所有IP黑名单数据
+		ipBlocks := wafIpBlockService.GetAllBlockIpApi()
+		return reflect.TypeOf(model.IPBlockList{}), reflect.ValueOf(ipBlocks)
 	default:
 		return nil, reflect.ValueOf(nil)
 	}

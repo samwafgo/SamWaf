@@ -117,11 +117,8 @@ func setConfigIntValue(name string, value int64, change int) {
 	case "ip_failure_ban_enabled":
 		global.GCONFIG_IP_FAILURE_BAN_ENABLED = value
 		break
-	case "ip_failure_ban_time_window":
-		global.GCONFIG_IP_FAILURE_BAN_TIME_WINDOW = value
-		break
-	case "ip_failure_ban_max_count":
-		global.GCONFIG_IP_FAILURE_BAN_MAX_COUNT = value
+	case "ip_failure_ban_lock_time":
+		global.GCONFIG_IP_FAILURE_BAN_LOCK_TIME = value
 		break
 	default:
 		zlog.Warn("Unknown config item:", name)
@@ -298,6 +295,5 @@ func TaskLoadSetting(initLoad bool) {
 	// IP失败封禁相关配置
 	updateConfigStringItem(initLoad, "security", "ip_failure_status_codes", global.GCONFIG_IP_FAILURE_STATUS_CODES, "失败状态码配置，支持多个用|分隔，也支持正则表达式，例如：401|403|404|444|429|503 或 ^4[0-9]{2}$", "string", "", configMap)
 	updateConfigIntItem(initLoad, "security", "ip_failure_ban_enabled", global.GCONFIG_IP_FAILURE_BAN_ENABLED, "是否启用IP失败封禁（1启用 0禁用）", "options", "0|禁用,1|启用", configMap)
-	updateConfigIntItem(initLoad, "security", "ip_failure_ban_time_window", global.GCONFIG_IP_FAILURE_BAN_TIME_WINDOW, "IP失败封禁时间窗口（单位：分钟，默认5分钟）", "int", "", configMap)
-	updateConfigIntItem(initLoad, "security", "ip_failure_ban_max_count", global.GCONFIG_IP_FAILURE_BAN_MAX_COUNT, "IP失败封禁最大失败次数（默认10次）", "int", "", configMap)
+	updateConfigIntItem(initLoad, "security", "ip_failure_ban_lock_time", global.GCONFIG_IP_FAILURE_BAN_LOCK_TIME, "IP失败封禁锁定时间（单位：分钟，默认10分钟）", "int", "", configMap)
 }

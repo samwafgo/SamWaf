@@ -9,6 +9,6 @@ security:
 soft_id: SamWafCom
 user_code: 8ad2bca0-4fd0-46aa-afe6-833132a05eee
 zlog:
-    db_debug_enable: false
+    db_debug_enable: true
     debug_enable: false
     outputformat: console

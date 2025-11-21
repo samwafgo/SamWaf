@@ -52,6 +52,7 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitAllowUrlRouter(RouterGroup)
 		router.ApiGroupApp.InitLdpUrlRouter(RouterGroup)
 		router.ApiGroupApp.InitAntiCCRouter(RouterGroup)
+		router.ApiGroupApp.InitIPFailureRouter(RouterGroup)
 		router.ApiGroupApp.InitBlockIpRouter(RouterGroup)
 		router.ApiGroupApp.InitBlockUrlRouter(RouterGroup)
 		router.ApiGroupApp.InitAccountRouter(RouterGroup)

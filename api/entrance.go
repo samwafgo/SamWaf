@@ -12,6 +12,7 @@ type APIGroup struct {
 	WafAllowUrlApi
 	WafLdpUrlApi
 	WafAntiCCApi
+	WafIPFailureApi
 	WafBlockIpApi
 	WafBlockUrlApi
 	WafAccountApi

@@ -123,6 +123,33 @@ func (w *WebLog) GetIPFailureCount(minutes int64) int64 {
 	return getIPFailureCount(w.SRC_IP, minutes)
 }
 
+// RecordIPFailureThreshold 记录IP失败封禁的阈值信息（当规则匹配时调用）
+// minutes: 触发封禁的时间窗口（分钟）
+// count: 触发封禁的失败次数阈值
+func (w *WebLog) RecordIPFailureThreshold(minutes int64, count int64) {
+	if w.SRC_IP == "" {
+		return
+	}
+
+	// 如果是bot且危险程度是0，不记录阈值
+	if w.IsBot == 1 && w.RISK_LEVEL == 0 {
+		return
+	}
+
+	// 如果是证书申请路径，不记录阈值
+	if getSSLChallengePath != nil {
+		sslPath := getSSLChallengePath()
+		if sslPath != "" && strings.HasPrefix(w.URL, sslPath) {
+			return
+		}
+	}
+
+	// 调用IP失败管理器记录阈值（延迟导入避免编译时循环依赖）
+	if recordIPFailureThreshold != nil {
+		recordIPFailureThreshold(w.SRC_IP, minutes, count)
+	}
+}
+
 // getSSLChallengePath 获取SSL证书验证路径（延迟导入避免循环依赖）
 var getSSLChallengePath func() string
 
@@ -137,6 +164,14 @@ var getIPFailureCount func(string, int64) int64
 // SetIPFailureCountGetter 设置IP失败次数获取函数
 func SetIPFailureCountGetter(fn func(string, int64) int64) {
 	getIPFailureCount = fn
+}
+
+// recordIPFailureThreshold 记录IP失败封禁阈值（通过函数变量实现延迟导入）
+var recordIPFailureThreshold func(string, int64, int64)
+
+// SetIPFailureThresholdRecorder 设置IP失败封禁阈值记录函数
+func SetIPFailureThresholdRecorder(fn func(string, int64, int64)) {
+	recordIPFailureThreshold = fn
 }
 
 type WAFLog struct {

@@ -212,7 +212,7 @@ func (m *wafSystenService) run() {
 	global.GWAF_OWASP = wafowasp.NewWafOWASP(true, utils.GetCurrentDir())
 
 	// 初始化ip ban
-	wafipban.InitIPBanManager()
+	wafipban.InitIPBanManager(global.GCACHE_WAFCACHE)
 
 	//提前初始化
 	global.GDATA_CURRENT_LOG_DB_MAP = map[string]*gorm.DB{}

@@ -8,7 +8,26 @@ import (
 	"SamWaf/model/wafenginmodel"
 	"net/http"
 	"net/url"
+	"regexp"
+	"strconv"
 )
+
+// parseIPFailureThreshold 从规则文本中解析IP失败阈值信息
+// 解析类似 "MF.GetIPFailureCount(5) > 10" 的模式
+// 返回: minutes, count, 是否找到
+func parseIPFailureThreshold(ruleText string) (int64, int64, bool) {
+	// 匹配 GetIPFailureCount(数字) > 数字 或 GetIPFailureCount(数字) >= 数字 的模式
+	re := regexp.MustCompile(`GetIPFailureCount\s*\(\s*(\d+)\s*\)\s*[>=]+\s*(\d+)`)
+	matches := re.FindStringSubmatch(ruleText)
+	if len(matches) >= 3 {
+		minutes, err1 := strconv.ParseInt(matches[1], 10, 64)
+		count, err2 := strconv.ParseInt(matches[2], 10, 64)
+		if err1 == nil && err2 == nil {
+			return minutes, count, true
+		}
+	}
+	return 0, 0, false
+}
 
 /*
 *
@@ -30,6 +49,13 @@ func (waf *WafEngine) CheckRule(r *http.Request, weblogbean *innerbean.WebLog, f
 					rulestr := ""
 					for _, v := range ruleMatchs {
 						rulestr = rulestr + v.RuleDescription + ","
+
+						minutes, count, found := parseIPFailureThreshold(v.GrlText)
+						if found {
+							// 记录阈值信息
+							weblogbean.RecordIPFailureThreshold(minutes, count)
+						}
+
 					}
 					weblogbean.RISK_LEVEL = 1
 
@@ -52,6 +78,18 @@ func (waf *WafEngine) CheckRule(r *http.Request, weblogbean *innerbean.WebLog, f
 					rulestr := ""
 					for _, v := range ruleMatchs {
 						rulestr = rulestr + v.RuleDescription + ","
+					}
+					// 尝试从规则数据中解析阈值信息
+					// 遍历规则数据，查找包含 GetIPFailureCount 的规则
+					for _, ruleData := range waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].RuleData {
+						if ruleData.RuleContent != "" {
+							minutes, count, found := parseIPFailureThreshold(ruleData.RuleContent)
+							if found {
+								// 记录阈值信息
+								weblogbean.RecordIPFailureThreshold(minutes, count)
+								break // 找到第一个匹配的规则即可
+							}
+						}
 					}
 					weblogbean.RISK_LEVEL = 1
 

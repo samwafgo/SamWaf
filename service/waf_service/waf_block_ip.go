@@ -172,3 +172,10 @@ func (receiver *WafBlockIpService) GetHostCodes() ([]string, error) {
 		Pluck("host_code", &hostCodes).Error
 	return hostCodes, err
 }
+
+// GetAllBlockIpApi 获取所有IP黑名单数据（用于导出）
+func (receiver *WafBlockIpService) GetAllBlockIpApi() []model.IPBlockList {
+	var list []model.IPBlockList
+	global.GWAF_LOCAL_DB.Where("user_code = ? AND tenant_id = ?", global.GWAF_USER_CODE, global.GWAF_TENANT_ID).Find(&list)
+	return list
+}

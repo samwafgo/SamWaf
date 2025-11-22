@@ -25,6 +25,7 @@ require (
 	github.com/oschwald/geoip2-golang v1.11.0
 	github.com/pires/go-proxyproto v0.8.1
 	github.com/pquerna/otp v1.5.0
+	github.com/quic-go/quic-go v0.57.0
 	github.com/samwafgo/ahocorasick v1.0.0
 	github.com/samwafgo/cap_go_server v1.0.0
 	github.com/samwafgo/go-wxsqlite3 v1.0.1
@@ -114,6 +115,7 @@ require (
 	github.com/pjbgf/sha1cd v0.3.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
+	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/richardlehane/mscfb v1.0.4 // indirect
 	github.com/richardlehane/msoleps v1.0.4 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect

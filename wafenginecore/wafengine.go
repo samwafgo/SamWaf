@@ -38,6 +38,7 @@ import (
 	"time"
 
 	"github.com/pires/go-proxyproto"
+	"github.com/quic-go/quic-go/http3"
 	goahocorasick "github.com/samwafgo/ahocorasick"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
@@ -1317,6 +1318,45 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 				waf.ServerOnline.Set(innruntime.Port, serclone)
 				zlog.Info("启动HTTPS 服务器" + strconv.Itoa(innruntime.Port))
 
+				if global.GCONFIG_ENABLE_HTTP3 == 1 {
+					h3 := &http3.Server{
+						Addr:      ":" + strconv.Itoa(innruntime.Port),
+						Handler:   waf,
+						TLSConfig: svr.TLSConfig,
+					}
+					svr.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						h3.SetQUICHeaders(w.Header())
+						waf.ServeHTTP(w, r)
+					})
+					go func() {
+						defer func() {
+							e := recover()
+							if e != nil { // 捕获该协程的panic
+								zlog.Warn("https recover ", e)
+							}
+						}()
+						zlog.Info("启动HTTPS 3 服务器" + strconv.Itoa(innruntime.Port))
+						serclone.H3 = h3
+						err := h3.ListenAndServe()
+						if err == http.ErrServerClosed {
+							zlog.Error("[HTTP3Server] https server has been close, cause:[%v]", err)
+						} else {
+							wafSysLog := model.WafSysLog{
+								BaseOrm: baseorm.BaseOrm{
+									Id:          uuid.GenUUID(),
+									USER_CODE:   global.GWAF_USER_CODE,
+									Tenant_ID:   global.GWAF_TENANT_ID,
+									CREATE_TIME: customtype.JsonTime(time.Now()),
+									UPDATE_TIME: customtype.JsonTime(time.Now()),
+								},
+								OpType:    "系统运行错误",
+								OpContent: "HTTPS3端口被占用: " + strconv.Itoa(innruntime.Port) + ",请检查",
+							}
+							global.GQEQUE_LOG_DB.Enqueue(&wafSysLog)
+						}
+					}()
+				}
+
 				ln, err := net.Listen("tcp", svr.Addr)
 				if err != nil {
 					zlog.Error("https listen fail", err.Error())
@@ -1410,6 +1450,9 @@ func (waf *WafEngine) StopAllProxyServer() {
 func (waf *WafEngine) StopProxyServer(v innerbean.ServerRunTime) {
 	if v.Svr != nil {
 		v.Svr.Close()
+	}
+	if v.H3 != nil {
+		v.H3.Close()
 	}
 }
 func (waf *WafEngine) ClearCcWindows() {

@@ -123,6 +123,8 @@ func setConfigIntValue(name string, value int64, change int) {
 	case "check_beta_version":
 		global.GCONFIG_CHECK_BETA_VERSION = value
 		break
+	case "http3":
+		global.GCONFIG_ENABLE_HTTP3 = value
 	default:
 		zlog.Warn("Unknown config item:", name)
 	}
@@ -271,6 +273,7 @@ func TaskLoadSetting(initLoad bool) {
 
 	updateConfigIntItem(initLoad, "network", "connect_time_out", global.GCONFIG_RECORD_CONNECT_TIME_OUT, "连接超时（默认30s）", "int", "", configMap)
 	updateConfigIntItem(initLoad, "network", "keepalive_time_out", global.GCONFIG_RECORD_KEEPALIVE_TIME_OUT, "保持活动超时（默认30s）", "int", "", configMap)
+	updateConfigIntItem(initLoad, "network", "http3", global.GCONFIG_ENABLE_HTTP3, "是否启用http3（1启用 0关闭）", "int", "", configMap)
 
 	updateConfigIntItem(initLoad, "system", "record_all_src_byte_info", global.GCONFIG_RECORD_ALL_SRC_BYTE_INFO, "启动记录原始请求BODY报文（1启动 0关闭）", "int", "", configMap)
 	updateConfigIntItem(initLoad, "system", "token_expire_time", global.GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES, "管理平台令牌有效期，单位分钟（默认5分钟）", "int", "", configMap)

@@ -246,12 +246,27 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		cookies, _ := json.Marshal(r.Cookies())
-		header := ""
+
+		hlen := 0
 		for key, values := range r.Header {
 			for _, value := range values {
-				header += key + ": " + value + "\r\n"
+				hlen += len(key)
+				hlen += len(": ")
+				hlen += len(value)
+				hlen += len("\r\n")
 			}
 		}
+		var Header strings.Builder
+		Header.Grow(hlen)
+		for key, values := range r.Header {
+			for _, value := range values {
+				Header.WriteString(key)
+				Header.WriteString(": ")
+				Header.WriteString(value)
+				Header.WriteString("\r\n")
+			}
+		}
+		header := Header.String()
 
 		region := utils.GetCountry(clientIP)
 
@@ -267,7 +282,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			REFERER:              r.Referer(),
 			USER_AGENT:           r.UserAgent(),
 			METHOD:               r.Method,
-			HEADER:               string(header),
+			HEADER:               header,
 			COUNTRY:              region[0],
 			PROVINCE:             region[2],
 			CITY:                 region[3],

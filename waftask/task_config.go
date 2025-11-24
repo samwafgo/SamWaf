@@ -120,6 +120,9 @@ func setConfigIntValue(name string, value int64, change int) {
 	case "ip_failure_ban_lock_time":
 		global.GCONFIG_IP_FAILURE_BAN_LOCK_TIME = value
 		break
+	case "check_beta_version":
+		global.GCONFIG_CHECK_BETA_VERSION = value
+		break
 	default:
 		zlog.Warn("Unknown config item:", name)
 	}
@@ -296,4 +299,7 @@ func TaskLoadSetting(initLoad bool) {
 	updateConfigStringItem(initLoad, "security", "ip_failure_status_codes", global.GCONFIG_IP_FAILURE_STATUS_CODES, "失败状态码配置，支持多个用|分隔，也支持正则表达式，例如：401|403|404|444|429|503 或 ^4[0-9]{2}$", "string", "", configMap)
 	updateConfigIntItem(initLoad, "security", "ip_failure_ban_enabled", global.GCONFIG_IP_FAILURE_BAN_ENABLED, "是否启用IP失败封禁（1启用 0禁用）", "options", "0|禁用,1|启用", configMap)
 	updateConfigIntItem(initLoad, "security", "ip_failure_ban_lock_time", global.GCONFIG_IP_FAILURE_BAN_LOCK_TIME, "IP失败封禁锁定时间（单位：分钟，默认10分钟）", "int", "", configMap)
+
+	// 版本更新相关配置
+	updateConfigIntItem(initLoad, "system", "check_beta_version", global.GCONFIG_CHECK_BETA_VERSION, "是否检测beta版本更新（1启用 0禁用）", "options", "0|禁用,1|启用", configMap)
 }

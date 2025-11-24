@@ -59,4 +59,6 @@ var (
 	GCONFIG_IP_FAILURE_BAN_ENABLED   int64  = 0                         //是否启用IP失败封禁 1启用 0禁用
 	GCONFIG_IP_FAILURE_BAN_LOCK_TIME int64  = 10                        //IP失败封禁锁定时间（分钟）默认10分钟
 
+	GCONFIG_CHECK_BETA_VERSION int64 = 1 //是否检测beta版本更新 1启用 0禁用（默认检测最新版本）
+
 )

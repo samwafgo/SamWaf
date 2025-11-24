@@ -11,10 +11,11 @@ import (
 	"SamWaf/wafupdate"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 type WafSysInfoApi struct {
@@ -133,18 +134,24 @@ func (w *WafSysInfoApi) CheckVersionApi(c *gin.Context) {
 			VersionDesc:    desc,
 		}, "有新版本", c)
 	} else {
-		available, newVer, desc, _ = updater.UpdateAvailableWithChannel("github")
-		if available {
-			global.GWAF_RUNTIME_NEW_VERSION = newVer
-			global.GWAF_RUNTIME_NEW_VERSION_DESC = desc
-			response.OkWithDetailed(model.VersionInfo{
-				Version:        global.GWAF_RELEASE_VERSION,
-				VersionName:    global.GWAF_RELEASE_VERSION_NAME,
-				VersionRelease: global.GWAF_RELEASE,
-				NeedUpdate:     true,
-				VersionNew:     newVer,
-				VersionDesc:    desc,
-			}, "有新版本(测试版)", c)
+		// 检查是否启用beta版本检测
+		if global.GCONFIG_CHECK_BETA_VERSION == 1 {
+			available, newVer, desc, _ = updater.UpdateAvailableWithChannel("github")
+			if available {
+				global.GWAF_RUNTIME_NEW_VERSION = newVer
+				global.GWAF_RUNTIME_NEW_VERSION_DESC = desc
+				response.OkWithDetailed(model.VersionInfo{
+					Version:        global.GWAF_RELEASE_VERSION,
+					VersionName:    global.GWAF_RELEASE_VERSION_NAME,
+					VersionRelease: global.GWAF_RELEASE,
+					NeedUpdate:     true,
+					VersionNew:     newVer,
+					VersionDesc:    desc,
+				}, "有新版本(测试版)", c)
+			} else {
+				response.FailWithMessage("没有最新版本", c)
+				return
+			}
 		} else {
 			response.FailWithMessage("没有最新版本", c)
 			return

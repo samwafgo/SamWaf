@@ -91,7 +91,9 @@ func RunLogDBMigrations(db *gorm.DB) error {
 
 	// 执行迁移
 	if err := m.Migrate(); err != nil {
-		return fmt.Errorf("log数据库迁移失败: %w", err)
+		errMsg := fmt.Sprintf("log数据库迁移失败: %v", err)
+		zlog.Error("迁移执行错误", "error", err.Error())
+		return fmt.Errorf("%s", errMsg)
 	}
 
 	zlog.Info("log数据库迁移成功完成")
@@ -180,10 +182,18 @@ func createLogIndexes(tx *gorm.DB) error {
 	}
 
 	for _, idx := range indexes {
+		zlog.Info("开始创建索引", "index", idx.Name, "sql", idx.SQL)
+		indexStartTime := time.Now()
+
 		if err := tx.Exec(idx.SQL).Error; err != nil {
-			return fmt.Errorf("创建索引失败 %s: %w", idx.Name, err)
+			// 记录详细的错误信息
+			errMsg := fmt.Sprintf("创建索引失败 %s: %v (错误类型: %T)", idx.Name, err, err)
+			zlog.Error("索引创建失败详情", "index", idx.Name, "error", err.Error(), "sql", idx.SQL)
+			return fmt.Errorf("%s", errMsg)
 		}
-		zlog.Info("索引创建成功", "index", idx.Name)
+
+		indexDuration := time.Since(indexStartTime)
+		zlog.Info("索引创建成功", "index", idx.Name, "耗时", indexDuration.String())
 	}
 
 	duration := time.Since(startTime)

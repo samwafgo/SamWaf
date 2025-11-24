@@ -93,7 +93,9 @@ func RunStatsDBMigrations(db *gorm.DB) error {
 
 	// 执行迁移
 	if err := m.Migrate(); err != nil {
-		return fmt.Errorf("stats数据库迁移失败: %w", err)
+		errMsg := fmt.Sprintf("stats数据库迁移失败: %v", err)
+		zlog.Error("迁移执行错误", "error", err.Error())
+		return fmt.Errorf("%s", errMsg)
 	}
 
 	zlog.Info("stats数据库迁移成功完成")
@@ -160,6 +162,11 @@ func createStatsIndexes(tx *gorm.DB) error {
 	zlog.Info("开始创建stats索引（可能需要几分钟）...")
 	startTime := time.Now()
 
+	// 先检查并清理 ip_tags 表中的重复数据（针对唯一索引）
+	if err := cleanupDuplicateIPTagsInStats(tx); err != nil {
+		zlog.Warn("清理重复数据时出现问题", "error", err.Error())
+	}
+
 	indexes := []struct {
 		Name string
 		SQL  string
@@ -187,14 +194,66 @@ func createStatsIndexes(tx *gorm.DB) error {
 	}
 
 	for _, idx := range indexes {
+		zlog.Info("开始创建索引", "index", idx.Name, "sql", idx.SQL)
+		indexStartTime := time.Now()
+
 		if err := tx.Exec(idx.SQL).Error; err != nil {
-			return fmt.Errorf("创建索引失败 %s: %w", idx.Name, err)
+			// 记录详细的错误信息
+			errMsg := fmt.Sprintf("创建索引失败 %s: %v (错误类型: %T)", idx.Name, err, err)
+			zlog.Error("索引创建失败详情", "index", idx.Name, "error", err.Error(), "sql", idx.SQL)
+			return fmt.Errorf("%s", errMsg)
 		}
-		zlog.Info("索引创建成功", "index", idx.Name)
+
+		indexDuration := time.Since(indexStartTime)
+		zlog.Info("索引创建成功", "index", idx.Name, "耗时", indexDuration.String())
 	}
 
 	duration := time.Since(startTime)
 	zlog.Info("所有stats索引创建完成", "耗时", duration.String())
+	return nil
+}
+
+// cleanupDuplicateIPTagsInStats 清理 ip_tags 表中的重复数据（stats数据库）
+func cleanupDuplicateIPTagsInStats(tx *gorm.DB) error {
+	zlog.Info("检查 ip_tags 表中的重复数据...")
+
+	// 检查是否存在重复数据
+	var duplicateCount int64
+	err := tx.Raw(`
+		SELECT COUNT(*) FROM (
+			SELECT user_code, tenant_id, ip, ip_tag, COUNT(*) as cnt
+			FROM ip_tags
+			GROUP BY user_code, tenant_id, ip, ip_tag
+			HAVING cnt > 1
+		)
+	`).Scan(&duplicateCount).Error
+
+	if err != nil {
+		return fmt.Errorf("检查重复数据失败: %w", err)
+	}
+
+	if duplicateCount == 0 {
+		zlog.Info("ip_tags 表无重复数据，可以安全创建唯一索引")
+		return nil
+	}
+
+	zlog.Warn("发现重复数据，开始清理", "重复组数", duplicateCount)
+
+	// 删除重复数据，保留 id 最小的记录
+	result := tx.Exec(`
+		DELETE FROM ip_tags
+		WHERE id NOT IN (
+			SELECT MIN(id)
+			FROM ip_tags
+			GROUP BY user_code, tenant_id, ip, ip_tag
+		)
+	`)
+
+	if result.Error != nil {
+		return fmt.Errorf("清理重复数据失败: %w", result.Error)
+	}
+
+	zlog.Info("重复数据清理完成", "删除记录数", result.RowsAffected)
 	return nil
 }
 

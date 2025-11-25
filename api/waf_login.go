@@ -11,6 +11,7 @@ import (
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	response2 "SamWaf/model/response"
+	"SamWaf/service/waf_service"
 	"SamWaf/utils"
 	"fmt"
 	"github.com/gin-gonic/gin"
@@ -151,6 +152,16 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 				OpContent: noticeStr,
 			}
 			global.GQEQUE_LOG_DB.Enqueue(&wafSysLog)
+
+			// 发送用户登录通知
+			go func() {
+				title, content := waf_service.WafNotifySenderServiceApp.FormatUserLoginMessage(
+					bean.LoginAccount,
+					clientIP,
+					time.Now().Format("2006-01-02 15:04:05"),
+				)
+				waf_service.WafNotifySenderServiceApp.SendNotification(model.MSG_TYPE_USER_LOGIN, title, content)
+			}()
 
 			response.OkWithDetailed(response2.LoginRep{
 				AccessToken: tokenInfo.AccessToken,

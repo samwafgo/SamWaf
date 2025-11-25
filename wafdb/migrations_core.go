@@ -164,6 +164,29 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return dropCoreIndexes(tx)
 			},
 		},
+		// 迁移3: 创建通知管理相关表
+		{
+			ID: "202511240001_add_notify_tables",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202511240001: 创建通知管理表")
+				// 创建通知渠道和订阅表
+				if err := tx.AutoMigrate(
+					&model.NotifyChannel{},
+					&model.NotifySubscription{},
+				); err != nil {
+					return fmt.Errorf("创建通知管理表失败: %w", err)
+				}
+				zlog.Info("通知管理表创建成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202511240001: 删除通知管理表")
+				return tx.Migrator().DropTable(
+					&model.NotifyChannel{},
+					&model.NotifySubscription{},
+				)
+			},
+		},
 	})
 
 	// 执行迁移

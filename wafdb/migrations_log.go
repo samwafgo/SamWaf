@@ -87,6 +87,27 @@ func RunLogDBMigrations(db *gorm.DB) error {
 				return dropLogIndexes(tx)
 			},
 		},
+		// 迁移3: 创建通知日志表
+		{
+			ID: "202511240001_add_notify_log_table",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202511240001: 创建通知日志表")
+				// 创建通知日志表
+				if err := tx.AutoMigrate(
+					&model.NotifyLog{},
+				); err != nil {
+					return fmt.Errorf("创建通知日志表失败: %w", err)
+				}
+				zlog.Info("通知日志表创建成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202511240001: 删除通知日志表")
+				return tx.Migrator().DropTable(
+					&model.NotifyLog{},
+				)
+			},
+		},
 	})
 
 	// 执行迁移

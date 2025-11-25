@@ -45,6 +45,9 @@ type ApiGroup struct {
 	WafSystemMonitorRouter
 	WafCaServerInfoRouter
 	SqlQueryRouter
+	NotifyChannelRouter
+	NotifySubscriptionRouter
+	NotifyLogRouter
 }
 type PublicApiGroup struct {
 	LoginRouter

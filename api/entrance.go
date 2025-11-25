@@ -47,6 +47,9 @@ type APIGroup struct {
 	WafSystemMonitorApi
 	WafCaServerInfoApi
 	WafSqlQueryApi
+	WafNotifyChannelApi
+	WafNotifySubscriptionApi
+	WafNotifyLogApi
 }
 
 var APIGroupAPP = new(APIGroup)

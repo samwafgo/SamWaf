@@ -4,6 +4,7 @@ import (
 	"SamWaf/common/zlog"
 	"SamWaf/enums"
 	"SamWaf/global"
+	"SamWaf/innerbean"
 	"SamWaf/model/spec"
 	"SamWaf/service/waf_service"
 	"SamWaf/utils"
@@ -141,6 +142,9 @@ func SSLExpireCheck() {
 		} else {
 			expireBean.ValidTo = expiryTime
 			expireBean.VisitLog = ""
+
+			// 检查证书是否即将过期，并发送通知
+			checkAndNotifySSLExpire(expireBean.Domain, expiryTime)
 		}
 		//更新数据
 		wafSslExpireService.Modify(expireBean)
@@ -169,4 +173,84 @@ func SyncHostToSslCheck() {
 		}
 	}
 	global.GWAF_RUNTIME_SSL_SYNC_HOST = false
+}
+
+// checkAndNotifySSLExpire 检查SSL证书是否即将过期，并发送通知
+func checkAndNotifySSLExpire(domain string, expiryTime time.Time) {
+	// 计算剩余天数
+	daysLeft := int(time.Until(expiryTime).Hours() / 24)
+
+	// 从配置读取提前提醒天数（默认30天）
+	expireDays := int(global.GCONFIG_RECORD_SSLOrder_EXPIRE_DAY)
+	if expireDays <= 0 {
+		expireDays = 30 // 默认值
+	}
+
+	// 定义需要提醒的天数阈值
+	// 基于配置的天数，设置多个提醒节点：配置天数、一半、7天、3天、1天
+	alertThresholds := []int{}
+	alertThresholds = append(alertThresholds, expireDays) // 例如：30天
+	if expireDays > 15 {
+		alertThresholds = append(alertThresholds, expireDays/2) // 例如：15天
+	}
+	if expireDays > 7 {
+		alertThresholds = append(alertThresholds, 7) // 7天
+	}
+	if expireDays > 3 {
+		alertThresholds = append(alertThresholds, 3) // 3天
+	}
+	alertThresholds = append(alertThresholds, 1) // 1天
+
+	// 检查是否需要提醒：剩余天数等于某个阈值，或者少于最小阈值
+	shouldAlert := false
+
+	// 情况1：剩余天数正好在阈值上
+	for _, threshold := range alertThresholds {
+		if daysLeft == threshold {
+			shouldAlert = true
+			break
+		}
+	}
+
+	// 情况2：剩余天数小于配置天数（在提醒范围内）
+	if daysLeft <= expireDays && daysLeft >= 0 {
+		shouldAlert = true
+	}
+
+	// 情况3：已经过期
+	if daysLeft < 0 {
+		shouldAlert = true
+	}
+
+	// 如果需要提醒，发送通知
+	if shouldAlert {
+		serverName := global.GWAF_CUSTOM_SERVER_NAME
+		if serverName == "" {
+			serverName = "未命名服务器"
+		}
+
+		var noticeMsg string
+		if daysLeft < 0 {
+			noticeMsg = fmt.Sprintf("SSL证书已过期 %d 天", -daysLeft)
+		} else if daysLeft == 0 {
+			noticeMsg = "SSL证书今天过期"
+		} else if daysLeft == 1 {
+			noticeMsg = "SSL证书明天过期"
+		} else {
+			noticeMsg = fmt.Sprintf("SSL证书即将在 %d 天后过期", daysLeft)
+		}
+
+		zlog.Info("SSLExpireCheck", fmt.Sprintf("%s: %s (剩余%d天)", domain, noticeMsg, daysLeft))
+
+		// 发送SSL证书过期通知到消息队列
+		global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.SSLExpireMessageInfo{
+			BaseMessageInfo: innerbean.BaseMessageInfo{
+				OperaType: "SSL证书过期提醒",
+				Server:    serverName,
+			},
+			Domain:     domain,
+			ExpireTime: expiryTime.Format("2006-01-02 15:04:05"),
+			DaysLeft:   daysLeft,
+		})
+	}
 }

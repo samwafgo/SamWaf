@@ -120,6 +120,7 @@ func SSLOrderReload() {
 SSL证书过期检测
 */
 func SSLExpireCheck() {
+	SyncHostToSslCheck()
 	innerLogName := "SSLExpireCheck"
 	zlog.Info(innerLogName, "准备进行SSL证书过期检测")
 	sslExpires, cnt, err := wafSslExpireService.GetAllList()
@@ -150,6 +151,7 @@ func SSLExpireCheck() {
 		wafSslExpireService.Modify(expireBean)
 	}
 	global.GWAF_RUNTIME_SSL_EXPIRE_CHECK = false
+	zlog.Info(innerLogName, "进行SSL证书过期检测完毕")
 }
 
 // SyncHostToSslCheck 同步已存在主机到SSL证书检测任务里

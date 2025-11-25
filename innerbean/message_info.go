@@ -63,6 +63,74 @@ type OpResultMessageInfo struct {
 	Success string `json:"success"`
 }
 
+/*
+*
+用户登录信息
+*/
+type UserLoginMessageInfo struct {
+	BaseMessageInfo
+	Username string `json:"username"` // 用户名
+	Ip       string `json:"ip"`       // 登录IP
+	Time     string `json:"time"`     // 登录时间
+}
+
+/*
+*
+攻击信息
+*/
+type AttackInfoMessageInfo struct {
+	BaseMessageInfo
+	AttackType string `json:"attack_type"` // 攻击类型
+	Url        string `json:"url"`         // 攻击URL
+	Ip         string `json:"ip"`          // 攻击IP
+	Time       string `json:"time"`        // 攻击时间
+}
+
+/*
+*
+周报信息
+*/
+type WeeklyReportMessageInfo struct {
+	BaseMessageInfo
+	TotalRequests   int64  `json:"total_requests"`   // 总请求数
+	BlockedRequests int64  `json:"blocked_requests"` // 拦截请求数
+	WeekRange       string `json:"week_range"`       // 周期范围
+}
+
+/*
+*
+SSL证书过期信息
+*/
+type SSLExpireMessageInfo struct {
+	BaseMessageInfo
+	Domain     string `json:"domain"`      // 域名
+	ExpireTime string `json:"expire_time"` // 过期时间
+	DaysLeft   int    `json:"days_left"`   // 剩余天数
+}
+
+/*
+*
+系统错误信息
+*/
+type SystemErrorMessageInfo struct {
+	BaseMessageInfo
+	ErrorType string `json:"error_type"` // 错误类型
+	ErrorMsg  string `json:"error_msg"`  // 错误信息
+	Time      string `json:"time"`       // 发生时间
+}
+
+/*
+*
+IP封禁信息
+*/
+type IPBanMessageInfo struct {
+	BaseMessageInfo
+	Ip       string `json:"ip"`       // IP地址
+	Reason   string `json:"reason"`   // 封禁原因
+	Duration int    `json:"duration"` // 封禁时长（分钟）
+	Time     string `json:"time"`     // 封禁时间
+}
+
 func (r RuleMessageInfo) ToFormat() map[string]*wechat.DataItem {
 	Data := map[string]*wechat.DataItem{}
 	Data["domain"] = &wechat.DataItem{

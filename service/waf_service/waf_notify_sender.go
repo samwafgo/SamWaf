@@ -3,6 +3,7 @@ package waf_service
 import (
 	"SamWaf/common/zlog"
 	"SamWaf/global"
+	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/wafnotify/dingtalk"
 	"SamWaf/wafnotify/feishu"
@@ -125,4 +126,96 @@ func (receiver *WafNotifySenderService) FormatIPBanMessage(ip, reason, time stri
 	title := "IP封禁通知"
 	content := fmt.Sprintf("**IP地址:** %s\n\n**封禁原因:** %s\n\n**封禁时长:** %d分钟\n\n**封禁时间:** %s", ip, reason, duration, time)
 	return title, content
+}
+
+// ========== 消息映射方法：将旧消息结构转换为新格式 ==========
+
+// FormatMessageByType 根据消息类型格式化消息（统一入口）
+func (receiver *WafNotifySenderService) FormatMessageByType(messageInfo interface{}) (messageType, title, content string) {
+	switch msg := messageInfo.(type) {
+	case innerbean.RuleMessageInfo:
+		return receiver.FormatRuleMessage(msg)
+	case innerbean.OperatorMessageInfo:
+		return receiver.FormatOperatorMessage(msg)
+	case innerbean.UserLoginMessageInfo:
+		return receiver.FormatUserLoginMessageFromBean(msg)
+	case innerbean.AttackInfoMessageInfo:
+		return receiver.FormatAttackInfoMessageFromBean(msg)
+	case innerbean.WeeklyReportMessageInfo:
+		return receiver.FormatWeeklyReportMessageFromBean(msg)
+	case innerbean.SSLExpireMessageInfo:
+		return receiver.FormatSSLExpireMessageFromBean(msg)
+	case innerbean.SystemErrorMessageInfo:
+		return receiver.FormatSystemErrorMessageFromBean(msg)
+	case innerbean.IPBanMessageInfo:
+		return receiver.FormatIPBanMessageFromBean(msg)
+	default:
+		return "", "", ""
+	}
+}
+
+// FormatRuleMessage 格式化规则触发消息（映射旧的 RuleMessageInfo）
+func (receiver *WafNotifySenderService) FormatRuleMessage(msg innerbean.RuleMessageInfo) (string, string, string) {
+	messageType := "rule_trigger" // 规则触发类型
+	title := "安全规则触发通知"
+	content := fmt.Sprintf("**操作类型:** %s\n\n**服务器:** %s\n\n**域名:** %s\n\n**规则信息:** %s\n\n**IP地址:** %s",
+		msg.OperaType,
+		msg.Server,
+		msg.Domain,
+		msg.RuleInfo,
+		msg.Ip)
+	return messageType, title, content
+}
+
+// FormatOperatorMessage 格式化操作消息（映射旧的 OperatorMessageInfo）
+func (receiver *WafNotifySenderService) FormatOperatorMessage(msg innerbean.OperatorMessageInfo) (string, string, string) {
+	messageType := "operation_notice" // 操作通知类型
+	title := "操作通知"
+	content := fmt.Sprintf("**操作类型:** %s\n\n**服务器:** %s\n\n**操作内容:** %s",
+		msg.OperaType,
+		msg.Server,
+		msg.OperaCnt)
+	return messageType, title, content
+}
+
+// FormatUserLoginMessageFromBean 格式化用户登录消息（从Bean）
+func (receiver *WafNotifySenderService) FormatUserLoginMessageFromBean(msg innerbean.UserLoginMessageInfo) (string, string, string) {
+	messageType := "user_login" // 用户登录类型
+	title, content := receiver.FormatUserLoginMessage(msg.Username, msg.Ip, msg.Time)
+	return messageType, title, content
+}
+
+// FormatAttackInfoMessageFromBean 格式化攻击信息消息（从Bean）
+func (receiver *WafNotifySenderService) FormatAttackInfoMessageFromBean(msg innerbean.AttackInfoMessageInfo) (string, string, string) {
+	messageType := "attack_info" // 攻击信息类型
+	title, content := receiver.FormatAttackInfoMessage(msg.AttackType, msg.Url, msg.Ip, msg.Time)
+	return messageType, title, content
+}
+
+// FormatWeeklyReportMessageFromBean 格式化周报消息（从Bean）
+func (receiver *WafNotifySenderService) FormatWeeklyReportMessageFromBean(msg innerbean.WeeklyReportMessageInfo) (string, string, string) {
+	messageType := "weekly_report" // 周报类型
+	title, content := receiver.FormatWeeklyReportMessage(msg.TotalRequests, msg.BlockedRequests, msg.WeekRange)
+	return messageType, title, content
+}
+
+// FormatSSLExpireMessageFromBean 格式化SSL证书过期消息（从Bean）
+func (receiver *WafNotifySenderService) FormatSSLExpireMessageFromBean(msg innerbean.SSLExpireMessageInfo) (string, string, string) {
+	messageType := "ssl_expire" // SSL证书过期类型
+	title, content := receiver.FormatSSLExpireMessage(msg.Domain, msg.ExpireTime, msg.DaysLeft)
+	return messageType, title, content
+}
+
+// FormatSystemErrorMessageFromBean 格式化系统错误消息（从Bean）
+func (receiver *WafNotifySenderService) FormatSystemErrorMessageFromBean(msg innerbean.SystemErrorMessageInfo) (string, string, string) {
+	messageType := "system_error" // 系统错误类型
+	title, content := receiver.FormatSystemErrorMessage(msg.ErrorType, msg.ErrorMsg, msg.Time)
+	return messageType, title, content
+}
+
+// FormatIPBanMessageFromBean 格式化IP封禁消息（从Bean）
+func (receiver *WafNotifySenderService) FormatIPBanMessageFromBean(msg innerbean.IPBanMessageInfo) (string, string, string) {
+	messageType := "ip_ban" // IP封禁类型
+	title, content := receiver.FormatIPBanMessage(msg.Ip, msg.Reason, msg.Time, msg.Duration)
+	return messageType, title, content
 }

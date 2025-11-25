@@ -69,9 +69,16 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 				}
 				global.GQEQUE_LOG_DB.Enqueue(&wafSysLog)
 
+				serverName := global.GWAF_CUSTOM_SERVER_NAME
+				if serverName == "" {
+					serverName = "未命名服务器"
+				}
 				global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
-					BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "SSL证书申请失败"},
-					OperaCnt:        sslError,
+					BaseMessageInfo: innerbean.BaseMessageInfo{
+						OperaType: "SSL证书申请失败",
+						Server:    serverName,
+					},
+					OperaCnt: sslError,
 				})
 			} else {
 				zlog.Info(fmt.Sprintf("%s 证书首次申请后续 成功", bean.ApplyDomain))
@@ -94,9 +101,16 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 				}
 				global.GQEQUE_LOG_DB.Enqueue(&wafSysLog)
 
+				serverName := global.GWAF_CUSTOM_SERVER_NAME
+				if serverName == "" {
+					serverName = "未命名服务器"
+				}
 				global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
-					BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "SSL证书申请成功"},
-					OperaCnt:        sslSuccess,
+					BaseMessageInfo: innerbean.BaseMessageInfo{
+						OperaType: "SSL证书申请成功",
+						Server:    serverName,
+					},
+					OperaCnt: sslSuccess,
 				})
 			}
 		} else {
@@ -122,9 +136,16 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 			}
 			global.GQEQUE_LOG_DB.Enqueue(&wafSysLog)
 
+			serverName := global.GWAF_CUSTOM_SERVER_NAME
+			if serverName == "" {
+				serverName = "未命名服务器"
+			}
 			global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
-				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "SSL证书申请失败"},
-				OperaCnt:        sslError,
+				BaseMessageInfo: innerbean.BaseMessageInfo{
+					OperaType: "SSL证书申请失败",
+					Server:    serverName,
+				},
+				OperaCnt: sslError,
 			})
 		}
 
@@ -162,9 +183,16 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 				}
 				global.GQEQUE_LOG_DB.Enqueue(&wafSysLog)
 
+				serverName := global.GWAF_CUSTOM_SERVER_NAME
+				if serverName == "" {
+					serverName = "未命名服务器"
+				}
 				global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
-					BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "SSL证书续期失败"},
-					OperaCnt:        sslError,
+					BaseMessageInfo: innerbean.BaseMessageInfo{
+						OperaType: "SSL证书续期失败",
+						Server:    serverName,
+					},
+					OperaCnt: sslError,
 				})
 			} else {
 				zlog.Info(fmt.Sprintf("%s 证书续期处理后续 成功", bean.ApplyDomain))
@@ -187,9 +215,16 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 				}
 				global.GQEQUE_LOG_DB.Enqueue(&wafSysLog)
 
+				serverName := global.GWAF_CUSTOM_SERVER_NAME
+				if serverName == "" {
+					serverName = "未命名服务器"
+				}
 				global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
-					BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "SSL证书续期成功"},
-					OperaCnt:        sslSuccess,
+					BaseMessageInfo: innerbean.BaseMessageInfo{
+						OperaType: "SSL证书续期成功",
+						Server:    serverName,
+					},
+					OperaCnt: sslSuccess,
 				})
 			}
 		} else {
@@ -214,9 +249,16 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 			}
 			global.GQEQUE_LOG_DB.Enqueue(&wafSysLog)
 
+			serverName := global.GWAF_CUSTOM_SERVER_NAME
+			if serverName == "" {
+				serverName = "未命名服务器"
+			}
 			global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
-				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "SSL证书续期失败"},
-				OperaCnt:        sslError,
+				BaseMessageInfo: innerbean.BaseMessageInfo{
+					OperaType: "SSL证书续期失败",
+					Server:    serverName,
+				},
+				OperaCnt: sslError,
 			})
 		}
 	}

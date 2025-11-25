@@ -4,6 +4,8 @@ import (
 	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/innerbean"
+	"SamWaf/model"
+	"SamWaf/service/waf_service"
 	"SamWaf/wafipban"
 	"SamWaf/waftask"
 	"strconv"
@@ -58,6 +60,21 @@ func ProcessLogDequeEngine() {
 							if ipManager.IsFailureStatusCode(log.STATUS_CODE) {
 								ipManager.RecordFailure(log)
 							}
+						}
+					}
+					// 检查攻击日志并发送通知
+					for _, log := range webLogArray {
+						if log.RULE != "" && log.STATUS_CODE >= 400 {
+							// 异步发送攻击通知
+							go func(attackLog *innerbean.WebLog) {
+								title, content := waf_service.WafNotifySenderServiceApp.FormatAttackInfoMessage(
+									attackLog.RULE,
+									attackLog.URL,
+									attackLog.SRC_IP,
+									attackLog.CREATE_TIME,
+								)
+								waf_service.WafNotifySenderServiceApp.SendNotification(model.MSG_TYPE_ATTACK_INFO, title, content)
+							}(log)
 						}
 					}
 					if global.GCONFIG_LOG_PERSIST_ENABLED == 1 {

@@ -13,9 +13,11 @@ import (
 	response2 "SamWaf/model/response"
 	"SamWaf/utils"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/pquerna/otp/totp"
-	"time"
 )
 
 type WafLoginApi struct {
@@ -67,7 +69,8 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 				hitCounter++
 				global.GCACHE_WAFCACHE.SetWithTTl(cacheKey, hitCounter, time.Duration(global.GCONFIG_RECORD_LOGIN_LIMIT_MINTUTES)*time.Minute)
 
-				loginError := fmt.Sprintf("输入密码错误超过次数限制，IP:%s 归属地区：%s", clientIP, clientCountry)
+				clientCountryStr := strings.Join(clientCountry, ",")
+				loginError := fmt.Sprintf("输入密码错误超过次数限制，IP:%s 归属地区：%s", clientIP, clientCountryStr)
 				wafSysLog := model.WafSysLog{
 					BaseOrm: baseorm.BaseOrm{
 						Id:          uuid.GenUUID(),
@@ -81,9 +84,19 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 				}
 				global.GQEQUE_LOG_DB.Enqueue(&wafSysLog)
 
-				global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
-					BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "登录错误"},
-					OperaCnt:        loginError,
+				// 使用新的系统错误消息格式
+				serverName := global.GWAF_CUSTOM_SERVER_NAME
+				if serverName == "" {
+					serverName = "未命名服务器"
+				}
+				global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.SystemErrorMessageInfo{
+					BaseMessageInfo: innerbean.BaseMessageInfo{
+						OperaType: "登录错误",
+						Server:    serverName,
+					},
+					ErrorType: "登录失败",
+					ErrorMsg:  fmt.Sprintf("密码错误超限，IP:%s (%s)", clientIP, clientCountryStr),
+					Time:      time.Now().Format("2006-01-02 15:04:05"),
 				})
 				response.FailWithMessage("登录密码错误", c)
 				return
@@ -132,13 +145,27 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 			//令牌记录到cache里
 			global.GCACHE_WAFCACHE.SetWithTTl(enums.CACHE_TOKEN+accessToken, *tokenInfo, time.Duration(global.GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES)*time.Minute)
 
-			//通知信息
-			noticeStr := fmt.Sprintf("登录IP:%s 归属地区：%s", clientIP, clientCountry)
-			global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
-				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "登录信息"},
-				OperaCnt:        noticeStr,
+			//通知信息（使用新的消息格式，通过队列统一处理）
+			currentTime := time.Now().Format("2006-01-02 15:04:05")
+			clientCountryStr := strings.Join(clientCountry, ",")
+			noticeStr := fmt.Sprintf("登录IP:%s 归属地区：%s", clientIP, clientCountryStr)
+
+			// 将用户登录信息加入消息队列（新格式）
+			serverName := global.GWAF_CUSTOM_SERVER_NAME
+			if serverName == "" {
+				serverName = "未命名服务器"
+			}
+			global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.UserLoginMessageInfo{
+				BaseMessageInfo: innerbean.BaseMessageInfo{
+					OperaType: "登录信息",
+					Server:    serverName,
+				},
+				Username: bean.LoginAccount,
+				Ip:       clientIP + " (" + clientCountryStr + ")",
+				Time:     currentTime,
 			})
 
+			// 记录系统日志
 			wafSysLog := model.WafSysLog{
 				BaseOrm: baseorm.BaseOrm{
 					Id:          uuid.GenUUID(),

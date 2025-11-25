@@ -65,9 +65,18 @@ func (w *WafLogAPi) GetListApi(c *gin.Context) {
 }
 func (w *WafLogAPi) ExportDBApi(c *gin.Context) {
 	if global.GWAF_CAN_EXPORT_DOWNLOAD_LOG == false {
-		global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
-			BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "导出失败"},
-			OperaCnt:        "当前不允许导出",
+		// 使用操作结果消息格式
+		serverName := global.GWAF_CUSTOM_SERVER_NAME
+		if serverName == "" {
+			serverName = "未命名服务器"
+		}
+		global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OpResultMessageInfo{
+			BaseMessageInfo: innerbean.BaseMessageInfo{
+				OperaType: "导出失败",
+				Server:    serverName,
+			},
+			Msg:     "当前不允许导出",
+			Success: "false",
 		})
 		response.FailWithMessage("当前不允许导出", c)
 		return
@@ -121,9 +130,18 @@ func (w *WafLogAPi) ExportDBApi(c *gin.Context) {
 }
 func (w *WafLogAPi) DownloadApi(c *gin.Context) {
 	if global.GWAF_CAN_EXPORT_DOWNLOAD_LOG == false {
-		global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
-			BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "下载失败"},
-			OperaCnt:        "当前不允许下载",
+		// 使用操作结果消息格式
+		serverName := global.GWAF_CUSTOM_SERVER_NAME
+		if serverName == "" {
+			serverName = "未命名服务器"
+		}
+		global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OpResultMessageInfo{
+			BaseMessageInfo: innerbean.BaseMessageInfo{
+				OperaType: "下载失败",
+				Server:    serverName,
+			},
+			Msg:     "当前不允许下载",
+			Success: "false",
 		})
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "当前不允许下载"})
 		return

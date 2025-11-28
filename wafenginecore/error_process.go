@@ -43,7 +43,10 @@ func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean *innerbean
 	}
 
 	// 处理 hostsafe 的模板
-	if blockingPage, ok := hostsafe.BlockingPage["other_block"]; ok {
+	//  response_code 为 403 的配置
+	blockingPage, ok := hostsafe.BlockingPage["403"]
+
+	if ok {
 		// 设置 HTTP header
 		var headers []map[string]string
 		if err := json.Unmarshal([]byte(blockingPage.ResponseHeader), &headers); err == nil {
@@ -68,38 +71,42 @@ func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean *innerbean
 		if code, err := strconv.Atoi(blockingPage.ResponseCode); err == nil {
 			responseCode = code
 		}
-	} else if globalBlockingPage, ok := globalHostSafe.BlockingPage["other_block"]; ok {
-		// 处理 globalHostSafe 的模板
-		// 设置 HTTP header
-		var headers []map[string]string
-		if err := json.Unmarshal([]byte(globalBlockingPage.ResponseHeader), &headers); err == nil {
-			for _, header := range headers {
-				if name, ok := header["name"]; ok {
-					if value, ok := header["value"]; ok && value != "" {
-						w.Header().Set(name, value)
+	} else {
+		// 检查全局配置
+		globalBlockingPage, ok := globalHostSafe.BlockingPage["403"]
+		if ok {
+			// 处理 globalHostSafe 的模板
+			// 设置 HTTP header
+			var headers []map[string]string
+			if err := json.Unmarshal([]byte(globalBlockingPage.ResponseHeader), &headers); err == nil {
+				for _, header := range headers {
+					if name, ok := header["name"]; ok {
+						if value, ok := header["value"]; ok && value != "" {
+							w.Header().Set(name, value)
+						}
 					}
 				}
 			}
-		}
 
-		// 渲染模板
-		renderedBytes, err := renderTemplate(globalBlockingPage.ResponseContent, renderData)
-		if err == nil {
-			resBytes = renderedBytes
+			// 渲染模板
+			renderedBytes, err := renderTemplate(globalBlockingPage.ResponseContent, renderData)
+			if err == nil {
+				resBytes = renderedBytes
+			} else {
+				resBytes = []byte(globalBlockingPage.ResponseContent)
+			}
+			// 设置响应码
+			if code, err := strconv.Atoi(globalBlockingPage.ResponseCode); err == nil {
+				responseCode = code
+			}
 		} else {
-			resBytes = []byte(globalBlockingPage.ResponseContent)
-		}
-		// 设置响应码
-		if code, err := strconv.Atoi(globalBlockingPage.ResponseCode); err == nil {
-			responseCode = code
-		}
-	} else {
-		// 默认的阻止页面
-		renderedBytes, err := renderTemplate(global.GLOBAL_DEFAULT_BLOCK_INFO, renderData)
-		if err == nil {
-			resBytes = renderedBytes
-		} else {
-			resBytes = []byte(global.GLOBAL_DEFAULT_BLOCK_INFO)
+			// 默认的阻止页面
+			renderedBytes, err := renderTemplate(global.GLOBAL_DEFAULT_BLOCK_INFO, renderData)
+			if err == nil {
+				resBytes = renderedBytes
+			} else {
+				resBytes = []byte(global.GLOBAL_DEFAULT_BLOCK_INFO)
+			}
 		}
 	}
 
@@ -146,7 +153,10 @@ func EchoResponseErrorInfo(resp *http.Response, weblogbean *innerbean.WebLog, ru
 	}
 
 	// 处理 hostsafe 的模板
-	if blockingPage, ok := hostsafe.BlockingPage["other_block"]; ok {
+	// 优先使用 response_code 为 403 的配置，兼容旧版本的 other_block
+	blockingPage, ok := hostsafe.BlockingPage["403"]
+
+	if ok {
 		// 设置 HTTP header
 		var headers []map[string]string
 		if err := json.Unmarshal([]byte(blockingPage.ResponseHeader), &headers); err == nil {
@@ -171,38 +181,43 @@ func EchoResponseErrorInfo(resp *http.Response, weblogbean *innerbean.WebLog, ru
 		if code, err := strconv.Atoi(blockingPage.ResponseCode); err == nil {
 			responseCode = code
 		}
-	} else if globalBlockingPage, ok := globalHostSafe.BlockingPage["other_block"]; ok {
-		// 处理 globalHostSafe 的模板
-		// 设置 HTTP header
-		var headers []map[string]string
-		if err := json.Unmarshal([]byte(globalBlockingPage.ResponseHeader), &headers); err == nil {
-			for _, header := range headers {
-				if name, ok := header["name"]; ok {
-					if value, ok := header["value"]; ok && value != "" {
-						resp.Header.Set(name, value)
+	} else {
+		// 检查全局配置
+		globalBlockingPage, ok := globalHostSafe.BlockingPage["403"]
+
+		if ok {
+			// 处理 globalHostSafe 的模板
+			// 设置 HTTP header
+			var headers []map[string]string
+			if err := json.Unmarshal([]byte(globalBlockingPage.ResponseHeader), &headers); err == nil {
+				for _, header := range headers {
+					if name, ok := header["name"]; ok {
+						if value, ok := header["value"]; ok && value != "" {
+							resp.Header.Set(name, value)
+						}
 					}
 				}
 			}
-		}
 
-		// 渲染模板
-		renderedBytes, err := renderTemplate(globalBlockingPage.ResponseContent, renderData)
-		if err == nil {
-			resBytes = renderedBytes
+			// 渲染模板
+			renderedBytes, err := renderTemplate(globalBlockingPage.ResponseContent, renderData)
+			if err == nil {
+				resBytes = renderedBytes
+			} else {
+				resBytes = []byte(globalBlockingPage.ResponseContent)
+			}
+			// 设置响应码
+			if code, err := strconv.Atoi(globalBlockingPage.ResponseCode); err == nil {
+				responseCode = code
+			}
 		} else {
-			resBytes = []byte(globalBlockingPage.ResponseContent)
-		}
-		// 设置响应码
-		if code, err := strconv.Atoi(globalBlockingPage.ResponseCode); err == nil {
-			responseCode = code
-		}
-	} else {
-		// 默认的阻止页面
-		renderedBytes, err := renderTemplate(global.GLOBAL_DEFAULT_BLOCK_INFO, renderData)
-		if err == nil {
-			resBytes = renderedBytes
-		} else {
-			resBytes = []byte(global.GLOBAL_DEFAULT_BLOCK_INFO)
+			// 默认的阻止页面
+			renderedBytes, err := renderTemplate(global.GLOBAL_DEFAULT_BLOCK_INFO, renderData)
+			if err == nil {
+				resBytes = renderedBytes
+			} else {
+				resBytes = []byte(global.GLOBAL_DEFAULT_BLOCK_INFO)
+			}
 		}
 	}
 

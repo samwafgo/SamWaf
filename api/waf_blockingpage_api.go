@@ -8,6 +8,7 @@ import (
 	"SamWaf/model/request"
 	"SamWaf/model/spec"
 	"errors"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -117,9 +118,14 @@ func (w *WafBlockingPageApi) NotifyWaf(hostCode string) {
 	if len(blockingPageList) > 0 {
 		for i := 0; i < len(blockingPageList); i++ {
 			if blockingPageList[i].BlockingType == "not_match_website" {
+				// 域名不匹配使用固定的key
 				blockingPageMap["not_match_website"] = blockingPageList[i]
 			} else if blockingPageList[i].BlockingType == "other_block" {
-				blockingPageMap["other_block"] = blockingPageList[i]
+				// other_block 类型根据 response_code 区分不同的错误页面
+				// 例如: 403(WAF拦截), 404, 500, 502 等
+				if blockingPageList[i].ResponseCode != "" {
+					blockingPageMap[blockingPageList[i].ResponseCode] = blockingPageList[i]
+				}
 			}
 		}
 	}

@@ -44,13 +44,6 @@ func (receiver *WafBlockingPageService) CheckIsExistApi(req request.WafBlockingP
 	//where字段
 	whereField = ""
 
-	if len(req.BlockingPageName) > 0 {
-		if len(whereField) > 0 {
-			whereField = whereField + " and "
-		}
-		whereField = whereField + " blocking_page_name=? "
-	}
-
 	if len(req.BlockingType) > 0 {
 		if len(whereField) > 0 {
 			whereField = whereField + " and "
@@ -65,13 +58,16 @@ func (receiver *WafBlockingPageService) CheckIsExistApi(req request.WafBlockingP
 		whereField = whereField + " host_code=? "
 	}
 
-	//where字段赋值
-
-	if len(req.BlockingPageName) > 0 {
+	// 对于 other_block 类型，需要检查 response_code 的唯一性
+	// 同一个网站下，相同的 blocking_type + response_code 组合必须唯一
+	if len(req.ResponseCode) > 0 {
 		if len(whereField) > 0 {
-			whereValues = append(whereValues, req.BlockingPageName)
+			whereField = whereField + " and "
 		}
+		whereField = whereField + " response_code=? "
 	}
+
+	//where字段赋值
 
 	if len(req.BlockingType) > 0 {
 		if len(whereField) > 0 {
@@ -82,6 +78,12 @@ func (receiver *WafBlockingPageService) CheckIsExistApi(req request.WafBlockingP
 	if len(req.HostCode) > 0 {
 		if len(whereField) > 0 {
 			whereValues = append(whereValues, req.HostCode)
+		}
+	}
+
+	if len(req.ResponseCode) > 0 {
+		if len(whereField) > 0 {
+			whereValues = append(whereValues, req.ResponseCode)
 		}
 	}
 
@@ -99,13 +101,6 @@ func (receiver *WafBlockingPageService) ModifyApi(req request.WafBlockingPageEdi
 	//where字段
 	whereField = ""
 
-	if len(req.BlockingPageName) > 0 {
-		if len(whereField) > 0 {
-			whereField = whereField + " and "
-		}
-		whereField = whereField + " blocking_page_name=? "
-	}
-
 	if len(req.BlockingType) > 0 {
 		if len(whereField) > 0 {
 			whereField = whereField + " and "
@@ -120,11 +115,16 @@ func (receiver *WafBlockingPageService) ModifyApi(req request.WafBlockingPageEdi
 		whereField = whereField + " host_code=? "
 	}
 
-	//where字段赋值
-
-	if len(req.BlockingPageName) > 0 {
-		whereValues = append(whereValues, req.BlockingPageName)
+	// 对于 other_block 类型，需要检查 response_code 的唯一性
+	// 同一个网站下，相同的 blocking_type + response_code 组合必须唯一
+	if len(req.ResponseCode) > 0 {
+		if len(whereField) > 0 {
+			whereField = whereField + " and "
+		}
+		whereField = whereField + " response_code=? "
 	}
+
+	//where字段赋值
 
 	if len(req.BlockingType) > 0 {
 		whereValues = append(whereValues, req.BlockingType)
@@ -132,6 +132,10 @@ func (receiver *WafBlockingPageService) ModifyApi(req request.WafBlockingPageEdi
 
 	if len(req.HostCode) > 0 {
 		whereValues = append(whereValues, req.HostCode)
+	}
+
+	if len(req.ResponseCode) > 0 {
+		whereValues = append(whereValues, req.ResponseCode)
 	}
 
 	global.GWAF_LOCAL_DB.Model(&model.BlockingPage{}).Where(whereField, whereValues...).Count(&total)

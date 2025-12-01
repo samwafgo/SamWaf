@@ -17,9 +17,9 @@ const (
 	TASK_NOTICE                       = "task_notice"                       //通知信息
 	TASK_HEALTH                       = "task_health"                       //健康检测
 	TASK_CLEAR_CC_WINDOWS             = "task_clear_cc_windows"             //清除ccWindows记录
-	TASK_CREATE_DB_INDEX              = "task_create_db_index"              //创建索引
 	TASK_CLEAR_WEBCACHE               = "task_clear_webcache"               //清除缓存
 	TASK_GC                           = "task_gc"                           //GC回收
 	TASK_STATS_PUSH                   = "task_stats_push"                   //系统统计数据推送
 	TASK_DB_MONITOR                   = "task_db_monitor"                   //数据库监控
+	TASK_FIREWALL_CLEAN_EXPIRED       = "task_firewall_clean_expired"       //清理过期防火墙IP封禁规则
 )

@@ -247,24 +247,9 @@ func (m *wafSystenService) run() {
 	}
 
 	//初始化本地数据库
-	isNewMainDb, err := wafdb.InitCoreDb("")
-	if err == nil {
-		if isNewMainDb {
-			waftask.TaskCreateIndexByDbName(enums.DB_MAIN)
-		}
-	}
-	isNewLogDb, err := wafdb.InitLogDb("")
-	if err == nil {
-		if isNewLogDb {
-			waftask.TaskCreateIndexByDbName(enums.DB_LOG)
-		}
-	}
-	isNewStatsDb, err := wafdb.InitStatsDb("")
-	if err == nil {
-		if isNewStatsDb {
-			waftask.TaskCreateIndexByDbName(enums.DB_STATS)
-		}
-	}
+	wafdb.InitCoreDb("")
+	wafdb.InitLogDb("")
+	wafdb.InitStatsDb("")
 
 	//初始化队列引擎
 	wafqueue.InitDequeEngine()
@@ -332,11 +317,11 @@ func (m *wafSystenService) run() {
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_NOTICE, waftask.TaskStatusNotify)
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_HEALTH, waftask.TaskHealth)
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_CLEAR_CC_WINDOWS, waftask.TaskCC)
-	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_CREATE_DB_INDEX, waftask.TaskCreateIndex)
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_CLEAR_WEBCACHE, waftask.TaskClearWebcache)
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_GC, waftask.TaskGC)
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_STATS_PUSH, waftask.TaskStatsPush)
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_DB_MONITOR, waftask.TaskDatabaseMonitor)
+	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_FIREWALL_CLEAN_EXPIRED, waftask.TaskFirewallCleanExpired)
 
 	go waftask.TaskShareDbInfo()
 
@@ -660,10 +645,6 @@ func (m *wafSystenService) run() {
 		case clearCcWindowsIp := <-global.GWAF_CHAN_CLEAR_CC_IP:
 			zlog.Debug("定时清空CCip", clearCcWindowsIp)
 			globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ClearCcWindowsForIP(clearCcWindowsIp)
-			break
-		case createLogIndex := <-global.GWAF_CHAN_CREATE_LOG_INDEX:
-			zlog.Debug("定时创建日志索引", createLogIndex)
-			waftask.TaskCreateIndexByDbName(enums.DB_LOG)
 			break
 		}
 

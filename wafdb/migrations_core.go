@@ -187,6 +187,37 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				)
 			},
 		},
+		// 迁移4: 创建防火墙IP封禁表
+		{
+			ID: "202511280001_add_firewall_ip_block_table",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202511280001: 创建防火墙IP封禁表")
+				// 创建防火墙IP封禁表
+				if err := tx.AutoMigrate(
+					&model.FirewallIPBlock{},
+				); err != nil {
+					return fmt.Errorf("创建防火墙IP封禁表失败: %w", err)
+				}
+
+				// 创建索引
+				if err := tx.Exec("CREATE INDEX IF NOT EXISTS idx_firewall_ip_block_ip ON firewall_ip_block(ip)").Error; err != nil {
+					zlog.Warn("创建索引 idx_firewall_ip_block_ip 失败", "error", err.Error())
+				}
+				if err := tx.Exec("CREATE INDEX IF NOT EXISTS idx_firewall_ip_block_status ON firewall_ip_block(status)").Error; err != nil {
+					zlog.Warn("创建索引 idx_firewall_ip_block_status 失败", "error", err.Error())
+				}
+				if err := tx.Exec("CREATE INDEX IF NOT EXISTS idx_firewall_ip_block_expire_time ON firewall_ip_block(expire_time)").Error; err != nil {
+					zlog.Warn("创建索引 idx_firewall_ip_block_expire_time 失败", "error", err.Error())
+				}
+
+				zlog.Info("防火墙IP封禁表创建成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202511280001: 删除防火墙IP封禁表")
+				return tx.Migrator().DropTable(&model.FirewallIPBlock{})
+			},
+		},
 	})
 
 	// 执行迁移

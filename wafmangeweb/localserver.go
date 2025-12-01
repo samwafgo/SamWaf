@@ -90,6 +90,7 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitNotifyChannelRouter(RouterGroup)
 		router.ApiGroupApp.InitNotifySubscriptionRouter(RouterGroup)
 		router.ApiGroupApp.InitNotifyLogRouter(RouterGroup)
+		router.ApiGroupApp.InitFirewallIPBlockRouter(RouterGroup)
 	}
 
 	if global.GWAF_RELEASE == "true" {

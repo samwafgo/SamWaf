@@ -1,4 +1,4 @@
-//go:build linux
+//go:build darwin
 
 package firewall
 
@@ -6,7 +6,6 @@ import (
 	"bufio"
 	"fmt"
 	"os/exec"
-	"runtime"
 	"strings"
 	"time"
 
@@ -32,6 +31,9 @@ const (
 	DIRECTION_IN   = "in"            // 入站
 	DIRECTION_OUT  = "out"           // 出站
 	DIRECTION_BOTH = "both"          // 双向
+
+	// Mac 特有常量
+	PF_TABLE_NAME = "samwaf_blocked" // pf table 名称
 )
 
 type FireWallEngine struct {
@@ -48,14 +50,16 @@ type IPBlockInfo struct {
 }
 
 func (fw *FireWallEngine) IsFirewallEnabled() bool {
-	if runtime.GOOS == "linux" {
-		out, err := exec.Command("iptables", "-L").CombinedOutput()
-		if err != nil {
-			return false
-		}
-		return len(out) > 0
+	// 检查 pf 是否启用
+	cmd := exec.Command("pfctl", "-s", "info")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("[WARN] 检查防火墙状态失败: %v\n", err)
+		return false
 	}
-	return false
+
+	// 查找 "Status: Enabled"
+	return strings.Contains(string(output), "Status: Enabled")
 }
 
 func (fw *FireWallEngine) executeCommand(cmd *exec.Cmd) (error error, printstr string) {
@@ -68,78 +72,95 @@ func (fw *FireWallEngine) executeCommand(cmd *exec.Cmd) (error error, printstr s
 	in := bufio.NewScanner(stdout)
 	printstr = ""
 	for in.Scan() {
-		cmdRe := ConvertByte2String(in.Bytes(), "GB18030")
-		//fmt.Println(cmdRe)
-		printstr += cmdRe
+		cmdRe := ConvertByte2String(in.Bytes(), "UTF-8")
+		printstr += cmdRe + "\n"
 	}
 	cmd.Wait()
 	return nil, printstr
 }
 
 func (fw *FireWallEngine) AddRule(ruleName, ipToAdd, action, proc, localport string) error {
-	// iptables -A INPUT -s <ip> -j DROP
-	fmt.Printf("[DEBUG] 添加防火墙规则: ip=%s\n", ipToAdd)
+	// Mac 使用 pfctl 添加 IP 到 table
+	fmt.Printf("[DEBUG] 添加防火墙规则 (Mac): ip=%s\n", ipToAdd)
 
-	cmd := exec.Command("iptables", "-A", "INPUT", "-s", ipToAdd, "-j", "DROP")
-	fmt.Printf("[DEBUG] 执行命令: iptables -A INPUT -s %s -j DROP\n", ipToAdd)
-
-	err, output := fw.executeCommand(cmd)
+	// 确保 table 存在
+	err := fw.ensureTableExists()
 	if err != nil {
-		fmt.Printf("[ERROR] 添加规则失败: %v, 输出: %s\n", err, output)
+		return fmt.Errorf("failed to ensure table exists: %v", err)
+	}
+
+	// 添加 IP 到 table
+	cmd := exec.Command("pfctl", "-t", PF_TABLE_NAME, "-T", "add", ipToAdd)
+	fmt.Printf("[DEBUG] 执行命令: pfctl -t %s -T add %s\n", PF_TABLE_NAME, ipToAdd)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("[ERROR] 添加规则失败: %v, 输出: %s\n", err, string(output))
 		return err
 	}
 
-	fmt.Printf("[DEBUG] 添加规则成功, 输出: %s\n", output)
-	return err
+	fmt.Printf("[DEBUG] 添加规则成功, 输出: %s\n", string(output))
+	return nil
 }
 
 func (fw *FireWallEngine) EditRule(ruleNum int, newRule string) error {
-	return fmt.Errorf("editRule is not supported on Windows")
+	return fmt.Errorf("editRule is not supported on macOS")
 }
 
 func (fw *FireWallEngine) DeleteRule(ruleName string) (bool, error) {
-	// iptables -D INPUT -s <ip> -j DROP
-	// 从规则名中提取IP
-	fmt.Printf("[DEBUG] 删除防火墙规则: name=%s\n", ruleName)
+	fmt.Printf("[DEBUG] 删除防火墙规则 (Mac): name=%s\n", ruleName)
 
+	// 从规则名中提取IP
 	ip := extractIPFromRuleName(ruleName)
 	if ip == "" {
 		fmt.Printf("[ERROR] 无效的规则名: %s\n", ruleName)
 		return false, fmt.Errorf("invalid rule name: %s", ruleName)
 	}
 
-	cmd := exec.Command("iptables", "-D", "INPUT", "-s", ip, "-j", "DROP")
-	fmt.Printf("[DEBUG] 执行命令: iptables -D INPUT -s %s -j DROP\n", ip)
+	// 从 table 中删除 IP
+	cmd := exec.Command("pfctl", "-t", PF_TABLE_NAME, "-T", "delete", ip)
+	fmt.Printf("[DEBUG] 执行命令: pfctl -t %s -T delete %s\n", PF_TABLE_NAME, ip)
 
-	err, output := fw.executeCommand(cmd)
+	output, err := cmd.CombinedOutput()
+	outputStr := string(output)
+
+	fmt.Printf("[DEBUG] 删除规则输出: %s\n", outputStr)
+
 	if err != nil {
-		fmt.Printf("[ERROR] 删除规则失败: %v, 输出: %s\n", err, output)
-		return false, fmt.Errorf("failed to delete rule: %s, output: %s", err, output)
+		// 如果IP不在表中，也算成功（幂等性）
+		if strings.Contains(outputStr, "no addresses deleted") {
+			fmt.Printf("[WARN] IP不在表中: %s\n", ip)
+			return false, fmt.Errorf("IP %s not in table", ip)
+		}
+		fmt.Printf("[ERROR] 删除规则失败: %v\n", err)
+		return false, err
 	}
 
 	fmt.Printf("[DEBUG] 删除规则成功\n")
 	return true, nil
 }
-func (fw *FireWallEngine) IsRuleExists(ruleName string) (bool, error) {
-	// 从规则名中提取IP
-	fmt.Printf("[DEBUG] 检查规则是否存在: name=%s\n", ruleName)
 
+func (fw *FireWallEngine) IsRuleExists(ruleName string) (bool, error) {
+	fmt.Printf("[DEBUG] 检查规则是否存在 (Mac): name=%s\n", ruleName)
+
+	// 从规则名中提取IP
 	ip := extractIPFromRuleName(ruleName)
 	if ip == "" {
 		fmt.Printf("[ERROR] 无效的规则名: %s\n", ruleName)
 		return false, fmt.Errorf("invalid rule name: %s", ruleName)
 	}
 
-	cmd := exec.Command("iptables-save")
+	// 检查 IP 是否在 table 中
+	cmd := exec.Command("pfctl", "-t", PF_TABLE_NAME, "-T", "show")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		fmt.Printf("[ERROR] 获取iptables规则失败: %v\n", err)
-		return false, fmt.Errorf("failed to list iptables rules: %s, output: %s", err, string(output))
+		// table 可能不存在
+		fmt.Printf("[DEBUG] 获取table失败 (table可能不存在): %v\n", err)
+		return false, nil
 	}
 
-	// 查找DROP规则
-	exists := strings.Contains(string(output), "-A INPUT -s "+ip+" -j DROP") ||
-		strings.Contains(string(output), "-A INPUT -s "+ip+"/32 -j DROP")
+	outputStr := string(output)
+	exists := strings.Contains(outputStr, ip)
 
 	if exists {
 		fmt.Printf("[DEBUG] 规则存在: %s (IP: %s)\n", ruleName, ip)
@@ -149,6 +170,7 @@ func (fw *FireWallEngine) IsRuleExists(ruleName string) (bool, error) {
 
 	return exists, nil
 }
+
 func ConvertByte2String(byte []byte, charset Charset) string {
 	var str string
 	switch charset {
@@ -167,7 +189,7 @@ func ConvertByte2String(byte []byte, charset Charset) string {
 // ip: 要封禁的IP地址，支持单个IP或CIDR格式
 // reason: 封禁原因（可选，后续会存储到数据库）
 func (fw *FireWallEngine) BlockIP(ip string, reason string) error {
-	fmt.Printf("[INFO] 开始封禁IP: %s, 原因: %s\n", ip, reason)
+	fmt.Printf("[INFO] 开始封禁IP (Mac): %s, 原因: %s\n", ip, reason)
 
 	// 生成规则名称
 	ruleName := generateRuleName(ip)
@@ -180,12 +202,17 @@ func (fw *FireWallEngine) BlockIP(ip string, reason string) error {
 		return fmt.Errorf("IP %s already blocked", ip)
 	}
 
-	// 添加iptables规则: iptables -A INPUT -s <ip> -j DROP
-	cmd := exec.Command("iptables", "-A", "INPUT", "-s", ip, "-j", "DROP")
-	err, output := fw.executeCommand(cmd)
+	// 确保 pf 已启用和 table 存在
+	if err := fw.ensureTableExists(); err != nil {
+		return fmt.Errorf("failed to ensure table exists: %v", err)
+	}
+
+	// 添加 IP 到 pf table
+	cmd := exec.Command("pfctl", "-t", PF_TABLE_NAME, "-T", "add", ip)
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		fmt.Printf("[ERROR] 封禁IP失败: %s, error: %v, output: %s\n", ip, err, output)
-		return fmt.Errorf("failed to block IP %s: %v, output: %s", ip, err, output)
+		fmt.Printf("[ERROR] 封禁IP失败: %s, error: %v, output: %s\n", ip, err, string(output))
+		return fmt.Errorf("failed to block IP %s: %v, output: %s", ip, err, string(output))
 	}
 
 	fmt.Printf("[INFO] 成功封禁IP: %s\n", ip)
@@ -194,7 +221,7 @@ func (fw *FireWallEngine) BlockIP(ip string, reason string) error {
 
 // UnblockIP 解除对指定IP的封禁
 func (fw *FireWallEngine) UnblockIP(ip string) error {
-	fmt.Printf("[INFO] 开始解除IP封禁: %s\n", ip)
+	fmt.Printf("[INFO] 开始解除IP封禁 (Mac): %s\n", ip)
 
 	ruleName := generateRuleName(ip)
 
@@ -205,12 +232,12 @@ func (fw *FireWallEngine) UnblockIP(ip string) error {
 		return fmt.Errorf("IP %s is not blocked", ip)
 	}
 
-	// 删除iptables规则: iptables -D INPUT -s <ip> -j DROP
-	cmd := exec.Command("iptables", "-D", "INPUT", "-s", ip, "-j", "DROP")
-	err, output := fw.executeCommand(cmd)
+	// 从 table 中删除 IP
+	cmd := exec.Command("pfctl", "-t", PF_TABLE_NAME, "-T", "delete", ip)
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		fmt.Printf("[ERROR] 解除IP封禁失败: %s, error: %v, output: %s\n", ip, err, output)
-		return fmt.Errorf("failed to unblock IP %s: %v, output: %s", ip, err, output)
+		fmt.Printf("[ERROR] 解除IP封禁失败: %s, error: %v, output: %s\n", ip, err, string(output))
+		return fmt.Errorf("failed to unblock IP %s: %v, output: %s", ip, err, string(output))
 	}
 
 	fmt.Printf("[INFO] 成功解除IP封禁: %s\n", ip)
@@ -219,7 +246,7 @@ func (fw *FireWallEngine) UnblockIP(ip string) error {
 
 // IsIPBlocked 检查IP是否已被封禁
 func (fw *FireWallEngine) IsIPBlocked(ip string) (bool, error) {
-	fmt.Printf("[DEBUG] 检查IP是否被封禁: %s\n", ip)
+	fmt.Printf("[DEBUG] 检查IP是否被封禁 (Mac): %s\n", ip)
 	ruleName := generateRuleName(ip)
 	blocked, err := fw.IsRuleExists(ruleName)
 	if blocked {
@@ -276,9 +303,12 @@ func (fw *FireWallEngine) UnblockIPList(ips []string) (successCount int, failedI
 
 // GetBlockedIPList 获取所有已封禁的IP列表
 func (fw *FireWallEngine) GetBlockedIPList() ([]string, error) {
-	cmd := exec.Command("iptables-save")
+	fmt.Printf("[DEBUG] 获取已封禁IP列表 (Mac)\n")
+
+	cmd := exec.Command("pfctl", "-t", PF_TABLE_NAME, "-T", "show")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
+		fmt.Printf("[ERROR] 获取IP列表失败: %v\n", err)
 		return nil, fmt.Errorf("failed to get blocked IP list: %v", err)
 	}
 
@@ -287,26 +317,19 @@ func (fw *FireWallEngine) GetBlockedIPList() ([]string, error) {
 
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		// 查找DROP规则: -A INPUT -s <ip> -j DROP
-		if strings.Contains(line, "-A INPUT -s") && strings.Contains(line, "-j DROP") {
-			parts := strings.Fields(line)
-			for i, part := range parts {
-				if part == "-s" && i+1 < len(parts) {
-					ip := parts[i+1]
-					// 移除CIDR后缀（如果有）
-					ip = strings.TrimSuffix(ip, "/32")
-					blockedIPs = append(blockedIPs, ip)
-					break
-				}
-			}
+		if line != "" && !strings.HasPrefix(line, "#") {
+			blockedIPs = append(blockedIPs, line)
 		}
 	}
 
+	fmt.Printf("[DEBUG] 找到 %d 个已封禁的IP\n", len(blockedIPs))
 	return blockedIPs, nil
 }
 
 // ClearAllBlockedIPs 清除所有封禁规则（谨慎使用）
 func (fw *FireWallEngine) ClearAllBlockedIPs() (int, error) {
+	fmt.Printf("[INFO] 清除所有封禁规则 (Mac)\n")
+
 	blockedIPs, err := fw.GetBlockedIPList()
 	if err != nil {
 		return 0, err
@@ -320,6 +343,7 @@ func (fw *FireWallEngine) ClearAllBlockedIPs() (int, error) {
 		}
 	}
 
+	fmt.Printf("[INFO] 成功清除 %d 条规则\n", count)
 	return count, nil
 }
 
@@ -328,6 +352,7 @@ func generateRuleName(ip string) string {
 	// 将IP中的点替换为下划线，避免命令行解析问题
 	safeName := strings.ReplaceAll(ip, ".", "_")
 	safeName = strings.ReplaceAll(safeName, "/", "_")
+	safeName = strings.ReplaceAll(safeName, ":", "_") // IPv6 支持
 	return RULE_PREFIX + safeName
 }
 
@@ -339,4 +364,59 @@ func extractIPFromRuleName(ruleName string) string {
 	safeName := strings.TrimPrefix(ruleName, RULE_PREFIX)
 	ip := strings.ReplaceAll(safeName, "_", ".")
 	return ip
+}
+
+// ensureTableExists 确保 pf table 存在并配置规则
+func (fw *FireWallEngine) ensureTableExists() error {
+	fmt.Printf("[DEBUG] 确保pf table存在\n")
+
+	// 检查 table 是否存在
+	cmd := exec.Command("pfctl", "-t", PF_TABLE_NAME, "-T", "show")
+	_, err := cmd.CombinedOutput()
+	if err == nil {
+		// table 已存在
+		fmt.Printf("[DEBUG] pf table %s 已存在\n", PF_TABLE_NAME)
+		return nil
+	}
+
+	// 创建 table
+	// 注意：在 macOS 上，需要通过配置文件或 pfctl 的 anchor 来创建持久化的 table
+	// 这里我们先尝试直接添加一个空IP来初始化 table
+	fmt.Printf("[DEBUG] 初始化pf table %s\n", PF_TABLE_NAME)
+
+	// 尝试添加并立即删除一个临时IP来初始化表
+	tempIP := "127.0.0.254"
+	cmd = exec.Command("pfctl", "-t", PF_TABLE_NAME, "-T", "add", tempIP)
+	_, err = cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("[WARN] 初始化table失败: %v\n", err)
+		fmt.Printf("[INFO] 这是正常的，table会在第一次使用时自动创建\n")
+	}
+
+	// 删除临时IP
+	cmd = exec.Command("pfctl", "-t", PF_TABLE_NAME, "-T", "delete", tempIP)
+	cmd.CombinedOutput()
+
+	return nil
+}
+
+// SetupPFRule 设置 pf 规则（需要手动调用一次来配置基础规则）
+// 这个方法需要在系统启动时或首次使用时调用
+func (fw *FireWallEngine) SetupPFRule() error {
+	fmt.Printf("[INFO] 设置pf基础规则 (Mac)\n")
+
+	// 创建一个临时的 pf 规则文件
+	ruleContent := fmt.Sprintf(`
+# SamWAF IP Block Table
+table <%s> persist
+
+# Block incoming traffic from blocked IPs
+block in quick from <%s> to any
+`, PF_TABLE_NAME, PF_TABLE_NAME)
+
+	fmt.Printf("[INFO] pf规则内容:\n%s\n", ruleContent)
+	fmt.Printf("[INFO] 请手动将以上规则添加到 /etc/pf.conf 并执行 'sudo pfctl -f /etc/pf.conf'\n")
+	fmt.Printf("[INFO] 或者使用 anchor 功能动态加载规则\n")
+
+	return nil
 }

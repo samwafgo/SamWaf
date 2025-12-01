@@ -134,7 +134,6 @@ func TaskShareDbInfo() {
 		global.GWAF_LOCAL_DB.Create(sharDbBean)
 		global.GWAF_LOCAL_LOG_DB = nil
 		wafdb.InitLogDb("")
-		createLogDbIndex() //重新创建索引
 		global.GDATA_CURRENT_CHANGE = false
 		zlog.Info(innerLogName, "切库完成...")
 	}

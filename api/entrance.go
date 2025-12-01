@@ -50,6 +50,7 @@ type APIGroup struct {
 	WafNotifyChannelApi
 	WafNotifySubscriptionApi
 	WafNotifyLogApi
+	WafFirewallIPBlockApi
 }
 
 var APIGroupAPP = new(APIGroup)
@@ -112,4 +113,6 @@ var (
 	wafCaServerInfoService = waf_service.WafCaServerInfoServiceApp
 
 	wafSqlQueryService = waf_service.WafSqlQueryServiceApp
+
+	wafFirewallIPBlockService = waf_service.WafFirewallIPBlockServiceApp
 )

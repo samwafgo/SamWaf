@@ -256,9 +256,6 @@ func (w *WafFileApi) deleteLogDatabase(filePath string) error {
 		return fmt.Errorf("重新初始化数据库失败: %v", err)
 	}
 
-	// 5. 重新创建索引
-	global.GWAF_CHAN_CREATE_LOG_INDEX <- "1"
-
 	return nil
 }
 

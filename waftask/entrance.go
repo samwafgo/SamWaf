@@ -72,6 +72,13 @@ func InitTaskDb() []model.Task {
 		TaskMethod: enums.TASK_CLEAR_CC_WINDOWS,
 	})
 	syncTaskToDb(model.Task{
+		TaskName:   "每5分钟进行防火墙IP封禁规则清理",
+		TaskUnit:   enums.TASK_MIN,
+		TaskValue:  5,
+		TaskAt:     "",
+		TaskMethod: enums.TASK_FIREWALL_CLEAN_EXPIRED,
+	})
+	syncTaskToDb(model.Task{
 		TaskName:   "每天30分钟删除历史下载文件",
 		TaskUnit:   enums.TASK_MIN,
 		TaskValue:  30,
@@ -133,13 +140,7 @@ func InitTaskDb() []model.Task {
 		TaskAt:     "03:00",
 		TaskMethod: enums.TASK_SSL_PATH_LOAD,
 	})
-	syncTaskToDb(model.Task{
-		TaskName:   "每天04:00进行索引创建",
-		TaskUnit:   enums.TASK_DAY,
-		TaskValue:  1,
-		TaskAt:     "04:00",
-		TaskMethod: enums.TASK_CREATE_DB_INDEX,
-	})
+
 	syncTaskToDb(model.Task{
 		TaskName:   "每天05:00进行批量任务",
 		TaskUnit:   enums.TASK_DAY,

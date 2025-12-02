@@ -77,11 +77,12 @@ func (fw *FireWallEngine) executeCommand(cmd *exec.Cmd) (error error, printstr s
 }
 
 func (fw *FireWallEngine) AddRule(ruleName, ipToAdd, action, proc, localport string) error {
-	// iptables -A INPUT -s <ip> -j DROP
+	// iptables -I INPUT 1 -s <ip> -j DROP
+	// 使用 -I 插入到链的开头，确保规则优先执行
 	fmt.Printf("[DEBUG] 添加防火墙规则: ip=%s\n", ipToAdd)
 
-	cmd := exec.Command("iptables", "-A", "INPUT", "-s", ipToAdd, "-j", "DROP")
-	fmt.Printf("[DEBUG] 执行命令: iptables -A INPUT -s %s -j DROP\n", ipToAdd)
+	cmd := exec.Command("iptables", "-I", "INPUT", "1", "-s", ipToAdd, "-j", "DROP")
+	fmt.Printf("[DEBUG] 执行命令: iptables -I INPUT 1 -s %s -j DROP\n", ipToAdd)
 
 	err, output := fw.executeCommand(cmd)
 	if err != nil {
@@ -180,8 +181,9 @@ func (fw *FireWallEngine) BlockIP(ip string, reason string) error {
 		return fmt.Errorf("IP %s already blocked", ip)
 	}
 
-	// 添加iptables规则: iptables -A INPUT -s <ip> -j DROP
-	cmd := exec.Command("iptables", "-A", "INPUT", "-s", ip, "-j", "DROP")
+	// 添加iptables规则: iptables -I INPUT 1 -s <ip> -j DROP
+	// 使用 -I 插入到链的开头，确保规则在 ESTABLISHED 连接规则之前执行
+	cmd := exec.Command("iptables", "-I", "INPUT", "1", "-s", ip, "-j", "DROP")
 	err, output := fw.executeCommand(cmd)
 	if err != nil {
 		fmt.Printf("[ERROR] 封禁IP失败: %s, error: %v, output: %s\n", ip, err, output)

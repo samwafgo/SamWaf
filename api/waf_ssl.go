@@ -110,6 +110,9 @@ func (s *WafSslConfigApi) NotifySslUpdate(oldConfig model.SslConfig, newConfig m
 			zlog.Error(innerLogName, "ssl host update:", err.Error())
 			continue
 		}
+
+		hosts.Certfile = newConfig.CertContent
+		hosts.Keyfile = newConfig.KeyContent
 		var chanInfo = spec.ChanCommonHost{
 			HostCode:   hosts.Code,
 			Type:       enums.ChanTypeSSL,

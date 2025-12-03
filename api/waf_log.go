@@ -10,7 +10,6 @@ import (
 	"SamWaf/utils"
 	"SamWaf/wafdb"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"net/url"
 	"os"
@@ -18,6 +17,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 type WafLogAPi struct {
@@ -251,6 +252,40 @@ func (w *WafLogAPi) GetAllIpTagApi(c *gin.Context) {
 		response.FailWithMessage("访问ip tag 失败:"+err2.Error(), c)
 	} else {
 		response.OkWithDetailed(ipAttackTags, "获取成功", c)
+	}
+}
+
+// DeleteTagByNameApi 删除指定标签
+func (w *WafLogAPi) DeleteTagByNameApi(c *gin.Context) {
+	var req request.WafAttackTagDeleteReq
+	err := c.ShouldBindJSON(&req)
+	if err != nil {
+		response.FailWithMessage("参数解析失败: "+err.Error(), c)
+		return
+	}
+
+	if global.GDATA_CURRENT_CHANGE {
+		//如果正在切换库 跳过
+		response.FailWithMessage("正在切换数据库请等待", c)
+		return
+	}
+
+	// 验证标签名称
+	if req.TagName == "" || req.TagName == "正常" {
+		response.FailWithMessage("无效的标签名称", c)
+		return
+	}
+
+	// 执行删除
+	err2 := wafLogService.DeleteTagByNameApi(req.TagName, req.DeleteLogs)
+	if err2 != nil {
+		response.FailWithMessage("删除失败: "+err2.Error(), c)
+	} else {
+		if req.DeleteLogs {
+			response.OkWithMessage("标签及相关日志删除成功", c)
+		} else {
+			response.OkWithMessage("标签统计数据删除成功", c)
+		}
 	}
 }
 func GenerateRawHTTPRequest(weblog innerbean.WebLog) string {

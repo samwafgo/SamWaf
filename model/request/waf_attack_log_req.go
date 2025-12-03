@@ -36,3 +36,8 @@ type WafAttackIpTagSearch struct {
 	SrcIp string `json:"src_ip" form:"src_ip"` //请求IP
 	request.PageInfo
 }
+
+type WafAttackTagDeleteReq struct {
+	TagName    string `json:"tag_name" binding:"required"` //标签名称
+	DeleteLogs bool   `json:"delete_logs"`                 //是否删除关联日志
+}

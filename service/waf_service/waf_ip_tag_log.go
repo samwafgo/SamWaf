@@ -156,3 +156,48 @@ order by  sum(cnt) desc
 
 	return results, nil
 }
+
+// DeleteTagByNameApi 删除指定标签（支持批量删除大数据量）
+func (receiver *WafLogService) DeleteTagByNameApi(tagName string, deleteLogs bool) error {
+	ipTagDB := global.GetIPTagDB()
+
+	// 1. 删除 ip_tags 表中的标签数据
+	deleteTagQuery := `DELETE FROM ip_tags WHERE tenant_id=? AND user_code=? AND ip_tag=?`
+	if err := ipTagDB.Exec(deleteTagQuery, global.GWAF_TENANT_ID, global.GWAF_USER_CODE, tagName).Error; err != nil {
+		return fmt.Errorf("删除标签统计数据失败: %v", err)
+	}
+
+	// 2. 如果需要删除关联的日志数据
+	if deleteLogs {
+		// 使用批量删除，避免内存溢出
+		// 每次删除一批数据，直到全部删除完成
+		batchSize := 1000 // 每批删除1000条
+
+		for {
+			// 分批删除日志
+			deleteLogQuery := `
+				DELETE FROM web_logs 
+				WHERE rowid IN (
+					SELECT rowid FROM web_logs 
+					WHERE tenant_id=? AND user_code=? AND rule=? 
+					LIMIT ?
+				)
+			`
+			result := global.GWAF_LOCAL_LOG_DB.Exec(deleteLogQuery, global.GWAF_TENANT_ID, global.GWAF_USER_CODE, tagName, batchSize)
+
+			if result.Error != nil {
+				return fmt.Errorf("删除关联日志数据失败: %v", result.Error)
+			}
+
+			// 如果本批没有删除任何记录，说明已经删除完毕
+			if result.RowsAffected == 0 {
+				break
+			}
+
+			// 短暂休眠，避免长时间占用数据库
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+
+	return nil
+}

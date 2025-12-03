@@ -2,6 +2,7 @@ package router
 
 import (
 	"SamWaf/api"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -20,4 +21,5 @@ func (receiver *LogRouter) InitLogRouter(group *gin.RouterGroup) {
 	wafLogRouter.GET("/samwaf/waflog/attack/httpcopymask", logApi.GetHttpCopyMaskApi)
 	wafLogRouter.POST("/samwaf/waflog/attack/attackiplist", logApi.GetAttackIPListApi)
 	wafLogRouter.GET("/samwaf/waflog/attack/alliptag", logApi.GetAllIpTagApi)
+	wafLogRouter.POST("/samwaf/waflog/attack/deletetagbyname", logApi.DeleteTagByNameApi)
 }

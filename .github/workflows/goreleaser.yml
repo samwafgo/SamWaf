@@ -31,7 +31,7 @@ jobs:
       - name: Install dependencies for cross-compilation
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu build-essential
+          sudo apt-get install -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu build-essential musl-tools
       
       - name: Run GoReleaser (Linux/Windows only)
         uses: goreleaser/goreleaser-action@v4

@@ -28,7 +28,7 @@ builds:
       - CGO_ENABLED=1
       - CC=x86_64-linux-musl-gcc
       - CXX=x86_64-linux-musl-g++
-      - CGO_CFLAGS=-Wno-unused-variable
+      - CGO_CFLAGS=-Wno-unused-variable -D_LARGEFILE64_SOURCE
       - GOAMD64=v1
     goos:
       - linux
@@ -85,7 +85,7 @@ builds:
       - CGO_ENABLED=1
       - CC=x86_64-linux-musl-gcc
       - CXX=x86_64-linux-musl-g++
-      - CGO_CFLAGS=-Wno-unused-variable
+      - CGO_CFLAGS=-Wno-unused-variable -D_LARGEFILE64_SOURCE
       - GOAMD64=v1
     goos:
       - linux

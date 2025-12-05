@@ -7,8 +7,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"github.com/lionsoul2014/ip2region/binding/golang/xdb"
-	"github.com/oschwald/geoip2-golang"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -18,17 +16,40 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/lionsoul2014/ip2region/binding/golang/xdb"
+	"github.com/oschwald/geoip2-golang"
 )
 
 func GetExternalIp() string {
-	resp, err := http.Get("http://myexternalip.com/raw")
+	// 创建带超时的HTTP客户端,避免DNS解析问题
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{
+				Timeout:   5 * time.Second,
+				KeepAlive: 5 * time.Second,
+			}).DialContext,
+			TLSHandshakeTimeout:   5 * time.Second,
+			ResponseHeaderTimeout: 5 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
+	}
+
+	resp, err := client.Get("http://myexternalip.com/raw")
 	if err != nil {
+		zlog.Debug("GetExternalIp failed: %v", err)
 		return ""
 	}
 	defer resp.Body.Close()
-	//io.Copy(os.Stdout, resp.Body)
-	body, _ := ioutil.ReadAll(resp.Body)
-	clientIP := fmt.Sprintf("%s", string(body))
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		zlog.Debug("ReadAll failed: %v", err)
+		return ""
+	}
+
+	clientIP := strings.TrimSpace(string(body))
 	return clientIP
 }
 

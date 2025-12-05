@@ -98,6 +98,12 @@ func (WebLog) TableName() string {
 	return "web_logs"
 }
 
+// IsSafeBot 判断是否是安全bot
+// 返回: true表示是安全bot（是bot且风险等级为0），false表示不是
+func (w *WebLog) IsSafeBot() bool {
+	return w.IsBot == 1 && w.RISK_LEVEL == 0
+}
+
 // GetIPFailureCount 获取IP在指定时间窗口内的失败次数（用于规则引擎）
 // minutes: 时间窗口（分钟）
 // 返回: 失败次数
@@ -107,7 +113,7 @@ func (w *WebLog) GetIPFailureCount(minutes int64) int64 {
 	}
 
 	// 如果是bot且危险程度是0，不统计失败次数
-	if w.IsBot == 1 && w.RISK_LEVEL == 0 {
+	if w.IsSafeBot() {
 		return 0
 	}
 
@@ -132,7 +138,7 @@ func (w *WebLog) RecordIPFailureThreshold(minutes int64, count int64) {
 	}
 
 	// 如果是bot且危险程度是0，不记录阈值
-	if w.IsBot == 1 && w.RISK_LEVEL == 0 {
+	if w.IsSafeBot() {
 		return
 	}
 

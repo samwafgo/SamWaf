@@ -100,7 +100,13 @@ func (waf *WafTunnelEngine) handleUDPData(serverConn *net.UDPConn, clientAddr *n
 		return
 	}
 
+	// 检查时间访问权限
+	if !CheckTimeAccess("UDP", clientIP, clientPort, serverPort, tunnelInfo.Tunnel) {
+		return
+	}
+
 	// 检查出站连接数限制
+
 	if tunnelInfo.Tunnel.MaxOutConnect > 0 {
 		outConnCount := waf.UDPConnections.GetPortConnsCountByType(port, waftunnelmodel.ConnTypeTarget)
 		if outConnCount >= tunnelInfo.Tunnel.MaxOutConnect {

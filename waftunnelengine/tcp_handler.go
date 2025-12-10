@@ -108,7 +108,14 @@ func (waf *WafTunnelEngine) handleTCPConnection(clientConn net.Conn, port int) {
 		return
 	}
 
+	// 检查时间访问权限
+	if !CheckTimeAccess("TCP", clientIP, clientPort, serverPort, tunnelInfo.Tunnel) {
+		clientConn.Close()
+		return
+	}
+
 	// 将客户端连接添加到活动连接列表，标记为来源连接
+
 	waf.TCPConnections.AddConn(port, clientConn, waftunnelmodel.ConnTypeSource)
 	defer func() {
 		clientConn.Close()

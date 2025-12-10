@@ -218,6 +218,34 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return tx.Migrator().DropTable(&model.FirewallIPBlock{})
 			},
 		},
+		// 迁移5: 为 tunnel 表添加 allowed_time_ranges 字段
+		{
+			ID: "202512100001_add_tunnel_allowed_time_ranges",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202512100001: 为 tunnel 表添加 allowed_time_ranges 字段")
+
+				// 检查字段是否已存在
+				if tx.Migrator().HasColumn(&model.Tunnel{}, "allowed_time_ranges") {
+					zlog.Info("allowed_time_ranges 字段已存在，跳过添加")
+					return nil
+				}
+
+				// 添加字段，默认值为空字符串（表示不限制）
+				if err := tx.Migrator().AddColumn(&model.Tunnel{}, "allowed_time_ranges"); err != nil {
+					return fmt.Errorf("添加 allowed_time_ranges 字段失败: %w", err)
+				}
+
+				zlog.Info("allowed_time_ranges 字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202512100001: 删除 tunnel 表的 allowed_time_ranges 字段")
+				if tx.Migrator().HasColumn(&model.Tunnel{}, "allowed_time_ranges") {
+					return tx.Migrator().DropColumn(&model.Tunnel{}, "allowed_time_ranges")
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

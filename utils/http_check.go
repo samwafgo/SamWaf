@@ -51,16 +51,16 @@ func checkAttachment(res *http.Response, contentType string) bool {
 		"application/vnd.android.package-archive", // .apk
 
 		// 虚拟机/磁盘镜像
-		"application/x-qemu-disk",           // .qcow2
-		"application/x-vmdk",                // .vmdk
-		"application/x-vdi",                 // .vdi
+		"application/x-qemu-disk", // .qcow2
+		"application/x-vmdk",      // .vmdk
+		"application/x-vdi",       // .vdi
 		"application/x-vhd",
 		"application/x-vhdx",
 		"application/x-ovf",
 		"application/ovf",
 		"application/x-ova",
 		"application/ova",
-		"application/x-disk-image",          // .img, .raw
+		"application/x-disk-image", // .img, .raw
 
 		// 其他压缩格式
 		"application/x-7z-compressed",
@@ -72,13 +72,13 @@ func checkAttachment(res *http.Response, contentType string) bool {
 		"application/zstd",
 
 		// 安装包/可执行文件
-		"application/x-msdownload",          // .exe
-		"application/x-msi",                 // .msi
-		"application/x-apple-diskimage",     // .dmg
-		"application/x-executable",          // Linux binary
-		"application/x-sharedlib",           // .so
+		"application/x-msdownload",              // .exe
+		"application/x-msi",                     // .msi
+		"application/x-apple-diskimage",         // .dmg
+		"application/x-executable",              // Linux binary
+		"application/x-sharedlib",               // .so
 		"application/vnd.debian.binary-package", // .deb
-		"application/x-rpm",                 // .rpm
+		"application/x-rpm",                     // .rpm
 
 		// 音视频
 		"video/*",
@@ -177,11 +177,34 @@ func IsStaticAssist(res *http.Response, contentType string) bool {
 		zlog.Debug(fmt.Sprintf("检测到附件 %s", res.Request.URL.String()))
 		return true
 	}
+
+	// 1. 首先检查响应的Content-Type
+	// 如果响应的Content-Type明确是静态资源类型，直接返回true
+	lowerContentType := strings.ToLower(contentType)
+	staticContentTypes := []string{
+		"image/", // 所有图片类型: image/jpeg, image/png, image/gif, image/webp, image/svg+xml 等
+		"font/",  // 所有字体类型
+		"audio/", // 所有音频类型
+		"video/", // 所有视频类型
+		"text/css",
+		"text/javascript",
+		"application/javascript",
+		"application/x-javascript",
+		"application/font",
+		"application/x-font",
+	}
+	for _, staticType := range staticContentTypes {
+		if strings.HasPrefix(lowerContentType, staticType) || strings.Contains(lowerContentType, staticType) {
+			return true
+		}
+	}
+
 	// 检查返回内容，accept-ranges头，如果为bytes，则表示支持断点续传，是静态资源
 	acceptRanges := res.Header.Get("Accept-Ranges")
-	if acceptRanges == "bytes"  {
+	if acceptRanges == "bytes" {
 		return true
 	}
+
 	// 检查请求的Accept头，判断是否为资源类型请求
 	if res.Request != nil {
 		// 检查Sec-Fetch-Dest头，这是一个更明确的指示
@@ -213,7 +236,7 @@ func IsStaticAssist(res *http.Response, contentType string) bool {
 			path := strings.ToLower(res.Request.URL.Path)
 			staticExtensions := []string{".js", ".css", ".jpg", ".jpeg", ".png", ".gif", ".ico",
 				".svg", ".webp", ".woff", ".woff2", ".ttf", ".otf", ".eot", ".mp3", ".wav",
-				".mp4", ".webm", ".pdf", ".swf"}
+				".mp4", ".webm", ".pdf", ".swf", ".bmp", ".tiff", ".tif", ".avif"}
 
 			for _, ext := range staticExtensions {
 				if strings.HasSuffix(path, ext) {

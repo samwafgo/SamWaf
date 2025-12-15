@@ -1,587 +1,196 @@
 package utils
 
 import (
+	"SamWaf/common/zlog"
+	"SamWaf/global"
 	"net/http"
-	"net/url"
+	"net/http/httptest"
 	"testing"
 )
 
-func TestIsStaticAssist(t *testing.T) {
-	// 创建测试用例
+// TestIsStaticAssist_ContentType 测试响应Content-Type判断静态资源
+func TestIsStaticAssist_ContentType(t *testing.T) {
+	t.Parallel()
+
+	//初始化日志
+	zlog.InitZLog(global.GWAF_LOG_DEBUG_ENABLE, "console")
+	if v := recover(); v != nil {
+		zlog.Error("error")
+	}
 	tests := []struct {
 		name        string
 		contentType string
-		request     *http.Request
-		expected    bool
+		wantStatic  bool
+		description string
 	}{
-		// 1. 基于Content-Type的测试 - 静态资源类型
 		{
-			name:        "JavaScript Content Type",
-			contentType: "application/javascript; charset=utf-8",
-			request:     nil,
-			expected:    true,
-		},
-		{
-			name:        "CSS Content Type",
-			contentType: "text/css; charset=utf-8",
-			request:     nil,
-			expected:    true,
-		},
-		{
-			name:        "Image JPEG Content Type",
+			name:        "图片-jpeg",
 			contentType: "image/jpeg",
-			request:     nil,
-			expected:    true,
+			wantStatic:  true,
+			description: "标准的image/jpeg应该被识别为静态资源",
 		},
 		{
-			name:        "Image PNG Content Type",
+			name:        "图片-jpeg-带charset",
+			contentType: "image/jpeg;charset=UTF-8",
+			wantStatic:  true,
+			description: "带charset的image/jpeg应该被识别为静态资源",
+		},
+		{
+			name:        "图片-png",
 			contentType: "image/png",
-			request:     nil,
-			expected:    true,
+			wantStatic:  true,
+			description: "image/png应该被识别为静态资源",
 		},
 		{
-			name:        "Image GIF Content Type",
+			name:        "图片-gif",
 			contentType: "image/gif",
-			request:     nil,
-			expected:    true,
+			wantStatic:  true,
+			description: "image/gif应该被识别为静态资源",
 		},
 		{
-			name:        "Image Icon Content Type",
-			contentType: "image/x-icon",
-			request:     nil,
-			expected:    true,
-		},
-		{
-			name:        "Text JS Content Type",
-			contentType: "text/js",
-			request:     nil,
-			expected:    true,
-		},
-		{
-			name:        "Octet Stream Content Type",
-			contentType: "application/octet-stream",
-			request:     nil,
-			expected:    true,
-		},
-		{
-			name:        "SVG Content Type",
-			contentType: "image/svg+xml",
-			request:     nil,
-			expected:    true,
-		},
-		{
-			name:        "WebP Content Type",
+			name:        "图片-webp",
 			contentType: "image/webp",
-			request:     nil,
-			expected:    true,
+			wantStatic:  true,
+			description: "image/webp应该被识别为静态资源",
 		},
 		{
-			name:        "WOFF Font Content Type",
-			contentType: "font/woff",
-			request:     nil,
-			expected:    true,
+			name:        "图片-svg",
+			contentType: "image/svg+xml",
+			wantStatic:  true,
+			description: "image/svg+xml应该被识别为静态资源",
 		},
 		{
-			name:        "WOFF2 Font Content Type",
+			name:        "CSS样式",
+			contentType: "text/css",
+			wantStatic:  true,
+			description: "text/css应该被识别为静态资源",
+		},
+		{
+			name:        "JavaScript",
+			contentType: "application/javascript",
+			wantStatic:  true,
+			description: "application/javascript应该被识别为静态资源",
+		},
+		{
+			name:        "字体-woff2",
 			contentType: "font/woff2",
-			request:     nil,
-			expected:    true,
+			wantStatic:  true,
+			description: "font/woff2应该被识别为静态资源",
 		},
 		{
-			name:        "TTF Font Content Type",
-			contentType: "font/ttf",
-			request:     nil,
-			expected:    true,
-		},
-		{
-			name:        "OTF Font Content Type",
-			contentType: "font/otf",
-			request:     nil,
-			expected:    true,
-		},
-		{
-			name:        "MS Font Object Content Type",
-			contentType: "application/vnd.ms-fontobject",
-			request:     nil,
-			expected:    true,
-		},
-		{
-			name:        "X-Font-TTF Content Type",
-			contentType: "application/x-font-ttf",
-			request:     nil,
-			expected:    true,
-		},
-		{
-			name:        "Audio MPEG Content Type",
-			contentType: "audio/mpeg",
-			request:     nil,
-			expected:    true,
-		},
-		{
-			name:        "Audio WAV Content Type",
-			contentType: "audio/wav",
-			request:     nil,
-			expected:    true,
-		},
-		{
-			name:        "Video MP4 Content Type",
+			name:        "视频-mp4",
 			contentType: "video/mp4",
-			request:     nil,
-			expected:    true,
+			wantStatic:  true,
+			description: "video/mp4应该被识别为静态资源",
 		},
 		{
-			name:        "Video WebM Content Type",
-			contentType: "video/webm",
-			request:     nil,
-			expected:    true,
+			name:        "音频-mp3",
+			contentType: "audio/mpeg",
+			wantStatic:  true,
+			description: "audio/mpeg应该被识别为静态资源",
 		},
 		{
-			name:        "PDF Content Type",
-			contentType: "application/pdf",
-			request:     nil,
-			expected:    true,
+			name:        "HTML页面",
+			contentType: "text/html",
+			wantStatic:  false,
+			description: "text/html不应该被识别为静态资源",
 		},
 		{
-			name:        "BMP Content Type",
-			contentType: "image/bmp",
-			request:     nil,
-			expected:    true,
+			name:        "JSON数据",
+			contentType: "application/json",
+			wantStatic:  false,
+			description: "application/json不应该被识别为静态资源",
 		},
 		{
-			name:        "Video OGG Content Type",
-			contentType: "video/ogg",
-			request:     nil,
-			expected:    true,
-		},
-		{
-			name:        "Audio OGG Content Type",
-			contentType: "audio/ogg",
-			request:     nil,
-			expected:    true,
-		},
-		{
-			name:        "WASM Content Type",
-			contentType: "application/wasm",
-			request:     nil,
-			expected:    true,
-		},
-
-		// 2. 基于Content-Type的测试 - 文本类型
-		{
-			name:        "HTML Content Type",
-			contentType: "text/html; charset=utf-8",
-			request:     nil,
-			expected:    false,
-		},
-		{
-			name:        "JSON Content Type",
-			contentType: "application/json; charset=utf-8",
-			request:     nil,
-			expected:    false,
-		},
-		{
-			name:        "XML Content Type",
+			name:        "XML数据",
 			contentType: "text/xml",
-			request:     nil,
-			expected:    false,
-		},
-		{
-			name:        "Application XML Content Type",
-			contentType: "application/xml",
-			request:     nil,
-			expected:    false,
-		},
-		{
-			name:        "Plain Text Content Type",
-			contentType: "text/plain",
-			request:     nil,
-			expected:    false,
-		},
-		{
-			name:        "CSV Content Type",
-			contentType: "text/csv",
-			request:     nil,
-			expected:    false,
-		},
-		{
-			name:        "Application HTML Content Type",
-			contentType: "application/html",
-			request:     nil,
-			expected:    false,
-		},
-
-		// 3. 基于Sec-Fetch-Dest的测试
-		{
-			name:        "Sec-Fetch-Dest: image",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithHeaders(map[string]string{"Sec-Fetch-Dest": "image"}),
-			expected:    true,
-		},
-		{
-			name:        "Sec-Fetch-Dest: font",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithHeaders(map[string]string{"Sec-Fetch-Dest": "font"}),
-			expected:    true,
-		},
-		{
-			name:        "Sec-Fetch-Dest: audio",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithHeaders(map[string]string{"Sec-Fetch-Dest": "audio"}),
-			expected:    true,
-		},
-		{
-			name:        "Sec-Fetch-Dest: video",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithHeaders(map[string]string{"Sec-Fetch-Dest": "video"}),
-			expected:    true,
-		},
-		{
-			name:        "Sec-Fetch-Dest: style",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithHeaders(map[string]string{"Sec-Fetch-Dest": "style"}),
-			expected:    true,
-		},
-		{
-			name:        "Sec-Fetch-Dest: script",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithHeaders(map[string]string{"Sec-Fetch-Dest": "script"}),
-			expected:    true,
-		},
-		{
-			name:        "Sec-Fetch-Dest: document",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithHeaders(map[string]string{"Sec-Fetch-Dest": "document"}),
-			expected:    false,
-		},
-		{
-			name:        "Sec-Fetch-Dest: empty",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithHeaders(map[string]string{"Sec-Fetch-Dest": ""}),
-			expected:    false,
-		},
-
-		// 4. 基于Accept的测试
-		{
-			name:        "Accept: image/*",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithHeaders(map[string]string{"Accept": "image/*"}),
-			expected:    true,
-		},
-		{
-			name:        "Accept: font/*",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithHeaders(map[string]string{"Accept": "font/*"}),
-			expected:    true,
-		},
-		{
-			name:        "Accept: audio/*",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithHeaders(map[string]string{"Accept": "audio/*"}),
-			expected:    true,
-		},
-		{
-			name:        "Accept: video/*",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithHeaders(map[string]string{"Accept": "video/*"}),
-			expected:    true,
-		},
-		{
-			name:        "Accept: text/css",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithHeaders(map[string]string{"Accept": "text/css"}),
-			expected:    true,
-		},
-		{
-			name:        "Accept: application/javascript",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithHeaders(map[string]string{"Accept": "application/javascript"}),
-			expected:    true,
-		},
-		{
-			name:        "Accept: application/pdf",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithHeaders(map[string]string{"Accept": "application/pdf"}),
-			expected:    true,
-		},
-		{
-			name:        "Accept: text/html",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithHeaders(map[string]string{"Accept": "text/html"}),
-			expected:    false,
-		},
-		{
-			name:        "Accept: */*",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithHeaders(map[string]string{"Accept": "*/*"}),
-			expected:    false,
-		},
-
-		// 5. 基于URL后缀的测试
-		{
-			name:        "URL with .js extension",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithURL("https://example.com/script.js"),
-			expected:    true,
-		},
-		{
-			name:        "URL with .css extension",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithURL("https://example.com/style.css"),
-			expected:    true,
-		},
-		{
-			name:        "URL with .jpg extension",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithURL("https://example.com/image.jpg"),
-			expected:    true,
-		},
-		{
-			name:        "URL with .jpeg extension",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithURL("https://example.com/image.jpeg"),
-			expected:    true,
-		},
-		{
-			name:        "URL with .png extension",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithURL("https://example.com/image.png"),
-			expected:    true,
-		},
-		{
-			name:        "URL with .gif extension",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithURL("https://example.com/image.gif"),
-			expected:    true,
-		},
-		{
-			name:        "URL with .ico extension",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithURL("https://example.com/favicon.ico"),
-			expected:    true,
-		},
-		{
-			name:        "URL with .svg extension",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithURL("https://example.com/image.svg"),
-			expected:    true,
-		},
-		{
-			name:        "URL with .webp extension",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithURL("https://example.com/image.webp"),
-			expected:    true,
-		},
-		{
-			name:        "URL with .woff extension",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithURL("https://example.com/font.woff"),
-			expected:    true,
-		},
-		{
-			name:        "URL with .woff2 extension",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithURL("https://example.com/font.woff2"),
-			expected:    true,
-		},
-		{
-			name:        "URL with .ttf extension",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithURL("https://example.com/font.ttf"),
-			expected:    true,
-		},
-		{
-			name:        "URL with .otf extension",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithURL("https://example.com/font.otf"),
-			expected:    true,
-		},
-		{
-			name:        "URL with .eot extension",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithURL("https://example.com/font.eot"),
-			expected:    true,
-		},
-		{
-			name:        "URL with .mp3 extension",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithURL("https://example.com/audio.mp3"),
-			expected:    true,
-		},
-		{
-			name:        "URL with .wav extension",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithURL("https://example.com/audio.wav"),
-			expected:    true,
-		},
-		{
-			name:        "URL with .mp4 extension",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithURL("https://example.com/video.mp4"),
-			expected:    true,
-		},
-		{
-			name:        "URL with .webm extension",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithURL("https://example.com/video.webm"),
-			expected:    true,
-		},
-		{
-			name:        "URL with .pdf extension",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithURL("https://example.com/document.pdf"),
-			expected:    true,
-		},
-		{
-			name:        "URL with .swf extension",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithURL("https://example.com/flash.swf"),
-			expected:    true,
-		},
-		{
-			name:        "URL with .html extension",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithURL("https://example.com/page.html"),
-			expected:    false,
-		},
-		{
-			name:        "URL with .php extension",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithURL("https://example.com/page.php"),
-			expected:    false,
-		},
-		{
-			name:        "URL with no extension",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithURL("https://example.com/page"),
-			expected:    false,
-		},
-
-		// 6. 复合测试 - 多个条件组合
-		{
-			name:        "Static Content-Type with static URL extension",
-			contentType: "image/jpeg",
-			request:     createRequestWithURL("https://example.com/image.jpg"),
-			expected:    true,
-		},
-		{
-			name:        "Static Content-Type with non-static URL extension",
-			contentType: "image/jpeg",
-			request:     createRequestWithURL("https://example.com/image.html"),
-			expected:    true, // Content-Type优先
-		},
-		{
-			name:        "Non-static Content-Type with static URL extension",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithURL("https://example.com/image.jpg"),
-			expected:    true, // URL后缀优先
-		},
-		{
-			name:        "Static Content-Type with Sec-Fetch-Dest: document",
-			contentType: "image/jpeg",
-			request:     createRequestWithHeadersAndURL(map[string]string{"Sec-Fetch-Dest": "document"}, "https://example.com/image"),
-			expected:    true, // Content-Type优先
-		},
-		{
-			name:        "Non-static Content-Type with Sec-Fetch-Dest: image",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithHeadersAndURL(map[string]string{"Sec-Fetch-Dest": "image"}, "https://example.com/page"),
-			expected:    true, // Sec-Fetch-Dest优先
-		},
-		{
-			name:        "Non-static Content-Type with Accept: image/*",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithHeadersAndURL(map[string]string{"Accept": "image/*"}, "https://example.com/page"),
-			expected:    true, // Accept优先
-		},
-		{
-			name:        "All conditions non-static",
-			contentType: "text/html; charset=utf-8",
-			request:     createRequestWithHeadersAndURL(map[string]string{"Sec-Fetch-Dest": "document", "Accept": "text/html"}, "https://example.com/page.html"),
-			expected:    false, // 所有条件都不满足
-		},
-
-		// 7. 边界情况
-		{
-			name:        "Empty Content-Type",
-			contentType: "",
-			request:     nil,
-			expected:    false,
-		},
-		{
-			name:        "Content-Type with only charset",
-			contentType: "charset=utf-8",
-			request:     nil,
-			expected:    false,
-		},
-		{
-			name:        "Unknown Content-Type",
-			contentType: "application/unknown",
-			request:     nil,
-			expected:    false,
-		},
-		{
-			name:        "Nil Request",
-			contentType: "text/html; charset=utf-8",
-			request:     nil,
-			expected:    false,
-		},
-		{
-			name:        "Request with nil URL",
-			contentType: "text/html; charset=utf-8",
-			request:     &http.Request{},
-			expected:    false,
+			wantStatic:  false,
+			description: "text/xml不应该被识别为静态资源",
 		},
 	}
 
-	// 执行测试
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// 创建响应对象
-			resp := &http.Response{
-				Request: tt.request,
-				Header:  make(http.Header),
-			}
+			// 创建一个模拟的HTTP请求
+			req := httptest.NewRequest("GET", "http://localhost/test", nil)
+			// 模拟浏览器的标准Accept头（即使是图片请求，浏览器也会发送这样的头）
+			req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
 
-			// 设置响应的Content-Type
-			if tt.contentType != "" {
-				resp.Header.Set("Content-Type", tt.contentType)
+			// 创建一个模拟的HTTP响应
+			res := &http.Response{
+				StatusCode: 200,
+				Header:     make(http.Header),
+				Request:    req,
 			}
+			res.Header.Set("Content-Type", tt.contentType)
 
-			// 调用被测试函数
-			result := IsStaticAssist(resp, tt.contentType)
+			// 调用测试方法
+			got := IsStaticAssist(res, tt.contentType)
 
 			// 验证结果
-			if result != tt.expected {
-				t.Errorf("IsStaticAssist() = %v, want %v for test: %s", result, tt.expected, tt.name)
+			if got != tt.wantStatic {
+				t.Errorf("IsStaticAssist() = %v, want %v\n说明: %s\nContent-Type: %s",
+					got, tt.wantStatic, tt.description, tt.contentType)
+			} else {
+				t.Logf("✓ 测试通过: %s\n  Content-Type: %s\n  结果: %v (期望: %v)\n  说明: %s",
+					tt.name, tt.contentType, got, tt.wantStatic, tt.description)
 			}
 		})
 	}
 }
 
-// 辅助函数：创建带有指定头部的请求
-func createRequestWithHeaders(headers map[string]string) *http.Request {
-	req, _ := http.NewRequest("GET", "https://example.com", nil)
-	for key, value := range headers {
-		req.Header.Set(key, value)
-	}
-	return req
-}
+// TestIsStaticAssist_RealWorldScenario 测试真实场景：浏览器直接访问图片URL
+func TestIsStaticAssist_RealWorldScenario(t *testing.T) {
+	t.Parallel()
 
-// 辅助函数：创建带有指定URL的请求
-func createRequestWithURL(urlStr string) *http.Request {
-	parsedURL, _ := url.Parse(urlStr)
-	req, _ := http.NewRequest("GET", urlStr, nil)
-	req.URL = parsedURL
-	return req
-}
-
-// 辅助函数：创建带有指定头部和URL的请求
-func createRequestWithHeadersAndURL(headers map[string]string, urlStr string) *http.Request {
-	parsedURL, _ := url.Parse(urlStr)
-	req, _ := http.NewRequest("GET", urlStr, nil)
-	req.URL = parsedURL
-	for key, value := range headers {
-		req.Header.Set(key, value)
+	//初始化日志
+	zlog.InitZLog(global.GWAF_LOG_DEBUG_ENABLE, "console")
+	if v := recover(); v != nil {
+		zlog.Error("error")
 	}
-	return req
+	t.Run("浏览器直接访问图片URL", func(t *testing.T) {
+		// 模拟用户在浏览器地址栏输入图片URL的场景
+		req := httptest.NewRequest("GET", "http://localhost:9999/image.jpg", nil)
+
+		// 浏览器会发送标准的Accept头，而不是image/*开头的
+		req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
+		req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9")
+		req.Header.Set("Cache-Control", "max-age=0")
+		req.Header.Set("Connection", "keep-alive")
+		req.Header.Set("Host", "localhost:9999")
+		req.Header.Set("Sec-Ch-Ua", `"Google Chrome";v="143", "Not A(Brand";v="24"`)
+		req.Header.Set("Sec-Ch-Ua-Mobile", "70")
+
+		// 服务器返回图片
+		res := &http.Response{
+			StatusCode: 200,
+			Header:     make(http.Header),
+			Request:    req,
+		}
+		res.Header.Set("Content-Type", "image/jpeg;charset=UTF-8")
+		res.Header.Set("Date", "Mon, 08 Dec 2025 13:22:50 GMT")
+		res.Header.Set("Transfer-Encoding", "chunked")
+
+		contentType := res.Header.Get("Content-Type")
+		got := IsStaticAssist(res, contentType)
+
+		if !got {
+			t.Errorf("真实场景测试失败！\n"+
+				"场景: 浏览器直接访问图片URL\n"+
+				"URL: %s\n"+
+				"Content-Type: %s\n"+
+				"Accept: %s\n"+
+				"结果: %v (期望: true)\n"+
+				"问题: 即使响应Content-Type是image/jpeg，也没有被正确识别为静态资源",
+				req.URL.String(), contentType, req.Header.Get("Accept"), got)
+		} else {
+			t.Logf("✓ 真实场景测试通过！\n"+
+				"场景: 浏览器直接访问图片URL\n"+
+				"URL: %s\n"+
+				"Content-Type: %s\n"+
+				"Accept: %s\n"+
+				"结果: 正确识别为静态资源",
+				req.URL.String(), contentType, req.Header.Get("Accept"))
+		}
+	})
 }

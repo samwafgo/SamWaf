@@ -6,17 +6,43 @@ import (
 	"SamWaf/public"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"io"
 	"io/fs"
 	"net/http"
+	"path/filepath"
+	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 var static fs.FS
 
 func initStatic() {
 	static = public.Public
-	return
+}
+
+// correctMimeTypeMiddleware 修正静态文件的 MIME 类型
+// 解决某些 Windows 系统注册表中 .js 被错误配置为 application/x-js 的问题
+func correctMimeTypeMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		path := c.Request.URL.Path
+		ext := strings.ToLower(filepath.Ext(path))
+
+		// 确保 JavaScript 文件使用正确的 MIME 类型
+		// 避免某些系统返回 application/x-js 导致 ES Module 加载失败
+		switch ext {
+		case ".js", ".mjs":
+			c.Header("Content-Type", "text/javascript; charset=utf-8")
+		case ".css":
+			c.Header("Content-Type", "text/css; charset=utf-8")
+		case ".json":
+			c.Header("Content-Type", "application/json; charset=utf-8")
+		case ".wasm":
+			c.Header("Content-Type", "application/wasm")
+		}
+
+		c.Next()
+	}
 }
 func initIndex() {
 	indexFile, err := static.Open("index.html")
@@ -42,6 +68,10 @@ func initIndex() {
 func Static(r *gin.Engine, noRoute func(handlers ...gin.HandlerFunc)) {
 	initStatic()
 	initIndex()
+
+	// 应用 MIME 类型修正中间件
+	r.Use(correctMimeTypeMiddleware())
+
 	folders := []string{"assets"}
 	for i, folder := range folders {
 		sub, err := fs.Sub(static, folder)

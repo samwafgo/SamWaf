@@ -12,6 +12,7 @@
 [![Release Downloads](https://img.shields.io/github/downloads/samwafgo/samwaf/total?style=flat-square&color=blue&label=Release+Downloads)](https://github.com/samwafgo/SamWaf/releases)
 [![Gitee](https://img.shields.io/badge/Gitee-blue?style=flat-square&logo=Gitee)](https://gitee.com/samwaf/SamWaf) 
 [![Gitee star](https://gitee.com/samwaf/SamWaf/badge/star.svg?theme=white)](https://gitee.com/samwaf/SamWaf)
+[![Atomgit star](https://atomgit.com/SamSafe/SamWaf/star/badge.svg)](https://atomgit.com/SamSafe/SamWaf)
 [![GitHub stars](https://img.shields.io/github/stars/samwafgo/SamWaf?style=flat-square&logo=Github)](https://github.com/samwafgo/SamWaf)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
 </div>
@@ -209,6 +210,8 @@ PS:windows服务形式升级时候貌似会触发360、火绒规则导致无法�
 [https://gitee.com/samwaf/SamWaf](https://gitee.com/samwaf/SamWaf)
 - github
 [https://github.com/samwafgo/SamWaf](https://github.com/samwafgo/SamWaf)
+- atomgit
+[https://atomgit.com/SamSafe/SamWaf](https://atomgit.com/SamSafe/SamWaf)
 
 ## 介绍和编译
 How to compile

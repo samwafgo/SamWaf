@@ -117,7 +117,9 @@ SamWaf网站防火墙是一款适用于小公司、工作室和个人网站的�
 gitee:  [https://gitee.com/samwaf/SamWaf/releases](https://gitee.com/samwaf/SamWaf/releases)
 
 github: [https://github.com/samwafgo/SamWaf/releases](https://github.com/samwafgo/SamWaf/releases)
- 
+
+atomgit: [https://atomgit.com/SamSafe/SamWaf/releases](https://atomgit.com/SamSafe/SamWaf/releases)
+
 ## 快速启动
 ### Windows
 - 直接启动
@@ -238,6 +240,7 @@ How to compile
 
 - [gitee issues](https://gitee.com/samwaf/SamWaf/issues)
 - [github issues](https://github.com/samwafgo/SamWaf/issues)
+- [atomgit issues](https://atomgit.com/SamSafe/SamWaf/issues)
 - 邮件反馈:samwafgo@gmail.com
 
 # 微信公众号

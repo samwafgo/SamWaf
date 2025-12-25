@@ -119,6 +119,8 @@ Gitee:  [https://gitee.com/samwaf/SamWaf/releases](https://gitee.com/samwaf/SamW
 
 GitHub: [https://github.com/samwafgo/SamWaf/releases](https://github.com/samwafgo/SamWaf/releases)
 
+AtomGit: [https://atomgit.com/SamSafe/SamWaf/releases](https://atomgit.com/SamSafe/SamWaf/releases)
+
 ## Quick Start
 
 ### Windows
@@ -239,6 +241,7 @@ SamWaf is continuously iterating. We welcome feedback and suggestions.
 
 - [Gitee Issues](https://gitee.com/samwaf/SamWaf/issues)
 - [GitHub Issues](https://github.com/samwafgo/SamWaf/issues)
+- [Atomgit Issues](https://atomgit.com/SamSafe/SamWaf/issues)
 - Email feedback: samwafgo@gmail.com
 
 # WeChat Public Account

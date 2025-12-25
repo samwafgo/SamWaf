@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"gorm.io/gorm"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -215,9 +216,14 @@ func (receiver *WafSslConfigService) GetDetailApi(req request.SslConfigDetailReq
 	if bean.KeyPath == "" {
 		bean.KeyPath = filepath.Join(utils.GetCurrentDir(), "ssl", bean.Id, "domain.key")
 	}
+
+	// 查询绑定的主机并格式化显示
+	bindHosts := receiver.formatBindHosts(bean.Id)
+
 	rep := response.WafSslConfigRep{
 		SslConfig:      bean,
 		ExpirationInfo: bean.ExpirationMessage(),
+		BindHosts:      bindHosts,
 	}
 	return rep
 }
@@ -253,9 +259,14 @@ func (receiver *WafSslConfigService) GetListApi(req request.SslConfigSearchReq) 
 		if sslConfig.KeyPath == "" {
 			sslConfig.KeyPath = filepath.Join(utils.GetCurrentDir(), "ssl", sslConfig.Id, "domain.key")
 		}
+
+		// 查询绑定的主机并格式化显示
+		bindHosts := receiver.formatBindHosts(sslConfig.Id)
+
 		rep := response.WafSslConfigRep{
 			SslConfig:      sslConfig,
 			ExpirationInfo: sslConfig.ExpirationMessage(),
+			BindHosts:      bindHosts,
 		}
 		repList = append(repList, rep)
 	}
@@ -300,4 +311,42 @@ func (receiver *WafSslConfigService) DelApi(req request.SslConfigDeleteReq) erro
 	}
 	err = global.GWAF_LOCAL_DB.Where("id = ?", req.Id).Delete(model.SslConfig{}).Error
 	return err
+}
+
+// formatBindHosts 格式化绑定的主机列表
+func (receiver *WafSslConfigService) formatBindHosts(sslId string) []string {
+	var hosts []model.Hosts
+	var result []string
+
+	// 查询绑定该SSL的所有主机
+	global.GWAF_LOCAL_DB.Where("bind_ssl_id = ?", sslId).Find(&hosts)
+
+	// 格式化每个主机的显示信息
+	for _, host := range hosts {
+		var hostDisplay string
+
+		// 构建括号内的内容
+		var bracketContent []string
+
+		// 如果是SSL，添加SSL标识
+		if host.Ssl == 1 {
+			bracketContent = append(bracketContent, "SSL")
+		}
+
+		// 如果有备注，添加备注
+		if host.REMARKS != "" {
+			bracketContent = append(bracketContent, host.REMARKS)
+		}
+
+		// 构建最终的Host显示字符串
+		if len(bracketContent) > 0 {
+			hostDisplay = fmt.Sprintf("%s:%d(%s)", host.Host, host.Port, strings.Join(bracketContent, ","))
+		} else {
+			hostDisplay = fmt.Sprintf("%s:%d", host.Host, host.Port)
+		}
+
+		result = append(result, hostDisplay)
+	}
+
+	return result
 }

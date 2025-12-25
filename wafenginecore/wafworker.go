@@ -1,6 +1,7 @@
 package wafenginecore
 
 import (
+	"SamWaf/common/uuid"
 	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/innerbean"
@@ -13,13 +14,16 @@ import (
 	"SamWaf/webplugin"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	goahocorasick "github.com/samwafgo/ahocorasick"
+	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 )
 
@@ -454,6 +458,28 @@ func (waf *WafEngine) CheckResponseSensitive() bool {
 func (waf *WafEngine) DoHttpAuthBase(hostSafe *wafenginmodel.HostSafe, w http.ResponseWriter, r *http.Request) (bool, string) {
 	isStop := false
 
+	// 获取认证类型，默认为 authorization（Basic Auth）
+	authType := hostSafe.Host.HttpAuthBaseType
+	if authType == "" {
+		authType = "authorization"
+	}
+
+	// 根据认证类型选择不同的认证方式
+	if authType == "authorization" {
+		// 使用Basic Auth方式
+		return waf.doBasicAuth(hostSafe, w, r)
+	} else if authType == "custom" {
+		// 使用自定义页面方式
+		return waf.doCustomAuth(hostSafe, w, r)
+	}
+
+	return isStop, ""
+}
+
+// doBasicAuth 使用Basic Auth方式认证（原有逻辑）
+func (waf *WafEngine) doBasicAuth(hostSafe *wafenginmodel.HostSafe, w http.ResponseWriter, r *http.Request) (bool, string) {
+	isStop := false
+
 	// 获取 Authorization 头部
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
@@ -505,6 +531,181 @@ func (waf *WafEngine) DoHttpAuthBase(hostSafe *wafenginmodel.HostSafe, w http.Re
 	}
 
 	return isStop, ""
+}
+
+// doCustomAuth 使用自定义页面方式认证
+func (waf *WafEngine) doCustomAuth(hostSafe *wafenginmodel.HostSafe, w http.ResponseWriter, r *http.Request) (bool, string) {
+	// 处理登录页面的静态资源请求
+	if strings.HasPrefix(r.URL.Path, "/samwaf_httpauth/") {
+		waf.handleHttpAuthRequest(hostSafe, w, r)
+		return true, "处理HTTP Auth请求"
+	}
+
+	// 检查是否已经通过认证
+	clientIP := utils.GetSourceClientIP(r.RemoteAddr)
+
+	// 尝试从Cookie中获取认证令牌
+	cookie, err := r.Cookie("samwaf_httpauth_token")
+	if err == nil && cookie.Value != "" {
+		// 验证令牌是否有效
+		cacheKey := "httpauth_pass:" + cookie.Value + ":" + clientIP
+		val := global.GCACHE_WAFCACHE.Get(cacheKey)
+		if val != nil && val == "ok" {
+			// 认证有效，允许访问
+			return false, ""
+		}
+	}
+
+	// 未通过认证，显示登录页面
+	tip := "需要登录认证"
+	waf.serveLoginPage(w, r)
+	return true, tip
+}
+
+// handleHttpAuthRequest 处理HTTP Auth相关请求
+func (waf *WafEngine) handleHttpAuthRequest(hostSafe *wafenginmodel.HostSafe, w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/samwaf_httpauth/")
+
+	// 处理验证接口
+	if path == "validate" && r.Method == "POST" {
+		waf.handleHttpAuthValidate(hostSafe, w, r)
+		return
+	}
+
+	// 处理静态文件（暂不需要，因为登录页面是独立的HTML）
+	http.NotFound(w, r)
+}
+
+// handleHttpAuthValidate 处理登录验证
+func (waf *WafEngine) handleHttpAuthValidate(hostSafe *wafenginmodel.HostSafe, w http.ResponseWriter, r *http.Request) {
+	clientIP := utils.GetSourceClientIP(r.RemoteAddr)
+
+	// 安全策略：检查IP是否被锁定
+	lockKey := "httpauth_lock:" + clientIP
+	lockVal := global.GCACHE_WAFCACHE.Get(lockKey)
+	if lockVal != nil {
+		// IP已被锁定
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusTooManyRequests)
+		w.Write([]byte(`{"success": false, "message": "登录失败次数过多，请3分钟后再试"}`))
+		zlog.Warn("HTTP Auth登录IP被锁定", zap.String("ip", clientIP))
+		return
+	}
+
+	// 解析请求体
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		zlog.Error("解析登录请求失败", zap.Error(err))
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"success": false, "message": "请求格式错误"}`))
+		return
+	}
+
+	// 验证用户名和密码
+	if !waf.checkCredentials(hostSafe, req.Username, req.Password) {
+		// 验证失败，记录失败次数
+		failCountKey := "httpauth_fail:" + clientIP
+		failCount := 0
+
+		if val := global.GCACHE_WAFCACHE.Get(failCountKey); val != nil {
+			if count, ok := val.(int); ok {
+				failCount = count
+			}
+		}
+
+		failCount++
+		zlog.Warn("HTTP Auth登录失败",
+			zap.String("ip", clientIP),
+			zap.String("username", req.Username),
+			zap.Int("fail_count", failCount))
+
+		// 失败次数超过10次，锁定IP 3分钟
+		if failCount >= 10 {
+			global.GCACHE_WAFCACHE.SetWithTTl(lockKey, "locked", 3*time.Minute)
+			// 清除失败计数
+			global.GCACHE_WAFCACHE.Remove(failCountKey)
+
+			zlog.Error("HTTP Auth登录失败次数过多，锁定IP",
+				zap.String("ip", clientIP),
+				zap.Int("fail_count", failCount))
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusTooManyRequests)
+			w.Write([]byte(`{"success": false, "message": "登录失败次数过多，已锁定3分钟"}`))
+			return
+		}
+
+		// 记录失败次数，5分钟内有效
+		global.GCACHE_WAFCACHE.SetWithTTl(failCountKey, failCount, 5*time.Minute)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(fmt.Sprintf(`{"success": false, "message": "用户名或密码错误，剩余尝试次数：%d"}`, 10-failCount)))
+		return
+	}
+
+	// 验证成功，清除失败计数
+	failCountKey := "httpauth_fail:" + clientIP
+	global.GCACHE_WAFCACHE.Remove(failCountKey)
+
+	// 生成令牌
+	authToken := uuid.GenUUID()
+
+	zlog.Info("HTTP Auth登录成功",
+		zap.String("ip", clientIP),
+		zap.String("username", req.Username))
+
+	// 将令牌存入缓存，默认24小时有效
+	cacheKey := "httpauth_pass:" + authToken + ":" + clientIP
+	global.GCACHE_WAFCACHE.SetWithTTl(cacheKey, "ok", 24*time.Hour)
+
+	// 设置Cookie
+	cookie := &http.Cookie{
+		Name:     "samwaf_httpauth_token",
+		Value:    authToken,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   r.TLS != nil,
+		MaxAge:   24 * 3600, // 24小时
+	}
+	http.SetCookie(w, cookie)
+
+	// 返回成功响应
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"success": true, "message": "登录成功", "redirect": "/"}`))
+}
+
+// serveLoginPage 提供登录页面
+func (waf *WafEngine) serveLoginPage(w http.ResponseWriter, r *http.Request) {
+	// 读取登录页面文件
+	loginPagePath := utils.GetCurrentDir() + "/data/httpauth/login.html"
+
+	// 检查文件是否存在
+	if _, err := os.Stat(loginPagePath); os.IsNotExist(err) {
+		zlog.Warn("登录页面文件不存在", zap.String("path", loginPagePath))
+		http.Error(w, "登录页面未配置", http.StatusInternalServerError)
+		return
+	}
+
+	// 读取文件内容
+	content, err := os.ReadFile(loginPagePath)
+	if err != nil {
+		zlog.Error("读取登录页面失败", zap.Error(err))
+		http.Error(w, "服务器错误", http.StatusInternalServerError)
+		return
+	}
+
+	// 设置响应头
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+	w.WriteHeader(http.StatusOK)
+	w.Write(content)
 }
 
 // checkCredentials 验证用户名和密码

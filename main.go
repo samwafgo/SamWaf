@@ -76,6 +76,9 @@ var captchaAssets embed.FS
 //go:embed exedata/capjs
 var capjs embed.FS
 
+//go:embed exedata/httpauth
+var httpauth embed.FS
+
 // wafSystenService 实现了 service.Service 接口
 type wafSystenService struct{}
 
@@ -196,6 +199,12 @@ func (m *wafSystenService) run() {
 	err = wafinit.CheckAndReleaseDataset(capjs, utils.GetCurrentDir()+"/data/capjs", "capjs")
 	if err != nil {
 		zlog.Error("capJs", err.Error())
+	}
+
+	// HTTP认证登录页面资源释放
+	err = wafinit.CheckAndReleaseDataset(httpauth, utils.GetCurrentDir()+"/data/httpauth", "httpauth")
+	if err != nil {
+		zlog.Error("httpauth", err.Error())
 	}
 	//TODO 准备释放最新spider bot
 

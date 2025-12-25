@@ -10,9 +10,10 @@ import (
 	"SamWaf/model/request"
 	"encoding/json"
 	"errors"
-	"gorm.io/gorm"
 	"strings"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type WafHostService struct{}
@@ -60,6 +61,7 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 		IsTransBackDomain:    wafHostAddReq.IsTransBackDomain,
 		BindMorePort:         wafHostAddReq.BindMorePort,
 		IsEnableHttpAuthBase: wafHostAddReq.IsEnableHttpAuthBase,
+		HttpAuthBaseType:     wafHostAddReq.HttpAuthBaseType,
 		ResponseTimeOut:      wafHostAddReq.ResponseTimeOut,
 		HealthyJSON:          wafHostAddReq.HealthyJSON,
 		InsecureSkipVerify:   wafHostAddReq.InsecureSkipVerify,
@@ -118,6 +120,7 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 		"IsTransBackDomain":    wafHostEditReq.IsTransBackDomain,
 		"BindMorePort":         wafHostEditReq.BindMorePort,
 		"IsEnableHttpAuthBase": wafHostEditReq.IsEnableHttpAuthBase,
+		"HttpAuthBaseType":     wafHostEditReq.HttpAuthBaseType,
 		"ResponseTimeOut":      wafHostEditReq.ResponseTimeOut,
 		"HealthyJSON":          wafHostEditReq.HealthyJSON,
 		"InsecureSkipVerify":   wafHostEditReq.InsecureSkipVerify,

@@ -33,6 +33,7 @@ type Hosts struct {
 	IsTransBackDomain    int    `json:"is_trans_back_domain"`     //是否传递后端域名到后端服务器侧
 	BindMorePort         string `json:"bind_more_port"`           //是否绑定多个端口
 	IsEnableHttpAuthBase int    `json:"is_enable_http_auth_base"` //是否 HTTPAuthBase  1 激活  非1 没有激活
+	HttpAuthBaseType     string `json:"http_auth_base_type"`      //认证类型 authorization(默认Basic Auth) custom(自定义页面)
 	ResponseTimeOut      int    `json:"response_time_out"`        //响应超时时间 默认60秒,为0则无限等待
 	HealthyJSON          string `json:"healthy_json"`             //后端健康度检测 json
 	InsecureSkipVerify   int    `json:"insecure_skip_verify"`     //是否开启后端https证书有效性验证 默认 0 是校验 1 是不校验

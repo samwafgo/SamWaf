@@ -246,6 +246,39 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移6: 为 hosts 表添加 http_auth_base_type 字段
+		{
+			ID: "202512250001_add_hosts_http_auth_base_type",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202512250001: 为 hosts 表添加 http_auth_base_type 字段")
+
+				// 检查字段是否已存在
+				if tx.Migrator().HasColumn(&model.Hosts{}, "http_auth_base_type") {
+					zlog.Info("http_auth_base_type 字段已存在，跳过添加")
+					return nil
+				}
+
+				// 添加字段，默认值为 authorization（Basic Auth方式）
+				if err := tx.Migrator().AddColumn(&model.Hosts{}, "http_auth_base_type"); err != nil {
+					return fmt.Errorf("添加 http_auth_base_type 字段失败: %w", err)
+				}
+
+				// 将所有已存在的记录设置默认值为 authorization
+				if err := tx.Exec("UPDATE hosts SET http_auth_base_type = 'authorization' WHERE http_auth_base_type IS NULL OR http_auth_base_type = ''").Error; err != nil {
+					zlog.Warn("设置 http_auth_base_type 默认值失败", "error", err.Error())
+				}
+
+				zlog.Info("http_auth_base_type 字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202512250001: 删除 hosts 表的 http_auth_base_type 字段")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "http_auth_base_type") {
+					return tx.Migrator().DropColumn(&model.Hosts{}, "http_auth_base_type")
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

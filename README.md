@@ -1,152 +1,152 @@
-English | [简体中文](README_ch.md) 
+[English](README_en.md) | 简体中文
 
 
 <div align="center">
  <img alt="SamWaf" width="100" src="./docs/images/logo.png"> 
 
-A lightweight open-source web application firewall
+一款开源轻量级的网站应用防火墙
 
 [![Release](https://img.shields.io/github/release/samwafgo/SamWaf.svg)](https://github.com/samwafgo/SamWaf/releases)
 [![Last commit](https://img.shields.io/github/last-commit/samwafgo/SamWaf?style=flat-square&color=blue&logo=github)](https://github.com/samwafgo/SamWaf/releases)
 [![Docker Pulls](https://img.shields.io/docker/pulls/samwaf/samwaf?style=flat-square&color=blue&label=Docker+Image+Pulls)](https://hub.docker.com/r/samwaf/samwaf)
 [![Release Downloads](https://img.shields.io/github/downloads/samwafgo/samwaf/total?style=flat-square&color=blue&label=Release+Downloads)](https://github.com/samwafgo/SamWaf/releases)
-[![Gitee](https://img.shields.io/badge/Gitee-blue?style=flat-square&logo=Gitee)](https://gitee.com/samwaf/SamWaf)
-[![GitHub stars](https://img.shields.io/github/stars/samwafgo/SamWaf?style=flat-square&logo=Github)](https://github.com/samwafgo/SamWaf)
-[![Gitee star](https://gitee.com/samwaf/SamWaf/badge/star.svg?theme=gray)](https://gitee.com/samwaf/SamWaf)
+[![Gitee](https://img.shields.io/badge/Gitee-blue?style=flat-square&logo=Gitee)](https://gitee.com/samwaf/SamWaf) 
+[![Gitee star](https://gitee.com/samwaf/SamWaf/badge/star.svg?theme=white)](https://gitee.com/samwaf/SamWaf)
 [![Atomgit star](https://atomgit.com/SamSafe/SamWaf/star/badge.svg)](https://atomgit.com/SamSafe/SamWaf)
+[![GitHub stars](https://img.shields.io/github/stars/samwafgo/SamWaf?style=flat-square&logo=Github)](https://github.com/samwafgo/SamWaf)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
 </div>
 
-  
-## Development Motivation:
-- **Lightweight**: Initially, I used some security products  based on nginx, apache, and iis plugins for protection, but the plugin form had a high coupling degree.
-- **Privatization**: Later, most cloud protection services were adopted, but private deployment is affordable only for medium and large enterprises, while small companies and studios find it costly.
-- **Privacy Encryption**: During web protection, it is preferable to process local data without sending it to the cloud. The goal was to create a tool that encrypts local information and network communications for the management end.
-- **DIY**: Over the years of website maintenance and development, there were specific functions I wanted to add but couldn't achieve.
-- **Awareness**: If the webmaster has never used a similar WAF, it is inconvenient to understand who is accessing the site and what requests are being made solely from logs or nginx, apache, IIS, etc.
+## 开发初衷:
+- 【轻量】早期在使用过一些产品基于 nginx,apache,iis 做插件进行防护,但是插件形式耦合度太高了。
+- 【私有化】 后期基本上都是有云防护，而私有化部署针对一般的中大企业能承受，普通小企业公司，小工作室费用有点太高了。
+- 【隐私加密】 网站防护过程中不希望本地数据上云做处理，想做一款涉及的本地信息进行加密，管理端的网络通信进行加密。
+- 【DIY】在这么多年网站维护开发过程中有些特定的功能想加入自己的想法，无法实现。
+- 【感知】如果站长没有用过类似的 waf ，单纯从自己的日志或者是 nginx 、apache 、IIS 等查看信息不方便，不知道到底网站有谁在访问，都请求了什么？
+ 总之，在网站或 API 防护上做一款趁手的兵器，来抵御一些异常情况，确保网站和应用的正常运行。
+ 
+# 软件介绍
+SamWaf网站防火墙是一款适用于小公司、工作室和个人网站的开源轻量级网站防火墙，完全私有化部署，数据加密且仅保存本地，一键启动，支持Linux，Windows 64位,Arm64。
 
-In short, the goal was to create an effective tool for website or API protection to handle abnormal situations and ensure the normal operation of websites and applications.
+## 架构
 
-# Software Introduction
-SamWaf is a lightweight, open-source web application firewall for small companies, studios, and personal websites. It supports fully private deployment, encrypts data stored locally, is easy to start, and supports Linux 、 Windows 64-bit and Arm64.
+![SamWaf架构](/docs/images/tecDesign.png)
 
-## Architecture
-
-![SamWaf Architecture](/docs/images_en/tecDesign.png)
-
-## Interface
-![SamWaf Web Application Firewall Overview](/docs/images_en/overview.png)
+## 界面
+![SamWaf网站防火墙概览](/docs/images/overview.png)
 
 <table>
     <tr>
-        <td align="center">Add Host</td>
-        <td align="center">Attack Log</td>
+        <td align="center">添加主机</td>
+        <td align="center">攻击日志</td>
     </tr>
     <tr>
-        <td><img src="./docs/images_en/add_host.png" alt="Add Host"/></td>
-        <td><img src="./docs/images_en/attacklog.png" alt="Attack Log"/></td>
+        <td><img src="./docs/images/add_host.png" alt="添加主机"/></td>
+        <td><img src="./docs/images/attacklog.png" alt="攻击日志"/></td>
     </tr>
     <tr>
         <td align="center">CC</td>
-        <td align="center">IP Blocklist</td>
+        <td align="center">IP黑名单</td>
     </tr>
     <tr>
-        <td><img src="./docs/images_en/cc.png" alt="CC"/></td>
-        <td><img src="./docs/images_en/ipblock.png" alt="IP Blocklist"/></td>
+        <td><img src="./docs/images/cc.png" alt="CC"/></td>
+        <td><img src="./docs/images/ipblock.png" alt="IP黑名单"/></td>
     </tr>
     <tr>
-        <td align="center">IP Allowlist</td>
+        <td align="center">IP白名单</td>
         <td align="center">LDP</td>
     </tr>
     <tr>
-        <td><img src="./docs/images_en/ipallow.png" alt="IP Allowlist"/></td>
-        <td><img src="./docs/images_en/ldp.png" alt="LDP"/></td>
+        <td><img src="./docs/images/ipallow.png" alt="IP白名单"/></td>
+        <td><img src="./docs/images/ldp.png" alt="LDP"/></td>
     </tr>
     <tr>
-        <td align="center">Add Rule Script Log</td>
-        <td align="center">Select Log</td>
+        <td align="center">添加规则脚本日志</td>
+        <td align="center">选择日志</td>
     </tr>
     <tr>
-        <td><img src="./docs/images_en/log_add_rule_script.png" alt="Add Rule Script Log"/></td>
-        <td><img src="./docs/images_en/log_select.png" alt="Select Log"/></td>
+        <td><img src="./docs/images/log_add_rule_script.png" alt="添加规则脚本日志"/></td>
+        <td><img src="./docs/images/log_select.png" alt="选择日志"/></td>
     </tr>
     <tr>
-        <td align="center">Log Details</td>
-        <td align="center">Manual Rule</td>
+        <td align="center">日志详情</td>
+        <td align="center">手动规则</td>
     </tr>
     <tr>
-        <td><img src="./docs/images_en/logdetail.png" alt="Log Details"/></td>
-        <td><img src="./docs/images_en/manual_rule.png" alt="Manual Rule"/></td>
+        <td><img src="./docs/images/logdetail.png" alt="日志详情"/></td>
+        <td><img src="./docs/images/manual_rule.png" alt="手动规则"/></td>
     </tr>
     <tr>
-        <td align="center">URL Blocklist</td>
-        <td align="center">URL Allowlist</td>
+        <td align="center">URL黑名单</td>
+        <td align="center">URL白名单</td>
     </tr>
     <tr>
-        <td><img src="./docs/images_en/urlblock.png" alt="URL Blocklist"/></td>
-        <td><img src="./docs/images_en/urlallow.png" alt="URL Allowlist"/></td>
+        <td><img src="./docs/images/urlblock.png" alt="URL黑名单"/></td>
+        <td><img src="./docs/images/urlallow.png" alt="URL白名单"/></td>
     </tr>
 </table>
 
-## Main Features:
-- Completely open-source code
-- Supports private deployment
-- Lightweight, no dependency on third-party services
-- Fully independent engine, protection functions do not rely on IIS, Nginx
-- Customizable protection rules, supporting both script and GUI editing
-- Supports allowlist access
-- Supports IP blocklist
-- Supports URL allowlist
-- Supports URL access restrictions
-- Supports designated data privacy output
-- Supports CC frequency access
-- Supports global one-click configuration
-- Supports separate protection strategies for different websites
-- Encrypted log storage
-- Encrypted communication logs
-- Data obfuscation
-- Supports global one-click configuration
-- Supports OWASP CRS
-- Automatic SSL certificate application and renewal
-- Bulk SSL certificate expiration check
-- IPv6 support
-- Customizable blocking page
 
-# Usage Instructions
-**It is strongly recommended to conduct thorough testing in a test environment before deploying to production. If any issues arise, please provide feedback promptly.**
-## Download the Latest Version
-Gitee:  [https://gitee.com/samwaf/SamWaf/releases](https://gitee.com/samwaf/SamWaf/releases)
+## 主要功能：
+- 代码完全开源
+- 支持私有化部署
+- 轻量化不依赖三方服务
+- 完全独立引擎，防护功能不依赖IIS,Nginx
+- 自定义防护规则，支持脚本和界面编辑
+- 支持白名单访问
+- 支持IP黑名单
+- 支持URL白名单
+- 支持限制URL访问
+- 支持指定界面数据隐私输出
+- 支持CC频率访问
+- 支持全局一键配置
+- 支持分网站单独防护策略
+- 日志加密保存
+- 通讯日志加密
+- 信息脱敏保存
+- 支持OWASP CRS规则集
+- 自动SSL证书申请以及续签
+- SSL证书批量检测到期情况
+- 支持IPV6
+- 支持自定义拦截界面
 
-GitHub: [https://github.com/samwafgo/SamWaf/releases](https://github.com/samwafgo/SamWaf/releases)
 
-AtomGit: [https://atomgit.com/SamSafe/SamWaf/releases](https://atomgit.com/SamSafe/SamWaf/releases)
+# 使用说明
+**强烈建议您在测试环境测试充分在上生产，如遇到问题请及时反馈**
+## 下载最新版本
+gitee:  [https://gitee.com/samwaf/SamWaf/releases](https://gitee.com/samwaf/SamWaf/releases)
 
-## Quick Start
+github: [https://github.com/samwafgo/SamWaf/releases](https://github.com/samwafgo/SamWaf/releases)
 
+atomgit: [https://atomgit.com/SamSafe/SamWaf/releases](https://atomgit.com/SamSafe/SamWaf/releases)
+
+## 快速启动
 ### Windows
-- Start directly
+- 直接启动
 ```
 SamWaf64.exe
 ```
-- As a service As Administration
+- 服务形式(安装服务需以管理员身份运行cmd)
 ```
-//Install & Start
+//安装并启动
 SamWaf64.exe install && SamWaf64.exe start
 
-//Stop &  Uninstall 
+//停止并卸载
 SamWaf64.exe stop && SamWaf64.exe uninstall
-``` 
+```
 
 ### Linux
-- install
+
+- Linux 一键自动下载并安装脚本
 ```
 curl -sSO http://update.samwaf.com/latest/install_samwaf.sh && bash install_samwaf.sh install 
 ``` 
 
-- uninstall
+- Linux 一键卸载脚本
 ```
 curl -sSO http://update.samwaf.com/latest/install_samwaf.sh && bash install_samwaf.sh uninstall 
 ```
+
 
 ### Docker
 ```
@@ -162,104 +162,102 @@ docker run -d --name=samwaf-instance \
 
 
 ```
-More Detail Docker https://hub.docker.com/r/samwaf/samwaf
+更多docker启动上面的解释  https://hub.docker.com/r/samwaf/samwaf
 
-Tags:
-- **latest**: The latest stable release (recommended for production use).
-- **beta**: The latest testing version (allows testing of new features or specific bug fixes).
+标签
+- latest :最新正式版本（建议生产使用）   
+- beta: 最新测试版本（可以在测试体验最新特性，或修正特定bug）
 
-## Start Access
+## 启动访问
 
 http://127.0.0.1:26666
 
-Default account: admin  Default password: admin868 (Please change the default password upon first login)
+默认帐号：admin  默认密码：admin868 (注意首次进入请把默认密码改掉)
 
+## 升级指南
 
-## Upgrade Guide
+**注意:升级过程会终止服务,请在闲时进行升级。**
 
-**Note: The upgrade process will terminate the service, please upgrade during off-peak hours.**
+### 自动升级
+如有新版本页面会弹出升级框进行确认即可发起升级，升级完毕后，页面会自动刷新。
+### 手动升级
+- 对于直接启动方式
 
-### Automatic Upgrade
-If a new version is available, an upgrade prompt will pop up for confirmation, allowing you to initiate the upgrade. The page will automatically refresh after the upgrade is complete.
+关闭应用，下载最新程序替换,再手工启动就可以了。
 
-### Manual Upgrade
-- For direct launch:
-    1. Close the application.
-    2. Download the latest program and replace the existing files, then manually start it again.
-
-- For service mode:
+- 对于以服务形式
 ```
-1. First, pause the service.
+1.先暂停服务
 
-  Windows: SamWaf64.exe stop
-  Linux: ./SamWafLinux64 stop
+  windows: SamWaf64.exe stop
+  linux: ./SamWafLinux64 stop
   
-2. Replace with the latest application files.
+2.替换最新应用文件
 
-3. Start the service:
-Windows: SamWaf64.exe start
-Linux: ./SamWafLinux64 start
+3.启动
+windows: SamWaf64.exe start
+linux: ./SamWafLinux64 start
 ```
 
-**Note**: Upgrading the Windows service may trigger security rules from 360 or Huorong, preventing the new files from being replaced normally. In this case, you can manually replace the files. Those familiar with this area can help determine the correct handling method.
+PS:windows服务形式升级时候貌似会触发360、火绒规则导致无法正常替换新文件。此时可以手工替换。
+熟悉这方面的朋友可以帮看下正确方式怎么处理。
 
-## Online Documentation
+## 在线文档
 
-[Online Documentation](https://doc.samwaf.com/)
+[在线文档](https://doc.samwaf.com/)
 
-# Code Information
-## Code Repository
-- Gitee
+# 代码相关
+## 代码托管
+- gitee
 [https://gitee.com/samwaf/SamWaf](https://gitee.com/samwaf/SamWaf)
-- GitHub
+- github
 [https://github.com/samwafgo/SamWaf](https://github.com/samwafgo/SamWaf)
-- Atomgit
+- atomgit
 [https://atomgit.com/SamSafe/SamWaf](https://atomgit.com/SamSafe/SamWaf)
 
-## Introduction and Compilation
-How to Compile
-[Compilation Instructions](./docs/compile.md)
+## 介绍和编译
+How to compile
+[编译说明](./docs/compile.md)
 
-Compile Online Manual：
-[https://doc.samwaf.com/en/dev/](https://doc.samwaf.com/en/dev/)
+在线编译手册：
+[https://doc.samwaf.com/dev/](https://doc.samwaf.com/dev/)
 
-## Tested and Supported Platforms
-[Tested and Supported Platforms](./docs/Tested_supported_systems.md)
+## 已测试支持的平台
+[已测试支持的平台](./docs/Tested_supported_systems.md)
 
-## Other Info 
+## 其它信息
 
-- [Update IP Database](./docs/ipmodify.md)
+- [更新IP数据库](./docs/ipmodify.md)
+ 
+## 测试效果
+[测试效果](./test/attackTest.md)
 
-## Testing Results
-[Testing Results](./test/attackTest.md)
+# 安全策略
+[安全策略](./SECURITY.md)
 
-# Security Policy
-[Security Policy](./SECURITY.md)
+# 问题反馈
+当前 SamWaf 还正在不停迭代,欢迎大家反馈问题、提出意见
 
-# Feedback
-SamWaf is continuously iterating. We welcome feedback and suggestions.
+- [gitee issues](https://gitee.com/samwaf/SamWaf/issues)
+- [github issues](https://github.com/samwafgo/SamWaf/issues)
+- [atomgit issues](https://atomgit.com/SamSafe/SamWaf/issues)
+- 邮件反馈:samwafgo@gmail.com
 
-- [Gitee Issues](https://gitee.com/samwaf/SamWaf/issues)
-- [GitHub Issues](https://github.com/samwafgo/SamWaf/issues)
-- [Atomgit Issues](https://atomgit.com/SamSafe/SamWaf/issues)
-- Email feedback: samwafgo@gmail.com
-
-# WeChat Public Account
+# 微信公众号
 
 <img alt="SamWaf" width="400px"  src="./docs/images/mp_samwaf.png"> 
 
-## Star history
+## Star 历史趋势
 
 [![Star History Chart](https://api.star-history.com/svg?repos=samwafgo/samwaf&type=Date)](https://star-history.com/#samwafgo/samwaf&Date)
 
+# 许可证书
+SamWaf 采用 Apache 2.0 license. 详细见 [LICENSE](./LICENSE) .
 
-#  License
-SamWaf is licensed under the Apache License 2.0. Refer to [LICENSE](./LICENSE) for more details.
-
-For third-party software usage notice, see [ThirdLicense](./ThirdLicense)
-
-# Contribution
- Thanks for the following contributors!
+第三方软件使用声明，见[ThirdLicense](./ThirdLicense)
+ 
+# 贡献代码
+ 感谢以下小伙伴对本仓库的贡献!
 
 <a href="https://github.com/samwafgo/SamWaf/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=samwafgo/SamWaf" />

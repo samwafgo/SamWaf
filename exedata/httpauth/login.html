@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title id="page-title">身份验证</title>
+
+  <style>
+    html, body {
+      width: 100%;
+      height: 100%;
+      padding: 0;
+      margin: 0;
+      color: #3C3C3C;
+      background: #EBF3FB;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: system, -apple-system, "BlinkMacSystemFont",
+      ".SFNSText-Regular", "San Francisco", "Roboto", "Segoe UI",
+      "Helvetica Neue", "Lucida Grande", "Ubuntu", "arial", sans-serif;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 0;
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .lang-switch {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 5px 10px;
+      cursor: pointer;
+      font-size: 14px;
+      color: #3C3C3C;
+    }
+
+    .lang-switch:hover {
+      background: #f5f5f5;
+    }
+
+    .info-message {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .info-message h2 {
+      margin: 0 0 10px 0;
+      font-size: 24px;
+      color: #3C3C3C;
+    }
+
+    .info-message p {
+      margin: 0;
+      font-size: 14px;
+      color: #666;
+    }
+
+    .login-form {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      width: 100%;
+      max-width: 350px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 14px;
+      color: #3C3C3C;
+      font-weight: 500;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      box-sizing: border-box;
+      transition: border-color 0.3s;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: #5eaa2f;
+    }
+
+    .form-group input.error {
+      border-color: #ed4630;
+    }
+
+    .submit-btn {
+      width: 100%;
+      padding: 12px;
+      background: #5eaa2f;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.3s;
+      font-weight: 500;
+    }
+
+    .submit-btn:hover {
+      background: #4d8f26;
+    }
+
+    .submit-btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    .error-message {
+      color: #ed4630;
+      text-align: center;
+      font-size: 14px;
+      margin-top: 15px;
+      display: none;
+    }
+
+    .error-message.show {
+      display: block;
+    }
+
+    /* Toast样式 */
+    .toast {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-size: 14px;
+      z-index: 1000;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .toast.show {
+      opacity: 1;
+    }
+
+    .toast.success {
+      background: #f0f9eb;
+      border: 1px solid #dcf9cc;
+      color: #5eaa2f;
+      box-shadow: 1px 1px 10px #e0e0e0;
+    }
+
+    .toast.error {
+      background: #fef0f0;
+      border: 1px solid #fcd6d6;
+      color: #ed4630;
+      box-shadow: 1px 1px 10px #e0e0e0;
+    }
+  </style>
+</head>
+<body>
+<button id="lang-switch" class="lang-switch">English</button>
+
+<div class="container">
+  <!-- 提示信息区域 -->
+  <div class="info-message">
+    <h2 id="info-title">身份验证</h2>
+    <p id="info-text">请输入您的账号和密码以继续访问</p>
+  </div>
+
+  <!-- 登录表单 -->
+  <div class="login-form">
+    <form id="login-form">
+      <div class="form-group">
+        <label for="username" id="username-label">用户名</label>
+        <input type="text" id="username" name="username" autocomplete="username" required />
+      </div>
+      <div class="form-group">
+        <label for="password" id="password-label">密码</label>
+        <input type="password" id="password" name="password" autocomplete="current-password" required />
+      </div>
+      <button type="submit" class="submit-btn" id="submit-btn">登录</button>
+      <div class="error-message" id="error-message">用户名或密码错误</div>
+    </form>
+  </div>
+</div>
+
+<script>
+  // 语言资源
+  const i18n = {
+    'zh': {
+      title: '身份验证',
+      infoTitle: '身份验证',
+      infoText: '请输入您的账号和密码以继续访问',
+      usernameLabel: '用户名',
+      passwordLabel: '密码',
+      submitBtn: '登录',
+      errorMessage: '用户名或密码错误',
+      loginSuccess: '登录成功，页面即将跳转...',
+      validationError: '验证异常',
+      switchLang: 'English'
+    },
+    'en': {
+      title: 'Authentication',
+      infoTitle: 'Authentication',
+      infoText: 'Please enter your username and password to continue',
+      usernameLabel: 'Username',
+      passwordLabel: 'Password',
+      submitBtn: 'Login',
+      errorMessage: 'Incorrect username or password',
+      loginSuccess: 'Login successful, redirecting...',
+      validationError: 'Validation error',
+      switchLang: '中文'
+    }
+  };
+
+  // 语言管理
+  const langManager = (function() {
+    // Cookie 操作函数
+    function setCookie(name, value, days) {
+      let expires = "";
+      if (days) {
+        const date = new Date();
+        date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+        expires = "; expires=" + date.toUTCString();
+      }
+      document.cookie = name + "=" + (value || "") + expires + "; path=/";
+    }
+
+    function getCookie(name) {
+      const nameEQ = name + "=";
+      const ca = document.cookie.split(';');
+      for(let i = 0; i < ca.length; i++) {
+        let c = ca[i];
+        while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+        if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+      }
+      return null;
+    }
+
+    // 检测浏览器语言
+    function detectBrowserLang() {
+      const browserLang = navigator.language || navigator.userLanguage;
+      return browserLang.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+    }
+
+    let currentLang = getCookie('samwaf_lang') || detectBrowserLang();
+
+    function setLanguage(lang) {
+      currentLang = lang;
+      setCookie('samwaf_lang', lang, 30); // 保存30天
+      applyLanguage();
+      return currentLang;
+    }
+
+    function getCurrentLang() {
+      return currentLang;
+    }
+
+    function getText(key) {
+      return i18n[currentLang][key] || i18n['en'][key] || key;
+    }
+
+    function applyLanguage() {
+      // 更新页面标题
+      document.getElementById('page-title').textContent = getText('title');
+      // 更新语言切换按钮
+      document.getElementById('lang-switch').textContent = getText('switchLang');
+      // 更新提示信息
+      document.getElementById('info-title').textContent = getText('infoTitle');
+      document.getElementById('info-text').textContent = getText('infoText');
+      // 更新表单标签
+      document.getElementById('username-label').textContent = getText('usernameLabel');
+      document.getElementById('password-label').textContent = getText('passwordLabel');
+      document.getElementById('submit-btn').textContent = getText('submitBtn');
+      document.getElementById('error-message').textContent = getText('errorMessage');
+    }
+
+    return {
+      setLanguage,
+      getCurrentLang,
+      getText,
+      applyLanguage
+    };
+  })();
+
+  // Toast提示函数
+  function showToast(message, type = 'success') {
+    // 移除已存在的toast
+    const existingToast = document.querySelector('.toast');
+    if (existingToast) {
+      existingToast.remove();
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    // 显示toast
+    setTimeout(() => {
+      toast.classList.add('show');
+    }, 100);
+
+    // 隐藏toast
+    setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => {
+        if (toast.parentNode) {
+          toast.parentNode.removeChild(toast);
+        }
+      }, 300);
+    }, 2000);
+  }
+
+  // 初始化语言
+  document.addEventListener('DOMContentLoaded', function() {
+    langManager.applyLanguage();
+  });
+
+  // 语言切换按钮事件
+  document.getElementById('lang-switch').addEventListener('click', function() {
+    const newLang = langManager.getCurrentLang() === 'zh' ? 'en' : 'zh';
+    langManager.setLanguage(newLang);
+  });
+
+  // 表单提交事件
+  document.getElementById('login-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+    const submitBtn = document.getElementById('submit-btn');
+    const errorMessage = document.getElementById('error-message');
+    
+    // 隐藏错误消息
+    errorMessage.classList.remove('show');
+    
+    // 禁用提交按钮
+    submitBtn.disabled = true;
+    submitBtn.textContent = langManager.getCurrentLang() === 'zh' ? '验证中...' : 'Verifying...';
+    
+    try {
+      const response = await fetch('/samwaf_httpauth/validate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          username: username,
+          password: password 
+        })
+      });
+
+      // 先解析JSON，无论状态码是什么
+      const result = await response.json();
+
+      if (result.success) {
+        // 登录成功
+        showToast(langManager.getText('loginSuccess'), 'success');
+        
+        // 1秒后重定向到原始页面
+        setTimeout(() => {
+          window.location.href = result.redirect || '/';
+        }, 1000);
+      } else {
+        // 登录失败，显示后端返回的具体错误消息
+        errorMessage.textContent = result.message || langManager.getText('errorMessage');
+        errorMessage.classList.add('show');
+        
+        // 如果是429状态码（IP被锁定），禁用提交按钮
+        if (response.status === 429) {
+          submitBtn.disabled = true;
+          // 3分钟后重新启用
+          setTimeout(() => {
+            submitBtn.disabled = false;
+            submitBtn.textContent = langManager.getText('submitBtn');
+            errorMessage.classList.remove('show');
+            // 刷新页面以重置状态
+            window.location.reload();
+          }, 180000); // 3分钟
+        } else {
+          submitBtn.disabled = false;
+          submitBtn.textContent = langManager.getText('submitBtn');
+        }
+        
+        // 清空密码框
+        document.getElementById('password').value = '';
+        document.getElementById('password').focus();
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      // 显示错误toast
+      showToast(langManager.getText('validationError') + ': ' + error.message, 'error');
+      submitBtn.disabled = false;
+      submitBtn.textContent = langManager.getText('submitBtn');
+    }
+  });
+</script>
+</body>
+</html>
+

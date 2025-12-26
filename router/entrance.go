@@ -49,6 +49,7 @@ type ApiGroup struct {
 	NotifySubscriptionRouter
 	NotifyLogRouter
 	FirewallIPBlockRouter
+	PluginRouter
 }
 type PublicApiGroup struct {
 	LoginRouter

@@ -67,6 +67,9 @@ type WafEngine struct {
 
 	TransportPool map[string]*http.Transport // 添加Transport缓存池
 	TransportMux  sync.RWMutex               // 保护Transport池的读写锁
+
+	// 插件管理器（避免循环导入）
+	PluginManager interface{} // 使用 interface{} 避免导入 plugin/manager
 }
 
 func (waf *WafEngine) Error() string {
@@ -402,6 +405,15 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return false
 			}
 			globalHostSafe := waf.HostTarget[waf.HostCode[global.GWAF_GLOBAL_HOST_CODE]]
+
+			// 插件预检查（在所有检测之前）
+			if handleBlock(func(r *http.Request, weblogbean *innerbean.WebLog, formValues url.Values, hostTarget *wafenginmodel.HostSafe, globalHost *wafenginmodel.HostSafe) detection.Result {
+				return waf.checkWithPlugins(r, weblogbean, hostTarget, "pre_check")
+			}) {
+				// 插件拦截，记录日志并返回
+				return
+			}
+
 			// 检测白名单开始
 			detectionWhiteResult := detection.Result{JumpGuardResult: false}
 			checkFunctions := []func(*http.Request, *innerbean.WebLog, url.Values, *wafenginmodel.HostSafe, *wafenginmodel.HostSafe) detection.Result{
@@ -1657,4 +1669,58 @@ func (waf *WafEngine) ApplyAntiCCConfig(hostCode string, antiCC model.AntiCC) {
 
 	zlog.Debug("远程配置", zap.Any("Anticc", antiCC))
 	// ... existing code ...
+}
+
+// checkWithPlugins 使用插件系统检查请求
+// 返回检测结果
+// 注意：此方法预留用于未来的插件集成
+// 当前版本中，插件管理器的实际调用逻辑需要在 go-plugin 集成后完善
+func (waf *WafEngine) checkWithPlugins(r *http.Request, weblogbean *innerbean.WebLog, hostTarget *wafenginmodel.HostSafe, group string) detection.Result {
+	// 检查插件管理器是否存在
+	if waf.PluginManager == nil {
+		return detection.Result{IsBlock: false}
+	}
+
+	// 类型断言获取插件管理器（定义需要的方法）
+	pluginManager, ok := waf.PluginManager.(interface {
+		CheckRequest(ctx context.Context, group string, ip string, requestPath string, userAgent string, method string, host string) (bool, string)
+	})
+
+	// 如果类型断言失败，直接返回
+	if !ok {
+		return detection.Result{IsBlock: false}
+	}
+
+	// 提取请求信息 - 使用已有的 getClientIP 方法
+	_, clientIP, _ := waf.getClientIP(r, strings.Split(global.GCONFIG_RECORD_PROXY_HEADER, ",")...)
+	if clientIP == "" {
+		// 如果获取 IP 失败，从 RemoteAddr 获取
+		clientIP = strings.Split(r.RemoteAddr, ":")[0]
+	}
+	requestPath := r.URL.Path
+	userAgent := r.UserAgent()
+
+	// 调用插件管理器检查请求
+	ctx := context.Background()
+	isBlock, reason := pluginManager.CheckRequest(ctx, group, clientIP, requestPath, userAgent, r.Method, r.Host)
+
+	// 如果插件要求拦截
+	if isBlock {
+		// 记录到日志
+		if weblogbean != nil && weblogbean.REQ_UUID == "" {
+			weblogbean.REQ_UUID = uuid.GenUUID()
+		}
+		if weblogbean != nil {
+			weblogbean.RULE = "插件拦截"
+		}
+
+		return detection.Result{
+			IsBlock: true,
+			Title:   "插件拦截",
+			Content: reason,
+		}
+	}
+
+	// 插件检查通过，不拦截
+	return detection.Result{IsBlock: false}
 }

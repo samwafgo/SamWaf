@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package proto;
+
+option go_package = "SamWaf/plugin/proto";
+
+// IPFilterRequest IP过滤请求
+message IPFilterRequest {
+  string ip = 1;            // IP地址
+  string request_path = 2;  // 请求路径
+  string user_agent = 3;    // 用户代理
+  map<string, string> extra = 4;  // 额外信息
+}
+
+// IPFilterResponse IP过滤响应
+message IPFilterResponse {
+  bool allowed = 1;      // 是否允许
+  string reason = 2;     // 原因
+  int32 risk_level = 3;  // 风险等级（0-10）
+}
+
+// PluginInfo 插件信息
+message PluginInfo {
+  string name = 1;     // 插件名称
+  string version = 2;  // 插件版本
+  string type = 3;     // 插件类型
+}
+
+// InitRequest 初始化请求
+message InitRequest {
+  string config_json = 1;  // 配置信息（JSON字符串）
+}
+
+// InitResponse 初始化响应
+message InitResponse {
+  bool success = 1;  // 是否成功
+  string error = 2;  // 错误信息
+}
+
+// Empty 空消息
+message Empty {}
+
+// IPFilterPlugin IP过滤插件服务
+service IPFilterPlugin {
+  // Name 获取插件名称
+  rpc Name(Empty) returns (PluginInfo);
+  
+  // Init 初始化插件
+  rpc Init(InitRequest) returns (InitResponse);
+  
+  // Filter 执行IP过滤
+  rpc Filter(IPFilterRequest) returns (IPFilterResponse);
+  
+  // Shutdown 关闭插件
+  rpc Shutdown(Empty) returns (Empty);
+  
+  // HealthCheck 健康检查
+  rpc HealthCheck(Empty) returns (Empty);
+}
+

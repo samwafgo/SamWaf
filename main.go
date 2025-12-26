@@ -9,6 +9,7 @@ import (
 	"SamWaf/globalobj"
 	"SamWaf/model"
 	"SamWaf/model/wafenginmodel"
+	"SamWaf/plugin"
 	"SamWaf/utils"
 	"SamWaf/wafconfig"
 	"SamWaf/wafdb"
@@ -260,6 +261,12 @@ func (m *wafSystenService) run() {
 	wafdb.InitLogDb("")
 	wafdb.InitStatsDb("")
 
+	//初始化插件系统（从配置文件加载）
+	if err := plugin.InitPluginSystem(); err != nil {
+		zlog.Error("初始化插件系统失败", "error", err)
+		// 插件系统初始化失败不影响主程序启动
+	}
+
 	//初始化队列引擎
 	wafqueue.InitDequeEngine()
 	//启动队列消费
@@ -287,6 +294,7 @@ func (m *wafSystenService) run() {
 		},
 		EngineCurrentStatus: 0, // 当前waf引擎状态
 		Sensitive:           make([]model.Sensitive, 0),
+		PluginManager:       globalobj.GWAF_RUNTIME_OBJ_PLUGIN_MANAGER, // 设置插件管理器
 	}
 	http.Handle("/", globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE)
 	globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartWaf()
@@ -704,6 +712,18 @@ func (m *wafSystenService) stopSamWaf() {
 	zlog.Info("Shutdown SamWaf IPDatabase...")
 	utils.CloseIPDatabase()
 	zlog.Info("Shutdown SamWaf IPDatabase finished")
+
+	// 关闭插件系统
+	zlog.Info("Shutdown SamWaf Plugin System...")
+	if globalobj.GWAF_RUNTIME_OBJ_PLUGIN_MANAGER != nil {
+		if err := globalobj.GWAF_RUNTIME_OBJ_PLUGIN_MANAGER.Shutdown(); err != nil {
+			zlog.Error("Shutdown Plugin System failed", zap.Error(err))
+		} else {
+			zlog.Info("Shutdown SamWaf Plugin System finished")
+		}
+	} else {
+		zlog.Warn("Plugin Manager is nil, skipping shutdown")
+	}
 
 }
 

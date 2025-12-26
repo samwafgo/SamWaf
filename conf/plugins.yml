@@ -1,0 +1,85 @@
+# SamWaf 插件系统配置文件
+# 详细说明请参考: SamWafDoc/plugin_dev/plugin-system-design.md
+
+plugins:
+  # 插件系统总开关
+  enabled: true
+  
+  # 插件二进制文件存放目录
+  binary_dir: "./data/plugins/binaries"
+  
+  # 插件日志目录
+  log_dir: "./data/plugins/logs"
+  
+  # 插件配置目录
+  config_dir: "./data/plugins/configs"
+  
+  # 插件通信超时设置（秒）
+  timeout: 30
+  
+  # go-plugin 框架日志级别
+  # 可选值: off, error, warn, info, debug, trace
+  # off - 关闭所有 go-plugin 框架日志
+  # error - 仅显示错误
+  # warn - 显示警告和错误
+  # info - 显示信息、警告和错误（推荐）
+  # debug - 显示调试信息（用于开发调试）
+  # trace - 显示所有跟踪信息（非常详细）
+  log_level: "warn"
+  
+  # 插件自动重启配置
+  auto_restart: true        # 是否启用自动重启
+  restart_interval: 3       # 重启间隔（秒）
+  max_restart_count: 5      # 单个插件最大重启次数（-1 表示无限制）
+  health_check_interval: 10 # 健康检查间隔（秒）
+  
+  # 插件列表
+  list:
+    # Simple IP Blocker 插件 - 简单的IP屏蔽功能
+    - id: "simple_ip_blocker_001"
+      name: "Simple IP Blocker"
+      description: "屏蔽指定的IP地址（示例：8.8.8.8）"
+      type: "ip_filter"
+      version: "1.0.0"
+      enabled: true  # 默认关闭，编译插件后可启用
+      binary_path: "./data/plugins/binaries/simple_ip_blocker.exe"
+      priority: 100
+      
+      # 插件分组（用于不同场景调用）
+      groups:
+        - "pre_check"     # 预检查组（最早执行）
+        - "ip_filter"     # IP过滤组
+      
+      # 插件参数
+      params:
+        blocked_ips:      # 要屏蔽的IP列表
+          - "8.8.8.8"     # Google DNS
+          - "127.0.0.1"     # Google DNS
+        block_reason: "DNS服务器 - 测试屏蔽"
+      
+      # 输入参数定义
+      input_schema:
+        - name: "ip"
+          type: "string"
+          required: true
+          description: "待检查的IP地址"
+        - name: "request_path"
+          type: "string"
+          required: false
+          description: "请求路径"
+        - name: "user_agent"
+          type: "string"
+          required: false
+          description: "用户代理"
+      
+      # 输出参数定义
+      output_schema:
+        - name: "allowed"
+          type: "boolean"
+          description: "是否允许通过"
+        - name: "reason"
+          type: "string"
+          description: "拒绝原因"
+        - name: "risk_level"
+          type: "int"
+          description: "风险等级（0-10）"

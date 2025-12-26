@@ -12,5 +12,5 @@ type CenterPublicRouter struct {
 func (receiver *CenterPublicRouter) InitCenterRouter(group *gin.RouterGroup) {
 	api := api.APIGroupAPP.CenterApi
 	router := group.Group("")
-	router.POST("/samwaf/center/update", api.UpdateApi)
+	router.POST("/api/v1/center/update", api.UpdateApi)
 }

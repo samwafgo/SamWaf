@@ -13,5 +13,5 @@ func (receiver *WafGPTRouter) InitGPTRouter(group *gin.RouterGroup) {
 	api := api.APIGroupAPP.WafGPTApi
 	router := group.Group("")
 	router.Use(middleware.StreamMiddleware())
-	router.POST("/samwaf/gpt/chat", api.ChatApi)
+	router.POST("/api/v1/gpt/chat", api.ChatApi)
 }

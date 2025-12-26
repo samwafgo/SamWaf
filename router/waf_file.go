@@ -10,7 +10,7 @@ type WafFileRouter struct {
 
 func (receiver *WafFileRouter) InitWafFileRouter(group *gin.RouterGroup) {
 	fileApi := api.APIGroupAPP.WafFileApi
-	router := group.Group("/samwaf/file")
+	router := group.Group("/api/v1/file")
 	{
 		router.GET("/data_files", fileApi.GetDataFilesApi)
 		router.GET("/delete_by_id", fileApi.DeleteFileByIdApi)

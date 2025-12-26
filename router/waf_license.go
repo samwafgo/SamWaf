@@ -11,7 +11,7 @@ type WafLicenseRouter struct {
 func (receiver *WafLicenseRouter) InitLicenseRouter(group *gin.RouterGroup) {
 	api := api.APIGroupAPP.WafLicenseApi
 	router := group.Group("")
-	router.GET("/samwaf/license/detail", api.GetDetailApi)
-	router.POST("/samwaf/license/checklicense", api.CheckLicense)
-	router.GET("/samwaf/license/confirm", api.ConfirmApi)
+	router.GET("/api/v1/license/detail", api.GetDetailApi)
+	router.POST("/api/v1/license/checklicense", api.CheckLicense)
+	router.GET("/api/v1/license/confirm", api.ConfirmApi)
 }

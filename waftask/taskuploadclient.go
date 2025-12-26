@@ -57,7 +57,7 @@ func TaskClientToCenter() {
 	/*zlog.Debug("注册加密前" + string(jsonData))
 	zlog.Debug("注册加后" + encryptContent)*/
 	// 创建请求URL
-	url := global.GWAF_CENTER_URL + "/samwaf/center/update"
+	url := global.GWAF_CENTER_URL + "/api/v1/center/update"
 
 	// 创建一个HTTP请求
 	req, err := http.NewRequest("POST", url, strings.NewReader(encryptContent))

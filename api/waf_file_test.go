@@ -164,11 +164,11 @@ func BenchmarkGetDataFilesApi(b *testing.B) {
 
 	// 创建Gin引擎
 	r := gin.Default()
-	r.GET("/samwaf/file/data_files", new(WafFileApi).GetDataFilesApi)
+	r.GET("/api/v1/file/data_files", new(WafFileApi).GetDataFilesApi)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		req, _ := http.NewRequest(http.MethodGet, "/samwaf/file/data_files", nil)
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/file/data_files", nil)
 		rec := httptest.NewRecorder()
 		r.ServeHTTP(rec, req)
 	}

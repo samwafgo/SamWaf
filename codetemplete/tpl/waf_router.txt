@@ -11,9 +11,9 @@ type Waf{{.EntityName}}Router struct {
 func (receiver *Waf{{.EntityName}}Router) InitWaf{{.EntityName}}Router(group *gin.RouterGroup) {
 	api := api.APIGroupAPP.Waf{{.EntityName}}Api
 	router := group.Group("")
-	router.POST("/samwaf/wafhost/{{.EntityName | lower}}/add", api.AddApi)
-	router.POST("/samwaf/wafhost/{{.EntityName | lower}}/list", api.GetListApi)
-	router.GET("/samwaf/wafhost/{{.EntityName | lower}}/detail", api.GetDetailApi)
-	router.POST("/samwaf/wafhost/{{.EntityName | lower}}/edit", api.ModifyApi)
-	router.GET("/samwaf/wafhost/{{.EntityName | lower}}/del", api.DelApi)
+	router.POST("/api/v1/wafhost/{{.EntityName | lower}}/add", api.AddApi)
+	router.POST("/api/v1/wafhost/{{.EntityName | lower}}/list", api.GetListApi)
+	router.GET("/api/v1/wafhost/{{.EntityName | lower}}/detail", api.GetDetailApi)
+	router.POST("/api/v1/wafhost/{{.EntityName | lower}}/edit", api.ModifyApi)
+	router.GET("/api/v1/wafhost/{{.EntityName | lower}}/del", api.DelApi)
 }

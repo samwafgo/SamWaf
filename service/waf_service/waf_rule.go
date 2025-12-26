@@ -17,6 +17,11 @@ type WafRuleService struct{}
 var WafRuleServiceApp = new(WafRuleService)
 
 func (receiver *WafRuleService) AddApi(wafRuleAddReq request.WafRuleAddReq, ruleCode string, chsName string, hostCode string, ruleContent string) error {
+	// 如果没有传入规则状态，默认为开启（1）
+	ruleStatus := wafRuleAddReq.RuleStatus
+	if ruleStatus != 0 && ruleStatus != 1 {
+		ruleStatus = 1
+	}
 
 	var wafRule = &model.Rules{
 		BaseOrm: baseorm.BaseOrm{
@@ -35,7 +40,7 @@ func (receiver *WafRuleService) AddApi(wafRuleAddReq request.WafRuleAddReq, rule
 		RuleVersion:     1,
 		IsPublicRule:    0,
 		IsManualRule:    wafRuleAddReq.IsManualRule,
-		RuleStatus:      1,
+		RuleStatus:      ruleStatus,
 	}
 	global.GWAF_LOCAL_DB.Create(wafRule)
 	return nil
@@ -68,6 +73,12 @@ func (receiver *WafRuleService) ModifyApi(wafRuleEditReq request.WafRuleEditReq,
 
 	global.GWAF_LOCAL_DB.Where("rule_code=?", wafRuleEditReq.CODE).Find(&rule)
 
+	// 如果没有传入规则状态，保持原有状态
+	ruleStatus := wafRuleEditReq.RuleStatus
+	if ruleStatus != 0 && ruleStatus != 1 {
+		ruleStatus = rule.RuleStatus
+	}
+
 	ruleMap := map[string]interface{}{
 		"HostCode":        hostCode,
 		"RuleName":        chsName,
@@ -78,7 +89,7 @@ func (receiver *WafRuleService) ModifyApi(wafRuleEditReq request.WafRuleEditReq,
 		"User_code":       global.GWAF_USER_CODE,
 		"IsPublicRule":    0,
 		"IsManualRule":    wafRuleEditReq.IsManualRule,
-		"RuleStatus":      "1",
+		"RuleStatus":      ruleStatus,
 		"UPDATE_TIME":     customtype.JsonTime(time.Now()),
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.Rules{}).Where("rule_code=?", wafRuleEditReq.CODE).Updates(ruleMap).Error
@@ -102,7 +113,7 @@ func (receiver *WafRuleService) GetListApi(wafRuleSearchReq request.WafRuleSearc
 	var whereField = ""
 	var whereValues []interface{}
 	//where字段
-	whereField = "rule_status=? "
+	whereField = "rule_status<>? "
 	if len(wafRuleSearchReq.HostCode) > 0 {
 		if len(whereField) > 0 {
 			whereField = whereField + " and "
@@ -116,7 +127,7 @@ func (receiver *WafRuleService) GetListApi(wafRuleSearchReq request.WafRuleSearc
 		whereField = whereField + " rule_name=? "
 	}
 	//where字段赋值
-	whereValues = append(whereValues, 1)
+	whereValues = append(whereValues, 999)
 	if len(wafRuleSearchReq.HostCode) > 0 {
 		whereValues = append(whereValues, wafRuleSearchReq.HostCode)
 	}
@@ -133,9 +144,9 @@ func (receiver *WafRuleService) GetListApi(wafRuleSearchReq request.WafRuleSearc
 func (receiver *WafRuleService) GetListByHostCodeApi(wafRuleSearchReq request.WafRuleSearchReq) ([]model.Rules, int64, error) {
 	var total int64 = 0
 	var rules []model.Rules
-	global.GWAF_LOCAL_DB.Where("host_code = ? and rule_status= 1",
+	global.GWAF_LOCAL_DB.Where("host_code = ? and rule_status <> 999 ",
 		global.GWAF_TENANT_ID, global.GWAF_USER_CODE, wafRuleSearchReq.HostCode).Limit(wafRuleSearchReq.PageSize).Offset(wafRuleSearchReq.PageSize * (wafRuleSearchReq.PageIndex - 1)).Find(&rules)
-	global.GWAF_LOCAL_DB.Where("host_code = ? and rule_status= 1",
+	global.GWAF_LOCAL_DB.Where("host_code = ? and rule_status <> 999",
 		global.GWAF_TENANT_ID, global.GWAF_USER_CODE, wafRuleSearchReq.HostCode).Model(&model.Rules{}).Count(&total)
 
 	return rules, total, nil
@@ -233,4 +244,15 @@ func (receiver *WafRuleService) GetHostCodes() ([]string, error) {
 	var hostCodes []string
 	err := global.GWAF_LOCAL_DB.Model(&model.Rules{}).Where("rule_status <> 999").Pluck("host_code", &hostCodes).Error
 	return hostCodes, err
+}
+
+// ModifyRuleStatusApi 修改规则状态
+func (receiver *WafRuleService) ModifyRuleStatusApi(req request.WafRuleStatusReq) error {
+	ruleMap := map[string]interface{}{
+		"RuleStatus":  req.RULE_STATUS,
+		"UPDATE_TIME": customtype.JsonTime(time.Now()),
+	}
+
+	err := global.GWAF_LOCAL_DB.Model(model.Rules{}).Where("rule_code=?", req.CODE).Updates(ruleMap).Error
+	return err
 }

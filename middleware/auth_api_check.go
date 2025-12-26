@@ -27,9 +27,9 @@ func Auth() gin.HandlerFunc {
 		tokenStr := ""
 		loginType := c.GetHeader("X-Login-Type")
 
-		if c.Request.RequestURI == "/samwaf/ws" {
+		if c.Request.RequestURI == "/api/v1/ws" {
 			tokenStr = c.GetHeader("Sec-WebSocket-Protocol")
-		} else if strings.HasPrefix(c.Request.RequestURI, "/samwaf/waflog/attack/download") {
+		} else if strings.HasPrefix(c.Request.RequestURI, "/api/v1/waflog/attack/download") {
 			tokenStr = c.Query("X-Token")
 		} else {
 			// 根据登录类型获取不同的token头部
@@ -117,7 +117,7 @@ func Auth() gin.HandlerFunc {
 				}
 
 				//检测是否强制2Fa绑定
-				if global.GCONFIG_RECORD_FORCE_BIND_2FA == 1 && c.Request.RequestURI != "/samwaf/ws" && c.Request.RequestURI != "/samwaf/logout" {
+				if global.GCONFIG_RECORD_FORCE_BIND_2FA == 1 && c.Request.RequestURI != "/api/v1/ws" && c.Request.RequestURI != "/api/v1/logout" {
 					otpBean := wafOtpService.GetDetailByUserNameApi(tokenInfo.LoginAccount)
 					if otpBean.UserName == "" {
 						//需要强制跳转2fa绑定界面

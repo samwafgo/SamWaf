@@ -13,13 +13,13 @@ func (receiver *LogRouter) InitLogRouter(group *gin.RouterGroup) {
 	logApi := api.APIGroupAPP.WafLogAPi
 	wafLogRouter := group.Group("")
 
-	wafLogRouter.POST("/samwaf/waflog/attack/list", logApi.GetListApi)
-	wafLogRouter.GET("/samwaf/waflog/attack/export", logApi.ExportDBApi)
-	wafLogRouter.GET("/samwaf/waflog/attack/download", logApi.DownloadApi)
-	wafLogRouter.GET("/samwaf/waflog/attack/detail", logApi.GetDetailApi)
-	wafLogRouter.GET("/samwaf/waflog/attack/allsharedb", logApi.GetAllShareDbApi)
-	wafLogRouter.GET("/samwaf/waflog/attack/httpcopymask", logApi.GetHttpCopyMaskApi)
-	wafLogRouter.POST("/samwaf/waflog/attack/attackiplist", logApi.GetAttackIPListApi)
-	wafLogRouter.GET("/samwaf/waflog/attack/alliptag", logApi.GetAllIpTagApi)
-	wafLogRouter.POST("/samwaf/waflog/attack/deletetagbyname", logApi.DeleteTagByNameApi)
+	wafLogRouter.POST("/api/v1/waflog/attack/list", logApi.GetListApi)
+	wafLogRouter.GET("/api/v1/waflog/attack/export", logApi.ExportDBApi)
+	wafLogRouter.GET("/api/v1/waflog/attack/download", logApi.DownloadApi)
+	wafLogRouter.GET("/api/v1/waflog/attack/detail", logApi.GetDetailApi)
+	wafLogRouter.GET("/api/v1/waflog/attack/allsharedb", logApi.GetAllShareDbApi)
+	wafLogRouter.GET("/api/v1/waflog/attack/httpcopymask", logApi.GetHttpCopyMaskApi)
+	wafLogRouter.POST("/api/v1/waflog/attack/attackiplist", logApi.GetAttackIPListApi)
+	wafLogRouter.GET("/api/v1/waflog/attack/alliptag", logApi.GetAllIpTagApi)
+	wafLogRouter.POST("/api/v1/waflog/attack/deletetagbyname", logApi.DeleteTagByNameApi)
 }

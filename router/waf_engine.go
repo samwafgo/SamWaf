@@ -11,6 +11,6 @@ type EngineRouter struct {
 func (receiver *EngineRouter) InitEngineRouter(group *gin.RouterGroup) {
 	engineApi := api.APIGroupAPP.WafEngineApi
 	wafEngineRouter := group.Group("")
-	wafEngineRouter.GET("/samwaf/resetWAF", engineApi.ResetWaf)
+	wafEngineRouter.GET("/api/v1/resetWAF", engineApi.ResetWaf)
 
 }

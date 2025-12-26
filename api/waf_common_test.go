@@ -16,13 +16,13 @@ func TestExportExcelApi(t *testing.T) {
 	r := gin.Default()
 
 	global.GWAF_RELEASE_VERSION = "111"
-	r.GET("/samwaf/export", new(WafCommonApi).ExportExcelApi)
+	r.GET("/api/v1/export", new(WafCommonApi).ExportExcelApi)
 	// 创建一个模拟的 HTTP 请求 WafCommonReq 对象
 	// 创建一个模拟的 HTTP 请求
 	queryParams := url.Values{}
 	queryParams.Set("table_name", "hosts")
 
-	req, err := http.NewRequest(http.MethodGet, "/samwaf/export?"+queryParams.Encode(), nil)
+	req, err := http.NewRequest(http.MethodGet, "/api/v1/export?"+queryParams.Encode(), nil)
 	if err != nil {
 		t.Fatalf("无法创建请求：%v", err)
 	}

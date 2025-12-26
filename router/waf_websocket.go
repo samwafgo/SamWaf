@@ -11,5 +11,5 @@ type WebSocketRouter struct {
 func (receiver *WebSocketRouter) InitWebSocketRouter(group *gin.RouterGroup) {
 	api := api.APIGroupAPP.WafWebSocketApi
 	router := group.Group("")
-	router.GET("/samwaf/ws", api.WebSocketMessageApi)
+	router.GET("/api/v1/ws", api.WebSocketMessageApi)
 }

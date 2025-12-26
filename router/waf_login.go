@@ -13,10 +13,10 @@ type LoginOutRouter struct {
 func (receiver *LoginRouter) InitLoginRouter(group *gin.RouterGroup) {
 	api := api.APIGroupAPP.WafLoginApi
 	router := group.Group("")
-	router.POST("/samwaf/public/login", api.LoginApi)
+	router.POST("/api/v1/public/login", api.LoginApi)
 }
 func (receiver *LoginOutRouter) InitLoginOutRouter(group *gin.RouterGroup) {
 	api := api.APIGroupAPP.WafLoginApi
 	router := group.Group("")
-	router.POST("/samwaf/logout", api.LoginOutApi)
+	router.POST("/api/v1/logout", api.LoginOutApi)
 }

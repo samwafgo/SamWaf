@@ -33,9 +33,9 @@ func TestCheckVersionApi(t *testing.T) {
 
 	global.GWAF_RELEASE_VERSION_NAME = "v1.3.6"
 	global.GUPDATE_VERSION_URL = "http://127.0.0.1:8111/"
-	r.GET("/samwaf/sysinfo/checkversion", new(WafSysInfoApi).CheckVersionApi)
+	r.GET("/api/v1/sysinfo/checkversion", new(WafSysInfoApi).CheckVersionApi)
 	// 创建一个模拟的 HTTP 请求
-	req, err := http.NewRequest(http.MethodGet, "/samwaf/sysinfo/checkversion", nil)
+	req, err := http.NewRequest(http.MethodGet, "/api/v1/sysinfo/checkversion", nil)
 	if err != nil {
 		t.Fatalf("无法创建请求：%v", err)
 	}
@@ -72,9 +72,9 @@ func TestCheckVersionNeedUploadApi(t *testing.T) {
 	global.GWAF_RELEASE_VERSION_NAME = "v1.0.6"
 	global.GUPDATE_VERSION_URL = "http://127.0.0.1:8111/"
 	global.GWAF_RUNTIME_WIN7_VERSION = "true"
-	r.GET("/samwaf/sysinfo/checkversion", new(WafSysInfoApi).CheckVersionApi)
+	r.GET("/api/v1/sysinfo/checkversion", new(WafSysInfoApi).CheckVersionApi)
 	// 创建一个模拟的 HTTP 请求
-	req, err := http.NewRequest(http.MethodGet, "/samwaf/sysinfo/checkversion", nil)
+	req, err := http.NewRequest(http.MethodGet, "/api/v1/sysinfo/checkversion", nil)
 	if err != nil {
 		t.Fatalf("无法创建请求：%v", err)
 	}

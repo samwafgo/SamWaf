@@ -213,7 +213,7 @@ func (w *WafRuleAPi) ModifyRuleApi(c *gin.Context) {
 */
 func (w *WafRuleAPi) NotifyWaf(host_code string) {
 	var ruleconfig []model.Rules
-	global.GWAF_LOCAL_DB.Where("host_code = ?  and rule_status<>999", host_code).Find(&ruleconfig)
+	global.GWAF_LOCAL_DB.Where("host_code = ?  and rule_status=1", host_code).Find(&ruleconfig)
 	var chanInfo = spec.ChanCommonHost{
 		HostCode: host_code,
 		Type:     enums.ChanTypeRule,
@@ -322,4 +322,24 @@ func (w *WafRuleAPi) FormatRuleApi(c *gin.Context) {
 	response.OkWithDetailed(gin.H{
 		"rule_content": ruleContent,
 	}, "获取成功", c)
+}
+
+// ModifyRuleStatusApi 修改规则状态
+func (w *WafRuleAPi) ModifyRuleStatusApi(c *gin.Context) {
+	var req request.WafRuleStatusReq
+	err := c.ShouldBind(&req)
+	if err == nil {
+		err = wafRuleService.ModifyRuleStatusApi(req)
+		if err != nil {
+			response.FailWithMessage("更新状态发生错误", c)
+		} else {
+			wafRule := wafRuleService.GetDetailByCodeApi(req.CODE)
+			//通知引擎重新加载某个网站的规则信息
+			w.NotifyWaf(wafRule.HostCode)
+			response.OkWithMessage("状态更新成功", c)
+		}
+
+	} else {
+		response.FailWithMessage("解析失败", c)
+	}
 }

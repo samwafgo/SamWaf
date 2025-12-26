@@ -7,6 +7,7 @@ type WafRuleAddReq struct {
 	RuleJson     string `json:"rule_json"`
 	IsManualRule int    `json:"is_manual_rule"` // 0 是界面  1是纯代码
 	RuleContent  string `json:"rule_content"`   //规则内容
+	RuleStatus   int    `json:"rule_status"`    //规则状态 1 是开启 0 是关闭
 }
 type WafRuleDelReq struct {
 	CODE string `json:"code"`
@@ -19,6 +20,7 @@ type WafRuleEditReq struct {
 	RuleJson     string `json:"rule_json"`
 	IsManualRule int    `json:"is_manual_rule"`
 	RuleContent  string `json:"rule_content"` //规则内容
+	RuleStatus   int    `json:"rule_status"`  //规则状态 1 是开启 0 是关闭
 }
 type WafRuleSearchReq struct {
 	HostCode string `json:"host_code" form:"host_code"` //主机码
@@ -38,4 +40,9 @@ type WafRulePreViewReq struct {
 	IsManualRule int    `json:"is_manual_rule"` // 0 是界面  1是纯代码
 	RuleContent  string `json:"rule_content"`   //规则内容
 	FormSource   string `json:"form_source"`    //来源是 builder ？ 不校验 选择的站点
+}
+
+type WafRuleStatusReq struct {
+	CODE        string `json:"code"`
+	RULE_STATUS int    `json:"rule_status" form:"rule_status"` //规则状态 1 是开启 0 是关闭
 }

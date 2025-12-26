@@ -63,7 +63,9 @@ func (rulehelper *RuleHelper) LoadRules(ruleconfig []model.Rules) (string, error
 	}
 	rulestr := ""
 	for _, v := range ruleconfig {
-		rulestr = rulestr + v.RuleContent + " \n"
+		if v.RuleStatus == 1 {
+			rulestr = rulestr + v.RuleContent + " \n"
+		}
 	}
 	byteArr := pkg.NewBytesResource([]byte(rulestr))
 	err := rulehelper.ruleBuilder.BuildRuleFromResource("Region", "0.0.1", byteArr)

@@ -6,6 +6,7 @@ import (
 	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/wafnotify/dingtalk"
+	"SamWaf/wafnotify/email"
 	"SamWaf/wafnotify/feishu"
 	"fmt"
 )
@@ -56,6 +57,13 @@ func (receiver *WafNotifySenderService) sendToChannel(channel model.NotifyChanne
 	case "feishu":
 		notifier := feishu.NewFeishuNotifier(channel.WebhookURL, channel.Secret)
 		err = notifier.SendMarkdown(title, content)
+	case "email":
+		notifier, notifierErr := email.NewEmailNotifier(channel.ConfigJSON)
+		if notifierErr != nil {
+			err = notifierErr
+		} else {
+			err = notifier.SendMarkdown(title, content)
+		}
 	default:
 		err = fmt.Errorf("不支持的通知类型: %s", channel.Type)
 	}

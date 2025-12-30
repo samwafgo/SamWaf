@@ -10,6 +10,7 @@ import (
 	"SamWaf/wafnotify/dingtalk"
 	"SamWaf/wafnotify/email"
 	"SamWaf/wafnotify/feishu"
+	"SamWaf/wafnotify/serverchan"
 	"errors"
 	"time"
 )
@@ -141,6 +142,12 @@ func (receiver *WafNotifyChannelService) TestChannelApi(req request.WafNotifyCha
 		return notifier.SendMarkdown(title, content)
 	case "email":
 		notifier, err := email.NewEmailNotifier(channel.ConfigJSON)
+		if err != nil {
+			return err
+		}
+		return notifier.SendMarkdown(title, content)
+	case "serverchan":
+		notifier, err := serverchan.NewServerChanNotifier(channel.AccessToken)
 		if err != nil {
 			return err
 		}

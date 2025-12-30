@@ -8,6 +8,7 @@ import (
 	"SamWaf/wafnotify/dingtalk"
 	"SamWaf/wafnotify/email"
 	"SamWaf/wafnotify/feishu"
+	"SamWaf/wafnotify/serverchan"
 	"fmt"
 )
 
@@ -59,6 +60,13 @@ func (receiver *WafNotifySenderService) sendToChannel(channel model.NotifyChanne
 		err = notifier.SendMarkdown(title, content)
 	case "email":
 		notifier, notifierErr := email.NewEmailNotifier(channel.ConfigJSON)
+		if notifierErr != nil {
+			err = notifierErr
+		} else {
+			err = notifier.SendMarkdown(title, content)
+		}
+	case "serverchan":
+		notifier, notifierErr := serverchan.NewServerChanNotifier(channel.AccessToken)
 		if notifierErr != nil {
 			err = notifierErr
 		} else {

@@ -104,6 +104,7 @@ var (
 	GWAF_CHAN_SSL_EXPIRE_CHECK                      = make(chan int, 10)                 //SSL证书到期检测
 	GWAF_CHAN_SYNC_HOST_TO_SSL_EXPIRE               = make(chan int, 10)                 //同步已存在主机到SSL证书检测任务里
 	GWAF_CHAN_TASK                                  = make(chan string, 10)              //手工执行任务
+	GWAF_CHAN_TASK_RELOAD                           = make(chan model.Task, 10)          //任务重新加载
 	GWAF_CHAN_CLEAR_CC_WINDOWS                      = make(chan int, 10)                 //清除cc缓存信息
 	GWAF_CHAN_CLEAR_CC_IP                           = make(chan string, 10)              //清除cc缓存信息IP
 	GWAF_QUEUE_SHUTDOWN_SIGNAL        chan struct{} = make(chan struct{})                // 队列关闭信号

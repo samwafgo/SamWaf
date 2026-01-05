@@ -655,6 +655,21 @@ func (m *wafSystenService) run() {
 			zlog.Debug("需要执行的方法", taskMethod)
 			globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler.RunManual(taskMethod)
 			break
+		case taskReload := <-global.GWAF_CHAN_TASK_RELOAD:
+			zlog.Info("任务重新加载", "taskName", taskReload.TaskName, "taskMethod", taskReload.TaskMethod)
+			err := globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler.RescheduleTask(
+				taskReload.TaskUnit,
+				taskReload.TaskValue,
+				taskReload.TaskAt,
+				taskReload.TaskMethod,
+				taskReload.TaskDaysOfTheWeek,
+			)
+			if err != nil {
+				zlog.Error("任务重新加载失败", "error", err.Error(), "taskName", taskReload.TaskName)
+			} else {
+				zlog.Info("任务重新加载成功", "taskName", taskReload.TaskName)
+			}
+			break
 		case clearCcWindows := <-global.GWAF_CHAN_CLEAR_CC_WINDOWS:
 			zlog.Debug("定时清空CCwindows", clearCcWindows)
 			globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ClearCcWindows()

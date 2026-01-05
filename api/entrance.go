@@ -96,7 +96,7 @@ var (
 
 	wafHttpAuthBaseService = waf_service.WafHttpAuthBaseServiceApp
 
-	TaskService = waf_service.WafTaskServiceApp
+	wafTaskService = waf_service.WafTaskServiceApp
 
 	wafBlockingPageService = waf_service.WafBlockingPageServiceApp
 

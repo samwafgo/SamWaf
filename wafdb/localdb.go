@@ -92,6 +92,16 @@ func InitCoreDb(currentDir string) (bool, error) {
 			zlog.Error("core数据库迁移失败详细信息: " + errStr)
 			panic("core database migration failed: " + errStr)
 		}
+
+		// ============ 执行任务初始化迁移 ============
+		zlog.Info("开始执行任务初始化迁移...")
+		if err := RunTaskInitMigrations(db); err != nil {
+			// 记录详细的错误信息
+			errStr := fmt.Sprintf("%v", err)
+			zlog.Error("任务初始化迁移失败", "error_string", errStr, "error_type", fmt.Sprintf("%T", err))
+			zlog.Error("任务初始化迁移失败详细信息: " + errStr)
+			panic("task initialization migration failed: " + errStr)
+		}
 		// ============ 迁移代码结束 ============
 
 		global.GWAF_LOCAL_DB.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)

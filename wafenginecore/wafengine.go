@@ -507,6 +507,18 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						currentURL := strings.ToLower(r.URL.Path)
 						isExcluded := false
 
+						// 获取验证码路径前缀
+						captchaPathPrefix := captchaConfig.PathPrefix
+						if captchaPathPrefix == "" {
+							captchaPathPrefix = "/samwaf_captcha"
+						}
+
+						// 检查是否是验证码相关路径，如果是则直接处理
+						if strings.HasPrefix(currentURL, captchaPathPrefix+"/") || currentURL == captchaPathPrefix {
+							waf.handleCaptchaRequest(w, r, &weblogbean, captchaConfig, captchaPathPrefix)
+							return
+						}
+
 						if len(captchaConfig.ExcludeURLs) > 0 {
 							// 将换行分隔的URL列表拆分为数组
 							excludeURLs := strings.Split(captchaConfig.ExcludeURLs, "\n")
@@ -520,7 +532,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 							}
 						}
 						if !isExcluded {
-							waf.handleCaptchaRequest(w, r, &weblogbean, captchaConfig)
+							waf.handleCaptchaRequest(w, r, &weblogbean, captchaConfig, captchaPathPrefix)
 							return
 						}
 					}

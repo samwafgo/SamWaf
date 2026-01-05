@@ -54,7 +54,7 @@ plugins:
       params:
         blocked_ips:      # 要屏蔽的IP列表
           - "8.8.8.8"     # Google DNS
-          - "127.0.0.1"     # Google DNS
+          - "8.8.8.4"     # Google DNS
         block_reason: "DNS服务器 - 测试屏蔽"
       
       # 输入参数定义

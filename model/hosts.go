@@ -34,6 +34,7 @@ type Hosts struct {
 	BindMorePort         string `json:"bind_more_port"`           //是否绑定多个端口
 	IsEnableHttpAuthBase int    `json:"is_enable_http_auth_base"` //是否 HTTPAuthBase  1 激活  非1 没有激活
 	HttpAuthBaseType     string `json:"http_auth_base_type"`      //认证类型 authorization(默认Basic Auth) custom(自定义页面)
+	HttpAuthPathPrefix   string `json:"http_auth_path_prefix"`    //HTTP认证路径前缀，用于隐藏系统特征，默认为随机生成
 	ResponseTimeOut      int    `json:"response_time_out"`        //响应超时时间 默认60秒,为0则无限等待
 	HealthyJSON          string `json:"healthy_json"`             //后端健康度检测 json
 	InsecureSkipVerify   int    `json:"insecure_skip_verify"`     //是否开启后端https证书有效性验证 默认 0 是校验 1 是不校验
@@ -76,6 +77,7 @@ type CaptchaConfig struct {
 	ExpireTime      int    `json:"expire_time"`       // 验证通过后的有效期(小时)
 	IPMode          string `json:"ip_mode"`           // IP提取模式: "nic" 网卡模式 或 "proxy" 代理模式
 	EngineType      string `json:"engine_type"`       // 验证码引擎类型: 传统方式 "traditional",capJS工作量证明 "capJs"
+	PathPrefix      string `json:"path_prefix"`       // 验证码路径前缀，用于隐藏系统特征，默认为随机生成
 	CapJsConfig     struct {
 		ChallengeCount      int `json:"challengeCount,omitempty"`      // Number of challenges to generate (default: 50)
 		ChallengeSize       int `json:"challengeSize,omitempty"`       // Size of each challenge in bytes (default: 32)

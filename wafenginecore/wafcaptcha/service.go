@@ -11,14 +11,6 @@ import (
 	"SamWaf/utils"
 	"encoding/json"
 	"fmt"
-	"github.com/golang/freetype/truetype"
-	"github.com/samwafgo/cap_go_server"
-	"github.com/wenlng/go-captcha-assets/bindata/chars"
-	"github.com/wenlng/go-captcha-assets/resources/fonts/fzshengsksjw"
-	"github.com/wenlng/go-captcha-assets/resources/images"
-	"github.com/wenlng/go-captcha/v2/base/option"
-	"github.com/wenlng/go-captcha/v2/click"
-	"go.uber.org/zap"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -29,6 +21,15 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/golang/freetype/truetype"
+	capserver "github.com/samwafgo/cap_go_server"
+	"github.com/wenlng/go-captcha-assets/bindata/chars"
+	"github.com/wenlng/go-captcha-assets/resources/fonts/fzshengsksjw"
+	"github.com/wenlng/go-captcha-assets/resources/images"
+	"github.com/wenlng/go-captcha/v2/base/option"
+	"github.com/wenlng/go-captcha/v2/click"
+	"go.uber.org/zap"
 )
 
 var (
@@ -157,22 +158,28 @@ func GetService() *CaptchaService {
 }
 
 // HandleCaptchaRequest 处理验证码请求
-func (s *CaptchaService) HandleCaptchaRequest(w http.ResponseWriter, r *http.Request, weblog *innerbean.WebLog, captchaConfig model.CaptchaConfig) {
+func (s *CaptchaService) HandleCaptchaRequest(w http.ResponseWriter, r *http.Request, weblog *innerbean.WebLog, captchaConfig model.CaptchaConfig, pathPrefix string) {
 
 	path := r.URL.Path
 	// 记录访问日志
-	zlog.Debug("验证码请求", zap.String("path", path), zap.String("method", r.Method), zap.String("remote_addr", r.RemoteAddr))
+	zlog.Debug("验证码请求", zap.String("path", path), zap.String("method", r.Method), zap.String("remote_addr", r.RemoteAddr), zap.String("path_prefix", pathPrefix))
+
+	// 规范化路径前缀，确保以/开头且不以/结尾
+	if pathPrefix == "" {
+		pathPrefix = "/samwaf_captcha"
+	}
+	captchaPath := strings.TrimSuffix(pathPrefix, "/")
 
 	if captchaConfig.EngineType == "traditional" {
 		//传统方式的验证码处理
-		if strings.HasPrefix(path, "/samwaf_captcha/click_basic") {
+		if strings.HasPrefix(path, captchaPath+"/click_basic") {
 			s.GetClickBasicCaptData(w, r)
-		} else if strings.HasPrefix(path, "/samwaf_captcha/verify") {
+		} else if strings.HasPrefix(path, captchaPath+"/verify") {
 			// 根据请求参数确定验证码类型
 			captchaType := r.URL.Query().Get("type")
 			s.VerifyCaptcha(w, r, captchaType, weblog, captchaConfig)
-		} else if strings.HasPrefix(path, "/samwaf_captcha/") {
-			cleanPath := strings.TrimPrefix(path, "/samwaf_captcha/")
+		} else if strings.HasPrefix(path, captchaPath+"/") {
+			cleanPath := strings.TrimPrefix(path, captchaPath+"/")
 			s.ServeStaticFile(w, r, cleanPath, captchaConfig)
 		} else {
 			// 记录日志信息
@@ -180,18 +187,18 @@ func (s *CaptchaService) HandleCaptchaRequest(w http.ResponseWriter, r *http.Req
 			weblog.RULE = "显示图形验证码"
 			global.GQEQUE_LOG_DB.Enqueue(weblog)
 			// 默认显示验证码选择页面
-			s.ShowCaptchaHomePage(w, r, captchaConfig)
+			s.ShowCaptchaHomePage(w, r, captchaConfig, pathPrefix)
 		}
 	} else if captchaConfig.EngineType == "capJs" {
 		//基于工作量证明的验证码处理
-		if strings.HasPrefix(path, "/samwaf_captcha/challenge") {
+		if strings.HasPrefix(path, captchaPath+"/challenge") {
 			s.GetCapJsChallenge(w, r, captchaConfig)
-		} else if strings.HasPrefix(path, "/samwaf_captcha/redeem") {
+		} else if strings.HasPrefix(path, captchaPath+"/redeem") {
 			s.VerifyCapJsCaptcha(w, r, captchaConfig)
-		} else if strings.HasPrefix(path, "/samwaf_captcha/validate") {
+		} else if strings.HasPrefix(path, captchaPath+"/validate") {
 			s.ValidateCapJsCaptcha(w, r, captchaConfig, weblog)
-		} else if strings.HasPrefix(path, "/samwaf_captcha/") {
-			cleanPath := strings.TrimPrefix(path, "/samwaf_captcha/")
+		} else if strings.HasPrefix(path, captchaPath+"/") {
+			cleanPath := strings.TrimPrefix(path, captchaPath+"/")
 			s.ServeStaticFile(w, r, cleanPath, captchaConfig)
 		} else {
 			// 记录日志信息
@@ -199,7 +206,7 @@ func (s *CaptchaService) HandleCaptchaRequest(w http.ResponseWriter, r *http.Req
 			weblog.RULE = "显示CapJs验证码"
 			global.GQEQUE_LOG_DB.Enqueue(weblog)
 			// 默认显示验证码选择页面
-			s.ShowCaptchaHomePage(w, r, captchaConfig)
+			s.ShowCaptchaHomePage(w, r, captchaConfig, pathPrefix)
 		}
 	}
 
@@ -502,16 +509,33 @@ func (s *CaptchaService) VerifyCaptcha(w http.ResponseWriter, r *http.Request, c
 }
 
 // ShowCaptchaHomePage 显示验证码首页
-func (s *CaptchaService) ShowCaptchaHomePage(w http.ResponseWriter, r *http.Request, configStruct model.CaptchaConfig) {
+func (s *CaptchaService) ShowCaptchaHomePage(w http.ResponseWriter, r *http.Request, configStruct model.CaptchaConfig, pathPrefix string) {
 	// 设置内容类型
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Expires", "0")
 
+	if pathPrefix == "" {
+		pathPrefix = "/samwaf_captcha"
+	}
+
 	if configStruct.EngineType == "traditional" {
-		// 从指定目录加载index.html
-		http.ServeFile(w, r, utils.GetCurrentDir()+"/data/captcha/index.html")
+		// 读取HTML模板文件
+		htmlPath := utils.GetCurrentDir() + "/data/captcha/index.html"
+		htmlContent, err := ioutil.ReadFile(htmlPath)
+		if err != nil {
+			http.Error(w, "Failed to load page", http.StatusInternalServerError)
+			return
+		}
+
+		// 替换路径前缀
+		htmlStr := string(htmlContent)
+		htmlStr = strings.ReplaceAll(htmlStr, "/samwaf_captcha/", pathPrefix+"/")
+		htmlStr = strings.ReplaceAll(htmlStr, "'/samwaf_captcha'", "'"+pathPrefix+"'")
+		htmlStr = strings.ReplaceAll(htmlStr, "\"/samwaf_captcha\"", "\""+pathPrefix+"\"")
+
+		w.Write([]byte(htmlStr))
 	} else if configStruct.EngineType == "capJs" {
 		// 读取HTML模板文件
 		htmlPath := utils.GetCurrentDir() + "/data/capjs/index.html"
@@ -523,6 +547,11 @@ func (s *CaptchaService) ShowCaptchaHomePage(w http.ResponseWriter, r *http.Requ
 
 		// 准备替换的数据
 		htmlStr := string(htmlContent)
+
+		// 替换路径前缀
+		htmlStr = strings.ReplaceAll(htmlStr, "/samwaf_captcha/", pathPrefix+"/")
+		htmlStr = strings.ReplaceAll(htmlStr, "'/samwaf_captcha'", "'"+pathPrefix+"'")
+		htmlStr = strings.ReplaceAll(htmlStr, "\"/samwaf_captcha\"", "\""+pathPrefix+"\"")
 
 		// 替换中文提示信息
 		zhInfoTitle := configStruct.CapJsConfig.InfoTitle.Zh

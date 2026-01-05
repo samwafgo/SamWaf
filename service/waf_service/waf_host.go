@@ -8,6 +8,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
+	"SamWaf/utils"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -27,6 +28,28 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 	} else {
 		uniCode = wafHostAddReq.Code
 	}
+
+	// 如果没有设置HTTP认证路径前缀，则生成随机前缀
+	httpAuthPathPrefix := wafHostAddReq.HttpAuthPathPrefix
+	if httpAuthPathPrefix == "" {
+		httpAuthPathPrefix = utils.GenerateRandomPathPrefix()
+	}
+
+	// 处理验证码配置JSON，如果没有设置路径前缀，则生成随机前缀
+	captchaJSON := wafHostAddReq.CaptchaJSON
+	if captchaJSON != "" {
+		var captchaConfig model.CaptchaConfig
+		err := json.Unmarshal([]byte(captchaJSON), &captchaConfig)
+		if err == nil && captchaConfig.PathPrefix == "" {
+			captchaConfig.PathPrefix = utils.GenerateRandomPathPrefix()
+			// 重新序列化
+			updatedJSON, err := json.Marshal(captchaConfig)
+			if err == nil {
+				captchaJSON = string(updatedJSON)
+			}
+		}
+	}
+
 	var wafHost = &model.Hosts{
 		BaseOrm: baseorm.BaseOrm{
 			Id:          uuid.GenUUID(),
@@ -62,10 +85,11 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 		BindMorePort:         wafHostAddReq.BindMorePort,
 		IsEnableHttpAuthBase: wafHostAddReq.IsEnableHttpAuthBase,
 		HttpAuthBaseType:     wafHostAddReq.HttpAuthBaseType,
+		HttpAuthPathPrefix:   httpAuthPathPrefix,
 		ResponseTimeOut:      wafHostAddReq.ResponseTimeOut,
 		HealthyJSON:          wafHostAddReq.HealthyJSON,
 		InsecureSkipVerify:   wafHostAddReq.InsecureSkipVerify,
-		CaptchaJSON:          wafHostAddReq.CaptchaJSON,
+		CaptchaJSON:          captchaJSON,
 		AntiLeechJSON:        wafHostAddReq.AntiLeechJSON,
 		CacheJSON:            wafHostAddReq.CacheJSON,
 		StaticSiteJSON:       wafHostAddReq.StaticSiteJSON,
@@ -121,6 +145,7 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 		"BindMorePort":         wafHostEditReq.BindMorePort,
 		"IsEnableHttpAuthBase": wafHostEditReq.IsEnableHttpAuthBase,
 		"HttpAuthBaseType":     wafHostEditReq.HttpAuthBaseType,
+		"HttpAuthPathPrefix":   wafHostEditReq.HttpAuthPathPrefix,
 		"ResponseTimeOut":      wafHostEditReq.ResponseTimeOut,
 		"HealthyJSON":          wafHostEditReq.HealthyJSON,
 		"InsecureSkipVerify":   wafHostEditReq.InsecureSkipVerify,

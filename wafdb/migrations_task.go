@@ -1,10 +1,15 @@
 package wafdb
 
 import (
+	"SamWaf/common/uuid"
 	"SamWaf/common/zlog"
+	"SamWaf/customtype"
 	"SamWaf/enums"
+	"SamWaf/global"
 	"SamWaf/model"
+	"SamWaf/model/baseorm"
 	"fmt"
+	"time"
 
 	"github.com/go-gormigrate/gormigrate/v2"
 	"gorm.io/gorm"
@@ -25,6 +30,13 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 				systemTasks := []model.Task{
 					// 每秒级别任务
 					{
+						BaseOrm: baseorm.BaseOrm{
+							Id:          uuid.GenUUID(),
+							USER_CODE:   global.GWAF_USER_CODE,
+							Tenant_ID:   global.GWAF_TENANT_ID,
+							CREATE_TIME: customtype.JsonTime(time.Now()),
+							UPDATE_TIME: customtype.JsonTime(time.Now()),
+						},
 						TaskName:   "每1秒执行qps清空",
 						TaskUnit:   enums.TASK_SECOND,
 						TaskAt:     "",
@@ -32,6 +44,13 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 						TaskMethod: enums.TASK_RUNTIME_QPS_CLEAN,
 					},
 					{
+						BaseOrm: baseorm.BaseOrm{
+							Id:          uuid.GenUUID(),
+							USER_CODE:   global.GWAF_USER_CODE,
+							Tenant_ID:   global.GWAF_TENANT_ID,
+							CREATE_TIME: customtype.JsonTime(time.Now()),
+							UPDATE_TIME: customtype.JsonTime(time.Now()),
+						},
 						TaskName:   "每1秒重置QPS数据",
 						TaskUnit:   enums.TASK_SECOND,
 						TaskAt:     "",
@@ -39,6 +58,13 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 						TaskMethod: enums.TASK_HOST_QPS_CLEAN,
 					},
 					{
+						BaseOrm: baseorm.BaseOrm{
+							Id:          uuid.GenUUID(),
+							USER_CODE:   global.GWAF_USER_CODE,
+							Tenant_ID:   global.GWAF_TENANT_ID,
+							CREATE_TIME: customtype.JsonTime(time.Now()),
+							UPDATE_TIME: customtype.JsonTime(time.Now()),
+						},
 						TaskName:   "每天10s进行一次统计",
 						TaskUnit:   enums.TASK_SECOND,
 						TaskValue:  10,
@@ -46,6 +72,13 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 						TaskMethod: enums.TASK_COUNTER,
 					},
 					{
+						BaseOrm: baseorm.BaseOrm{
+							Id:          uuid.GenUUID(),
+							USER_CODE:   global.GWAF_USER_CODE,
+							Tenant_ID:   global.GWAF_TENANT_ID,
+							CREATE_TIME: customtype.JsonTime(time.Now()),
+							UPDATE_TIME: customtype.JsonTime(time.Now()),
+						},
 						TaskName:   "每10s推送系统统计数据",
 						TaskUnit:   enums.TASK_SECOND,
 						TaskValue:  10,
@@ -53,6 +86,13 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 						TaskMethod: enums.TASK_STATS_PUSH,
 					},
 					{
+						BaseOrm: baseorm.BaseOrm{
+							Id:          uuid.GenUUID(),
+							USER_CODE:   global.GWAF_USER_CODE,
+							Tenant_ID:   global.GWAF_TENANT_ID,
+							CREATE_TIME: customtype.JsonTime(time.Now()),
+							UPDATE_TIME: customtype.JsonTime(time.Now()),
+						},
 						TaskName:   "每30s进行健康度检测",
 						TaskUnit:   enums.TASK_SECOND,
 						TaskValue:  30,
@@ -61,6 +101,13 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 					},
 					// 每分钟级别
 					{
+						BaseOrm: baseorm.BaseOrm{
+							Id:          uuid.GenUUID(),
+							USER_CODE:   global.GWAF_USER_CODE,
+							Tenant_ID:   global.GWAF_TENANT_ID,
+							CREATE_TIME: customtype.JsonTime(time.Now()),
+							UPDATE_TIME: customtype.JsonTime(time.Now()),
+						},
 						TaskName:   "每1分钟进行一次延迟信息提取",
 						TaskUnit:   enums.TASK_MIN,
 						TaskValue:  10,
@@ -68,6 +115,13 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 						TaskMethod: enums.TASK_DELAY_INFO,
 					},
 					{
+						BaseOrm: baseorm.BaseOrm{
+							Id:          uuid.GenUUID(),
+							USER_CODE:   global.GWAF_USER_CODE,
+							Tenant_ID:   global.GWAF_TENANT_ID,
+							CREATE_TIME: customtype.JsonTime(time.Now()),
+							UPDATE_TIME: customtype.JsonTime(time.Now()),
+						},
 						TaskName:   "每1分钟进行一次配置更新",
 						TaskUnit:   enums.TASK_MIN,
 						TaskValue:  1,
@@ -75,6 +129,13 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 						TaskMethod: enums.TASK_LOAD_CONFIG,
 					},
 					{
+						BaseOrm: baseorm.BaseOrm{
+							Id:          uuid.GenUUID(),
+							USER_CODE:   global.GWAF_USER_CODE,
+							Tenant_ID:   global.GWAF_TENANT_ID,
+							CREATE_TIME: customtype.JsonTime(time.Now()),
+							UPDATE_TIME: customtype.JsonTime(time.Now()),
+						},
 						TaskName:   "每5分钟进行CCWindows旧信息清除",
 						TaskUnit:   enums.TASK_MIN,
 						TaskValue:  5,
@@ -82,6 +143,13 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 						TaskMethod: enums.TASK_CLEAR_CC_WINDOWS,
 					},
 					{
+						BaseOrm: baseorm.BaseOrm{
+							Id:          uuid.GenUUID(),
+							USER_CODE:   global.GWAF_USER_CODE,
+							Tenant_ID:   global.GWAF_TENANT_ID,
+							CREATE_TIME: customtype.JsonTime(time.Now()),
+							UPDATE_TIME: customtype.JsonTime(time.Now()),
+						},
 						TaskName:   "每5分钟进行防火墙IP封禁规则清理",
 						TaskUnit:   enums.TASK_MIN,
 						TaskValue:  5,
@@ -89,6 +157,13 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 						TaskMethod: enums.TASK_FIREWALL_CLEAN_EXPIRED,
 					},
 					{
+						BaseOrm: baseorm.BaseOrm{
+							Id:          uuid.GenUUID(),
+							USER_CODE:   global.GWAF_USER_CODE,
+							Tenant_ID:   global.GWAF_TENANT_ID,
+							CREATE_TIME: customtype.JsonTime(time.Now()),
+							UPDATE_TIME: customtype.JsonTime(time.Now()),
+						},
 						TaskName:   "每天30分钟删除历史下载文件",
 						TaskUnit:   enums.TASK_MIN,
 						TaskValue:  30,
@@ -97,6 +172,13 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 					},
 					// 每小时级别
 					{
+						BaseOrm: baseorm.BaseOrm{
+							Id:          uuid.GenUUID(),
+							USER_CODE:   global.GWAF_USER_CODE,
+							Tenant_ID:   global.GWAF_TENANT_ID,
+							CREATE_TIME: customtype.JsonTime(time.Now()),
+							UPDATE_TIME: customtype.JsonTime(time.Now()),
+						},
 						TaskName:   "每1小时进行一次微信提取accesstoken",
 						TaskUnit:   enums.TASK_HOUR,
 						TaskValue:  1,
@@ -105,6 +187,13 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 					},
 					// 每日定时级别
 					{
+						BaseOrm: baseorm.BaseOrm{
+							Id:          uuid.GenUUID(),
+							USER_CODE:   global.GWAF_USER_CODE,
+							Tenant_ID:   global.GWAF_TENANT_ID,
+							CREATE_TIME: customtype.JsonTime(time.Now()),
+							UPDATE_TIME: customtype.JsonTime(time.Now()),
+						},
 						TaskName:   "每天凌晨3点进行数据归档操作",
 						TaskUnit:   enums.TASK_DAY,
 						TaskValue:  1,
@@ -112,6 +201,13 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 						TaskMethod: enums.TASK_SHARE_DB,
 					},
 					{
+						BaseOrm: baseorm.BaseOrm{
+							Id:          uuid.GenUUID(),
+							USER_CODE:   global.GWAF_USER_CODE,
+							Tenant_ID:   global.GWAF_TENANT_ID,
+							CREATE_TIME: customtype.JsonTime(time.Now()),
+							UPDATE_TIME: customtype.JsonTime(time.Now()),
+						},
 						TaskName:   "每天早5点删除历史信息",
 						TaskUnit:   enums.TASK_DAY,
 						TaskValue:  1,
@@ -119,6 +215,13 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 						TaskMethod: enums.TASK_DELETE_HISTORY_INFO,
 					},
 					{
+						BaseOrm: baseorm.BaseOrm{
+							Id:          uuid.GenUUID(),
+							USER_CODE:   global.GWAF_USER_CODE,
+							Tenant_ID:   global.GWAF_TENANT_ID,
+							CREATE_TIME: customtype.JsonTime(time.Now()),
+							UPDATE_TIME: customtype.JsonTime(time.Now()),
+						},
 						TaskName:   "每天01:00进行GC回收",
 						TaskUnit:   enums.TASK_DAY,
 						TaskValue:  1,
@@ -126,6 +229,13 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 						TaskMethod: enums.TASK_GC,
 					},
 					{
+						BaseOrm: baseorm.BaseOrm{
+							Id:          uuid.GenUUID(),
+							USER_CODE:   global.GWAF_USER_CODE,
+							Tenant_ID:   global.GWAF_TENANT_ID,
+							CREATE_TIME: customtype.JsonTime(time.Now()),
+							UPDATE_TIME: customtype.JsonTime(time.Now()),
+						},
 						TaskName:   "每天凌晨01:20进行数据库监控",
 						TaskUnit:   enums.TASK_DAY,
 						TaskValue:  1,
@@ -133,6 +243,13 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 						TaskMethod: enums.TASK_DB_MONITOR,
 					},
 					{
+						BaseOrm: baseorm.BaseOrm{
+							Id:          uuid.GenUUID(),
+							USER_CODE:   global.GWAF_USER_CODE,
+							Tenant_ID:   global.GWAF_TENANT_ID,
+							CREATE_TIME: customtype.JsonTime(time.Now()),
+							UPDATE_TIME: customtype.JsonTime(time.Now()),
+						},
 						TaskName:   "每天02:13进行SSL证书申请",
 						TaskUnit:   enums.TASK_DAY,
 						TaskValue:  1,
@@ -140,6 +257,13 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 						TaskMethod: enums.TASK_SSL_ORDER_RENEW,
 					},
 					{
+						BaseOrm: baseorm.BaseOrm{
+							Id:          uuid.GenUUID(),
+							USER_CODE:   global.GWAF_USER_CODE,
+							Tenant_ID:   global.GWAF_TENANT_ID,
+							CREATE_TIME: customtype.JsonTime(time.Now()),
+							UPDATE_TIME: customtype.JsonTime(time.Now()),
+						},
 						TaskName:   "每天03:00进行查询SSL绑定路径自动加载最新证书",
 						TaskUnit:   enums.TASK_DAY,
 						TaskValue:  1,
@@ -147,6 +271,13 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 						TaskMethod: enums.TASK_SSL_PATH_LOAD,
 					},
 					{
+						BaseOrm: baseorm.BaseOrm{
+							Id:          uuid.GenUUID(),
+							USER_CODE:   global.GWAF_USER_CODE,
+							Tenant_ID:   global.GWAF_TENANT_ID,
+							CREATE_TIME: customtype.JsonTime(time.Now()),
+							UPDATE_TIME: customtype.JsonTime(time.Now()),
+						},
 						TaskName:   "每天05:00进行批量任务",
 						TaskUnit:   enums.TASK_DAY,
 						TaskValue:  1,
@@ -154,6 +285,13 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 						TaskMethod: enums.TASK_BATCH,
 					},
 					{
+						BaseOrm: baseorm.BaseOrm{
+							Id:          uuid.GenUUID(),
+							USER_CODE:   global.GWAF_USER_CODE,
+							Tenant_ID:   global.GWAF_TENANT_ID,
+							CREATE_TIME: customtype.JsonTime(time.Now()),
+							UPDATE_TIME: customtype.JsonTime(time.Now()),
+						},
 						TaskName:   "每天06:00进行批量SSL过期检测",
 						TaskUnit:   enums.TASK_DAY,
 						TaskValue:  1,
@@ -161,6 +299,13 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 						TaskMethod: enums.TASK_SSL_EXPIRE_CHECK,
 					},
 					{
+						BaseOrm: baseorm.BaseOrm{
+							Id:          uuid.GenUUID(),
+							USER_CODE:   global.GWAF_USER_CODE,
+							Tenant_ID:   global.GWAF_TENANT_ID,
+							CREATE_TIME: customtype.JsonTime(time.Now()),
+							UPDATE_TIME: customtype.JsonTime(time.Now()),
+						},
 						TaskName:   "每天早8晚8进行通知(需要开启通知)",
 						TaskUnit:   enums.TASK_DAY,
 						TaskValue:  1,
@@ -169,6 +314,13 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 					},
 					// 每周级别
 					{
+						BaseOrm: baseorm.BaseOrm{
+							Id:          uuid.GenUUID(),
+							USER_CODE:   global.GWAF_USER_CODE,
+							Tenant_ID:   global.GWAF_TENANT_ID,
+							CREATE_TIME: customtype.JsonTime(time.Now()),
+							UPDATE_TIME: customtype.JsonTime(time.Now()),
+						},
 						TaskName:          "每周六晚上23:00进行web文件缓存清除",
 						TaskUnit:          enums.TASK_WEEKLY,
 						TaskValue:         1,

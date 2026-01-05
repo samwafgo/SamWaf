@@ -535,9 +535,15 @@ func (waf *WafEngine) doBasicAuth(hostSafe *wafenginmodel.HostSafe, w http.Respo
 
 // doCustomAuth 使用自定义页面方式认证
 func (waf *WafEngine) doCustomAuth(hostSafe *wafenginmodel.HostSafe, w http.ResponseWriter, r *http.Request) (bool, string) {
+	// 获取HTTP认证路径前缀
+	authPathPrefix := hostSafe.Host.HttpAuthPathPrefix
+	if authPathPrefix == "" {
+		authPathPrefix = "/samwaf_httpauth"
+	}
+
 	// 处理登录页面的静态资源请求
-	if strings.HasPrefix(r.URL.Path, "/samwaf_httpauth/") {
-		waf.handleHttpAuthRequest(hostSafe, w, r)
+	if strings.HasPrefix(r.URL.Path, authPathPrefix+"/") {
+		waf.handleHttpAuthRequest(hostSafe, w, r, authPathPrefix)
 		return true, "处理HTTP Auth请求"
 	}
 
@@ -558,13 +564,13 @@ func (waf *WafEngine) doCustomAuth(hostSafe *wafenginmodel.HostSafe, w http.Resp
 
 	// 未通过认证，显示登录页面
 	tip := "需要登录认证"
-	waf.serveLoginPage(w, r)
+	waf.serveLoginPage(w, r, authPathPrefix)
 	return true, tip
 }
 
 // handleHttpAuthRequest 处理HTTP Auth相关请求
-func (waf *WafEngine) handleHttpAuthRequest(hostSafe *wafenginmodel.HostSafe, w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/samwaf_httpauth/")
+func (waf *WafEngine) handleHttpAuthRequest(hostSafe *wafenginmodel.HostSafe, w http.ResponseWriter, r *http.Request, pathPrefix string) {
+	path := strings.TrimPrefix(r.URL.Path, pathPrefix+"/")
 
 	// 处理验证接口
 	if path == "validate" && r.Method == "POST" {
@@ -682,7 +688,7 @@ func (waf *WafEngine) handleHttpAuthValidate(hostSafe *wafenginmodel.HostSafe, w
 }
 
 // serveLoginPage 提供登录页面
-func (waf *WafEngine) serveLoginPage(w http.ResponseWriter, r *http.Request) {
+func (waf *WafEngine) serveLoginPage(w http.ResponseWriter, r *http.Request, pathPrefix string) {
 	// 读取登录页面文件
 	loginPagePath := utils.GetCurrentDir() + "/data/httpauth/login.html"
 
@@ -701,11 +707,20 @@ func (waf *WafEngine) serveLoginPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 替换路径前缀
+	htmlStr := string(content)
+	if pathPrefix == "" {
+		pathPrefix = "/samwaf_httpauth"
+	}
+	htmlStr = strings.ReplaceAll(htmlStr, "/samwaf_httpauth/", pathPrefix+"/")
+	htmlStr = strings.ReplaceAll(htmlStr, "'/samwaf_httpauth'", "'"+pathPrefix+"'")
+	htmlStr = strings.ReplaceAll(htmlStr, "\"/samwaf_httpauth\"", "\""+pathPrefix+"\"")
+
 	// 设置响应头
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
 	w.WriteHeader(http.StatusOK)
-	w.Write(content)
+	w.Write([]byte(htmlStr))
 }
 
 // checkCredentials 验证用户名和密码

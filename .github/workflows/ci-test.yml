@@ -1,0 +1,258 @@
+name: CI Build and Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  # Linux 构建和测试
+  build-and-test-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21.4'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential musl-tools
+
+      - name: Download SamWafWeb
+        run: |
+          curl -L https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
+          tar -zxvf dist.tar.gz
+          rm -rf public/dist
+          mv -f dist public
+          rm -rf dist.tar.gz
+
+      - name: Go mod tidy
+        run: go mod tidy
+
+      - name: Build Linux binary
+        env:
+          CGO_ENABLED: 1
+          CC: x86_64-linux-musl-gcc
+          CXX: x86_64-linux-musl-g++
+          CGO_CFLAGS: -Wno-unused-variable -D_LARGEFILE64_SOURCE
+          GOAMD64: v1
+        run: |
+          BUILDTIME=$(date +'%Y%m%d')
+          go build \
+            -ldflags="-X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=false -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=ci-test -s -w -extldflags '-static'" \
+            -o ./SamWafLinux64 main.go
+
+      - name: Test Linux binary
+        timeout-minutes: 2
+        run: |
+          echo "Starting SamWaf service..."
+          # 在后台启动服务
+          ./SamWafLinux64 &
+          SERVICE_PID=$!
+          echo "Service started with PID: $SERVICE_PID"
+          
+          # 等待服务启动（最多等待30秒）
+          echo "Waiting for service to start..."
+          for i in {1..30}; do
+            if curl -f http://localhost:26666 2>/dev/null; then
+              echo "Service is up and running!"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "Service failed to start within 30 seconds"
+              kill $SERVICE_PID || true
+              exit 1
+            fi
+            echo "Attempt $i/30: Service not ready yet, waiting..."
+            sleep 1
+          done
+          
+          # 执行健康检查
+          echo "Performing health check..."
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:26666)
+          echo "HTTP Status Code: $HTTP_CODE"
+          
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 500 ]; then
+            echo "Health check passed!"
+          else
+            echo "Health check failed with status code: $HTTP_CODE"
+            kill $SERVICE_PID || true
+            exit 1
+          fi
+          
+          # 停止服务
+          echo "Stopping service..."
+          kill $SERVICE_PID || true
+          wait $SERVICE_PID 2>/dev/null || true
+          echo "Service stopped successfully"
+
+  # Windows 构建和基本测试
+  build-and-test-windows:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21.4'
+
+      - name: Install dependencies for Windows cross-compilation
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686
+
+      - name: Download SamWafWeb
+        run: |
+          curl -L https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
+          tar -zxvf dist.tar.gz
+          rm -rf public/dist
+          mv -f dist public
+          rm -rf dist.tar.gz
+
+      - name: Go mod tidy
+        run: go mod tidy
+
+      - name: Build Windows binary
+        env:
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: 1
+          CC: x86_64-w64-mingw32-gcc
+          CXX: x86_64-w64-mingw32-g++
+          CGO_CFLAGS: -Wno-unused-variable
+        run: |
+          BUILDTIME=$(date +'%Y%m%d')
+          go build \
+            -ldflags="-X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=false -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=ci-test -s -w -extldflags '-static'" \
+            -o ./SamWaf64.exe main.go
+
+      - name: Check Windows binary
+        run: |
+          echo "Windows binary built successfully:"
+          ls -lh SamWaf64.exe
+          file SamWaf64.exe
+
+  # Docker 构建和测试
+  build-and-test-docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build Docker Image for amd64
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: samwaf/samwaf:ci-test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Test Docker Image
+        timeout-minutes: 2
+        run: |
+          echo "Testing Docker image..."
+          docker run -d --name=samwaf-ci-test \
+            -p 26666:26666 \
+            samwaf/samwaf:ci-test
+
+          # 等待服务启动（最多等待30秒）
+          echo "Waiting for service to start..."
+          for i in {1..30}; do
+            if curl -f http://localhost:26666 2>/dev/null; then
+              echo "Service is up and running!"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "Service failed to start within 30 seconds"
+              docker logs samwaf-ci-test
+              docker stop samwaf-ci-test
+              docker rm samwaf-ci-test
+              exit 1
+            fi
+            echo "Attempt $i/30: Service not ready yet, waiting..."
+            sleep 1
+          done
+
+          # 执行健康检查
+          echo "Performing health check..."
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:26666)
+          echo "HTTP Status Code: $HTTP_CODE"
+          
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 500 ]; then
+            echo "Health check passed!"
+          else
+            echo "Health check failed with status code: $HTTP_CODE"
+            docker logs samwaf-ci-test
+            docker stop samwaf-ci-test
+            docker rm samwaf-ci-test
+            exit 1
+          fi
+
+          # 查看日志
+          echo "=== Docker Container Logs ==="
+          docker logs samwaf-ci-test
+
+          # 停止并移除容器
+          docker stop samwaf-ci-test
+          docker rm samwaf-ci-test
+          echo "Docker test completed successfully"
+
+  # 代码质量检查
+  code-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21.4'
+
+      - name: Go mod verify
+        run: go mod verify
+
+      - name: Go vet
+        run: go vet ./...
+
+      - name: Install staticcheck
+        run: go install honnef.co/go/tools/cmd/staticcheck@latest
+
+      - name: Run staticcheck
+        run: staticcheck ./...
+        continue-on-error: true
+
+      - name: Check formatting
+        run: |
+          if [ -n "$(gofmt -s -l .)" ]; then
+            echo "以下文件需要格式化:"
+            gofmt -s -l .
+            exit 1
+          fi
+        continue-on-error: true
+

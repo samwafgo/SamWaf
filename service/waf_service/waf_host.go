@@ -96,6 +96,7 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 		DefaultEncoding:      wafHostAddReq.DefaultEncoding,
 		LogOnlyMode:          wafHostAddReq.LogOnlyMode,
 		TransportJSON:        wafHostAddReq.TransportJSON,
+		CustomHeadersJSON:    wafHostAddReq.CustomHeadersJSON,
 	}
 	global.GWAF_LOCAL_DB.Create(wafHost)
 	return wafHost.Code, nil
@@ -156,6 +157,7 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 		"DefaultEncoding":      wafHostEditReq.DefaultEncoding,
 		"LogOnlyMode":          wafHostEditReq.LogOnlyMode,
 		"TransportJSON":        wafHostEditReq.TransportJSON,
+		"CustomHeadersJSON":    wafHostEditReq.CustomHeadersJSON,
 	}
 	err := global.GWAF_LOCAL_DB.Debug().Model(model.Hosts{}).Where("CODE=?", wafHostEditReq.CODE).Updates(hostMap).Error
 

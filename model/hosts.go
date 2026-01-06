@@ -45,6 +45,7 @@ type Hosts struct {
 	TransportJSON        string `json:"transport_json"`           //传输配置 json
 	DefaultEncoding      string `json:"default_encoding"`         //默认编码 utf-8 或者 gbk  auto字符串自动选择
 	LogOnlyMode          int    `json:"log_only_mode"`            //仅记录模式 1开启 0关闭
+	CustomHeadersJSON    string `json:"custom_headers_json"`      //自定义头信息配置 json
 }
 
 type HostsDefense struct {
@@ -170,6 +171,18 @@ type TransportConfig struct {
 	ExpectContinueTimeout int `json:"expect_continue_timeout"` // Expect Continue超时时间(秒)
 }
 
+// CustomHeaderItem 自定义头信息项
+type CustomHeaderItem struct {
+	HeaderName  string `json:"header_name"`  // 头信息名称
+	HeaderValue string `json:"header_value"` // 头信息值，支持内置变量
+}
+
+// CustomHeadersConfig 自定义头信息配置
+type CustomHeadersConfig struct {
+	IsEnableCustomHeaders int                `json:"is_enable_custom_headers"` // 是否开启自定义头信息 1开启 0关闭
+	Headers               []CustomHeaderItem `json:"headers"`                  // 自定义头信息列表
+}
+
 // ParseTransportConfig 解析传输配置
 func ParseTransportConfig(transportJSON string) TransportConfig {
 	var config TransportConfig
@@ -216,4 +229,23 @@ func ParseHostsDefense(defenseJSON string) HostsDefense {
 		}
 	}
 	return defense
+}
+
+// ParseCustomHeadersConfig 解析自定义头信息配置
+func ParseCustomHeadersConfig(customHeadersJSON string) CustomHeadersConfig {
+	var config CustomHeadersConfig
+
+	// 设置默认值
+	config.IsEnableCustomHeaders = 0
+	config.Headers = []CustomHeaderItem{}
+
+	// 如果JSON不为空，则解析覆盖默认值
+	if customHeadersJSON != "" {
+		err := json.Unmarshal([]byte(customHeadersJSON), &config)
+		if err != nil {
+			// 解析失败时使用默认值，可以记录日志
+			return config
+		}
+	}
+	return config
 }

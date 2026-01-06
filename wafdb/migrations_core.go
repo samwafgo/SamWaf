@@ -307,6 +307,40 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移8: 为 hosts 表添加 custom_headers_json 字段（自定义头信息功能）
+		{
+			ID: "202601060001_add_hosts_custom_headers_json",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202601060001: 为 hosts 表添加 custom_headers_json 字段")
+
+				// 检查字段是否已存在
+				if tx.Migrator().HasColumn(&model.Hosts{}, "custom_headers_json") {
+					zlog.Info("custom_headers_json 字段已存在，跳过添加")
+					return nil
+				}
+
+				// 添加字段
+				if err := tx.Migrator().AddColumn(&model.Hosts{}, "custom_headers_json"); err != nil {
+					return fmt.Errorf("添加 custom_headers_json 字段失败: %w", err)
+				}
+
+				// 设置默认值
+				defaultCustomHeadersConfig := `{"is_enable_custom_headers":0,"headers":[]}`
+				if err := tx.Exec("UPDATE hosts SET custom_headers_json = ? WHERE custom_headers_json IS NULL OR custom_headers_json = ''", defaultCustomHeadersConfig).Error; err != nil {
+					zlog.Warn("设置 custom_headers_json 默认值失败", "error", err.Error())
+				}
+
+				zlog.Info("custom_headers_json 字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202601060001: 删除 hosts 表的 custom_headers_json 字段")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "custom_headers_json") {
+					return tx.Migrator().DropColumn(&model.Hosts{}, "custom_headers_json")
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

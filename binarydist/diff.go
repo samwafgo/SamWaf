@@ -175,7 +175,6 @@ func search(I []int, obuf, nbuf []byte, st, en int) (pos, n int) {
 	} else {
 		return search(I, obuf, nbuf, st, x)
 	}
-	panic("unreached")
 }
 
 // Diff computes the difference between old and new, according to the bsdiff

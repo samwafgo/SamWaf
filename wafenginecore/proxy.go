@@ -13,7 +13,9 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -246,5 +248,84 @@ func (waf *WafEngine) getCustomHeaders(r *http.Request, host string, isEnableLoa
 	if r.TLS != nil {
 		customHeaders["X-FORWARDED-PROTO"] = "https"
 	}
+
+	// 解析自定义头信息配置
+	customHeadersConfig := model.ParseCustomHeadersConfig(hostTarget.Host.CustomHeadersJSON)
+
+	// 如果启用了自定义头信息
+	if customHeadersConfig.IsEnableCustomHeaders == 1 {
+		// 获取客户端IP
+		clientIP := r.RemoteAddr
+		if idx := strings.LastIndex(clientIP, ":"); idx != -1 {
+			clientIP = clientIP[:idx]
+		}
+
+		// 遍历自定义头信息列表
+		for _, header := range customHeadersConfig.Headers {
+			if header.HeaderName == "" {
+				continue
+			}
+
+			// 解析并替换变量
+			headerValue := waf.parseHeaderValue(header.HeaderValue, r, clientIP)
+
+			// 添加到自定义头信息中
+			customHeaders[header.HeaderName] = headerValue
+		}
+	}
+
 	return customHeaders
+}
+
+// parseHeaderValue 解析头信息值中的变量
+// 支持的变量：
+// ${header:HeaderName} - 获取原始请求头
+// ${client_ip} - 获取客户端IP
+// ${remote_addr} - 获取远程地址
+// ${host} - 获取主机名
+// ${scheme} - 获取协议（http/https）
+// ${request_uri} - 获取请求URI
+// ${request_method} - 获取请求方法
+func (waf *WafEngine) parseHeaderValue(value string, r *http.Request, clientIP string) string {
+	// 正则表达式匹配 ${变量名} 或 ${header:头名称}
+	varPattern := regexp.MustCompile(`\$\{([^}]+)\}`)
+
+	result := varPattern.ReplaceAllStringFunc(value, func(match string) string {
+		// 提取变量名（去掉 ${ 和 }）
+		varName := match[2 : len(match)-1]
+
+		// 检查是否是header变量
+		if strings.HasPrefix(varName, "header:") {
+			headerName := strings.TrimPrefix(varName, "header:")
+			headerValue := r.Header.Get(headerName)
+			if headerValue == "" {
+				return "" // 如果header不存在，返回空字符串
+			}
+			return headerValue
+		}
+
+		// 处理其他内置变量
+		switch varName {
+		case "client_ip":
+			return clientIP
+		case "remote_addr":
+			return r.RemoteAddr
+		case "host":
+			return r.Host
+		case "scheme":
+			if r.TLS != nil {
+				return "https"
+			}
+			return "http"
+		case "request_uri":
+			return r.RequestURI
+		case "request_method":
+			return r.Method
+		default:
+			// 未知变量，保持原样
+			return match
+		}
+	})
+
+	return result
 }

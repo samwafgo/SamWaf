@@ -125,6 +125,8 @@ func setConfigIntValue(name string, value int64, change int) {
 		break
 	case "http3":
 		global.GCONFIG_ENABLE_HTTP3 = value
+	case "record_log_desensitize":
+		global.GCONFIG_RECORD_LOG_DESENSITIZE = value
 	default:
 		zlog.Warn("Unknown config item:", name)
 	}
@@ -276,6 +278,7 @@ func TaskLoadSetting(initLoad bool) {
 	updateConfigIntItem(initLoad, "network", "http3", global.GCONFIG_ENABLE_HTTP3, "是否启用http3（1启用 0关闭）", "int", "", configMap)
 
 	updateConfigIntItem(initLoad, "system", "record_all_src_byte_info", global.GCONFIG_RECORD_ALL_SRC_BYTE_INFO, "启动记录原始请求BODY报文（1启动 0关闭）", "int", "", configMap)
+	updateConfigIntItem(initLoad, "system", "record_log_desensitize", global.GCONFIG_RECORD_LOG_DESENSITIZE, "请求记录是否进行脱敏处理（1开启脱敏 0关闭脱敏）", "options", "0|关闭脱敏,1|开启脱敏", configMap)
 	updateConfigIntItem(initLoad, "system", "token_expire_time", global.GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES, "管理平台令牌有效期，单位分钟（默认5分钟）", "int", "", configMap)
 	updateConfigIntItem(initLoad, "system", "spider_deny", global.GCONFIG_RECORD_SPIDER_DENY, "爬虫禁止访问开关 默认 0 只检测不阻止访问 1 检测并阻止访问）", "int", "", configMap)
 	updateConfigIntItem(initLoad, "debug", "enable_debug", global.GCONFIG_RECORD_DEBUG_ENABLE, "调试开关 默认关闭", "int", "", configMap)

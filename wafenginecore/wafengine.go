@@ -639,7 +639,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 日志保存时候也是脱敏保存防止，数据库密码被破解，遭到敏感信息遭到泄露
-		if weblogbean.BODY != "" {
+		if global.GCONFIG_RECORD_LOG_DESENSITIZE == 1 && weblogbean.BODY != "" {
 			weblogbean.BODY = utils.DeSenTextByCustomMark(enums.DLP_MARK_RULE_LoginSensitiveInfoMaskRule, weblogbean.BODY)
 		}
 		remoteUrl, err := url.Parse(hostTarget.TargetHost)

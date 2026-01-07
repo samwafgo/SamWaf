@@ -29,8 +29,19 @@ func PrintSSLCert(cert string) string {
 					}
 					domains += domain
 				}
-			} else {
-				domains = "未指定域名"
+			}
+			// 检查是否有IP地址
+			if len(cert.IPAddresses) > 0 {
+				for _, ip := range cert.IPAddresses {
+					if domains != "" {
+						domains += ", "
+					}
+					domains += ip.String()
+				}
+			}
+			// 如果既没有域名也没有IP
+			if domains == "" {
+				domains = "未指定域名或IP"
 			}
 			result = fmt.Sprintf("serialNo=%s  subject=%s  issuer=%s validFrom=%v  validTo=%v  domains=%s", serialNo, subject, issuer, validFrom, validTo, domains)
 

@@ -445,3 +445,17 @@ func GetSourceClientIP(ipAndPort string) string {
 	}
 
 }
+
+// IsIP 判断输入是否为 IP 地址（IPv4 或 IPv6）
+func IsIP(input string) bool {
+	if input == "" {
+		return false
+	}
+
+	// 去除首尾空格
+	input = strings.TrimSpace(input)
+
+	// 使用 net.ParseIP 解析
+	// 如果是有效的 IP，返回非 nil
+	return net.ParseIP(input) != nil
+}

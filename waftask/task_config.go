@@ -57,6 +57,9 @@ func setConfigIntValue(name string, value int64, change int) {
 	case "sslorder_expire_day":
 		global.GCONFIG_RECORD_SSLOrder_EXPIRE_DAY = value
 		break
+	case "ssl_ip_expire_day":
+		global.GCONFIG_RECORD_SSL_IP_EXPIRE_DAY = value
+		break
 	case "connect_time_out":
 		global.GCONFIG_RECORD_CONNECT_TIME_OUT = value
 		break
@@ -174,6 +177,9 @@ func setConfigStringValue(name string, value string, change int) {
 	case "ssl_max_version":
 		global.GCONFIG_RECORD_SSLMaxVerson = value
 		break
+	case "ssl_ip_cert_ip":
+		global.GCONFIG_RECORD_SSL_IP_CERT_IP = value
+		break
 	case "ip_failure_status_codes":
 		global.GCONFIG_IP_FAILURE_STATUS_CODES = value
 		// 重新加载状态码配置
@@ -269,6 +275,8 @@ func TaskLoadSetting(initLoad bool) {
 
 	updateConfigIntItem(initLoad, "ssl", "enable_http_80", global.GCONFIG_RECORD_ENABLE_HTTP_80, "启动80端口服务（为自动申请证书使用 HTTP文件验证类型需要，DNS验证不需要）", "int", "", configMap)
 	updateConfigIntItem(initLoad, "ssl", "sslorder_expire_day", global.GCONFIG_RECORD_SSLOrder_EXPIRE_DAY, "自动续期检测小于多少天开始发起自动申请 默认30天", "int", "", configMap)
+	updateConfigStringItem(initLoad, "ssl", "ssl_ip_cert_ip", global.GCONFIG_RECORD_SSL_IP_CERT_IP, "获取IP证书时的IP地址（为IP证书申请使用，留空则不使用）", "string", "", configMap)
+	updateConfigIntItem(initLoad, "ssl", "ssl_ip_expire_day", global.GCONFIG_RECORD_SSL_IP_EXPIRE_DAY, "IP证书自动续期检测小于多少天开始发起自动申请 默认3天", "int", "", configMap)
 	updateConfigIntItem(initLoad, "ssl", "sslhttp_check", global.GCONFIG_RECORD_SSLHTTP_CHECK, "证书文件验证方式是否要严控后端.well-known 响应代码必须是404 301 302 ，默认1控制 0 不控制", "int", "", configMap)
 	updateConfigStringItem(initLoad, "ssl", "ssl_min_version", global.GCONFIG_RECORD_SSLMinVerson, "SSL最低版本(支持TLS 1.0,TLS 1.1,TLS 1.2,TLS 1.3)，修改后重启一下", "options", "TLS 1.0|TLS 1.0,TLS 1.1|TLS 1.1,TLS 1.2|TLS 1.2,TLS 1.3|TLS 1.3", configMap)
 	updateConfigStringItem(initLoad, "ssl", "ssl_max_version", global.GCONFIG_RECORD_SSLMaxVerson, "SSL最大版本(支持TLS 1.0,TLS 1.1,TLS 1.2,TLS 1.3)，修改后重启一下", "options", "TLS 1.0|TLS 1.0,TLS 1.1|TLS 1.1,TLS 1.2|TLS 1.2,TLS 1.3|TLS 1.3", configMap)

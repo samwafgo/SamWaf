@@ -99,10 +99,22 @@ func SSLOrderReload() {
 				if err != nil {
 					zlog.Error(innerLogName, "ssl order get lasted info:", err.Error())
 				} else {
-					zlog.Info(fmt.Sprintf("%s 域名%s 是否过期 %v 天数：%v 信息 %v ，系统检测超期天数 %v 天",
-						innerLogName, hostBean.Host, isExpire, availDay, msg, global.GCONFIG_RECORD_SSLOrder_EXPIRE_DAY))
-					if isExpire == false && availDay <= int(global.GCONFIG_RECORD_SSLOrder_EXPIRE_DAY) {
-						//没过期 且是知单天数 就才处理
+					// 判断是IP证书还是域名证书，使用不同的过期检测天数
+					isIpSSL := utils.IsIP(hostBean.Host)
+					var expireDays int64
+					var certType string
+					if isIpSSL {
+						expireDays = global.GCONFIG_RECORD_SSL_IP_EXPIRE_DAY
+						certType = "IP证书"
+					} else {
+						expireDays = global.GCONFIG_RECORD_SSLOrder_EXPIRE_DAY
+						certType = "域名证书"
+					}
+
+					zlog.Info(fmt.Sprintf("%s %s %s 是否过期 %v 天数：%v 信息 %v ，系统检测超期天数 %v 天",
+						innerLogName, certType, hostBean.Host, isExpire, availDay, msg, expireDays))
+					if isExpire == false && availDay <= int(expireDays) {
+						//没过期 且是指定天数 就才处理
 						var chanInfo = spec.ChanSslOrder{
 							Type:    enums.ChanSslOrderrenew,
 							Content: lastSslOrderInfo,
@@ -182,26 +194,51 @@ func checkAndNotifySSLExpire(domain string, expiryTime time.Time) {
 	// 计算剩余天数
 	daysLeft := int(time.Until(expiryTime).Hours() / 24)
 
-	// 从配置读取提前提醒天数（默认30天）
-	expireDays := int(global.GCONFIG_RECORD_SSLOrder_EXPIRE_DAY)
-	if expireDays <= 0 {
-		expireDays = 30 // 默认值
+	// 判断是IP证书还是域名证书
+	isIpCert := utils.IsIP(domain)
+	var expireDays int
+	var certType string
+
+	if isIpCert {
+		// IP证书：使用IP证书专用配置（默认3天）
+		expireDays = int(global.GCONFIG_RECORD_SSL_IP_EXPIRE_DAY)
+		certType = "IP证书"
+		if expireDays <= 0 {
+			expireDays = 3 // IP证书默认提前3天
+		}
+	} else {
+		// 域名证书：使用域名证书配置（默认30天）
+		expireDays = int(global.GCONFIG_RECORD_SSLOrder_EXPIRE_DAY)
+		certType = "域名证书"
+		if expireDays <= 0 {
+			expireDays = 30 // 域名证书默认提前30天
+		}
 	}
 
 	// 定义需要提醒的天数阈值
-	// 基于配置的天数，设置多个提醒节点：配置天数、一半、7天、3天、1天
+	// 基于配置的天数，设置多个提醒节点
 	alertThresholds := []int{}
-	alertThresholds = append(alertThresholds, expireDays) // 例如：30天
-	if expireDays > 15 {
-		alertThresholds = append(alertThresholds, expireDays/2) // 例如：15天
+	alertThresholds = append(alertThresholds, expireDays) // 配置的天数
+
+	// IP证书由于有效期短（通常7天），提醒策略更密集
+	if isIpCert {
+		// IP证书：3天、1天
+		if expireDays > 1 {
+			alertThresholds = append(alertThresholds, 1) // 1天
+		}
+	} else {
+		// 域名证书：配置天数、一半、7天、3天、1天
+		if expireDays > 15 {
+			alertThresholds = append(alertThresholds, expireDays/2) // 例如：15天
+		}
+		if expireDays > 7 {
+			alertThresholds = append(alertThresholds, 7) // 7天
+		}
+		if expireDays > 3 {
+			alertThresholds = append(alertThresholds, 3) // 3天
+		}
+		alertThresholds = append(alertThresholds, 1) // 1天
 	}
-	if expireDays > 7 {
-		alertThresholds = append(alertThresholds, 7) // 7天
-	}
-	if expireDays > 3 {
-		alertThresholds = append(alertThresholds, 3) // 3天
-	}
-	alertThresholds = append(alertThresholds, 1) // 1天
 
 	// 检查是否需要提醒：剩余天数等于某个阈值，或者少于最小阈值
 	shouldAlert := false
@@ -233,16 +270,16 @@ func checkAndNotifySSLExpire(domain string, expiryTime time.Time) {
 
 		var noticeMsg string
 		if daysLeft < 0 {
-			noticeMsg = fmt.Sprintf("SSL证书已过期 %d 天", -daysLeft)
+			noticeMsg = fmt.Sprintf("%s已过期 %d 天", certType, -daysLeft)
 		} else if daysLeft == 0 {
-			noticeMsg = "SSL证书今天过期"
+			noticeMsg = fmt.Sprintf("%s今天过期", certType)
 		} else if daysLeft == 1 {
-			noticeMsg = "SSL证书明天过期"
+			noticeMsg = fmt.Sprintf("%s明天过期", certType)
 		} else {
-			noticeMsg = fmt.Sprintf("SSL证书即将在 %d 天后过期", daysLeft)
+			noticeMsg = fmt.Sprintf("%s即将在 %d 天后过期", certType, daysLeft)
 		}
 
-		zlog.Info("SSLExpireCheck", fmt.Sprintf("%s: %s (剩余%d天)", domain, noticeMsg, daysLeft))
+		zlog.Info("SSLExpireCheck", fmt.Sprintf("[%s] %s: %s (剩余%d天)", certType, domain, noticeMsg, daysLeft))
 
 		// 发送SSL证书过期通知到消息队列
 		global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.SSLExpireMessageInfo{

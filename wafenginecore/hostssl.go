@@ -2,8 +2,10 @@ package wafenginecore
 
 import (
 	"SamWaf/common/zlog"
+	"SamWaf/global"
 	"crypto/tls"
 	"errors"
+	"net"
 	"strings"
 	"sync"
 )
@@ -113,10 +115,38 @@ func (ac *AllCertificate) GetSSL(domain string) *tls.Certificate {
 
 // GetCertificateFunc 获取证书的函数
 func (waf *WafEngine) GetCertificateFunc(clientInfo *tls.ClientHelloInfo) (*tls.Certificate, error) {
-	zlog.Debug("GetCertificate ", clientInfo.ServerName)
-	x509Cert := waf.AllCertificate.GetSSL(clientInfo.ServerName)
+	serverName := clientInfo.ServerName
+	// 如果 ServerName 为空（通常是 IP 访问），尝试从连接中获取服务器 IP
+	if serverName == "" {
+		if clientInfo.Conn != nil {
+			// 获取服务器本地地址
+			localAddr := clientInfo.Conn.LocalAddr().String()
+			// 去掉端口号，只保留 IP
+			if host, _, err := net.SplitHostPort(localAddr); err == nil {
+				if global.GCONFIG_RECORD_SSL_IP_CERT_IP != "" {
+					serverName = global.GCONFIG_RECORD_SSL_IP_CERT_IP
+					zlog.Debug("Using configured real IP: ", serverName)
+				} else if global.GWAF_RUNTIME_IP != "" {
+					serverName = global.GWAF_RUNTIME_IP
+					zlog.Debug("Using out real IP: ", serverName)
+				} else {
+					serverName = host
+					zlog.Debug("Using local IP address: ", serverName)
+				}
+			}
+
+		}
+
+		// 如果还是空，返回错误
+		if serverName == "" {
+			zlog.Debug("No ServerName and unable to get local address")
+			return nil, errors.New("no server name or IP address found")
+		}
+	}
+	zlog.Debug("GetCertificate ", serverName)
+	x509Cert := waf.AllCertificate.GetSSL(serverName)
 	if x509Cert != nil {
 		return x509Cert, nil
 	}
-	return nil, errors.New("certificate not found for domain: " + clientInfo.ServerName)
+	return nil, errors.New("certificate not found for domain: " + serverName)
 }

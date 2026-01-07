@@ -49,8 +49,19 @@ func (receiver *WafSslConfigService) AddApi(req request.SslConfigAddReq) error {
 			}
 			domains += domain
 		}
-	} else {
-		domains = "未指定域名"
+	}
+	// 检查是否有IP地址
+	if len(cert.IPAddresses) > 0 {
+		for _, ip := range cert.IPAddresses {
+			if domains != "" {
+				domains += ", "
+			}
+			domains += ip.String()
+		}
+	}
+	// 如果既没有域名也没有IP
+	if domains == "" {
+		domains = "未指定域名或IP"
 	}
 	err = receiver.CheckIsExistApi(serialNo)
 	if err == nil && !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -148,8 +159,19 @@ func (receiver *WafSslConfigService) ModifyApi(req request.SslConfigEditReq) err
 			}
 			domains += domain
 		}
-	} else {
-		domains = "未指定域名"
+	}
+	// 检查是否有IP地址
+	if len(cert.IPAddresses) > 0 {
+		for _, ip := range cert.IPAddresses {
+			if domains != "" {
+				domains += ", "
+			}
+			domains += ip.String()
+		}
+	}
+	// 如果既没有域名也没有IP
+	if domains == "" {
+		domains = "未指定域名或IP"
 	}
 
 	var bean model.SslConfig

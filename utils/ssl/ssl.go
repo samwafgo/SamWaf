@@ -2,13 +2,19 @@ package ssl
 
 import (
 	"SamWaf/model"
+	"SamWaf/utils"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
+	"net"
+	"strings"
+
 	"github.com/go-acme/lego/v4/certcrypto"
 	"github.com/go-acme/lego/v4/certificate"
 	"github.com/go-acme/lego/v4/challenge"
@@ -20,7 +26,6 @@ import (
 	"github.com/go-acme/lego/v4/providers/dns/tencentcloud"
 	"github.com/go-acme/lego/v4/providers/http/webroot"
 	"github.com/go-acme/lego/v4/registration"
-	"strings"
 )
 
 type MyUser struct {
@@ -40,6 +45,7 @@ func (u *MyUser) GetPrivateKey() crypto.PrivateKey {
 }
 
 func RegistrationSSL(order model.SslOrder, savePath string, caServerAddress string) (model.SslOrder, error) {
+	isIpSSL := utils.IsIP(order.ApplyDomain)
 	myUser := MyUser{
 		Email: order.ApplyEmail,
 	}
@@ -70,6 +76,10 @@ func RegistrationSSL(order model.SslOrder, savePath string, caServerAddress stri
 
 	config.CADirURL = caServerAddress
 	config.Certificate.KeyType = certcrypto.RSA2048
+	if isIpSSL {
+		//是否是ip申请ssl证书
+		config.Certificate.DisableCommonName = true
+	}
 
 	// A client facilitates communication with the CA server.
 	client, err := lego.NewClient(config)
@@ -105,16 +115,59 @@ func RegistrationSSL(order model.SslOrder, savePath string, caServerAddress stri
 	}
 	myUser.Registration = reg
 
-	request := certificate.ObtainRequest{
-		Domains: strings.Split(order.ApplyDomain, ","),
-		Bundle:  true,
-	}
+	certificates := &certificate.Resource{}
+	if !isIpSSL {
+		request := certificate.ObtainRequest{
+			Domains: strings.Split(order.ApplyDomain, ","),
+			Bundle:  true,
+		}
+		certificatesLocal, err := client.Certificate.Obtain(request)
 
-	certificates, err := client.Certificate.Obtain(request)
-	if err != nil {
-		return order, err
-	}
+		if err != nil {
+			return order, err
+		}
+		certificates = certificatesLocal
+	} else {
 
+		// 1. 为证书生成新的私钥
+		certPrivateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+		if err != nil {
+			return order, fmt.Errorf("generate cert private key failed: %w", err)
+		}
+
+		// 2. 用新私钥创建 CSR
+		csrDER, err := x509.CreateCertificateRequest(
+			rand.Reader,
+			&x509.CertificateRequest{
+				Subject: pkix.Name{
+					CommonName: "",
+				},
+				IPAddresses: []net.IP{net.ParseIP(order.ApplyDomain)},
+			},
+			certPrivateKey, // 使用证书专用私钥
+		)
+		if err != nil {
+			return order, err
+		}
+
+		// 3. 解析 CSR
+		csr, err := x509.ParseCertificateRequest(csrDER)
+		if err != nil {
+			return order, err
+		}
+
+		// 4. 申请证书
+		certificatesLocal, err := client.Certificate.ObtainForCSR(certificate.ObtainForCSRRequest{
+			CSR:        csr,
+			Bundle:     true,
+			PrivateKey: certPrivateKey, //  使用证书专用私钥
+			Profile:    "shortlived",
+		})
+		if err != nil {
+			return order, err
+		}
+		certificates = certificatesLocal
+	}
 	// Each certificate comes back with the cert bytes, the bytes of the client's
 	// private key, and a certificate URL. SAVE THESE TO DISK.
 	fmt.Printf("%#v\n", certificates)
@@ -124,7 +177,12 @@ func RegistrationSSL(order model.SslOrder, savePath string, caServerAddress stri
 	order.ResultCertStableURL = certificates.CertStableURL
 	order.ResultCertURL = certificates.CertURL
 	order.ResultCSR = certificates.CSR
-	order.ResultDomain = certificates.Domain
+	// IP证书情况下，certificates.Domain可能为空，使用申请的IP地址
+	if isIpSSL && certificates.Domain == "" {
+		order.ResultDomain = order.ApplyDomain
+	} else {
+		order.ResultDomain = certificates.Domain
+	}
 	order.ResultIssuerCertificate = certificates.IssuerCertificate
 	block, _ := pem.Decode(order.ResultCertificate)
 	if block != nil {
@@ -138,6 +196,9 @@ func RegistrationSSL(order model.SslOrder, savePath string, caServerAddress stri
 }
 
 func ReNewSSL(order model.SslOrder, savePath string, caServerAddress string) (model.SslOrder, error) {
+	// 判断是否是IP证书
+	isIpSSL := utils.IsIP(order.ApplyDomain)
+
 	myUser := MyUser{
 		Email: order.ApplyEmail,
 	}
@@ -167,6 +228,11 @@ func ReNewSSL(order model.SslOrder, savePath string, caServerAddress string) (mo
 	config := lego.NewConfig(&myUser)
 	config.CADirURL = caServerAddress
 	config.Certificate.KeyType = certcrypto.RSA2048
+
+	if isIpSSL {
+		//是否是ip申请ssl证书
+		config.Certificate.DisableCommonName = true
+	}
 
 	// A client facilitates communication with the CA server.
 	client, err := lego.NewClient(config)
@@ -202,21 +268,67 @@ func ReNewSSL(order model.SslOrder, savePath string, caServerAddress string) (mo
 	}
 	myUser.Registration = reg
 
-	certRes := certificate.Resource{
-		Domain:            order.ResultDomain,
-		CertURL:           order.ResultCertURL,
-		CertStableURL:     order.ResultCertStableURL,
-		PrivateKey:        order.ResultPrivateKey,
-		Certificate:       order.ResultCertificate,
-		IssuerCertificate: order.ResultIssuerCertificate,
-		CSR:               order.ResultCSR,
-	}
-	//构造参数
-	certificates, err := client.Certificate.RenewWithOptions(certRes, &certificate.RenewOptions{
-		Bundle: true,
-	})
-	if err != nil {
-		return order, err
+	certificates := &certificate.Resource{}
+
+	if !isIpSSL {
+		// 域名证书：使用续期方式
+		certRes := certificate.Resource{
+			Domain:            order.ResultDomain,
+			CertURL:           order.ResultCertURL,
+			CertStableURL:     order.ResultCertStableURL,
+			PrivateKey:        order.ResultPrivateKey,
+			Certificate:       order.ResultCertificate,
+			IssuerCertificate: order.ResultIssuerCertificate,
+			CSR:               order.ResultCSR,
+		}
+		//构造参数
+		certificatesLocal, err := client.Certificate.RenewWithOptions(certRes, &certificate.RenewOptions{
+			Bundle: true,
+		})
+		if err != nil {
+			return order, err
+		}
+		certificates = certificatesLocal
+	} else {
+		// IP证书：使用CSR方式重新申请
+		// 1. 为证书生成新的私钥
+		certPrivateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+		if err != nil {
+			return order, fmt.Errorf("generate cert private key failed: %w", err)
+		}
+
+		// 2. 用新私钥创建 CSR
+		csrDER, err := x509.CreateCertificateRequest(
+			rand.Reader,
+			&x509.CertificateRequest{
+				Subject: pkix.Name{
+					CommonName: "",
+				},
+				IPAddresses: []net.IP{net.ParseIP(order.ApplyDomain)},
+			},
+			certPrivateKey, // 使用证书专用私钥
+		)
+		if err != nil {
+			return order, err
+		}
+
+		// 3. 解析 CSR
+		csr, err := x509.ParseCertificateRequest(csrDER)
+		if err != nil {
+			return order, err
+		}
+
+		// 4. 申请新证书
+		certificatesLocal, err := client.Certificate.ObtainForCSR(certificate.ObtainForCSRRequest{
+			CSR:        csr,
+			Bundle:     true,
+			PrivateKey: certPrivateKey, // 使用证书专用私钥
+			Profile:    "shortlived",
+		})
+		if err != nil {
+			return order, err
+		}
+		certificates = certificatesLocal
 	}
 
 	// Each certificate comes back with the cert bytes, the bytes of the client's
@@ -228,7 +340,12 @@ func ReNewSSL(order model.SslOrder, savePath string, caServerAddress string) (mo
 	order.ResultCertStableURL = certificates.CertStableURL
 	order.ResultCertURL = certificates.CertURL
 	order.ResultCSR = certificates.CSR
-	order.ResultDomain = certificates.Domain
+	// IP证书情况下，certificates.Domain可能为空，使用申请的IP地址
+	if isIpSSL && certificates.Domain == "" {
+		order.ResultDomain = order.ApplyDomain
+	} else {
+		order.ResultDomain = certificates.Domain
+	}
 	order.ResultIssuerCertificate = certificates.IssuerCertificate
 	block, _ := pem.Decode(order.ResultCertificate)
 	if block != nil {

@@ -7,10 +7,12 @@ import (
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	"SamWaf/model/spec"
+	"SamWaf/utils"
 	"errors"
+	"strings"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
-	"strings"
 )
 
 type WafSslOrderApi struct {
@@ -33,6 +35,12 @@ func (w *WafSslOrderApi) AddApi(c *gin.Context) {
 		//检测是否*的情况
 		if req.ApplyMethod == "http01" && hostBean.Host == "*" {
 			response.FailWithMessage("未指定域名情况不能使用http文件验证方式", c)
+			return
+		}
+		//检测是否是IP地址，IP地址只能使用http01验证方式
+		isIpAddress := utils.IsIP(hostBean.Host)
+		if isIpAddress && req.ApplyMethod != "http01" {
+			response.FailWithMessage("IP证书只支持HTTP文件验证方式(http01)，不支持DNS验证方式", c)
 			return
 		}
 		addResult, err := wafSslOrderService.AddApi(req)

@@ -252,6 +252,24 @@ func getCertInfo(certPath string) CertInfo {
 		}
 	}
 
+	// 检查是否有IP地址
+	if len(cert.IPAddresses) > 0 {
+		if info.Domain == "" {
+			// 如果没有域名，直接使用IP
+			for i, ip := range cert.IPAddresses {
+				if i > 0 {
+					info.Domain += ", "
+				}
+				info.Domain += ip.String()
+			}
+		} else {
+			// 如果已经有域名，追加IP
+			for _, ip := range cert.IPAddresses {
+				info.Domain += ", " + ip.String()
+			}
+		}
+	}
+
 	return info
 }
 

@@ -91,8 +91,19 @@ func (s *SslConfig) CheckKeyAndCertFileLoad() (error, SslConfig, SslConfig) {
 			}
 			domains += domain
 		}
-	} else {
-		domains = "未指定域名"
+	}
+	// 检查是否有IP地址
+	if len(cert.IPAddresses) > 0 {
+		for _, ip := range cert.IPAddresses {
+			if domains != "" {
+				domains += ", "
+			}
+			domains += ip.String()
+		}
+	}
+	// 如果既没有域名也没有IP
+	if domains == "" {
+		domains = "未指定域名或IP"
 	}
 
 	now := time.Now()
@@ -147,8 +158,19 @@ func (s *SslConfig) FillByCertAndKey(certContent, keyContent string) error {
 			}
 			domains += domain
 		}
-	} else {
-		domains = "未指定域名"
+	}
+	// 检查是否有IP地址
+	if len(cert.IPAddresses) > 0 {
+		for _, ip := range cert.IPAddresses {
+			if domains != "" {
+				domains += ", "
+			}
+			domains += ip.String()
+		}
+	}
+	// 如果既没有域名也没有IP
+	if domains == "" {
+		domains = "未指定域名或IP"
 	}
 	s.KeyContent = keyContent
 	s.CertContent = certContent

@@ -38,6 +38,7 @@ var (
 	//GCONFIG_RECORD_PATCH_VERSION_LOG   int64 = 20250106 // 日志数据库补丁日期
 	GCONFIG_RECORD_ALL_SRC_BYTE_INFO int64 = 0 //记录原始信息(默认不开启)
 	GCONFIG_ENABLE_HTTP3             int64 = 0 //配置是否启用http3(默认关闭)
+	GCONFIG_RECORD_LOG_DESENSITIZE   int64 = 1 //请求记录是否进行脱敏处理 1开启脱敏 0关闭脱敏
 
 	GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES     int64 = 5  //令牌有效期 单位分钟
 	GCONFIG_RECORD_ANNOUNCEMENT_EXPIRE_HOURS int64 = 24 //公告有效期 单位小时

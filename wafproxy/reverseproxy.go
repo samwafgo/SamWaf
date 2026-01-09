@@ -176,6 +176,21 @@ func NewSingleHostReverseProxyCustomHeader(target *url.URL, customHeaders map[st
 			// explicitly disable User-Agent so it's not set to default value
 			req.Header.Set("User-Agent", "")
 		}
+		// 检查用户是否自定义了 X-Forwarded-For
+		userSetXFF := false
+		for key := range customHeaders {
+			if strings.EqualFold(key, "X-Forwarded-For") {
+				userSetXFF = true
+				break
+			}
+		}
+
+		// 如果用户自定义了 X-Forwarded-For，设置一个内部标记，阻止后续的自动追加
+		if userSetXFF {
+			// 使用特殊的头信息作为标记（会在后续处理中删除）
+			req.Header.Set("X-Waf-Custom-XFF-Control", "skip-auto-append")
+		}
+
 		// 添加自定义 header
 		for key, value := range customHeaders {
 			req.Header.Set(key, value)
@@ -334,17 +349,27 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		outreq.Header.Set("Upgrade", reqUpType)
 	}
 
-	if clientIP, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
-		// If we aren't the first proxy retain prior
-		// X-Forwarded-For information as a comma+space
-		// separated list and fold multiple headers into one.
-		prior, ok := outreq.Header["X-Forwarded-For"]
-		omit := ok && prior == nil // Issue 38079: nil now means don't populate the header
-		if len(prior) > 0 {
-			clientIP = strings.Join(prior, ", ") + ", " + clientIP
-		}
-		if !omit {
-			outreq.Header.Set("X-Forwarded-For", clientIP)
+	// 检查是否有自定义 X-Forwarded-For 的控制标记
+	skipAutoXFF := outreq.Header.Get("X-Waf-Custom-XFF-Control") == "skip-auto-append"
+	if skipAutoXFF {
+		// 删除内部控制标记，不发送到后端
+		outreq.Header.Del("X-Waf-Custom-XFF-Control")
+	}
+
+	// 只有在用户没有自定义 X-Forwarded-For 时，才自动追加客户端 IP
+	if !skipAutoXFF {
+		if clientIP, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
+			// If we aren't the first proxy retain prior
+			// X-Forwarded-For information as a comma+space
+			// separated list and fold multiple headers into one.
+			prior, ok := outreq.Header["X-Forwarded-For"]
+			omit := ok && prior == nil // Issue 38079: nil now means don't populate the header
+			if len(prior) > 0 {
+				clientIP = strings.Join(prior, ", ") + ", " + clientIP
+			}
+			if !omit {
+				outreq.Header.Set("X-Forwarded-For", clientIP)
+			}
 		}
 	}
 	//打印处理后的header

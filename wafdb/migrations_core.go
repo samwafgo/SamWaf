@@ -341,6 +341,34 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移9: 为 blocking_page 表添加 attack_type 字段（攻击类型）
+		{
+			ID: "202601090001_add_blocking_page_attack_type",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202601090001: 为 blocking_page 表添加 attack_type 字段")
+
+				// 检查字段是否已存在
+				if tx.Migrator().HasColumn(&model.BlockingPage{}, "attack_type") {
+					zlog.Info("attack_type 字段已存在，跳过添加")
+					return nil
+				}
+
+				// 添加字段，默认值为空字符串（表示通用拦截页面）
+				if err := tx.Migrator().AddColumn(&model.BlockingPage{}, "attack_type"); err != nil {
+					return fmt.Errorf("添加 attack_type 字段失败: %w", err)
+				}
+
+				zlog.Info("attack_type 字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202601090001: 删除 blocking_page 表的 attack_type 字段")
+				if tx.Migrator().HasColumn(&model.BlockingPage{}, "attack_type") {
+					return tx.Migrator().DropColumn(&model.BlockingPage{}, "attack_type")
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

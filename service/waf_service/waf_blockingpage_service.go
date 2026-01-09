@@ -27,6 +27,7 @@ func (receiver *WafBlockingPageService) AddApi(req request.WafBlockingPageAddReq
 
 		BlockingPageName: req.BlockingPageName,
 		BlockingType:     req.BlockingType,
+		AttackType:       req.AttackType,
 		HostCode:         req.HostCode,
 		ResponseCode:     req.ResponseCode,
 		ResponseHeader:   req.ResponseHeader,
@@ -151,6 +152,7 @@ func (receiver *WafBlockingPageService) ModifyApi(req request.WafBlockingPageEdi
 
 		"BlockingPageName": req.BlockingPageName,
 		"BlockingType":     req.BlockingType,
+		"AttackType":       req.AttackType,
 		"HostCode":         req.HostCode,
 		"ResponseCode":     req.ResponseCode,
 		"ResponseHeader":   req.ResponseHeader,

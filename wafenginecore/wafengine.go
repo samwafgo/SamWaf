@@ -77,6 +77,84 @@ func (waf *WafEngine) Error() string {
 	zlog.Error(fmt.Sprintf(fs))
 	return fmt.Sprintf(fs)
 }
+
+// inferAttackType 根据检测规则标题推断攻击类型
+func inferAttackType(ruleTitle string) string {
+	ruleTitle = strings.ToLower(ruleTitle)
+
+	// CC攻击
+	if strings.Contains(ruleTitle, "cc") || strings.Contains(ruleTitle, "频次") || strings.Contains(ruleTitle, "rate limit") {
+		return "cc_attack"
+	}
+
+	// SQL注入
+	if strings.Contains(ruleTitle, "sql") || strings.Contains(ruleTitle, "注入") {
+		return "sql_injection"
+	}
+
+	// XSS攻击
+	if strings.Contains(ruleTitle, "xss") || strings.Contains(ruleTitle, "跨站") {
+		return "xss_attack"
+	}
+
+	// 扫描工具
+	if strings.Contains(ruleTitle, "scan") || strings.Contains(ruleTitle, "扫描") {
+		return "scan_tool"
+	}
+
+	// RCE远程代码执行
+	if strings.Contains(ruleTitle, "rce") || strings.Contains(ruleTitle, "代码执行") || strings.Contains(ruleTitle, "命令执行") {
+		return "rce_attack"
+	}
+
+	// 目录穿越
+	if strings.Contains(ruleTitle, "traversal") || strings.Contains(ruleTitle, "穿越") || strings.Contains(ruleTitle, "目录") {
+		return "dir_traversal"
+	}
+
+	// Bot爬虫
+	if strings.Contains(ruleTitle, "bot") || strings.Contains(ruleTitle, "爬虫") {
+		return "bot_attack"
+	}
+
+	// 敏感词
+	if strings.Contains(ruleTitle, "sensitive") || strings.Contains(ruleTitle, "敏感词") {
+		return "sensitive_word"
+	}
+
+	// IP黑名单
+	if strings.Contains(ruleTitle, "ip") && (strings.Contains(ruleTitle, "黑名单") || strings.Contains(ruleTitle, "block") || strings.Contains(ruleTitle, "deny")) {
+		return "ip_blocked"
+	}
+
+	// URL黑名单
+	if strings.Contains(ruleTitle, "url") && (strings.Contains(ruleTitle, "黑名单") || strings.Contains(ruleTitle, "block") || strings.Contains(ruleTitle, "deny")) {
+		return "url_blocked"
+	}
+
+	// 防盗链
+	if strings.Contains(ruleTitle, "leech") || strings.Contains(ruleTitle, "防盗链") || strings.Contains(ruleTitle, "hotlink") {
+		return "anti_leech"
+	}
+
+	// 自定义规则
+	if strings.Contains(ruleTitle, "rule") || strings.Contains(ruleTitle, "规则") {
+		return "custom_rule"
+	}
+
+	// OWASP规则
+	if strings.Contains(ruleTitle, "owasp") {
+		return "owasp_rule"
+	}
+
+	// 插件拦截
+	if strings.Contains(ruleTitle, "plugin") || strings.Contains(ruleTitle, "插件") {
+		return "plugin_block"
+	}
+
+	// 默认返回通用拦截类型
+	return ""
+}
 func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	innerLogName := "WafEngine ServeHTTP"
 	global.IncrementQPS() // 使用统一的QPS增量函数
@@ -358,7 +436,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				Duration: 0, // CC封禁时长由配置决定
 				Time:     time.Now().Format("2006-01-02 15:04:05"),
 			})
-			EchoErrorInfo(w, r, &weblogbean, "", "当前IP由于访问频次太高暂时无法访问", hostTarget, waf.HostTarget[waf.HostCode[global.GWAF_GLOBAL_HOST_CODE]], false)
+			EchoErrorInfo(w, r, &weblogbean, "", "当前IP由于访问频次太高暂时无法访问", hostTarget, waf.HostTarget[waf.HostCode[global.GWAF_GLOBAL_HOST_CODE]], false, "cc_attack")
 			return
 		}
 
@@ -398,7 +476,9 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						return false
 					} else {
 						decrementMonitor(hostCode)
-						EchoErrorInfo(w, r, &weblogbean, detectionResult.Title, detectionResult.Content, hostTarget, waf.HostTarget[waf.HostCode[global.GWAF_GLOBAL_HOST_CODE]], true)
+						// 根据检测结果的标题推断攻击类型
+						attackType := inferAttackType(detectionResult.Title)
+						EchoErrorInfo(w, r, &weblogbean, detectionResult.Title, detectionResult.Content, hostTarget, waf.HostTarget[waf.HostCode[global.GWAF_GLOBAL_HOST_CODE]], true, attackType)
 						return true
 					}
 				}
@@ -1025,7 +1105,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 										weblogfrist.RULE = "敏感词检测：" + string(matchBodyResult[0].Word)
 
 									} else {
-										EchoResponseErrorInfo(resp, weblogfrist, "敏感词检测："+string(matchBodyResult[0].Word), "敏感词内容", waf.HostTarget[host], waf.HostTarget[waf.HostCode[global.GWAF_GLOBAL_HOST_CODE]], true)
+										EchoResponseErrorInfo(resp, weblogfrist, "敏感词检测："+string(matchBodyResult[0].Word), "敏感词内容", waf.HostTarget[host], waf.HostTarget[waf.HostCode[global.GWAF_GLOBAL_HOST_CODE]], true, "sensitive_word")
 										return nil
 									}
 								} else {

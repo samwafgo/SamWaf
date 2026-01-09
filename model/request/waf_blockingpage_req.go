@@ -5,6 +5,7 @@ import "SamWaf/model/common/request"
 type WafBlockingPageAddReq struct {
 	BlockingPageName string `json:"blocking_page_name" form:"blocking_page_name"`
 	BlockingType     string `json:"blocking_type" form:"blocking_type"`
+	AttackType       string `json:"attack_type" form:"attack_type"`
 	HostCode         string `json:"host_code" form:"host_code"`
 	ResponseCode     string `json:"response_code" form:"response_code"`
 	ResponseHeader   string `json:"response_header" form:"response_header"`
@@ -14,6 +15,7 @@ type WafBlockingPageEditReq struct {
 	Id               string `json:"id"`
 	BlockingPageName string `json:"blocking_page_name" form:"blocking_page_name"`
 	BlockingType     string `json:"blocking_type" form:"blocking_type"`
+	AttackType       string `json:"attack_type" form:"attack_type"`
 	HostCode         string `json:"host_code" form:"host_code"`
 	ResponseCode     string `json:"response_code" form:"response_code"`
 	ResponseHeader   string `json:"response_header" form:"response_header"`

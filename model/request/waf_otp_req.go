@@ -6,6 +6,7 @@ type WafOtpAddReq struct {
 	UserName string `json:"user_name" form:"user_name"`
 	Url      string `json:"url" form:"url"`
 	Secret   string `json:"secret" form:"secret"`
+	Issuer   string `json:"issuer" form:"issuer"`
 	Remarks  string `json:"remarks" form:"remarks"`
 }
 type WafOtpEditReq struct {
@@ -13,12 +14,14 @@ type WafOtpEditReq struct {
 	UserName string `json:"user_name" form:"user_name"`
 	Url      string `json:"url" form:"url"`
 	Secret   string `json:"secret" form:"secret"`
+	Issuer   string `json:"issuer" form:"issuer"`
 	Remarks  string `json:"remarks" form:"remarks"`
 }
 type WafOtpBindReq struct {
 	UserName   string `json:"user_name" form:"user_name"`
 	Url        string `json:"url" form:"url"`
 	Secret     string `json:"secret" form:"secret"`
+	Issuer     string `json:"issuer" form:"issuer"`
 	Remarks    string `json:"remarks" form:"remarks"`
 	SecretCode string `json:"secret_code" form:"secret_code"`
 }

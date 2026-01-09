@@ -1,6 +1,7 @@
 package api
 
 import (
+	"SamWaf/global"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	"SamWaf/utils"
@@ -20,7 +21,9 @@ func (w *WafOtpApi) InitOtpApi(c *gin.Context) {
 	} else {
 		otpBean := wafOtpService.GetDetailByUserNameApi(tokenInfo.LoginAccount)
 		if otpBean.UserName == "" {
-			secret, url, err := utils.GenOtpSecret(tokenInfo.LoginAccount)
+			// 生成默认的 Issuer
+			defaultIssuer := "SamWaf-" + global.GWAF_CUSTOM_SERVER_NAME
+			secret, url, err := utils.GenOtpSecret(tokenInfo.LoginAccount, defaultIssuer)
 			if err != nil {
 				response.FailWithMessage(err.Error(), c)
 				return
@@ -29,6 +32,7 @@ func (w *WafOtpApi) InitOtpApi(c *gin.Context) {
 				UserName: tokenInfo.LoginAccount,
 				Url:      url,
 				Secret:   secret,
+				Issuer:   defaultIssuer,
 				Remarks:  "",
 			}
 			//首次需要绑定得情况
@@ -59,6 +63,16 @@ func (w *WafOtpApi) BindApi(c *gin.Context) {
 			response.FailWithMessage("请使用本帐号操作", c)
 			return
 		}
+
+		// 如果用户修改了 Issuer，需要重新生成 URL
+		if req.Issuer != "" && req.Issuer != "SamWaf-"+global.GWAF_CUSTOM_SERVER_NAME {
+			// 重新生成带有新 Issuer 的 URL
+			_, newUrl, genErr := utils.GenOtpSecret(req.UserName, req.Issuer)
+			if genErr == nil {
+				req.Url = newUrl
+			}
+		}
+
 		valid := totp.Validate(req.SecretCode, req.Secret)
 		if !valid {
 			response.FailWithMessage("验证失败", c)

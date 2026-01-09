@@ -7,9 +7,13 @@ import (
 	"github.com/pquerna/otp/totp"
 )
 
-func GenOtpSecret(userName string) (string, string, error) {
+func GenOtpSecret(userName string, issuer string) (string, string, error) {
+	// 如果没有提供 issuer，使用默认值
+	if issuer == "" {
+		issuer = "SamWaf-" + global.GWAF_CUSTOM_SERVER_NAME
+	}
 	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      "SamWaf-" + global.GWAF_CUSTOM_SERVER_NAME,
+		Issuer:      issuer,
 		AccountName: userName,
 		Period:      30,
 		Digits:      otp.DigitsSix,

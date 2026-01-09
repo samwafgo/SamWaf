@@ -2,6 +2,7 @@ package wafdb
 
 import (
 	"SamWaf/common/zlog"
+	"SamWaf/global"
 	"SamWaf/model"
 	"fmt"
 	"time"
@@ -365,6 +366,40 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				zlog.Info("回滚 202601090001: 删除 blocking_page 表的 attack_type 字段")
 				if tx.Migrator().HasColumn(&model.BlockingPage{}, "attack_type") {
 					return tx.Migrator().DropColumn(&model.BlockingPage{}, "attack_type")
+				}
+				return nil
+			},
+		},
+		// 迁移10: 为 otp 表添加 issuer 字段（发行者标识）
+		{
+			ID: "202601090002_add_otp_issuer",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202601090002: 为 otp 表添加 issuer 字段")
+
+				// 检查字段是否已存在
+				if tx.Migrator().HasColumn(&model.Otp{}, "issuer") {
+					zlog.Info("issuer 字段已存在，跳过添加")
+					return nil
+				}
+
+				// 添加字段
+				if err := tx.Migrator().AddColumn(&model.Otp{}, "issuer"); err != nil {
+					return fmt.Errorf("添加 issuer 字段失败: %w", err)
+				}
+
+				// 为已存在的记录设置默认值为 "SamWaf-{服务器名称}"
+				defaultIssuer := "SamWaf-" + global.GWAF_CUSTOM_SERVER_NAME
+				if err := tx.Exec("UPDATE otp SET issuer = ? WHERE issuer IS NULL OR issuer = ''", defaultIssuer).Error; err != nil {
+					zlog.Warn("设置 issuer 默认值失败", "error", err.Error())
+				}
+
+				zlog.Info("issuer 字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202601090002: 删除 otp 表的 issuer 字段")
+				if tx.Migrator().HasColumn(&model.Otp{}, "issuer") {
+					return tx.Migrator().DropColumn(&model.Otp{}, "issuer")
 				}
 				return nil
 			},

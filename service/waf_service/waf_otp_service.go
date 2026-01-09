@@ -28,6 +28,7 @@ func (receiver *WafOtpService) AddApi(req request.WafOtpAddReq) error {
 		UserName: req.UserName,
 		Url:      req.Url,
 		Secret:   req.Secret,
+		Issuer:   req.Issuer,
 		Remarks:  req.Remarks,
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
@@ -98,6 +99,7 @@ func (receiver *WafOtpService) ModifyApi(req request.WafOtpEditReq) error {
 		"UserName": req.UserName,
 		"Url":      req.Url,
 		"Secret":   req.Secret,
+		"Issuer":   req.Issuer,
 		"Remarks":  req.Remarks,
 
 		"UPDATE_TIME": customtype.JsonTime(time.Now()),
@@ -120,6 +122,7 @@ func (receiver *WafOtpService) BindApi(req request.WafOtpBindReq) error {
 		UserName: req.UserName,
 		Url:      req.Url,
 		Secret:   req.Secret,
+		Issuer:   req.Issuer,
 		Remarks:  req.Remarks,
 	}
 	global.GWAF_LOCAL_DB.Create(bean)

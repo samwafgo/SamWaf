@@ -7,6 +7,10 @@ on:
   pull_request:
     branches:
       - main
+  schedule:
+    # 每3天的凌晨2点运行一次清理任务
+    - cron: '0 2 */3 * *'
+  workflow_dispatch: # 允许手动触发
 
 permissions:
   contents: read
@@ -52,7 +56,7 @@ jobs:
         run: |
           BUILDTIME=$(date +'%Y%m%d')
           go build \
-            -ldflags="-X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=false -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=ci-test -s -w -extldflags '-static'" \
+            -ldflags="-X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=false -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=v1.0.0-beta.1 -s -w -extldflags '-static'" \
             -o ./SamWafLinux64 main.go
 
       - name: Test Linux binary
@@ -99,6 +103,13 @@ jobs:
           wait $SERVICE_PID 2>/dev/null || true
           echo "Service stopped successfully"
 
+      - name: Upload Linux binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: SamWafLinux64-${{ github.sha }}
+          path: ./SamWafLinux64
+          retention-days: 3
+
   # Windows 构建和基本测试
   build-and-test-windows:
     runs-on: ubuntu-latest
@@ -140,7 +151,7 @@ jobs:
         run: |
           BUILDTIME=$(date +'%Y%m%d')
           go build \
-            -ldflags="-X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=false -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=ci-test -s -w -extldflags '-static'" \
+            -ldflags="-X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=false -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=v1.0.0-beta.1 -s -w -extldflags '-static'" \
             -o ./SamWaf64.exe main.go
 
       - name: Check Windows binary
@@ -148,6 +159,13 @@ jobs:
           echo "Windows binary built successfully:"
           ls -lh SamWaf64.exe
           file SamWaf64.exe
+
+      - name: Upload Windows binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: SamWaf64-${{ github.sha }}
+          path: ./SamWaf64.exe
+          retention-days: 3
   # # 代码质量检查
   # code-quality:
   #   runs-on: ubuntu-latest
@@ -182,3 +200,39 @@ jobs:
   #         fi
   #       continue-on-error: true
 
+
+  # 定期清理旧的 artifacts
+  cleanup-artifacts:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Delete old artifacts
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            
+            // 获取所有 artifacts
+            const artifacts = await github.rest.actions.listArtifactsForRepo({
+              owner,
+              repo,
+              per_page: 100
+            });
+            
+            // 计算3天前的时间戳
+            const threeDaysAgo = new Date();
+            threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+            
+            // 删除超过3天的 artifacts
+            for (const artifact of artifacts.data.artifacts) {
+              const createdAt = new Date(artifact.created_at);
+              if (createdAt < threeDaysAgo) {
+                console.log(`Deleting artifact: ${artifact.name} (created at: ${artifact.created_at})`);
+                await github.rest.actions.deleteArtifact({
+                  owner,
+                  repo,
+                  artifact_id: artifact.id
+                });
+              }
+            }

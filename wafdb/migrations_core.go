@@ -1,9 +1,12 @@
 package wafdb
 
 import (
+	"SamWaf/common/uuid"
 	"SamWaf/common/zlog"
+	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/model"
+	"SamWaf/model/baseorm"
 	"fmt"
 	"time"
 
@@ -402,6 +405,49 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 					return tx.Migrator().DropColumn(&model.Otp{}, "issuer")
 				}
 				return nil
+			},
+		},
+		// 迁移11: 初始化 ZeroSSL CA 服务器记录
+		{
+			ID: "202601100001_init_zerossl_ca_server",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202601100001: 初始化 ZeroSSL CA 服务器记录")
+
+				// 检查是否已存在 ZeroSSL 记录（通过名称或地址检查）
+				var zerosslCount int64
+				tx.Model(&model.CaServerInfo{}).Where("ca_server_name = ? OR ca_server_address = ?", "ZeroSSL", "https://acme.zerossl.com/v2/DV90").Count(&zerosslCount)
+
+				// 如果已存在，跳过创建
+				if zerosslCount > 0 {
+					zlog.Info("ZeroSSL CA 服务器记录已存在，跳过创建")
+					return nil
+				}
+
+				// 创建 ZeroSSL CA 服务器记录
+				zerosslCA := model.CaServerInfo{
+					BaseOrm: baseorm.BaseOrm{
+						Id:          uuid.GenUUID(),
+						USER_CODE:   global.GWAF_USER_CODE,
+						Tenant_ID:   global.GWAF_TENANT_ID,
+						CREATE_TIME: customtype.JsonTime(time.Now()),
+						UPDATE_TIME: customtype.JsonTime(time.Now()),
+					},
+					CaServerName:    "zerossl",
+					CaServerAddress: "https://acme.zerossl.com/v2/DV90",
+					Remarks:         "ZeroSSL",
+				}
+
+				if err := tx.Create(&zerosslCA).Error; err != nil {
+					return fmt.Errorf("创建 ZeroSSL CA 服务器记录失败: %w", err)
+				}
+
+				zlog.Info("ZeroSSL CA 服务器记录创建成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202601100001: 删除 ZeroSSL CA 服务器记录")
+				// 只删除我们创建的记录（通过名称和地址匹配）
+				return tx.Where("ca_server_name = ? AND ca_server_address = ?", "ZeroSSL", "https://acme.zerossl.com/v2/DV90").Delete(&model.CaServerInfo{}).Error
 			},
 		},
 	})

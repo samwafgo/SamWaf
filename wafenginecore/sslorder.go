@@ -34,6 +34,12 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 		//查询环境变量信息
 		wafssl.LoadDnsProviderEnvInfo(privateGroupName, privateGroupBelongCloud)
 	}
+	eab_kid := ""
+	eab_hmac_key := ""
+	if bean.ApplyPlatform == "zerossl" {
+		eab_kid = global.GCONFIG_ZEROSSL_EAB_KID
+		eab_hmac_key = global.GCONFIG_ZEROSSL_EAB_HMAC_KEY
+	}
 	if chanType == enums.ChanSslOrderSubmitted {
 		//发起申请
 		zlog.Info(fmt.Sprintf("%s 正在进行首次证书申请", bean.ApplyDomain))
@@ -42,7 +48,7 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 		if filePathErr != nil {
 			zlog.Error("ApplySSLOrder", filePathErr.Error())
 		}
-		updateSSLOrder, err := ssl.RegistrationSSL(bean, filePath, waf_service.GetCAServerAddress(bean.ApplyPlatform))
+		updateSSLOrder, err := ssl.RegistrationSSL(bean, filePath, waf_service.GetCAServerAddress(bean.ApplyPlatform), bean.ApplyPlatform, eab_kid, eab_hmac_key)
 		if err == nil {
 			zlog.Info(fmt.Sprintf("%s 首次证书申请成功", bean.ApplyDomain))
 
@@ -157,7 +163,7 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 		if filePathErr != nil {
 			zlog.Error("ApplySSLOrder", filePathErr.Error())
 		}
-		updateSSLOrder, err := ssl.ReNewSSL(bean, filePath, waf_service.GetCAServerAddress(bean.ApplyPlatform))
+		updateSSLOrder, err := ssl.ReNewSSL(bean, filePath, waf_service.GetCAServerAddress(bean.ApplyPlatform), bean.ApplyPlatform, eab_kid, eab_hmac_key)
 		if err == nil {
 			zlog.Info(fmt.Sprintf("%s 证书续期申请成功", bean.ApplyDomain))
 

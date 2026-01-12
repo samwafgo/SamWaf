@@ -65,4 +65,9 @@ var (
 
 	GCONFIG_CHECK_BETA_VERSION int64 = 1 //是否检测beta版本更新 1启用 0禁用（默认检测最新版本）
 
+	// ZeroSSL 相关配置
+	GCONFIG_ZEROSSL_ACCESS_KEY   string = "" // zerossl访问key
+	GCONFIG_ZEROSSL_EAB_KID      string = "" // zerossl eab_kid
+	GCONFIG_ZEROSSL_EAB_HMAC_KEY string = "" // zerossl eab_hmac_key
+
 )

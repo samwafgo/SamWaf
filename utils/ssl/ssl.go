@@ -44,7 +44,7 @@ func (u *MyUser) GetPrivateKey() crypto.PrivateKey {
 	return u.key
 }
 
-func RegistrationSSL(order model.SslOrder, savePath string, caServerAddress string) (model.SslOrder, error) {
+func RegistrationSSL(order model.SslOrder, savePath string, caServerAddress string, applyPlatform string, eab_kid string, eab_hmac_key string) (model.SslOrder, error) {
 	isIpSSL := utils.IsIP(order.ApplyDomain)
 	myUser := MyUser{
 		Email: order.ApplyEmail,
@@ -109,9 +109,24 @@ func RegistrationSSL(order model.SslOrder, savePath string, caServerAddress stri
 		return order, err
 	}
 	// New users will need to register
-	reg, err := client.Registration.Register(registration.RegisterOptions{TermsOfServiceAgreed: true})
-	if err != nil {
-		return order, err
+	var reg *registration.Resource
+	if applyPlatform == "zerossl" {
+		// ZeroSSL 需要使用 EAB (External Account Binding) 方式注册
+		eabOptions := registration.RegisterEABOptions{
+			TermsOfServiceAgreed: true,
+			Kid:                  eab_kid,
+			HmacEncoded:          eab_hmac_key,
+		}
+		reg, err = client.Registration.RegisterWithExternalAccountBinding(eabOptions)
+		if err != nil {
+			return order, err
+		}
+	} else {
+		// 其他平台使用原来的注册方式
+		reg, err = client.Registration.Register(registration.RegisterOptions{TermsOfServiceAgreed: true})
+		if err != nil {
+			return order, err
+		}
 	}
 	myUser.Registration = reg
 
@@ -195,7 +210,7 @@ func RegistrationSSL(order model.SslOrder, savePath string, caServerAddress stri
 	return order, nil
 }
 
-func ReNewSSL(order model.SslOrder, savePath string, caServerAddress string) (model.SslOrder, error) {
+func ReNewSSL(order model.SslOrder, savePath string, caServerAddress string, applyPlatform string, eab_kid string, eab_hmac_key string) (model.SslOrder, error) {
 	// 判断是否是IP证书
 	isIpSSL := utils.IsIP(order.ApplyDomain)
 
@@ -262,9 +277,24 @@ func ReNewSSL(order model.SslOrder, savePath string, caServerAddress string) (mo
 		return order, err
 	}
 	// New users will need to register
-	reg, err := client.Registration.Register(registration.RegisterOptions{TermsOfServiceAgreed: true})
-	if err != nil {
-		return order, err
+	var reg *registration.Resource
+	if applyPlatform == "zerossl" {
+		// ZeroSSL 需要使用 EAB (External Account Binding) 方式注册
+		eabOptions := registration.RegisterEABOptions{
+			TermsOfServiceAgreed: true,
+			Kid:                  eab_kid,
+			HmacEncoded:          eab_hmac_key,
+		}
+		reg, err = client.Registration.RegisterWithExternalAccountBinding(eabOptions)
+		if err != nil {
+			return order, err
+		}
+	} else {
+		// 其他平台使用原来的注册方式
+		reg, err = client.Registration.Register(registration.RegisterOptions{TermsOfServiceAgreed: true})
+		if err != nil {
+			return order, err
+		}
 	}
 	myUser.Registration = reg
 

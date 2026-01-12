@@ -1,6 +1,7 @@
 package api
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/model"
@@ -8,8 +9,14 @@ import (
 	"SamWaf/model/request"
 	"SamWaf/model/spec"
 	"SamWaf/utils"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io/ioutil"
+	"net/http"
+	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -42,6 +49,21 @@ func (w *WafSslOrderApi) AddApi(c *gin.Context) {
 		if isIpAddress && req.ApplyMethod != "http01" {
 			response.FailWithMessage("IP证书只支持HTTP文件验证方式(http01)，不支持DNS验证方式", c)
 			return
+		}
+		if req.ApplyPlatform == "zerossl" {
+
+			if global.GCONFIG_ZEROSSL_EAB_KID == "" || global.GCONFIG_ZEROSSL_EAB_HMAC_KEY == "" {
+				if global.GCONFIG_ZEROSSL_ACCESS_KEY == "" {
+					response.FailWithMessage("请配置zerossl访问key,在系统配置中 zerossl_access_key 中配置", c)
+					return
+				}
+				// 调用 ZeroSSL API 获取 EAB 凭证
+				err := w.fetchAndUpdateZeroSSLEABCredentials()
+				if err != nil {
+					response.FailWithMessage(fmt.Sprintf("获取ZeroSSL EAB凭证失败: %s", err.Error()), c)
+					return
+				}
+			}
 		}
 		addResult, err := wafSslOrderService.AddApi(req)
 		if err == nil {
@@ -170,4 +192,126 @@ func (w *WafSslOrderApi) check80Port(hosts model.Hosts) bool {
 		return true
 	}
 	return false
+}
+
+// fetchAndUpdateZeroSSLEABCredentials 调用 ZeroSSL API 获取 EAB 凭证并更新配置
+func (w *WafSslOrderApi) fetchAndUpdateZeroSSLEABCredentials() error {
+	// 构建请求 URL
+	apiURL := "https://api.zerossl.com/acme/eab-credentials"
+	u, err := url.Parse(apiURL)
+	if err != nil {
+		return fmt.Errorf("解析URL失败: %w", err)
+	}
+
+	// 添加查询参数（GET 请求）
+	q := u.Query()
+	q.Set("access_key", global.GCONFIG_ZEROSSL_ACCESS_KEY)
+	u.RawQuery = q.Encode()
+
+	// 创建 HTTP 客户端
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			TLSHandshakeTimeout:   10 * time.Second,
+			ResponseHeaderTimeout: 10 * time.Second,
+		},
+	}
+
+	// 发送 POST 请求（URL 中包含查询参数）
+	zlog.Info("调用 ZeroSSL API 获取 EAB 凭证", "url", u.String())
+	req, err := http.NewRequest("POST", u.String(), nil)
+	if err != nil {
+		return fmt.Errorf("创建请求失败: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("HTTP请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 读取响应体
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("读取响应失败: %w", err)
+	}
+
+	// 检查 HTTP 状态码
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("API请求失败，状态码: %d, 响应: %s", resp.StatusCode, string(body))
+	}
+
+	// 解析 JSON 响应
+	var apiResponse struct {
+		Success    bool   `json:"success"`
+		EabKid     string `json:"eab_kid"`
+		EabHmacKey string `json:"eab_hmac_key"`
+		Error      *struct {
+			Code    int    `json:"code"`
+			Type    string `json:"type"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+
+	if err := json.Unmarshal(body, &apiResponse); err != nil {
+		return fmt.Errorf("解析JSON响应失败: %w, 原始响应: %s", err, string(body))
+	}
+
+	// 检查 API 响应是否成功
+	if !apiResponse.Success {
+		errorMsg := string(body)
+		if apiResponse.Error != nil {
+			errorMsg = fmt.Sprintf("错误代码: %d, 类型: %s, 消息: %s",
+				apiResponse.Error.Code, apiResponse.Error.Type, apiResponse.Error.Message)
+		}
+		return fmt.Errorf("API返回失败: %s", errorMsg)
+	}
+
+	// 验证返回的凭证是否有效
+	if apiResponse.EabKid == "" || apiResponse.EabHmacKey == "" {
+		return fmt.Errorf("API返回的凭证为空, 响应: %s", string(body))
+	}
+
+	// 更新全局变量
+	global.GCONFIG_ZEROSSL_EAB_KID = apiResponse.EabKid
+	global.GCONFIG_ZEROSSL_EAB_HMAC_KEY = apiResponse.EabHmacKey
+
+	// 更新数据库配置
+	// 更新 zerossl_eab_kid
+	eabKidConfig := wafSystemConfigService.GetDetailByItemApi(request.WafSystemConfigDetailByItemReq{Item: "zerossl_eab_kid"})
+	if eabKidConfig.Id != "" {
+		err = wafSystemConfigService.ModifyApi(request.WafSystemConfigEditReq{
+			Id:        eabKidConfig.Id,
+			Item:      eabKidConfig.Item,
+			ItemClass: eabKidConfig.ItemClass,
+			Value:     apiResponse.EabKid,
+			Remarks:   eabKidConfig.Remarks,
+			ItemType:  eabKidConfig.ItemType,
+			Options:   eabKidConfig.Options,
+		})
+		if err != nil {
+			zlog.Warn("更新 zerossl_eab_kid 配置失败", "error", err.Error())
+		}
+	}
+
+	// 更新 zerossl_eab_hmac_key
+	eabHmacKeyConfig := wafSystemConfigService.GetDetailByItemApi(request.WafSystemConfigDetailByItemReq{Item: "zerossl_eab_hmac_key"})
+	if eabHmacKeyConfig.Id != "" {
+		err = wafSystemConfigService.ModifyApi(request.WafSystemConfigEditReq{
+			Id:        eabHmacKeyConfig.Id,
+			Item:      eabHmacKeyConfig.Item,
+			ItemClass: eabHmacKeyConfig.ItemClass,
+			Value:     apiResponse.EabHmacKey,
+			Remarks:   eabHmacKeyConfig.Remarks,
+			ItemType:  eabHmacKeyConfig.ItemType,
+			Options:   eabHmacKeyConfig.Options,
+		})
+		if err != nil {
+			zlog.Warn("更新 zerossl_eab_hmac_key 配置失败", "error", err.Error())
+		}
+	}
+
+	zlog.Info("ZeroSSL EAB 凭证获取并更新成功")
+	return nil
 }

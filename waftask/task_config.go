@@ -185,6 +185,15 @@ func setConfigStringValue(name string, value string, change int) {
 		// 重新加载状态码配置
 		wafipban.GetIPFailureManager().ReloadStatusCodes()
 		break
+	case "zerossl_access_key":
+		global.GCONFIG_ZEROSSL_ACCESS_KEY = value
+		break
+	case "zerossl_eab_kid":
+		global.GCONFIG_ZEROSSL_EAB_KID = value
+		break
+	case "zerossl_eab_hmac_key":
+		global.GCONFIG_ZEROSSL_EAB_HMAC_KEY = value
+		break
 	default:
 		zlog.Warn("Unknown config item:", name)
 	}
@@ -316,4 +325,9 @@ func TaskLoadSetting(initLoad bool) {
 
 	// 版本更新相关配置
 	updateConfigIntItem(initLoad, "system", "check_beta_version", global.GCONFIG_CHECK_BETA_VERSION, "是否检测beta版本更新（1启用 0禁用）", "options", "0|禁用,1|启用", configMap)
+
+	// ZeroSSL 相关配置
+	updateConfigStringItem(initLoad, "ssl", "zerossl_access_key", global.GCONFIG_ZEROSSL_ACCESS_KEY, "zerossl访问key", "string", "", configMap)
+	updateConfigStringItem(initLoad, "ssl", "zerossl_eab_kid", global.GCONFIG_ZEROSSL_EAB_KID, "zerossl eab_kid", "string", "", configMap)
+	updateConfigStringItem(initLoad, "ssl", "zerossl_eab_hmac_key", global.GCONFIG_ZEROSSL_EAB_HMAC_KEY, "zerossl eab_hmac_key", "string", "", configMap)
 }

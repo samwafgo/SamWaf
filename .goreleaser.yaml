@@ -24,6 +24,7 @@ builds:
   # 正式发布版本 (Release builds)
   - id: "samwaf_linux"
     binary: "SamWafLinux64"
+    main: ./cmd/samwaf
     env:
       - CGO_ENABLED=1
       - CC=x86_64-linux-musl-gcc
@@ -43,6 +44,7 @@ builds:
       - -extldflags "-static"
   - id: "samwaf_win"
     binary: "SamWaf64"
+    main: ./cmd/samwaf
     env:
       - CGO_ENABLED=1
       - CC=x86_64-w64-mingw32-gcc
@@ -61,6 +63,7 @@ builds:
       - -extldflags "-static"
   - id: "samwaf_linux_arm64"
     binary: "SamWafLinuxArm64"
+    main: ./cmd/samwaf
     env:
       - CGO_ENABLED=1
       - CC=aarch64-linux-gnu-gcc
@@ -81,6 +84,7 @@ builds:
   # Debug版本 (Debug builds for troubleshooting only)
   - id: "samwaf_linux_debug"
     binary: "SamWafLinux64-DEBUG-SYMBOLS"
+    main: ./cmd/samwaf
     env:
       - CGO_ENABLED=1
       - CC=x86_64-linux-musl-gcc
@@ -99,6 +103,7 @@ builds:
       - -extldflags "-static"
   - id: "samwaf_win_debug"
     binary: "SamWaf64-DEBUG-SYMBOLS"
+    main: ./cmd/samwaf
     env:
       - CGO_ENABLED=1
       - CC=x86_64-w64-mingw32-gcc
@@ -116,6 +121,7 @@ builds:
       - -extldflags "-static"
   - id: "samwaf_linux_arm64_debug"
     binary: "SamWafLinuxArm64-DEBUG-SYMBOLS"
+    main: ./cmd/samwaf
     env:
       - CGO_ENABLED=1
       - CC=aarch64-linux-gnu-gcc

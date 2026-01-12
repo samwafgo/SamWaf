@@ -57,7 +57,7 @@ jobs:
           BUILDTIME=$(date +'%Y%m%d')
           go build \
             -ldflags="-X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=false -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=v1.0.0-beta.1 -s -w -extldflags '-static'" \
-            -o ./SamWafLinux64 main.go
+            -o ./SamWafLinux64 ./cmd/samwaf/main.go
 
       - name: Test Linux binary
         timeout-minutes: 2
@@ -152,7 +152,7 @@ jobs:
           BUILDTIME=$(date +'%Y%m%d')
           go build \
             -ldflags="-X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=false -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=v1.0.0-beta.1 -s -w -extldflags '-static'" \
-            -o ./SamWaf64.exe main.go
+            -o ./SamWaf64.exe ./cmd/samwaf/main.go
 
       - name: Check Windows binary
         run: |

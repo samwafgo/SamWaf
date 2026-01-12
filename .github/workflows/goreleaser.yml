@@ -192,13 +192,13 @@ jobs:
           echo "Building macOS AMD64..."
           GOOS=darwin GOARCH=amd64 go build \
             -ldflags="-X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=false -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=${CURRENT_TAG} -s -w" \
-            -o ./dist/SamWafDarwinAmd64 main.go
+            -o ./dist/SamWafDarwinAmd64 ./cmd/samwaf/main.go
           
           # 编译 ARM64 版本 (Apple Silicon)
           echo "Building macOS ARM64..."
           GOOS=darwin GOARCH=arm64 go build \
             -ldflags="-X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=false -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=${CURRENT_TAG} -s -w" \
-            -o ./dist/SamWafDarwinArm64 main.go
+            -o ./dist/SamWafDarwinArm64 ./cmd/samwaf/main.go
           
           # 创建压缩包
           mkdir -p release
@@ -307,7 +307,7 @@ jobs:
           BUILDTIME: ${{ env.BUILDTIME }}
           CURRENT_TAG: ${{ env.CURRENT_TAG }}
         run: |
-          go build -ldflags="-X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=true -X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=${CURRENT_TAG} -s -w -extldflags '-static'" -o ./release/SamWaf64ForWin7Win8Win2008.exe main.go
+          go build -ldflags="-X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=true -X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=${CURRENT_TAG} -s -w -extldflags '-static'" -o ./release/SamWaf64ForWin7Win8Win2008.exe ./cmd/samwaf/main.go
 
       - name: Archive artifacts
         if: steps.check_win7_build.outputs.skip_win7_build != 'true'

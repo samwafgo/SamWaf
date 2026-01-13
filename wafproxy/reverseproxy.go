@@ -176,19 +176,23 @@ func NewSingleHostReverseProxyCustomHeader(target *url.URL, customHeaders map[st
 			// explicitly disable User-Agent so it's not set to default value
 			req.Header.Set("User-Agent", "")
 		}
-		// 检查用户是否自定义了 X-Forwarded-For
+		// 检查用户是否自定义了 X-Forwarded-For，并读取其值（区分大小写）
 		userSetXFF := false
-		for key := range customHeaders {
+		xffValue := ""
+		for key, val := range customHeaders {
 			if strings.EqualFold(key, "X-Forwarded-For") {
 				userSetXFF = true
+				xffValue = val
 				break
 			}
 		}
 
-		// 如果用户自定义了 X-Forwarded-For，设置一个内部标记，阻止后续的自动追加
+		// 仅当用户自定义的 X-Forwarded-For 值非空时，设置一个内部标记，阻止后续的自动追加
 		if userSetXFF {
-			// 使用特殊的头信息作为标记（会在后续处理中删除）
-			req.Header.Set("X-Waf-Custom-XFF-Control", "skip-auto-append")
+			if strings.TrimSpace(xffValue) != "" {
+				// 使用特殊的头信息作为标记（会在后续处理中删除）
+				req.Header.Set("X-Waf-Custom-XFF-Control", "skip-auto-append")
+			}
 		}
 
 		// 添加自定义 header
@@ -364,8 +368,19 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			// separated list and fold multiple headers into one.
 			prior, ok := outreq.Header["X-Forwarded-For"]
 			omit := ok && prior == nil // Issue 38079: nil now means don't populate the header
-			if len(prior) > 0 {
-				clientIP = strings.Join(prior, ", ") + ", " + clientIP
+
+			// 处理 prior 切片，去除空字符串和多余空格
+			var priorClean []string
+			if prior != nil {
+				for _, v := range prior {
+					if s := strings.TrimSpace(v); s != "" {
+						priorClean = append(priorClean, s)
+					}
+				}
+			}
+
+			if len(priorClean) > 0 {
+				clientIP = strings.Join(priorClean, ", ") + ", " + clientIP
 			}
 			if !omit {
 				outreq.Header.Set("X-Forwarded-For", clientIP)

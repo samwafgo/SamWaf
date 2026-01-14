@@ -450,6 +450,39 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return tx.Where("ca_server_name = ? AND ca_server_address = ?", "ZeroSSL", "https://acme.zerossl.com/v2/DV90").Delete(&model.CaServerInfo{}).Error
 			},
 		},
+		// 迁移12: 为 tunnel 表添加 ip_version 字段（IP版本支持）
+		{
+			ID: "202601110001_add_tunnel_ip_version",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202601110001: 为 tunnel 表添加 ip_version 字段")
+
+				// 检查字段是否已存在
+				if tx.Migrator().HasColumn(&model.Tunnel{}, "ip_version") {
+					zlog.Info("ip_version 字段已存在，跳过添加")
+					return nil
+				}
+
+				// 添加字段
+				if err := tx.Migrator().AddColumn(&model.Tunnel{}, "ip_version"); err != nil {
+					return fmt.Errorf("添加 ip_version 字段失败: %w", err)
+				}
+
+				// 为已存在的记录设置默认值为 "both"（同时支持IPv4和IPv6）
+				if err := tx.Exec("UPDATE tunnels SET ip_version = 'both' WHERE ip_version IS NULL OR ip_version = ''").Error; err != nil {
+					zlog.Warn("设置 ip_version 默认值失败", "error", err.Error())
+				}
+
+				zlog.Info("ip_version 字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202601110001: 删除 tunnel 表的 ip_version 字段")
+				if tx.Migrator().HasColumn(&model.Tunnel{}, "ip_version") {
+					return tx.Migrator().DropColumn(&model.Tunnel{}, "ip_version")
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

@@ -40,10 +40,15 @@ func (receiver *WafTunnelService) AddApi(req request.WafTunnelAddReq) (*model.Tu
 		MaxInConnect:      req.MaxInConnect,
 		MaxOutConnect:     req.MaxOutConnect,
 		AllowedTimeRanges: req.AllowedTimeRanges,
+		IpVersion:         req.IpVersion,
 		Remark:            req.Remark,
 	}
 	if bean.Code == "" {
 		bean.Code = bean.Id
+	}
+	// 设置默认IP版本为both（如果未指定）
+	if bean.IpVersion == "" {
+		bean.IpVersion = "both"
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
 	return bean, nil
@@ -125,6 +130,7 @@ func (receiver *WafTunnelService) ModifyApi(req request.WafTunnelEditReq) error 
 		"MaxInConnect":      req.MaxInConnect,
 		"MaxOutConnect":     req.MaxOutConnect,
 		"AllowedTimeRanges": req.AllowedTimeRanges,
+		"IpVersion":         req.IpVersion,
 		"Remark":            req.Remark,
 
 		"UPDATE_TIME": customtype.JsonTime(time.Now()),

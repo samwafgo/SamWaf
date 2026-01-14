@@ -14,15 +14,67 @@ import (
 
 // startTCPServer 启动TCP服务器
 func (waf *WafTunnelEngine) startTCPServer(netRuntime waftunnelmodel.NetRunTime) {
-	addr := ":" + strconv.Itoa(netRuntime.Port)
-	listener, err := net.Listen("tcp", addr)
-	if err != nil {
+	// 获取隧道配置以确定IP版本
+	key := "tcp" + strconv.Itoa(netRuntime.Port)
+	tunnelInfo, ok := waf.TunnelTarget.Get(key)
+	if !ok {
 		serverPort := strconv.Itoa(netRuntime.Port)
-		zlog.Error(fmt.Sprintf("TCP服务器启动失败 [服务端口:%s 错误:%s]", serverPort, err.Error()))
+		zlog.Error(fmt.Sprintf("未找到隧道配置，无法启动TCP服务器 [服务端口:%s]", serverPort))
 		return
 	}
 
-	key := "tcp" + strconv.Itoa(netRuntime.Port)
+	// 根据IP版本设置监听地址和网络类型
+	var listener net.Listener
+	var err error
+	ipVersion := tunnelInfo.Tunnel.IpVersion
+	if ipVersion == "" {
+		ipVersion = "both" // 默认值
+	}
+
+	switch ipVersion {
+	case "ipv4":
+		// 明确使用 tcp4 网络类型，只监听 IPv4
+		addr := "0.0.0.0:" + strconv.Itoa(netRuntime.Port)
+		zlog.Debug(fmt.Sprintf("端口[%s]: IP版本: %s 最后隧道本地监听地址: %s", strconv.Itoa(netRuntime.Port), ipVersion, addr))
+		listener, err = net.Listen("tcp4", addr)
+		if err != nil {
+			serverPort := strconv.Itoa(netRuntime.Port)
+			zlog.Error(fmt.Sprintf("TCP服务器启动失败 [服务端口:%s IP版本:%s 错误:%s]", serverPort, ipVersion, err.Error()))
+			return
+		}
+	case "ipv6":
+		// 明确使用 tcp6 网络类型，只监听 IPv6
+		addr := "[::]:" + strconv.Itoa(netRuntime.Port)
+		zlog.Debug(fmt.Sprintf("端口[%s]: IP版本: %s 最后隧道本地监听地址: %s", strconv.Itoa(netRuntime.Port), ipVersion, addr))
+		listener, err = net.Listen("tcp6", addr)
+		if err != nil {
+			serverPort := strconv.Itoa(netRuntime.Port)
+			zlog.Error(fmt.Sprintf("TCP服务器启动失败 [服务端口:%s IP版本:%s 错误:%s]", serverPort, ipVersion, err.Error()))
+			return
+		}
+	case "both":
+		// 使用 tcp 网络类型，同时监听 IPv4 和 IPv6（如果系统支持）
+		addr := ":" + strconv.Itoa(netRuntime.Port)
+		zlog.Debug(fmt.Sprintf("端口[%s]: IP版本: %s 最后隧道本地监听地址: %s", strconv.Itoa(netRuntime.Port), ipVersion, addr))
+		listener, err = net.Listen("tcp", addr)
+		if err != nil {
+			serverPort := strconv.Itoa(netRuntime.Port)
+			zlog.Error(fmt.Sprintf("TCP服务器启动失败 [服务端口:%s IP版本:%s 错误:%s]", serverPort, ipVersion, err.Error()))
+			return
+		}
+	default:
+		// 未知值，使用默认行为（both）
+		zlog.Warn(fmt.Sprintf("未知的IP版本配置: %s，使用默认值both [服务端口:%s]", ipVersion, strconv.Itoa(netRuntime.Port)))
+		addr := ":" + strconv.Itoa(netRuntime.Port)
+		zlog.Debug(fmt.Sprintf("端口[%s]: IP版本: both 最后隧道本地监听地址: %s", strconv.Itoa(netRuntime.Port), addr))
+		listener, err = net.Listen("tcp", addr)
+		if err != nil {
+			serverPort := strconv.Itoa(netRuntime.Port)
+			zlog.Error(fmt.Sprintf("TCP服务器启动失败 [服务端口:%s IP版本:both 错误:%s]", serverPort, err.Error()))
+			return
+		}
+	}
+
 	// 更新状态
 	netClone, _ := waf.NetListerOnline.Get(key)
 	netClone.Status = 0

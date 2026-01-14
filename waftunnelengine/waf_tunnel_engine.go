@@ -139,9 +139,24 @@ func (waf *WafTunnelEngine) EditTunnel(oldTunnel model.Tunnel, newTunnel model.T
 			}
 		}
 
-		//如果是端口相同，也存在是否存在切换状态
+		//如果是端口相同，也存在是否存在切换状态或IP版本变化
 		if allSame {
-			// 端口完全相同，只需要更新隧道信息
+			// 端口完全相同，检查是否需要重启服务
+			// 获取旧的IP版本（如果为空则默认为both）
+			oldIpVersion := oldTunnel.IpVersion
+			if oldIpVersion == "" {
+				oldIpVersion = "both"
+			}
+			// 获取新的IP版本（如果为空则默认为both）
+			newIpVersion := newTunnel.IpVersion
+			if newIpVersion == "" {
+				newIpVersion = "both"
+			}
+
+			// 检查是否需要重启服务：状态变化或IP版本变化
+			needRestart := oldTunnel.StartStatus != newTunnel.StartStatus || oldIpVersion != newIpVersion
+
+			// 更新隧道信息
 			for port := range oldPortMap {
 				key := oldTunnel.Protocol + port
 				// 更新隧道目标信息
@@ -150,10 +165,13 @@ func (waf *WafTunnelEngine) EditTunnel(oldTunnel model.Tunnel, newTunnel model.T
 					waf.TunnelTarget.Set(key, tunnelSafe)
 				}
 			}
-			if oldTunnel.StartStatus != newTunnel.StartStatus {
-				if newTunnel.StartStatus == 0 {
-					waf.RemoveTunnel(newTunnel)
-				} else {
+
+			// 如果需要重启服务
+			if needRestart {
+				// 先移除旧的服务
+				waf.RemoveTunnel(oldTunnel)
+				// 如果新状态是启动的，重新加载
+				if newTunnel.StartStatus != 0 {
 					netRunTimes := waf.LoadTunnel(newTunnel)
 					addedRunTimes = append(addedRunTimes, netRunTimes...)
 				}
@@ -208,11 +226,52 @@ func (waf *WafTunnelEngine) EditTunnel(oldTunnel model.Tunnel, newTunnel model.T
 				Tunnel: newTunnel,
 			})
 		} else {
-			// 端口相同但其他信息可能变了，更新隧道信息
+			// 端口相同但其他信息可能变了，检查是否需要重启服务
 			key := newTunnel.Protocol + port
 			if tunnelSafe, ok := waf.TunnelTarget.Get(key); ok {
+				// 获取旧的IP版本（如果为空则默认为both）
+				oldIpVersion := tunnelSafe.Tunnel.IpVersion
+				if oldIpVersion == "" {
+					oldIpVersion = "both"
+				}
+				// 获取新的IP版本（如果为空则默认为both）
+				newIpVersion := newTunnel.IpVersion
+				if newIpVersion == "" {
+					newIpVersion = "both"
+				}
+
+				// 检查是否需要重启服务：状态变化或IP版本变化
+				needRestart := tunnelSafe.Tunnel.StartStatus != newTunnel.StartStatus || oldIpVersion != newIpVersion
+
+				// 更新隧道信息
 				tunnelSafe.Tunnel = newTunnel
 				waf.TunnelTarget.Set(key, tunnelSafe)
+
+				// 如果需要重启服务
+				if needRestart {
+					// 获取当前的运行时信息
+					if netRuntime, ok := waf.NetListerOnline.Get(key); ok {
+						// 停止旧服务
+						waf.StopTunnelServer(netRuntime)
+						// 从在线列表中移除
+						waf.NetListerOnline.Delete(key)
+					}
+
+					// 如果新状态是启动的，重新加载
+					if newTunnel.StartStatus != 0 {
+						portInt, err := strconv.Atoi(port)
+						if err == nil {
+							netRuntime := waftunnelmodel.NetRunTime{
+								ServerType: newTunnel.Protocol,
+								Port:       portInt,
+								Status:     newTunnel.StartStatus,
+								Svr:        nil,
+							}
+							waf.NetListerOnline.Set(key, netRuntime)
+							addedRunTimes = append(addedRunTimes, netRuntime)
+						}
+					}
+				}
 			}
 		}
 	}

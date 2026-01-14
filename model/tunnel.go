@@ -22,5 +22,6 @@ type Tunnel struct {
 	MaxInConnect      int    `json:"max_in_connect"`      // 最大入站连接数 0 表示不限制
 	MaxOutConnect     int    `json:"max_out_connect"`     // 最大出站连接数 0 表示不限制
 	AllowedTimeRanges string `json:"allowed_time_ranges"` // 允许访问的时间段 格式: 08:00-10:00;11:00-12:00 空表示24小时可访问
+	IpVersion         string `json:"ip_version"`          // IP版本支持: "ipv4" 仅IPv4, "ipv6" 仅IPv6, "both" 同时支持IPv4和IPv6, 默认为"both"
 	Remark            string `json:"remark"`              //备注
 }

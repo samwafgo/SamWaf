@@ -18,6 +18,7 @@ type WafTunnelAddReq struct {
 	MaxInConnect      int    `json:"max_in_connect" form:"max_in_connect"`
 	MaxOutConnect     int    `json:"max_out_connect" form:"max_out_connect"`
 	AllowedTimeRanges string `json:"allowed_time_ranges" form:"allowed_time_ranges"`
+	IpVersion         string `json:"ip_version" form:"ip_version"`
 	Remark            string `json:"remark" form:"remark"`
 }
 type WafTunnelEditReq struct {
@@ -38,6 +39,7 @@ type WafTunnelEditReq struct {
 	MaxInConnect      int    `json:"max_in_connect" form:"max_in_connect"`
 	MaxOutConnect     int    `json:"max_out_connect" form:"max_out_connect"`
 	AllowedTimeRanges string `json:"allowed_time_ranges" form:"allowed_time_ranges"`
+	IpVersion         string `json:"ip_version" form:"ip_version"`
 	Remark            string `json:"remark" form:"remark"`
 }
 type WafTunnelDetailReq struct {

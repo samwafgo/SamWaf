@@ -98,6 +98,8 @@ github.com/corazawaf/coraza-coreruleset v0.0.0-20240226094324-415b1017abdc h1:Ol
 github.com/corazawaf/coraza-coreruleset v0.0.0-20240226094324-415b1017abdc/go.mod h1:7rsocqNDkTCira5T0M7buoKR2ehh7YZiPkzxRuAgvVU=
 github.com/corazawaf/coraza/v3 v3.2.2 h1:zZxyLRJ7o8W11BB8XE94X3CxZmYTk0/RhHc1dQxqtq8=
 github.com/corazawaf/coraza/v3 v3.2.2/go.mod h1:73JSSNpNrWeF8K+TqKAc7Apxm3uz2rBrspsYKR88tGk=
+github.com/corazawaf/coraza/v3 v3.3.3 h1:kqjStHAgWqwP5dh7n0vhTOF0a3t+VikNS/EaMiG0Fhk=
+github.com/corazawaf/coraza/v3 v3.3.3/go.mod h1:xSaXWOhFMSbrV8qOOfBKAyw3aOqfwaSaOy5BgSF8XlA=
 github.com/corazawaf/libinjection-go v0.2.2 h1:Chzodvb6+NXh6wew5/yhD0Ggioif9ACrQGR4qjTCs1g=
 github.com/corazawaf/libinjection-go v0.2.2/go.mod h1:OP4TM7xdJ2skyXqNX1AN1wN5nNZEmJNuWbNPOItn7aw=
 github.com/cyphar/filepath-securejoin v0.2.4 h1:Ugdm7cg7i6ZK6x3xDF1oEu1nfkyfH53EtKeQYTC3kyg=
@@ -270,6 +272,8 @@ github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 h1:6E+4a0GO5zZEnZ
 github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0/go.mod h1:zJYVVT2jmtg6P3p1VtQj7WsuWi/y4VnjVBn7F8KPB3I=
 github.com/magefile/mage v1.15.1-0.20231118170541-2385abb49a1f h1:iiLWLoibjCL0XND6inF7bs2nc20lU/FYkiR//VIOLUc=
 github.com/magefile/mage v1.15.1-0.20231118170541-2385abb49a1f/go.mod h1:z5UZb/iS3GoOSn0JgWuiw7dxlurVYTu+/jHXqQg881A=
+github.com/magefile/mage v1.15.1-0.20241126214340-bdc92f694516 h1:aAO0L0ulox6m/CLRYvJff+jWXYYCKGpEm3os7dM/Z+M=
+github.com/magefile/mage v1.15.1-0.20241126214340-bdc92f694516/go.mod h1:z5UZb/iS3GoOSn0JgWuiw7dxlurVYTu+/jHXqQg881A=
 github.com/mattn/go-colorable v0.1.8/go.mod h1:u6P/XSegPjTcexA+o6vUJrdnUu04hMope9wVRipJSqc=
 github.com/mattn/go-colorable v0.1.9/go.mod h1:u6P/XSegPjTcexA+o6vUJrdnUu04hMope9wVRipJSqc=
 github.com/mattn/go-colorable v0.1.12/go.mod h1:u5H1YNBxpqRaxsYJYSkiCWKzEfiAb1Gb520KVy5xxl4=

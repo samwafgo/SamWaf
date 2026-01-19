@@ -7,7 +7,7 @@ toolchain go1.24.7
 require (
 	github.com/andybalholm/brotli v1.2.0
 	github.com/bytedance/godlp v1.2.15
-	github.com/corazawaf/coraza/v3 v3.2.2
+	github.com/corazawaf/coraza/v3 v3.3.3
 	github.com/corazawaf/libinjection-go v0.2.2
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/dsnet/compress v0.0.1
@@ -107,7 +107,7 @@ require (
 	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
-	github.com/magefile/mage v1.15.1-0.20231118170541-2385abb49a1f // indirect
+	github.com/magefile/mage v1.15.1-0.20241126214340-bdc92f694516 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/miekg/dns v1.1.69 // indirect

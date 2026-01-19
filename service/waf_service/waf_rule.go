@@ -126,6 +126,12 @@ func (receiver *WafRuleService) GetListApi(wafRuleSearchReq request.WafRuleSearc
 		}
 		whereField = whereField + " rule_name=? "
 	}
+	if len(wafRuleSearchReq.RuleCode) > 0 {
+		if len(whereField) > 0 {
+			whereField = whereField + " and "
+		}
+		whereField = whereField + " rule_code=? "
+	}
 	//where字段赋值
 	whereValues = append(whereValues, 999)
 	if len(wafRuleSearchReq.HostCode) > 0 {
@@ -133,6 +139,9 @@ func (receiver *WafRuleService) GetListApi(wafRuleSearchReq request.WafRuleSearc
 	}
 	if len(wafRuleSearchReq.RuleName) > 0 {
 		whereValues = append(whereValues, wafRuleSearchReq.RuleName)
+	}
+	if len(wafRuleSearchReq.RuleCode) > 0 {
+		whereValues = append(whereValues, wafRuleSearchReq.RuleCode)
 	}
 
 	global.GWAF_LOCAL_DB.Model(&model.Rules{}).Where(whereField, whereValues...).Limit(wafRuleSearchReq.PageSize).Offset(wafRuleSearchReq.PageSize * (wafRuleSearchReq.PageIndex - 1)).Find(&rules)

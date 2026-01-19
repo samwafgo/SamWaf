@@ -25,6 +25,7 @@ type WafRuleEditReq struct {
 type WafRuleSearchReq struct {
 	HostCode string `json:"host_code" form:"host_code"` //主机码
 	RuleName string `json:"rule_name" form:"rule_name"` //规则名
+	RuleCode string `json:"rule_code" form:"rule_code"` //规则编号v4
 	request.PageInfo
 }
 type WafRuleBatchDelReq struct {

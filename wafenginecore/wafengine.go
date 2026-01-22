@@ -1568,6 +1568,7 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 						}()
 						zlog.Info("启动HTTPS 3 服务器" + strconv.Itoa(innruntime.Port))
 						serclone.H3 = h3
+						waf.ServerOnline.Set(innruntime.Port, serclone)
 						err := h3.ListenAndServe()
 						if err == http.ErrServerClosed {
 							zlog.Error("[HTTP3Server] https server has been close, cause:[%v]", err)

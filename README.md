@@ -139,12 +139,12 @@ SamWaf64.exe stop && SamWaf64.exe uninstall
 
 - Linux 一键自动下载并安装脚本
 ```
-curl -sSO http://update.samwaf.com/latest/install_samwaf.sh && bash install_samwaf.sh install 
+curl -sSO https://update.samwaf.com/latest/install_samwaf.sh && bash install_samwaf.sh install 
 ``` 
 
 - Linux 一键卸载脚本
 ```
-curl -sSO http://update.samwaf.com/latest/install_samwaf.sh && bash install_samwaf.sh uninstall 
+curl -sSO https://update.samwaf.com/latest/install_samwaf.sh && bash install_samwaf.sh uninstall 
 ```
 
 

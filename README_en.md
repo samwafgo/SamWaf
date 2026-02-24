@@ -140,12 +140,12 @@ SamWaf64.exe stop && SamWaf64.exe uninstall
 ### Linux
 - install
 ```
-curl -sSO http://update.samwaf.com/latest/install_samwaf.sh && bash install_samwaf.sh install 
+curl -sSO https://update.samwaf.com/latest/install_samwaf.sh && bash install_samwaf.sh install 
 ``` 
 
 - uninstall
 ```
-curl -sSO http://update.samwaf.com/latest/install_samwaf.sh && bash install_samwaf.sh uninstall 
+curl -sSO https://update.samwaf.com/latest/install_samwaf.sh && bash install_samwaf.sh uninstall 
 ```
 
 ### Docker

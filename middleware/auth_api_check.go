@@ -23,6 +23,18 @@ var (
 func Auth() gin.HandlerFunc {
 	innerName := "Auth"
 	return func(c *gin.Context) {
+		// 优先检查 OpenAPI Key（X-API-Key）
+		apiKey := c.GetHeader("X-API-Key")
+		if apiKey != "" {
+			_, ok := ValidateOpenApiKey(c, apiKey)
+			if !ok {
+				c.Abort()
+				return
+			}
+			c.Next()
+			return
+		}
+
 		// 获取请求头中 token，实际是一个完整被签名过的 token；a complete, signed token
 		tokenStr := ""
 		loginType := c.GetHeader("X-Login-Type")

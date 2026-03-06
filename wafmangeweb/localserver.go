@@ -1,6 +1,7 @@
 package wafmangeweb
 
 import (
+	"SamWaf/api"
 	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/middleware"
@@ -41,7 +42,7 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 	router.PublicApiGroupApp.InitCenterRouter(PublicRouterGroup) //注册中心接收接口
 
 	RouterGroup := r.Group("")
-	RouterGroup.Use(middleware.Auth(), middleware.CenterApi(), middleware.SecApi(), middleware.GinGlobalExceptionMiddleWare(), middleware.IPWhitelist()) //TODO 中心管控 特定
+	RouterGroup.Use(middleware.Auth(), middleware.OpenApiLogMiddleware(), middleware.CenterApi(), middleware.SecApi(), middleware.GinGlobalExceptionMiddleWare(), middleware.IPWhitelist()) //TODO 中心管控 特定
 	{
 		router.ApiGroupApp.InitHostRouter(RouterGroup)
 		router.ApiGroupApp.InitLogRouter(RouterGroup)
@@ -93,7 +94,13 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitFirewallIPBlockRouter(RouterGroup)
 		router.ApiGroupApp.InitLogFileWriteRouter(RouterGroup)
 		router.ApiGroupApp.InitIPLocationRouter(RouterGroup)
+		router.ApiGroupApp.InitOPlatformKeyRouter(RouterGroup)
+		router.ApiGroupApp.InitOPlatformLogRouter(RouterGroup)
+		router.ApiGroupApp.InitOPlatformDocRouter(RouterGroup)
 	}
+
+	// 保存 gin.Engine 引用供 API 文档生成使用
+	api.GinEngineRef = r
 
 	if global.GWAF_RELEASE == "true" {
 		static.Static(r, func(handlers ...gin.HandlerFunc) {
@@ -133,7 +140,7 @@ func (web *WafWebManager) cors() gin.HandlerFunc {
 			// 将该域添加到allow-origin中
 			c.Header("Access-Control-Allow-Origin", origin) //
 			c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, UPDATE")
-			c.Header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization,X-Token,Remote-Waf-User-Id,OPEN-X-Token,X-Login-Type,X-Mobile-Token")
+			c.Header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization,X-Token,Remote-Waf-User-Id,OPEN-X-Token,X-Login-Type,X-Mobile-Token,X-API-Key")
 			c.Header("Access-Control-Expose-Headers", "Content-Length, Access-Control-Allow-Origin, Access-Control-Allow-Headers, Cache-Control, Content-Language, Content-Type")
 			//允许客户端传递校验信息比如 cookie
 			c.Header("Access-Control-Allow-Credentials", "true")

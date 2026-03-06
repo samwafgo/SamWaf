@@ -23,6 +23,15 @@ const (
 )
 
 func Result(code int, data interface{}, msg string, c *gin.Context) {
+	// OpenAPI 请求直接返回明文 JSON，不做 AES 加密
+	if isOpenApi, exists := c.Get("is_openapi"); exists && isOpenApi == true {
+		c.JSON(http.StatusOK, Response{
+			code,
+			data,
+			msg,
+		})
+		return
+	}
 	result, _ := json.Marshal(data) //将数据转换为json
 	encryptStr, _ := wafsec.AesEncrypt(result, global.GWAF_COMMUNICATION_KEY)
 	// 开始时间

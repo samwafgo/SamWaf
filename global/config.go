@@ -70,6 +70,9 @@ var (
 	GCONFIG_ZEROSSL_EAB_KID      string = "" // zerossl eab_kid
 	GCONFIG_ZEROSSL_EAB_HMAC_KEY string = "" // zerossl eab_hmac_key
 
+	// 开放平台配置
+	GCONFIG_OPEN_PLATFORM_ENABLED int64 = 0 // 开放平台开关，默认关闭 有需要的开启 1启用 0禁用
+
 	// 日志文件写入配置 (额外输出，不影响SQLite存储)
 	GCONFIG_LOG_FILE_WRITE_ENABLE      int64  = 0                 // 日志文件写入开关 (0关闭 1开启)
 	GCONFIG_LOG_FILE_WRITE_PATH        string = "logs/access.log" // 日志文件路径

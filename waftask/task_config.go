@@ -171,6 +171,8 @@ func setConfigIntValue(name string, value int64, change int) {
 	case "log_file_write_compress":
 		global.GCONFIG_LOG_FILE_WRITE_COMPRESS = value
 		syncLogFileWriterConfig()
+	case "open_platform_enabled":
+		global.GCONFIG_OPEN_PLATFORM_ENABLED = value
 	default:
 		zlog.Warn("Unknown config item:", name)
 	}
@@ -432,4 +434,7 @@ func TaskLoadSetting(initLoad bool) {
 	updateConfigIntItem(initLoad, "logfile", "log_file_write_max_backups", global.GCONFIG_LOG_FILE_WRITE_MAX_BACKUPS, "保留的历史文件数量", "int", "", configMap)
 	updateConfigIntItem(initLoad, "logfile", "log_file_write_max_days", global.GCONFIG_LOG_FILE_WRITE_MAX_DAYS, "保留天数", "int", "", configMap)
 	updateConfigIntItem(initLoad, "logfile", "log_file_write_compress", global.GCONFIG_LOG_FILE_WRITE_COMPRESS, "是否压缩历史文件（0关闭 1开启）", "options", "0|关闭,1|开启", configMap)
+
+	// 开放平台配置
+	updateConfigIntItem(initLoad, "openplatform", "open_platform_enabled", global.GCONFIG_OPEN_PLATFORM_ENABLED, "开放平台开关（1启用 0禁用）", "options", "0|禁用,1|启用", configMap)
 }

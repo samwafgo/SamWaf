@@ -805,6 +805,13 @@ func (m *wafSystenService) Graceful() {
 	//https://github.com/pengge/uranus/blob/main/main.go 预备参考
 }
 
+// @title           SamWaf Open API
+// @version         1.0
+// @description     SamWaf Web Application Firewall 开放平台 API 文档。需要在请求头携带 X-API-Key 进行鉴权。
+// @BasePath        /api/v1
+// @securityDefinitions.apikey ApiKeyAuth
+// @in              header
+// @name            X-API-Key
 func main() {
 	fmt.Println(`
 ==========================================

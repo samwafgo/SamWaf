@@ -25,6 +25,16 @@ import (
 type WafHostAPi struct {
 }
 
+// AddApi 新增网站防护主机
+// @Summary      新增网站防护主机
+// @Description  新增一个网站防护主机配置
+// @Tags         网站防护-主机管理
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafHostAddReq  true  "主机配置"
+// @Success      200   {object}  response.Response{data=string}  "添加成功，返回主机code"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/host/add [post]
 func (w *WafHostAPi) AddApi(c *gin.Context) {
 	var req request.WafHostAddReq
 	err := c.ShouldBindJSON(&req)
@@ -96,6 +106,17 @@ func (w *WafHostAPi) BatchCopyConfigApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// GetDetailApi 获取网站防护主机详情
+// @Summary      获取网站防护主机详情
+// @Description  根据 code 获取单个主机的详细配置
+// @Tags         网站防护-主机管理
+// @Accept       json
+// @Produce      json
+// @Param        code  query     string  true  "主机唯一编码"
+// @Success      200   {object}  response.Response{data=model.Hosts}  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/host/detail [get]
 func (w *WafHostAPi) GetDetailApi(c *gin.Context) {
 	var req request.WafHostDetailReq
 	err := c.ShouldBind(&req)
@@ -106,6 +127,17 @@ func (w *WafHostAPi) GetDetailApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// GetListApi 获取网站防护主机列表
+// @Summary      获取网站防护主机列表
+// @Description  分页查询网站防护主机列表
+// @Tags         网站防护-主机管理
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafHostSearchReq  true  "分页查询参数"
+// @Success      200   {object}  response.Response{data=response.PageResult}  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/host/list [post]
 func (w *WafHostAPi) GetListApi(c *gin.Context) {
 	var req request.WafHostSearchReq
 	err := c.ShouldBindJSON(&req)

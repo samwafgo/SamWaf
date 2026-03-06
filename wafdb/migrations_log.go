@@ -136,6 +136,32 @@ func RunLogDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移5: 创建开放平台调用日志表
+		{
+			ID: "202603060001_add_oplatform_log_table",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202603060001: 创建开放平台调用日志表")
+
+				if tx.Migrator().HasTable(&model.OPlatformLog{}) {
+					zlog.Info("o_platform_logs 表已存在，执行结构同步")
+					if err := tx.AutoMigrate(&model.OPlatformLog{}); err != nil {
+						return fmt.Errorf("同步 o_platform_logs 表结构失败: %w", err)
+					}
+					return nil
+				}
+
+				if err := tx.AutoMigrate(&model.OPlatformLog{}); err != nil {
+					return fmt.Errorf("创建 o_platform_logs 表失败: %w", err)
+				}
+
+				zlog.Info("o_platform_logs 表创建成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202603060001: 删除开放平台调用日志表")
+				return tx.Migrator().DropTable(&model.OPlatformLog{})
+			},
+		},
 	})
 
 	// 执行迁移

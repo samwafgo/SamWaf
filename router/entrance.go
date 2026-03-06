@@ -52,6 +52,9 @@ type ApiGroup struct {
 	PluginRouter
 	LogFileWriteRouter
 	IPLocationRouter
+	WafOPlatformKeyRouter
+	WafOPlatformLogRouter
+	WafOPlatformDocRouter
 }
 type PublicApiGroup struct {
 	LoginRouter

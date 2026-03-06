@@ -54,6 +54,9 @@ type APIGroup struct {
 	WafPluginApi
 	WafLogFileWriteApi
 	WafIPLocationApi
+	WafOPlatformKeyApi
+	WafOPlatformLogApi
+	WafOPlatformDocApi
 }
 
 var APIGroupAPP = new(APIGroup)
@@ -118,4 +121,7 @@ var (
 	wafSqlQueryService = waf_service.WafSqlQueryServiceApp
 
 	wafFirewallIPBlockService = waf_service.WafFirewallIPBlockServiceApp
+
+	wafOPlatformKeyService = waf_service.WafOPlatformKeyServiceApp
+	wafOPlatformLogService = waf_service.WafOPlatformLogServiceApp
 )

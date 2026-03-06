@@ -24,6 +24,18 @@ import (
 type WafLogAPi struct {
 }
 
+// GetDetailApi 获取攻击日志详情
+// @Summary      获取攻击日志详情
+// @Description  根据 req_uuid 获取单条攻击日志详情（含请求体、响应体）
+// @Tags         日志-攻击日志
+// @Accept       json
+// @Produce      json
+// @Param        req_uuid         query  string  true   "请求UUID"
+// @Param        current_db_name  query  string  false  "数据库名称，默认 local_log"
+// @Param        output_format    query  string  false  "输出格式：raw 或 curl"
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /waflog/attack/detail [get]
 func (w *WafLogAPi) GetDetailApi(c *gin.Context) {
 	var req request.WafAttackLogDetailReq
 	err := c.ShouldBind(&req)
@@ -39,6 +51,17 @@ func (w *WafLogAPi) GetDetailApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// GetListApi 获取攻击日志列表
+// @Summary      获取攻击日志列表
+// @Description  分页查询攻击日志，支持按主机码、规则、IP、时间范围等过滤
+// @Tags         日志-攻击日志
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafAttackLogSearch  true  "查询参数"
+// @Success      200   {object}  response.Response{data=response.PageResult}  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /waflog/attack/list [post]
 func (w *WafLogAPi) GetListApi(c *gin.Context) {
 	var req request.WafAttackLogSearch
 	err := c.ShouldBindJSON(&req)

@@ -607,6 +607,51 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移16: 创建开放平台 API Key 表（不含 api_secret）
+		{
+			ID: "202603060001_add_oplatform_key_table",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202603060001: 创建开放平台 API Key 表")
+
+				if tx.Migrator().HasTable(&model.OPlatformKey{}) {
+					zlog.Info("o_platform_keys 表已存在，执行结构同步")
+					if err := tx.AutoMigrate(&model.OPlatformKey{}); err != nil {
+						return fmt.Errorf("同步 o_platform_keys 表结构失败: %w", err)
+					}
+					return nil
+				}
+
+				if err := tx.AutoMigrate(&model.OPlatformKey{}); err != nil {
+					return fmt.Errorf("创建 o_platform_keys 表失败: %w", err)
+				}
+
+				zlog.Info("o_platform_keys 表创建成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202603060001: 删除开放平台 API Key 表")
+				return tx.Migrator().DropTable(&model.OPlatformKey{})
+			},
+		},
+		// 迁移17: 移除开放平台 API Key 表中冗余的 api_secret 列
+		{
+			ID: "202603060002_drop_api_secret_from_oplatform_key",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202603060002: 移除 o_platform_keys.api_secret 列")
+				if tx.Migrator().HasColumn(&model.OPlatformKey{}, "api_secret") {
+					if err := tx.Migrator().DropColumn(&model.OPlatformKey{}, "api_secret"); err != nil {
+						return fmt.Errorf("删除 api_secret 列失败: %w", err)
+					}
+					zlog.Info("api_secret 列已删除")
+				} else {
+					zlog.Info("api_secret 列不存在，跳过")
+				}
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

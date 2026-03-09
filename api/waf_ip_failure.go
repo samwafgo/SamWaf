@@ -19,6 +19,13 @@ type WafIPFailureApi struct {
 }
 
 // GetConfigApi 获取IP失败封禁配置
+// @Summary      获取IP失败封禁配置
+// @Description  获取IP失败封禁全局配置（启用状态、状态码、锁定时间等）
+// @Tags         网站防护-IP失败封禁
+// @Produce      json
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/ipfailure/config [get]
 func (w *WafIPFailureApi) GetConfigApi(c *gin.Context) {
 	var req request.WafIPFailureConfigReq
 	err := c.ShouldBind(&req)
@@ -35,6 +42,15 @@ func (w *WafIPFailureApi) GetConfigApi(c *gin.Context) {
 }
 
 // SetConfigApi 设置IP失败封禁配置
+// @Summary      设置IP失败封禁配置
+// @Description  更新IP失败封禁全局配置
+// @Tags         网站防护-IP失败封禁
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafIPFailureSetConfigReq  true  "配置参数"
+// @Success      200   {object}  response.Response  "设置成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/ipfailure/setconfig [post]
 func (w *WafIPFailureApi) SetConfigApi(c *gin.Context) {
 	var req request.WafIPFailureSetConfigReq
 	err := c.ShouldBindJSON(&req)
@@ -85,7 +101,14 @@ func (w *WafIPFailureApi) SetConfigApi(c *gin.Context) {
 	}
 }
 
-// GetBanIpListApi 获取被封禁的IP列表
+// GetBanIpListApi 获取IP失败封禁列表
+// @Summary      获取IP失败封禁列表
+// @Description  获取当前因请求失败次数超限而被封禁的IP列表
+// @Tags         网站防护-IP失败封禁
+// @Produce      json
+// @Success      200  {object}  response.Response{data=response.PageResult}  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/ipfailure/baniplist [get]
 func (w *WafIPFailureApi) GetBanIpListApi(c *gin.Context) {
 	// 获取所有IP失败记录
 	banIpList := global.GCACHE_WAFCACHE.ListAvailableKeysWithPrefix(enums.CACHE_IP_FAILURE_PRE)

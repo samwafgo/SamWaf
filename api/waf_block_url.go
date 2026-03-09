@@ -16,6 +16,16 @@ import (
 type WafBlockUrlApi struct {
 }
 
+// AddApi 新增URL黑名单
+// @Summary      新增URL黑名单
+// @Description  为指定网站新增一条URL黑名单记录（匹配该URL的请求将被拦截）
+// @Tags         网站防护-URL黑名单
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafBlockUrlAddReq  true  "URL黑名单配置"
+// @Success      200   {object}  response.Response  "添加成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/blockurl/add [post]
 func (w *WafBlockUrlApi) AddApi(c *gin.Context) {
 	var req request.WafBlockUrlAddReq
 	err := c.ShouldBindJSON(&req)
@@ -40,6 +50,17 @@ func (w *WafBlockUrlApi) AddApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// GetDetailApi 获取URL黑名单详情
+// @Summary      获取URL黑名单详情
+// @Description  根据ID获取URL黑名单记录详情
+// @Tags         网站防护-URL黑名单
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "记录ID"
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/blockurl/detail [get]
 func (w *WafBlockUrlApi) GetDetailApi(c *gin.Context) {
 	var req request.WafBlockUrlDetailReq
 	err := c.ShouldBind(&req)
@@ -50,6 +71,17 @@ func (w *WafBlockUrlApi) GetDetailApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// GetListApi 获取URL黑名单列表
+// @Summary      获取URL黑名单列表
+// @Description  分页查询URL黑名单列表
+// @Tags         网站防护-URL黑名单
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafBlockUrlSearchReq  true  "分页查询参数"
+// @Success      200   {object}  response.Response{data=response.PageResult}  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/blockurl/list [post]
 func (w *WafBlockUrlApi) GetListApi(c *gin.Context) {
 	var req request.WafBlockUrlSearchReq
 	err := c.ShouldBindJSON(&req)
@@ -65,6 +97,17 @@ func (w *WafBlockUrlApi) GetListApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// DelBlockUrlApi 删除URL黑名单
+// @Summary      删除URL黑名单
+// @Description  根据ID删除URL黑名单记录
+// @Tags         网站防护-URL黑名单
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "记录ID"
+// @Success      200  {object}  response.Response  "删除成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/blockurl/del [get]
 func (w *WafBlockUrlApi) DelBlockUrlApi(c *gin.Context) {
 	var req request.WafBlockUrlDelReq
 	err := c.ShouldBind(&req)
@@ -85,6 +128,16 @@ func (w *WafBlockUrlApi) DelBlockUrlApi(c *gin.Context) {
 	}
 }
 
+// ModifyBlockUrlApi 编辑URL黑名单
+// @Summary      编辑URL黑名单
+// @Description  修改URL黑名单记录
+// @Tags         网站防护-URL黑名单
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafBlockUrlEditReq  true  "URL黑名单配置"
+// @Success      200   {object}  response.Response  "编辑成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/blockurl/edit [post]
 func (w *WafBlockUrlApi) ModifyBlockUrlApi(c *gin.Context) {
 	var req request.WafBlockUrlEditReq
 	err := c.ShouldBindJSON(&req)

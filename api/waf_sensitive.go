@@ -13,6 +13,16 @@ import (
 type WafSensitiveApi struct {
 }
 
+// AddApi 新增敏感词
+// @Summary      新增敏感词
+// @Description  新增一条敏感词记录（用于响应内容过滤和替换）
+// @Tags         网站防护-敏感词
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafSensitiveAddReq  true  "敏感词配置"
+// @Success      200   {object}  response.Response  "添加成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/sensitive/add [post]
 func (w *WafSensitiveApi) AddApi(c *gin.Context) {
 	var req request.WafSensitiveAddReq
 	err := c.ShouldBindJSON(&req)
@@ -37,6 +47,17 @@ func (w *WafSensitiveApi) AddApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// GetDetailApi 获取敏感词详情
+// @Summary      获取敏感词详情
+// @Description  根据ID获取敏感词记录详情
+// @Tags         网站防护-敏感词
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "记录ID"
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/sensitive/detail [get]
 func (w *WafSensitiveApi) GetDetailApi(c *gin.Context) {
 	var req request.WafSensitiveDetailReq
 	err := c.ShouldBind(&req)
@@ -47,6 +68,17 @@ func (w *WafSensitiveApi) GetDetailApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// GetListApi 获取敏感词列表
+// @Summary      获取敏感词列表
+// @Description  分页查询敏感词列表
+// @Tags         网站防护-敏感词
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafSensitiveSearchReq  true  "分页查询参数"
+// @Success      200   {object}  response.Response{data=response.PageResult}  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/sensitive/list [post]
 func (w *WafSensitiveApi) GetListApi(c *gin.Context) {
 	var req request.WafSensitiveSearchReq
 	err := c.ShouldBindJSON(&req)
@@ -62,6 +94,17 @@ func (w *WafSensitiveApi) GetListApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// DelSensitiveApi 删除敏感词
+// @Summary      删除敏感词
+// @Description  根据ID删除敏感词记录
+// @Tags         网站防护-敏感词
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "记录ID"
+// @Success      200  {object}  response.Response  "删除成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/sensitive/del [get]
 func (w *WafSensitiveApi) DelSensitiveApi(c *gin.Context) {
 	var req request.WafSensitiveDelReq
 	err := c.ShouldBind(&req)
@@ -121,6 +164,17 @@ func (w *WafSensitiveApi) DelAllSensitiveApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// ModifySensitiveApi 编辑敏感词
+// @Summary      编辑敏感词
+// @Description  修改敏感词记录
+// @Tags         网站防护-敏感词
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafSensitiveEditReq  true  "敏感词配置"
+// @Success      200   {object}  response.Response  "编辑成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/sensitive/edit [post]
 func (w *WafSensitiveApi) ModifySensitiveApi(c *gin.Context) {
 	var req request.WafSensitiveEditReq
 	err := c.ShouldBindJSON(&req)

@@ -16,6 +16,16 @@ import (
 type WafAllowIpApi struct {
 }
 
+// AddApi 新增IP白名单
+// @Summary      新增IP白名单
+// @Description  为指定网站新增一条IP白名单记录（白名单IP绕过WAF检测）
+// @Tags         网站防护-IP白名单
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafAllowIpAddReq  true  "IP白名单配置"
+// @Success      200   {object}  response.Response  "添加成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/allowip/add [post]
 func (w *WafAllowIpApi) AddApi(c *gin.Context) {
 	var req request.WafAllowIpAddReq
 	err := c.ShouldBindJSON(&req)
@@ -40,6 +50,17 @@ func (w *WafAllowIpApi) AddApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// GetDetailApi 获取IP白名单详情
+// @Summary      获取IP白名单详情
+// @Description  根据ID获取IP白名单记录详情
+// @Tags         网站防护-IP白名单
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "记录ID"
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/allowip/detail [get]
 func (w *WafAllowIpApi) GetDetailApi(c *gin.Context) {
 	var req request.WafAllowIpDetailReq
 	err := c.ShouldBind(&req)
@@ -50,6 +71,17 @@ func (w *WafAllowIpApi) GetDetailApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// GetListApi 获取IP白名单列表
+// @Summary      获取IP白名单列表
+// @Description  分页查询IP白名单列表
+// @Tags         网站防护-IP白名单
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafAllowIpSearchReq  true  "分页查询参数"
+// @Success      200   {object}  response.Response{data=response.PageResult}  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/allowip/list [post]
 func (w *WafAllowIpApi) GetListApi(c *gin.Context) {
 	var req request.WafAllowIpSearchReq
 	err := c.ShouldBindJSON(&req)
@@ -65,6 +97,17 @@ func (w *WafAllowIpApi) GetListApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// DelAllowIpApi 删除IP白名单
+// @Summary      删除IP白名单
+// @Description  根据ID删除IP白名单记录
+// @Tags         网站防护-IP白名单
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "记录ID"
+// @Success      200  {object}  response.Response  "删除成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/allowip/del [get]
 func (w *WafAllowIpApi) DelAllowIpApi(c *gin.Context) {
 	var req request.WafAllowIpDelReq
 	err := c.ShouldBind(&req)
@@ -85,6 +128,16 @@ func (w *WafAllowIpApi) DelAllowIpApi(c *gin.Context) {
 	}
 }
 
+// ModifyAllowIpApi 编辑IP白名单
+// @Summary      编辑IP白名单
+// @Description  修改IP白名单记录
+// @Tags         网站防护-IP白名单
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafAllowIpEditReq  true  "IP白名单配置"
+// @Success      200   {object}  response.Response  "编辑成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/allowip/edit [post]
 func (w *WafAllowIpApi) ModifyAllowIpApi(c *gin.Context) {
 	var req request.WafAllowIpEditReq
 	err := c.ShouldBindJSON(&req)

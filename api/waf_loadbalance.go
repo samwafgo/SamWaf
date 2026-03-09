@@ -14,6 +14,16 @@ import (
 type WafLoadBalanceApi struct {
 }
 
+// AddApi 新增负载均衡节点
+// @Summary      新增负载均衡节点
+// @Description  为指定网站新增一条后端负载均衡节点配置
+// @Tags         网站防护-负载均衡
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafLoadBalanceAddReq  true  "负载均衡节点配置"
+// @Success      200   {object}  response.Response  "添加成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/loadbalance/add [post]
 func (w *WafLoadBalanceApi) AddApi(c *gin.Context) {
 	var req request.WafLoadBalanceAddReq
 	err := c.ShouldBindJSON(&req)
@@ -38,6 +48,17 @@ func (w *WafLoadBalanceApi) AddApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// GetDetailApi 获取负载均衡节点详情
+// @Summary      获取负载均衡节点详情
+// @Description  根据ID获取负载均衡节点配置详情
+// @Tags         网站防护-负载均衡
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "节点ID"
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/loadbalance/detail [get]
 func (w *WafLoadBalanceApi) GetDetailApi(c *gin.Context) {
 	var req request.WafLoadBalanceDetailReq
 	err := c.ShouldBind(&req)
@@ -48,6 +69,17 @@ func (w *WafLoadBalanceApi) GetDetailApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// GetListApi 获取负载均衡节点列表
+// @Summary      获取负载均衡节点列表
+// @Description  分页查询负载均衡节点列表
+// @Tags         网站防护-负载均衡
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafLoadBalanceSearchReq  true  "分页查询参数"
+// @Success      200   {object}  response.Response{data=response.PageResult}  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/loadbalance/list [post]
 func (w *WafLoadBalanceApi) GetListApi(c *gin.Context) {
 	var req request.WafLoadBalanceSearchReq
 	err := c.ShouldBindJSON(&req)
@@ -63,6 +95,17 @@ func (w *WafLoadBalanceApi) GetListApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// DelLoadBalanceApi 删除负载均衡节点
+// @Summary      删除负载均衡节点
+// @Description  根据ID删除负载均衡后端节点
+// @Tags         网站防护-负载均衡
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "节点ID"
+// @Success      200  {object}  response.Response  "删除成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/loadbalance/del [get]
 func (w *WafLoadBalanceApi) DelLoadBalanceApi(c *gin.Context) {
 	var req request.WafLoadBalanceDelReq
 	err := c.ShouldBind(&req)
@@ -83,6 +126,16 @@ func (w *WafLoadBalanceApi) DelLoadBalanceApi(c *gin.Context) {
 	}
 }
 
+// ModifyApi 编辑负载均衡节点
+// @Summary      编辑负载均衡节点
+// @Description  修改负载均衡后端节点配置
+// @Tags         网站防护-负载均衡
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafLoadBalanceEditReq  true  "负载均衡节点配置"
+// @Success      200   {object}  response.Response  "编辑成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/loadbalance/edit [post]
 func (w *WafLoadBalanceApi) ModifyApi(c *gin.Context) {
 	var req request.WafLoadBalanceEditReq
 	err := c.ShouldBindJSON(&req)

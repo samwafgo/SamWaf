@@ -8,6 +8,7 @@ import (
 
 type WafOPlatformKeyApi struct{}
 
+// AddApi 新增OpenAPI Key
 func (w *WafOPlatformKeyApi) AddApi(c *gin.Context) {
 	var req request.WafOPlatformKeyAddReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -26,6 +27,7 @@ func (w *WafOPlatformKeyApi) AddApi(c *gin.Context) {
 	response.OkWithDetailed(gin.H{"id": id, "api_key": apiKey}, "添加成功", c)
 }
 
+// ModifyApi 编辑OpenAPI Key
 func (w *WafOPlatformKeyApi) ModifyApi(c *gin.Context) {
 	var req request.WafOPlatformKeyEditReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -39,6 +41,7 @@ func (w *WafOPlatformKeyApi) ModifyApi(c *gin.Context) {
 	response.OkWithMessage("修改成功", c)
 }
 
+// DelApi 删除OpenAPI Key
 func (w *WafOPlatformKeyApi) DelApi(c *gin.Context) {
 	var req request.WafOPlatformKeyDelReq
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -52,6 +55,7 @@ func (w *WafOPlatformKeyApi) DelApi(c *gin.Context) {
 	response.OkWithMessage("删除成功", c)
 }
 
+// GetDetailApi 获取OpenAPI Key详情
 func (w *WafOPlatformKeyApi) GetDetailApi(c *gin.Context) {
 	var req request.WafOPlatformKeyDetailReq
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -62,6 +66,7 @@ func (w *WafOPlatformKeyApi) GetDetailApi(c *gin.Context) {
 	response.OkWithData(bean, c)
 }
 
+// GetListApi 获取OpenAPI Key列表
 func (w *WafOPlatformKeyApi) GetListApi(c *gin.Context) {
 	var req request.WafOPlatformKeySearchReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -87,6 +92,7 @@ func (w *WafOPlatformKeyApi) GetListApi(c *gin.Context) {
 	}, "查询成功", c)
 }
 
+// ResetSecretApi 重置OpenAPI Key
 func (w *WafOPlatformKeyApi) ResetSecretApi(c *gin.Context) {
 	var req request.WafOPlatformKeyResetSecretReq
 	if err := c.ShouldBindJSON(&req); err != nil {

@@ -13,7 +13,16 @@ type WafNotifySubscriptionApi struct{}
 
 var wafNotifySubscriptionService = waf_service.WafNotifySubscriptionServiceApp
 
-// AddApi 添加通知订阅
+// AddApi 新增通知订阅
+// @Summary      新增通知订阅
+// @Description  新增一条通知订阅，将事件类型与渠道关联
+// @Tags         通知-订阅
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafNotifySubscriptionAddReq  true  "通知订阅配置"
+// @Success      200   {object}  response.Response  "添加成功"
+// @Security     ApiKeyAuth
+// @Router       /notify/subscription/add [post]
 func (w *WafNotifySubscriptionApi) AddApi(c *gin.Context) {
 	var req request.WafNotifySubscriptionAddReq
 	err := c.ShouldBindJSON(&req)
@@ -49,6 +58,15 @@ func (w *WafNotifySubscriptionApi) GetDetailApi(c *gin.Context) {
 }
 
 // GetListApi 获取通知订阅列表
+// @Summary      获取通知订阅列表
+// @Description  分页查询通知订阅列表
+// @Tags         通知-订阅
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafNotifySubscriptionSearchReq  true  "分页查询参数"
+// @Success      200   {object}  response.Response{data=response.PageResult}  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /notify/subscription/list [post]
 func (w *WafNotifySubscriptionApi) GetListApi(c *gin.Context) {
 	var req request.WafNotifySubscriptionSearchReq
 	err := c.ShouldBindJSON(&req)
@@ -66,6 +84,15 @@ func (w *WafNotifySubscriptionApi) GetListApi(c *gin.Context) {
 }
 
 // DelApi 删除通知订阅
+// @Summary      删除通知订阅
+// @Description  根据ID删除通知订阅
+// @Tags         通知-订阅
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "订阅ID"
+// @Success      200  {object}  response.Response  "删除成功"
+// @Security     ApiKeyAuth
+// @Router       /notify/subscription/del [get]
 func (w *WafNotifySubscriptionApi) DelApi(c *gin.Context) {
 	var req request.WafNotifySubscriptionDelReq
 	err := c.ShouldBind(&req)

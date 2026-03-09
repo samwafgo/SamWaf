@@ -21,6 +21,16 @@ import (
 type WafTunnelApi struct {
 }
 
+// AddApi 新增隧道配置
+// @Summary      新增隧道配置
+// @Description  新增一个TCP/UDP端口转发隧道配置
+// @Tags         隧道管理
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafTunnelAddReq  true  "隧道配置"
+// @Success      200   {object}  response.Response  "添加成功"
+// @Security     ApiKeyAuth
+// @Router       /tunnel/tunnel/add [post]
 func (w *WafTunnelApi) AddApi(c *gin.Context) {
 	var req request.WafTunnelAddReq
 	err := c.ShouldBindJSON(&req)
@@ -89,6 +99,16 @@ func (w *WafTunnelApi) AddApi(c *gin.Context) {
 	}
 }
 
+// GetDetailApi 获取隧道配置详情
+// @Summary      获取隧道配置详情
+// @Description  根据ID获取隧道配置详情
+// @Tags         隧道管理
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "隧道ID"
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /tunnel/tunnel/detail [get]
 func (w *WafTunnelApi) GetDetailApi(c *gin.Context) {
 	var req request.WafTunnelDetailReq
 	err := c.ShouldBind(&req)
@@ -100,6 +120,16 @@ func (w *WafTunnelApi) GetDetailApi(c *gin.Context) {
 	}
 }
 
+// GetListApi 获取隧道配置列表
+// @Summary      获取隧道配置列表
+// @Description  分页查询隧道配置列表
+// @Tags         隧道管理
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafTunnelSearchReq  true  "分页查询参数"
+// @Success      200   {object}  response.Response{data=response.PageResult}  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /tunnel/tunnel/list [post]
 func (w *WafTunnelApi) GetListApi(c *gin.Context) {
 	var req request.WafTunnelSearchReq
 	err := c.ShouldBindJSON(&req)
@@ -116,6 +146,16 @@ func (w *WafTunnelApi) GetListApi(c *gin.Context) {
 	}
 }
 
+// DelApi 删除隧道配置
+// @Summary      删除隧道配置
+// @Description  根据ID删除隧道配置并关闭对应端口监听
+// @Tags         隧道管理
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "隧道ID"
+// @Success      200  {object}  response.Response  "删除成功"
+// @Security     ApiKeyAuth
+// @Router       /tunnel/tunnel/del [get]
 func (w *WafTunnelApi) DelApi(c *gin.Context) {
 	var req request.WafTunnelDelReq
 	err := c.ShouldBind(&req)
@@ -141,6 +181,16 @@ func (w *WafTunnelApi) DelApi(c *gin.Context) {
 	}
 }
 
+// ModifyApi 编辑隧道配置
+// @Summary      编辑隧道配置
+// @Description  修改隧道配置并重新启动转发
+// @Tags         隧道管理
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafTunnelEditReq  true  "隧道配置"
+// @Success      200   {object}  response.Response  "编辑成功"
+// @Security     ApiKeyAuth
+// @Router       /tunnel/tunnel/edit [post]
 func (w *WafTunnelApi) ModifyApi(c *gin.Context) {
 	var req request.WafTunnelEditReq
 	err := c.ShouldBindJSON(&req)
@@ -167,7 +217,16 @@ func (w *WafTunnelApi) ModifyApi(c *gin.Context) {
 	}
 }
 
-// GetTunnelConnectionsApi 获取隧道连接信息API
+// GetTunnelConnectionsApi 获取隧道实时连接信息
+// @Summary      获取隧道实时连接信息
+// @Description  获取指定隧道的实时 TCP/UDP 连接数及来源 IP 列表
+// @Tags         隧道管理
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "隧道ID"
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /tunnel/tunnel/connections [get]
 func (w *WafTunnelApi) GetTunnelConnectionsApi(c *gin.Context) {
 	var req request.WafTunnelConnReq
 	err := c.ShouldBind(&req)

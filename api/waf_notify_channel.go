@@ -13,7 +13,16 @@ type WafNotifyChannelApi struct{}
 
 var wafNotifyChannelService = waf_service.WafNotifyChannelServiceApp
 
-// AddApi 添加通知渠道
+// AddApi 新增通知渠道
+// @Summary      新增通知渠道
+// @Description  新增一个通知渠道（支持企业微信、钉钉、Server酱等）
+// @Tags         通知-渠道
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafNotifyChannelAddReq  true  "通知渠道配置"
+// @Success      200   {object}  response.Response  "添加成功"
+// @Security     ApiKeyAuth
+// @Router       /notify/channel/add [post]
 func (w *WafNotifyChannelApi) AddApi(c *gin.Context) {
 	var req request.WafNotifyChannelAddReq
 	err := c.ShouldBindJSON(&req)
@@ -37,6 +46,15 @@ func (w *WafNotifyChannelApi) AddApi(c *gin.Context) {
 }
 
 // GetDetailApi 获取通知渠道详情
+// @Summary      获取通知渠道详情
+// @Description  根据ID获取通知渠道详情
+// @Tags         通知-渠道
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "渠道ID"
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /notify/channel/detail [get]
 func (w *WafNotifyChannelApi) GetDetailApi(c *gin.Context) {
 	var req request.WafNotifyChannelDetailReq
 	err := c.ShouldBind(&req)
@@ -49,6 +67,15 @@ func (w *WafNotifyChannelApi) GetDetailApi(c *gin.Context) {
 }
 
 // GetListApi 获取通知渠道列表
+// @Summary      获取通知渠道列表
+// @Description  分页查询通知渠道列表
+// @Tags         通知-渠道
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafNotifyChannelSearchReq  true  "分页查询参数"
+// @Success      200   {object}  response.Response{data=response.PageResult}  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /notify/channel/list [post]
 func (w *WafNotifyChannelApi) GetListApi(c *gin.Context) {
 	var req request.WafNotifyChannelSearchReq
 	err := c.ShouldBindJSON(&req)
@@ -66,6 +93,15 @@ func (w *WafNotifyChannelApi) GetListApi(c *gin.Context) {
 }
 
 // DelApi 删除通知渠道
+// @Summary      删除通知渠道
+// @Description  根据ID删除通知渠道
+// @Tags         通知-渠道
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "渠道ID"
+// @Success      200  {object}  response.Response  "删除成功"
+// @Security     ApiKeyAuth
+// @Router       /notify/channel/del [get]
 func (w *WafNotifyChannelApi) DelApi(c *gin.Context) {
 	var req request.WafNotifyChannelDelReq
 	err := c.ShouldBind(&req)
@@ -83,7 +119,16 @@ func (w *WafNotifyChannelApi) DelApi(c *gin.Context) {
 	}
 }
 
-// ModifyApi 修改通知渠道
+// ModifyApi 编辑通知渠道
+// @Summary      编辑通知渠道
+// @Description  修改通知渠道配置
+// @Tags         通知-渠道
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafNotifyChannelEditReq  true  "通知渠道配置"
+// @Success      200   {object}  response.Response  "编辑成功"
+// @Security     ApiKeyAuth
+// @Router       /notify/channel/edit [post]
 func (w *WafNotifyChannelApi) ModifyApi(c *gin.Context) {
 	var req request.WafNotifyChannelEditReq
 	err := c.ShouldBindJSON(&req)

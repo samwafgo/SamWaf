@@ -19,6 +19,20 @@ var (
 	wafOtpService       = waf_service.WafOtpServiceApp
 )
 
+// TokenOnlyAuth 仅允许后台 Token 登录访问，拒绝 OpenAPI Key 方式
+// 用于保护「开放平台管理」类接口（Key管理、调用日志、API文档），防止通过 API Key 自行操作
+func TokenOnlyAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.GetHeader("X-API-Key") != "" {
+			response.AuthFailWithMessage("该接口不允许通过 API Key 访问，请使用后台账号登录", c)
+			c.Abort()
+			return
+		}
+		// 复用 Token 校验逻辑
+		Auth()(c)
+	}
+}
+
 // Auth 鉴权中间件
 func Auth() gin.HandlerFunc {
 	innerName := "Auth"

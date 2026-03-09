@@ -56,7 +56,6 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitIPFailureRouter(RouterGroup)
 		router.ApiGroupApp.InitBlockIpRouter(RouterGroup)
 		router.ApiGroupApp.InitBlockUrlRouter(RouterGroup)
-		router.ApiGroupApp.InitAccountRouter(RouterGroup)
 		router.ApiGroupApp.InitAccountLogRouter(RouterGroup)
 		router.ApiGroupApp.InitLoginOutRouter(RouterGroup)
 		router.ApiGroupApp.InitSysLogRouter(RouterGroup)
@@ -77,7 +76,6 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitWafTaskRouter(RouterGroup)
 		router.ApiGroupApp.InitWafBlockingPageRouter(RouterGroup)
 		router.ApiGroupApp.InitGPTRouter(RouterGroup)
-		router.ApiGroupApp.InitWafOtpRouter(RouterGroup)
 		router.ApiGroupApp.InitAnalysisRouter(RouterGroup)
 		router.ApiGroupApp.InitWafPrivateInfoRouter(RouterGroup)
 		router.ApiGroupApp.InitWafPrivateGroupRouter(RouterGroup)
@@ -87,16 +85,28 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitWafFileRouter(RouterGroup)
 		router.ApiGroupApp.InitWafSystemMonitorRouter(RouterGroup)
 		router.ApiGroupApp.InitWafCaServerInfoRouter(RouterGroup)
-		router.ApiGroupApp.InitSqlQueryRouter(RouterGroup)
 		router.ApiGroupApp.InitNotifyChannelRouter(RouterGroup)
 		router.ApiGroupApp.InitNotifySubscriptionRouter(RouterGroup)
 		router.ApiGroupApp.InitNotifyLogRouter(RouterGroup)
 		router.ApiGroupApp.InitFirewallIPBlockRouter(RouterGroup)
 		router.ApiGroupApp.InitLogFileWriteRouter(RouterGroup)
 		router.ApiGroupApp.InitIPLocationRouter(RouterGroup)
-		router.ApiGroupApp.InitOPlatformKeyRouter(RouterGroup)
-		router.ApiGroupApp.InitOPlatformLogRouter(RouterGroup)
-		router.ApiGroupApp.InitOPlatformDocRouter(RouterGroup)
+	}
+
+	// 仅允许后台 Token 登录访问，拒绝 API Key 访问（安全敏感接口）
+	TokenOnlyRouterGroup := r.Group("")
+	TokenOnlyRouterGroup.Use(middleware.TokenOnlyAuth(), middleware.CenterApi(), middleware.SecApi(), middleware.GinGlobalExceptionMiddleWare(), middleware.IPWhitelist())
+	{
+		// 开放平台管理接口
+		router.ApiGroupApp.InitOPlatformKeyRouter(TokenOnlyRouterGroup)
+		router.ApiGroupApp.InitOPlatformLogRouter(TokenOnlyRouterGroup)
+		router.ApiGroupApp.InitOPlatformDocRouter(TokenOnlyRouterGroup)
+		// 账号管理：防止通过 API Key 删除/修改管理员账号
+		router.ApiGroupApp.InitAccountRouter(TokenOnlyRouterGroup)
+		// OTP 双因素认证管理：安全配置类接口
+		router.ApiGroupApp.InitWafOtpRouter(TokenOnlyRouterGroup)
+		// SQL 查询：直接执行数据库查询，极度敏感
+		router.ApiGroupApp.InitSqlQueryRouter(TokenOnlyRouterGroup)
 	}
 
 	// 保存 gin.Engine 引用供 API 文档生成使用

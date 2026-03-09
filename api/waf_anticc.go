@@ -20,6 +20,16 @@ import (
 type WafAntiCCApi struct {
 }
 
+// AddApi 新增CC防护规则
+// @Summary      新增CC防护规则
+// @Description  为指定网站新增一条CC防护规则（防止CC攻击）
+// @Tags         网站防护-CC防护
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafAntiCCAddReq  true  "CC防护规则配置"
+// @Success      200   {object}  response.Response  "添加成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/anticc/add [post]
 func (w *WafAntiCCApi) AddApi(c *gin.Context) {
 	ruleHelper := &utils.RuleHelper{}
 	var req request.WafAntiCCAddReq
@@ -60,6 +70,17 @@ func (w *WafAntiCCApi) AddApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// GetDetailApi 获取CC防护规则详情
+// @Summary      获取CC防护规则详情
+// @Description  根据ID获取CC防护规则详情
+// @Tags         网站防护-CC防护
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "规则ID"
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/anticc/detail [get]
 func (w *WafAntiCCApi) GetDetailApi(c *gin.Context) {
 	var req request.WafAntiCCDetailReq
 	err := c.ShouldBind(&req)
@@ -70,6 +91,17 @@ func (w *WafAntiCCApi) GetDetailApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// GetListApi 获取CC防护规则列表
+// @Summary      获取CC防护规则列表
+// @Description  分页查询CC防护规则列表
+// @Tags         网站防护-CC防护
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafAntiCCSearchReq  true  "分页查询参数"
+// @Success      200   {object}  response.Response{data=response.PageResult}  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/anticc/list [post]
 func (w *WafAntiCCApi) GetListApi(c *gin.Context) {
 	var req request.WafAntiCCSearchReq
 	err := c.ShouldBindJSON(&req)
@@ -135,6 +167,17 @@ func (w *WafAntiCCApi) RemoveCCBanIPApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// DelAntiCCApi 删除CC防护规则
+// @Summary      删除CC防护规则
+// @Description  根据ID删除CC防护规则
+// @Tags         网站防护-CC防护
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "规则ID"
+// @Success      200  {object}  response.Response  "删除成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/anticc/del [get]
 func (w *WafAntiCCApi) DelAntiCCApi(c *gin.Context) {
 	var req request.WafAntiCCDelReq
 	err := c.ShouldBind(&req)
@@ -155,6 +198,16 @@ func (w *WafAntiCCApi) DelAntiCCApi(c *gin.Context) {
 	}
 }
 
+// ModifyAntiCCApi 编辑CC防护规则
+// @Summary      编辑CC防护规则
+// @Description  修改CC防护规则配置
+// @Tags         网站防护-CC防护
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafAntiCCEditReq  true  "CC防护规则配置"
+// @Success      200   {object}  response.Response  "编辑成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/anticc/edit [post]
 func (w *WafAntiCCApi) ModifyAntiCCApi(c *gin.Context) {
 	ruleHelper := &utils.RuleHelper{}
 	var req request.WafAntiCCEditReq

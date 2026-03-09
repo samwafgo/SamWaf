@@ -13,7 +13,16 @@ import (
 type WafFirewallIPBlockApi struct {
 }
 
-// AddApi 添加防火墙IP封禁
+// AddApi 新增防火墙IP封禁
+// @Summary      新增防火墙IP封禁
+// @Description  新增一条防火墙IP封禁规则（系统级别封禁，所有端口生效）
+// @Tags         防火墙-IP封禁
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafFirewallIPBlockAddReq  true  "IP封禁配置"
+// @Success      200   {object}  response.Response  "添加成功"
+// @Security     ApiKeyAuth
+// @Router       /firewallipblock/add [post]
 func (w *WafFirewallIPBlockApi) AddApi(c *gin.Context) {
 	var req request.WafFirewallIPBlockAddReq
 	err := c.ShouldBindJSON(&req)
@@ -45,6 +54,15 @@ func (w *WafFirewallIPBlockApi) GetDetailApi(c *gin.Context) {
 }
 
 // GetListApi 获取防火墙IP封禁列表
+// @Summary      获取防火墙IP封禁列表
+// @Description  分页查询防火墙IP封禁规则列表
+// @Tags         防火墙-IP封禁
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafFirewallIPBlockSearchReq  true  "分页查询参数"
+// @Success      200   {object}  response.Response{data=response.PageResult}  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /firewallipblock/list [post]
 func (w *WafFirewallIPBlockApi) GetListApi(c *gin.Context) {
 	var req request.WafFirewallIPBlockSearchReq
 	err := c.ShouldBindJSON(&req)
@@ -68,6 +86,15 @@ func (w *WafFirewallIPBlockApi) GetListApi(c *gin.Context) {
 }
 
 // DelApi 删除防火墙IP封禁
+// @Summary      删除防火墙IP封禁
+// @Description  根据ID删除防火墙IP封禁规则，同步从系统防火墙解除封禁
+// @Tags         防火墙-IP封禁
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "封禁记录ID"
+// @Success      200  {object}  response.Response  "删除成功"
+// @Security     ApiKeyAuth
+// @Router       /firewallipblock/del [get]
 func (w *WafFirewallIPBlockApi) DelApi(c *gin.Context) {
 	var req request.WafFirewallIPBlockDelReq
 	err := c.ShouldBind(&req)
@@ -86,7 +113,16 @@ func (w *WafFirewallIPBlockApi) DelApi(c *gin.Context) {
 	}
 }
 
-// ModifyApi 修改防火墙IP封禁
+// ModifyApi 编辑防火墙IP封禁
+// @Summary      编辑防火墙IP封禁
+// @Description  修改防火墙IP封禁规则
+// @Tags         防火墙-IP封禁
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafFirewallIPBlockEditReq  true  "IP封禁配置"
+// @Success      200   {object}  response.Response  "编辑成功"
+// @Security     ApiKeyAuth
+// @Router       /firewallipblock/edit [post]
 func (w *WafFirewallIPBlockApi) ModifyApi(c *gin.Context) {
 	var req request.WafFirewallIPBlockEditReq
 	err := c.ShouldBindJSON(&req)

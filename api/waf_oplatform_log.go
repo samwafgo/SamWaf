@@ -8,6 +8,7 @@ import (
 
 type WafOPlatformLogApi struct{}
 
+// GetDetailApi 获取OpenAPI调用日志详情
 func (w *WafOPlatformLogApi) GetDetailApi(c *gin.Context) {
 	var req request.WafOPlatformLogDetailReq
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -18,6 +19,7 @@ func (w *WafOPlatformLogApi) GetDetailApi(c *gin.Context) {
 	response.OkWithData(bean, c)
 }
 
+// GetListApi 获取OpenAPI调用日志列表
 func (w *WafOPlatformLogApi) GetListApi(c *gin.Context) {
 	var req request.WafOPlatformLogSearchReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -43,6 +45,7 @@ func (w *WafOPlatformLogApi) GetListApi(c *gin.Context) {
 	}, "查询成功", c)
 }
 
+// DelApi 删除OpenAPI调用日志
 func (w *WafOPlatformLogApi) DelApi(c *gin.Context) {
 	var req request.WafOPlatformLogDelReq
 	if err := c.ShouldBindQuery(&req); err != nil {

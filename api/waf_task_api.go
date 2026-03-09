@@ -13,6 +13,16 @@ import (
 type WafTaskApi struct {
 }
 
+// AddApi 新增定时任务
+// @Summary      新增定时任务
+// @Description  新增一个WAF定时任务配置
+// @Tags         定时任务管理
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafTaskAddReq  true  "任务配置"
+// @Success      200   {object}  response.Response  "添加成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/task/add [post]
 func (w *WafTaskApi) AddApi(c *gin.Context) {
 	var req request.WafTaskAddReq
 	err := c.ShouldBindJSON(&req)
@@ -33,6 +43,16 @@ func (w *WafTaskApi) AddApi(c *gin.Context) {
 	}
 }
 
+// GetDetailApi 获取定时任务详情
+// @Summary      获取定时任务详情
+// @Description  根据ID获取定时任务详情
+// @Tags         定时任务管理
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "任务ID"
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/task/detail [get]
 func (w *WafTaskApi) GetDetailApi(c *gin.Context) {
 	var req request.WafTaskDetailReq
 	err := c.ShouldBind(&req)
@@ -44,6 +64,16 @@ func (w *WafTaskApi) GetDetailApi(c *gin.Context) {
 	}
 }
 
+// GetListApi 获取定时任务列表
+// @Summary      获取定时任务列表
+// @Description  分页查询定时任务列表
+// @Tags         定时任务管理
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafTaskSearchReq  true  "分页查询参数"
+// @Success      200   {object}  response.Response{data=response.PageResult}  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/task/list [post]
 func (w *WafTaskApi) GetListApi(c *gin.Context) {
 	var req request.WafTaskSearchReq
 	err := c.ShouldBindJSON(&req)
@@ -60,6 +90,16 @@ func (w *WafTaskApi) GetListApi(c *gin.Context) {
 	}
 }
 
+// DelApi 删除定时任务
+// @Summary      删除定时任务
+// @Description  根据ID删除定时任务配置
+// @Tags         定时任务管理
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "任务ID"
+// @Success      200  {object}  response.Response  "删除成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/task/del [get]
 func (w *WafTaskApi) DelApi(c *gin.Context) {
 	var req request.WafTaskDelReq
 	err := c.ShouldBind(&req)
@@ -77,6 +117,16 @@ func (w *WafTaskApi) DelApi(c *gin.Context) {
 	}
 }
 
+// ModifyApi 编辑定时任务
+// @Summary      编辑定时任务
+// @Description  修改定时任务配置并重新调度
+// @Tags         定时任务管理
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafTaskEditReq  true  "任务配置"
+// @Success      200   {object}  response.Response  "编辑成功，任务已重新调度"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/task/edit [post]
 func (w *WafTaskApi) ModifyApi(c *gin.Context) {
 	var req request.WafTaskEditReq
 	err := c.ShouldBindJSON(&req)
@@ -101,6 +151,16 @@ func (w *WafTaskApi) ModifyApi(c *gin.Context) {
 	}
 }
 
+// ManualExecuteApi 手动执行定时任务
+// @Summary      手动执行定时任务
+// @Description  根据ID立即手动触发执行一次定时任务
+// @Tags         定时任务管理
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "任务ID"
+// @Success      200  {object}  response.Response  "发起成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/task/manual_exec [get]
 func (w *WafTaskApi) ManualExecuteApi(c *gin.Context) {
 	var req request.WafTaskDetailReq
 	err := c.ShouldBind(&req)

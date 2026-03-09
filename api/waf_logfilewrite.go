@@ -12,6 +12,15 @@ type WafLogFileWriteApi struct {
 }
 
 // GetPreviewApi 获取日志文件预览（最新N行）
+// @Summary      获取日志文件预览
+// @Description  获取通知日志文件最新 N 行内容，lines 范围 1-500，默认 100
+// @Tags         日志文件写入
+// @Accept       json
+// @Produce      json
+// @Param        lines  query     int  false  "行数（1-500，默认100）"
+// @Success      200    {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /logfilewrite/preview [get]
 func (w *WafLogFileWriteApi) GetPreviewApi(c *gin.Context) {
 	linesStr := c.DefaultQuery("lines", "100")
 	lines, err := strconv.Atoi(linesStr)
@@ -44,6 +53,14 @@ func (w *WafLogFileWriteApi) GetPreviewApi(c *gin.Context) {
 }
 
 // GetCurrentFileInfoApi 获取当前日志文件信息
+// @Summary      获取当前日志文件信息
+// @Description  获取当前通知日志文件的路径、大小等信息
+// @Tags         日志文件写入
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /logfilewrite/currentfile [get]
 func (w *WafLogFileWriteApi) GetCurrentFileInfoApi(c *gin.Context) {
 	writer := getLogFileWriter()
 	if writer == nil {
@@ -61,6 +78,14 @@ func (w *WafLogFileWriteApi) GetCurrentFileInfoApi(c *gin.Context) {
 }
 
 // GetBackupFilesApi 获取备份文件列表
+// @Summary      获取日志备份文件列表
+// @Description  获取所有已归档的日志备份文件信息列表
+// @Tags         日志文件写入
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /logfilewrite/backupfiles [get]
 func (w *WafLogFileWriteApi) GetBackupFilesApi(c *gin.Context) {
 	writer := getLogFileWriter()
 	if writer == nil {
@@ -78,6 +103,14 @@ func (w *WafLogFileWriteApi) GetBackupFilesApi(c *gin.Context) {
 }
 
 // ClearLogFileApi 清空当前日志文件
+// @Summary      清空当前日志文件
+// @Description  清空当前通知日志文件的所有内容
+// @Tags         日志文件写入
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  response.Response  "清空成功"
+// @Security     ApiKeyAuth
+// @Router       /logfilewrite/clear [post]
 func (w *WafLogFileWriteApi) ClearLogFileApi(c *gin.Context) {
 	writer := getLogFileWriter()
 	if writer == nil {
@@ -95,6 +128,14 @@ func (w *WafLogFileWriteApi) ClearLogFileApi(c *gin.Context) {
 }
 
 // GetTemplateVariablesApi 获取可用的模板变量列表
+// @Summary      获取日志模板变量列表
+// @Description  获取日志文件写入模板中可用的所有变量名称及说明
+// @Tags         日志文件写入
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /logfilewrite/variables [get]
 func (w *WafLogFileWriteApi) GetTemplateVariablesApi(c *gin.Context) {
 	variables := logfilewriter.GetTemplateVariables()
 	response.OkWithDetailed(variables, "获取成功", c)

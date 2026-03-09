@@ -16,6 +16,16 @@ import (
 type WafBlockIpApi struct {
 }
 
+// AddApi 新增IP黑名单
+// @Summary      新增IP黑名单
+// @Description  为指定网站新增一条IP黑名单记录
+// @Tags         网站防护-IP黑名单
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafBlockIpAddReq  true  "IP黑名单配置"
+// @Success      200   {object}  response.Response  "添加成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/blockip/add [post]
 func (w *WafBlockIpApi) AddApi(c *gin.Context) {
 	var req request.WafBlockIpAddReq
 	err := c.ShouldBindJSON(&req)
@@ -40,6 +50,17 @@ func (w *WafBlockIpApi) AddApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// GetDetailApi 获取IP黑名单详情
+// @Summary      获取IP黑名单详情
+// @Description  根据ID获取IP黑名单记录详情
+// @Tags         网站防护-IP黑名单
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "记录ID"
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/blockip/detail [get]
 func (w *WafBlockIpApi) GetDetailApi(c *gin.Context) {
 	var req request.WafBlockIpDetailReq
 	err := c.ShouldBind(&req)
@@ -50,6 +71,17 @@ func (w *WafBlockIpApi) GetDetailApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// GetListApi 获取IP黑名单列表
+// @Summary      获取IP黑名单列表
+// @Description  分页查询IP黑名单列表
+// @Tags         网站防护-IP黑名单
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafBlockIpSearchReq  true  "分页查询参数"
+// @Success      200   {object}  response.Response{data=response.PageResult}  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/blockip/list [post]
 func (w *WafBlockIpApi) GetListApi(c *gin.Context) {
 	var req request.WafBlockIpSearchReq
 	err := c.ShouldBindJSON(&req)
@@ -65,6 +97,17 @@ func (w *WafBlockIpApi) GetListApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// DelBlockIpApi 删除IP黑名单
+// @Summary      删除IP黑名单
+// @Description  根据ID删除IP黑名单记录
+// @Tags         网站防护-IP黑名单
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "记录ID"
+// @Success      200  {object}  response.Response  "删除成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/blockip/del [get]
 func (w *WafBlockIpApi) DelBlockIpApi(c *gin.Context) {
 	var req request.WafBlockIpDelReq
 	err := c.ShouldBind(&req)
@@ -85,6 +128,16 @@ func (w *WafBlockIpApi) DelBlockIpApi(c *gin.Context) {
 	}
 }
 
+// ModifyBlockIpApi 编辑IP黑名单
+// @Summary      编辑IP黑名单
+// @Description  修改IP黑名单记录
+// @Tags         网站防护-IP黑名单
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafBlockIpEditReq  true  "IP黑名单配置"
+// @Success      200   {object}  response.Response  "编辑成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/blockip/edit [post]
 func (w *WafBlockIpApi) ModifyBlockIpApi(c *gin.Context) {
 	var req request.WafBlockIpEditReq
 	err := c.ShouldBindJSON(&req)

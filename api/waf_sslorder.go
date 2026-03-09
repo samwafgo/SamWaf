@@ -25,6 +25,16 @@ import (
 type WafSslOrderApi struct {
 }
 
+// AddApi 新建SSL证书申请订单
+// @Summary      新建SSL证书申请订单
+// @Description  向 Let's Encrypt 或 ZeroSSL 发起新的 SSL 证书申请
+// @Tags         SSL证书订单
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafSslorderaddReq  true  "订单配置"
+// @Success      200   {object}  response.Response  "添加成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/sslorder/add [post]
 func (w *WafSslOrderApi) AddApi(c *gin.Context) {
 	var req request.WafSslorderaddReq
 	err := c.ShouldBindJSON(&req)
@@ -78,6 +88,17 @@ func (w *WafSslOrderApi) AddApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// GetDetailApi 获取SSL证书订单详情
+// @Summary      获取SSL证书订单详情
+// @Description  根据ID获取SSL证书申请订单详情
+// @Tags         SSL证书订单
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "订单ID"
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/sslorder/detail [get]
 func (w *WafSslOrderApi) GetDetailApi(c *gin.Context) {
 	var req request.WafSslorderdetailReq
 	err := c.ShouldBind(&req)
@@ -88,6 +109,17 @@ func (w *WafSslOrderApi) GetDetailApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// GetListApi 获取SSL证书订单列表
+// @Summary      获取SSL证书订单列表
+// @Description  分页查询SSL证书申请订单列表
+// @Tags         SSL证书订单
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafSslordersearchReq  true  "分页查询参数"
+// @Success      200   {object}  response.Response{data=response.PageResult}  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/sslorder/list [post]
 func (w *WafSslOrderApi) GetListApi(c *gin.Context) {
 	var req request.WafSslordersearchReq
 	err := c.ShouldBindJSON(&req)
@@ -103,6 +135,17 @@ func (w *WafSslOrderApi) GetListApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// DelApi 删除SSL证书订单
+// @Summary      删除SSL证书订单
+// @Description  根据ID删除SSL证书申请订单
+// @Tags         SSL证书订单
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "订单ID"
+// @Success      200  {object}  response.Response  "删除成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/sslorder/del [get]
 func (w *WafSslOrderApi) DelApi(c *gin.Context) {
 	var req request.WafSslorderdeleteReq
 	err := c.ShouldBind(&req)
@@ -121,6 +164,16 @@ func (w *WafSslOrderApi) DelApi(c *gin.Context) {
 	}
 }
 
+// ModifyApi 续期SSL证书订单
+// @Summary      续期SSL证书订单
+// @Description  对已成功申请且未过期的证书发起续期申请
+// @Tags         SSL证书订单
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafSslordereditReq  true  "续期配置"
+// @Success      200   {object}  response.Response  "续期成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/sslorder/edit [post]
 func (w *WafSslOrderApi) ModifyApi(c *gin.Context) {
 	var req request.WafSslordereditReq
 	err := c.ShouldBindJSON(&req)

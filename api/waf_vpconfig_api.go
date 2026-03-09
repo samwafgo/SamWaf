@@ -21,7 +21,16 @@ import (
 type WafVpConfigApi struct {
 }
 
-// UpdateIpWhitelistApi 更新IP白名单配置
+// UpdateIpWhitelistApi 更新管理端IP白名单
+// @Summary      更新管理端IP白名单
+// @Description  更新管理端允许访问的IP白名单（CIDR格式，多个用逗号分隔）
+// @Tags         管理端配置
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafVpConfigIpWhitelistUpdateReq  true  "IP白名单配置"
+// @Success      200   {object}  response.Response  "更新IP白名单成功"
+// @Security     ApiKeyAuth
+// @Router       /vipconfig/updateIpWhitelist [post]
 func (w *WafVpConfigApi) UpdateIpWhitelistApi(c *gin.Context) {
 	var req request.WafVpConfigIpWhitelistUpdateReq
 	err := c.ShouldBindJSON(&req)
@@ -39,7 +48,15 @@ func (w *WafVpConfigApi) UpdateIpWhitelistApi(c *gin.Context) {
 	}
 }
 
-// GetIpWhitelistApi 获取IP白名单配置
+// GetIpWhitelistApi 获取管理端IP白名单
+// @Summary      获取管理端IP白名单
+// @Description  获取当前管理端允许访问的IP白名单配置
+// @Tags         管理端配置
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  response.Response  "获取IP白名单成功"
+// @Security     ApiKeyAuth
+// @Router       /vipconfig/getIpWhitelist [get]
 func (w *WafVpConfigApi) GetIpWhitelistApi(c *gin.Context) {
 	// 直接从全局变量获取IP白名单
 	ipWhitelist := global.GWAF_IP_WHITELIST
@@ -52,7 +69,16 @@ func (w *WafVpConfigApi) GetIpWhitelistApi(c *gin.Context) {
 	response.OkWithDetailed(resp, "获取IP白名单成功", c)
 }
 
-// UpdateSslEnableApi 更新SSL启用状态
+// UpdateSslEnableApi 更新管理端SSL启用状态
+// @Summary      更新管理端SSL启用状态
+// @Description  开启或关闭管理端HTTPS，修改后需重启管理端生效
+// @Tags         管理端配置
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafVpConfigSslEnableUpdateReq  true  "SSL启用配置"
+// @Success      200   {object}  response.Response  "更新SSL启用状态成功"
+// @Security     ApiKeyAuth
+// @Router       /vipconfig/updateSslEnable [post]
 func (w *WafVpConfigApi) UpdateSslEnableApi(c *gin.Context) {
 	var req request.WafVpConfigSslEnableUpdateReq
 	err := c.ShouldBindJSON(&req)
@@ -69,7 +95,15 @@ func (w *WafVpConfigApi) UpdateSslEnableApi(c *gin.Context) {
 	}
 }
 
-// GetSslStatusApi 获取SSL状态
+// GetSslStatusApi 获取管理端SSL状态
+// @Summary      获取管理端SSL状态
+// @Description  获取管理端SSL启用状态及证书信息（证书内容、域名、到期时间）
+// @Tags         管理端配置
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  response.Response  "获取SSL状态成功"
+// @Security     ApiKeyAuth
+// @Router       /vipconfig/getSslStatus [get]
 func (w *WafVpConfigApi) GetSslStatusApi(c *gin.Context) {
 	// 获取SSL启用状态
 	sslEnable := global.GWAF_SSL_ENABLE
@@ -118,7 +152,16 @@ func (w *WafVpConfigApi) GetSslStatusApi(c *gin.Context) {
 	response.OkWithDetailed(resp, "获取SSL状态成功", c)
 }
 
-// UploadSslCertApi 上传SSL证书
+// UploadSslCertApi 上传管理端SSL证书
+// @Summary      上传管理端SSL证书
+// @Description  上传PEM格式的证书和私钥，校验通过后保存到 data/ssl/manager 目录，需重启生效
+// @Tags         管理端配置
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafVpConfigSslUploadReq  true  "证书配置"
+// @Success      200   {object}  response.Response  "上传SSL证书成功"
+// @Security     ApiKeyAuth
+// @Router       /vipconfig/uploadSslCert [post]
 func (w *WafVpConfigApi) UploadSslCertApi(c *gin.Context) {
 	var req request.WafVpConfigSslUploadReq
 	err := c.ShouldBindJSON(&req)
@@ -274,6 +317,14 @@ func getCertInfo(certPath string) CertInfo {
 }
 
 // RestartManagerApi 重启管理端
+// @Summary      重启管理端
+// @Description  触发管理端1秒后重启，请等待5-10秒后重新访问
+// @Tags         管理端配置
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  response.Response  "管理端将在1秒后重启"
+// @Security     ApiKeyAuth
+// @Router       /vipconfig/restartManager [post]
 func (w *WafVpConfigApi) RestartManagerApi(c *gin.Context) {
 	response.OkWithMessage("管理端将在1秒后重启，请稍候5-10秒后重新访问", c)
 

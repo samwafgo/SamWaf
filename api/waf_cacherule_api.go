@@ -15,6 +15,16 @@ import (
 type WafCacheRuleApi struct {
 }
 
+// AddApi 新增缓存规则
+// @Summary      新增缓存规则
+// @Description  为指定网站新增一条缓存规则
+// @Tags         网站防护-缓存规则
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafCacheRuleAddReq  true  "缓存规则配置"
+// @Success      200   {object}  response.Response  "添加成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/cacherule/add [post]
 func (w *WafCacheRuleApi) AddApi(c *gin.Context) {
 	var req request.WafCacheRuleAddReq
 	err := c.ShouldBindJSON(&req)
@@ -40,6 +50,16 @@ func (w *WafCacheRuleApi) AddApi(c *gin.Context) {
 	}
 }
 
+// GetDetailApi 获取缓存规则详情
+// @Summary      获取缓存规则详情
+// @Description  根据ID获取缓存规则详情
+// @Tags         网站防护-缓存规则
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "规则ID"
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/cacherule/detail [get]
 func (w *WafCacheRuleApi) GetDetailApi(c *gin.Context) {
 	var req request.WafCacheRuleDetailReq
 	err := c.ShouldBind(&req)
@@ -51,6 +71,16 @@ func (w *WafCacheRuleApi) GetDetailApi(c *gin.Context) {
 	}
 }
 
+// GetListApi 获取缓存规则列表
+// @Summary      获取缓存规则列表
+// @Description  分页查询缓存规则列表
+// @Tags         网站防护-缓存规则
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafCacheRuleSearchReq  true  "分页查询参数"
+// @Success      200   {object}  response.Response{data=response.PageResult}  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/cacherule/list [post]
 func (w *WafCacheRuleApi) GetListApi(c *gin.Context) {
 	var req request.WafCacheRuleSearchReq
 	err := c.ShouldBindJSON(&req)
@@ -67,6 +97,16 @@ func (w *WafCacheRuleApi) GetListApi(c *gin.Context) {
 	}
 }
 
+// DelApi 删除缓存规则
+// @Summary      删除缓存规则
+// @Description  根据ID删除缓存规则
+// @Tags         网站防护-缓存规则
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "规则ID"
+// @Success      200  {object}  response.Response  "删除成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/cacherule/del [get]
 func (w *WafCacheRuleApi) DelApi(c *gin.Context) {
 	var req request.WafCacheRuleDelReq
 	err := c.ShouldBind(&req)
@@ -90,6 +130,16 @@ func (w *WafCacheRuleApi) DelApi(c *gin.Context) {
 	}
 }
 
+// ModifyApi 编辑缓存规则
+// @Summary      编辑缓存规则
+// @Description  修改缓存规则配置
+// @Tags         网站防护-缓存规则
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafCacheRuleEditReq  true  "缓存规则配置"
+// @Success      200   {object}  response.Response  "编辑成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/cacherule/edit [post]
 func (w *WafCacheRuleApi) ModifyApi(c *gin.Context) {
 	var req request.WafCacheRuleEditReq
 	err := c.ShouldBindJSON(&req)

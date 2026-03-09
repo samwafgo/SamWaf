@@ -23,6 +23,16 @@ import (
 type WafRuleAPi struct {
 }
 
+// AddApi 新增WAF规则
+// @Summary      新增WAF规则
+// @Description  新增一条WAF防护规则
+// @Tags         网站防护-规则管理
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafRuleAddReq  true  "规则配置"
+// @Success      200   {object}  response.Response{data=string}  "添加成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/rule/add [post]
 func (w *WafRuleAPi) AddApi(c *gin.Context) {
 	ruleHelper := &utils.RuleHelper{}
 	var req request.WafRuleAddReq
@@ -93,6 +103,17 @@ func (w *WafRuleAPi) AddApi(c *gin.Context) {
 		return
 	}
 }
+
+// GetDetailApi 获取WAF规则详情
+// @Summary      获取WAF规则详情
+// @Description  根据 code 获取单条WAF规则详情
+// @Tags         网站防护-规则管理
+// @Accept       json
+// @Produce      json
+// @Param        code  query     string  true  "规则唯一编码"
+// @Success      200   {object}  response.Response{data=model.Rules}  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/rule/detail [get]
 func (w *WafRuleAPi) GetDetailApi(c *gin.Context) {
 	var req request.WafRuleDetailReq
 	err := c.ShouldBind(&req)
@@ -103,6 +124,17 @@ func (w *WafRuleAPi) GetDetailApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// GetListApi 获取WAF规则列表
+// @Summary      获取WAF规则列表
+// @Description  分页查询WAF防护规则列表
+// @Tags         网站防护-规则管理
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafRuleSearchReq  true  "分页查询参数"
+// @Success      200   {object}  response.Response{data=response.PageResult}  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/rule/list [post]
 func (w *WafRuleAPi) GetListApi(c *gin.Context) {
 	var req request.WafRuleSearchReq
 	err := c.ShouldBindJSON(&req)
@@ -134,6 +166,17 @@ func (w *WafRuleAPi) GetListByHostCodeApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// DelRuleApi 删除WAF规则
+// @Summary      删除WAF规则
+// @Description  根据 code 删除WAF防护规则
+// @Tags         网站防护-规则管理
+// @Accept       json
+// @Produce      json
+// @Param        code  query     string  true  "规则唯一编码"
+// @Success      200   {object}  response.Response  "删除成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/rule/del [get]
 func (w *WafRuleAPi) DelRuleApi(c *gin.Context) {
 	var req request.WafRuleDelReq
 	err := c.ShouldBind(&req)
@@ -156,6 +199,16 @@ func (w *WafRuleAPi) DelRuleApi(c *gin.Context) {
 	}
 }
 
+// ModifyRuleApi 编辑WAF规则
+// @Summary      编辑WAF规则
+// @Description  修改已有WAF防护规则配置
+// @Tags         网站防护-规则管理
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafRuleEditReq  true  "规则配置"
+// @Success      200   {object}  response.Response  "编辑成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/rule/edit [post]
 func (w *WafRuleAPi) ModifyRuleApi(c *gin.Context) {
 	ruleHelper := &utils.RuleHelper{}
 	var req request.WafRuleEditReq
@@ -326,7 +379,16 @@ func (w *WafRuleAPi) FormatRuleApi(c *gin.Context) {
 	}, "获取成功", c)
 }
 
-// ModifyRuleStatusApi 修改规则状态
+// ModifyRuleStatusApi 修改WAF规则状态
+// @Summary      修改WAF规则状态
+// @Description  启用或禁用WAF防护规则
+// @Tags         网站防护-规则管理
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafRuleStatusReq  true  "状态参数"
+// @Success      200   {object}  response.Response  "状态更新成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/rule/status [post]
 func (w *WafRuleAPi) ModifyRuleStatusApi(c *gin.Context) {
 	var req request.WafRuleStatusReq
 	err := c.ShouldBind(&req)

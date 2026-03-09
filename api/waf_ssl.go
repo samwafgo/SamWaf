@@ -15,7 +15,16 @@ import (
 
 type WafSslConfigApi struct{}
 
-// AddSslConfigApi 添加SSL证书
+// AddSslConfigApi 新增SSL证书
+// @Summary      新增SSL证书
+// @Description  上传并保存SSL证书（PEM格式的证书和私钥）
+// @Tags         SSL-证书配置
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.SslConfigAddReq  true  "SSL证书配置"
+// @Success      200   {object}  response.Response  "添加成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/sslconfig/add [post]
 func (s *WafSslConfigApi) AddSslConfigApi(c *gin.Context) {
 	var req request.SslConfigAddReq
 	err := c.ShouldBindJSON(&req)
@@ -33,6 +42,15 @@ func (s *WafSslConfigApi) AddSslConfigApi(c *gin.Context) {
 }
 
 // GetSslConfigDetailApi 获取SSL证书详情
+// @Summary      获取SSL证书详情
+// @Description  根据ID获取SSL证书详情
+// @Tags         SSL-证书配置
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "证书ID"
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/sslconfig/detail [get]
 func (s *WafSslConfigApi) GetSslConfigDetailApi(c *gin.Context) {
 	var req request.SslConfigDetailReq
 	err := c.ShouldBind(&req)
@@ -45,6 +63,15 @@ func (s *WafSslConfigApi) GetSslConfigDetailApi(c *gin.Context) {
 }
 
 // GetSslConfigListApi 获取SSL证书列表
+// @Summary      获取SSL证书列表
+// @Description  分页查询SSL证书列表
+// @Tags         SSL-证书配置
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.SslConfigSearchReq  true  "分页查询参数"
+// @Success      200   {object}  response.Response{data=response.PageResult}  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/sslconfig/list [post]
 func (s *WafSslConfigApi) GetSslConfigListApi(c *gin.Context) {
 	var req request.SslConfigSearchReq
 	err := c.ShouldBindJSON(&req)
@@ -62,6 +89,15 @@ func (s *WafSslConfigApi) GetSslConfigListApi(c *gin.Context) {
 }
 
 // DelSslConfigApi 删除SSL证书
+// @Summary      删除SSL证书
+// @Description  根据ID删除SSL证书
+// @Tags         SSL-证书配置
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "证书ID"
+// @Success      200  {object}  response.Response  "删除成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/sslconfig/del [get]
 func (s *WafSslConfigApi) DelSslConfigApi(c *gin.Context) {
 	var req request.SslConfigDeleteReq
 	err := c.ShouldBind(&req)
@@ -80,6 +116,15 @@ func (s *WafSslConfigApi) DelSslConfigApi(c *gin.Context) {
 }
 
 // ModifySslConfigApi 编辑SSL证书
+// @Summary      编辑SSL证书
+// @Description  修改SSL证书内容
+// @Tags         SSL-证书配置
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.SslConfigEditReq  true  "SSL证书配置"
+// @Success      200   {object}  response.Response  "编辑成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/sslconfig/edit [post]
 func (s *WafSslConfigApi) ModifySslConfigApi(c *gin.Context) {
 	var req request.SslConfigEditReq
 	err := c.ShouldBindJSON(&req)

@@ -12,6 +12,13 @@ type WafSystemMonitorApi struct {
 var wafSystemMonitorService = waf_service.WafSystemMonitorServiceApp
 
 // GetSystemMonitorApi 获取系统监控信息
+// @Summary      获取系统监控信息
+// @Description  获取实时系统监控数据（CPU使用率、内存占用、网络流量等）
+// @Tags         系统监控
+// @Produce      json
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /monitor/info [get]
 func (w *WafSystemMonitorApi) GetSystemMonitorApi(c *gin.Context) {
 	systemInfo, err := wafSystemMonitorService.GetSystemMonitorInfo()
 	if err != nil {

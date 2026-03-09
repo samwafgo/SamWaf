@@ -253,6 +253,17 @@ func (w *WafHostAPi) GetDomainsByHostCodeApi(c *gin.Context) {
 	}
 
 }
+
+// DelHostApi 删除网站防护主机
+// @Summary      删除网站防护主机
+// @Description  根据 code 删除网站防护主机配置
+// @Tags         网站防护-主机管理
+// @Accept       json
+// @Produce      json
+// @Param        code  query     string  true  "主机唯一编码"
+// @Success      200   {object}  response.Response  "删除成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/host/del [get]
 func (w *WafHostAPi) DelHostApi(c *gin.Context) {
 	var req request.WafHostDelReq
 	err := c.ShouldBind(&req)
@@ -272,6 +283,16 @@ func (w *WafHostAPi) DelHostApi(c *gin.Context) {
 	}
 }
 
+// ModifyHostApi 编辑网站防护主机
+// @Summary      编辑网站防护主机
+// @Description  修改网站防护主机配置信息
+// @Tags         网站防护-主机管理
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafHostEditReq  true  "主机配置"
+// @Success      200   {object}  response.Response  "编辑成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/host/edit [post]
 func (w *WafHostAPi) ModifyHostApi(c *gin.Context) {
 	var req request.WafHostEditReq
 	err := c.ShouldBindJSON(&req)
@@ -301,6 +322,17 @@ func (w *WafHostAPi) ModifyHostApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// ModifyGuardStatusApi 修改主机防御状态
+// @Summary      修改主机防御状态
+// @Description  开启或关闭指定主机的WAF防御
+// @Tags         网站防护-主机管理
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafHostGuardStatusReq  true  "防御状态参数"
+// @Success      200   {object}  response.Response  "状态更新成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/host/guardstatus [post]
 func (w *WafHostAPi) ModifyGuardStatusApi(c *gin.Context) {
 	var req request.WafHostGuardStatusReq
 	err := c.ShouldBind(&req)
@@ -365,10 +397,16 @@ func (w *WafHostAPi) ModifyAllGuardStatusApi(c *gin.Context) {
 	}
 }
 
-/*
-*
-修改启动状态
-*/
+// ModifyStartStatusApi 修改主机启动状态
+// @Summary      修改主机启动状态
+// @Description  启动或停止指定主机的监听服务
+// @Tags         网站防护-主机管理
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafHostStartStatusReq  true  "启动状态参数"
+// @Success      200   {object}  response.Response  "状态更新成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/host/startstatus [post]
 func (w *WafHostAPi) ModifyStartStatusApi(c *gin.Context) {
 	var req request.WafHostStartStatusReq
 	err := c.ShouldBind(&req)

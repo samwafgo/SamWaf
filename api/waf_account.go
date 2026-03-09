@@ -6,6 +6,7 @@ import (
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	"errors"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -13,6 +14,7 @@ import (
 type WafAccountApi struct {
 }
 
+// AddApi 新增账号
 func (w *WafAccountApi) AddApi(c *gin.Context) {
 	var req request.WafAccountAddReq
 	err := c.ShouldBindJSON(&req)
@@ -36,6 +38,8 @@ func (w *WafAccountApi) AddApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// GetDetailApi 获取账号详情
 func (w *WafAccountApi) GetDetailApi(c *gin.Context) {
 	var req request.WafAccountDetailReq
 	err := c.ShouldBind(&req)
@@ -46,6 +50,8 @@ func (w *WafAccountApi) GetDetailApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// GetListApi 获取账号列表
 func (w *WafAccountApi) GetListApi(c *gin.Context) {
 	var req request.WafAccountSearchReq
 	err := c.ShouldBindJSON(&req)
@@ -61,6 +67,8 @@ func (w *WafAccountApi) GetListApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// DelAccountApi 删除账号
 func (w *WafAccountApi) DelAccountApi(c *gin.Context) {
 	var req request.WafAccountDelReq
 	err := c.ShouldBind(&req)
@@ -79,6 +87,7 @@ func (w *WafAccountApi) DelAccountApi(c *gin.Context) {
 	}
 }
 
+// ModifyAccountApi 编辑账号
 func (w *WafAccountApi) ModifyAccountApi(c *gin.Context) {
 	var req request.WafAccountEditReq
 	err := c.ShouldBindJSON(&req)

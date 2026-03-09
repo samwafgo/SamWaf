@@ -14,6 +14,15 @@ type WafNotifyLogApi struct{}
 var wafNotifyLogService = waf_service.WafNotifyLogServiceApp
 
 // GetListApi 获取通知日志列表
+// @Summary      获取通知日志列表
+// @Description  分页查询通知发送日志列表
+// @Tags         通知日志
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafNotifyLogSearchReq  true  "分页查询参数"
+// @Success      200   {object}  response.Response{data=response.PageResult}  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /notify/log/list [post]
 func (w *WafNotifyLogApi) GetListApi(c *gin.Context) {
 	var req request.WafNotifyLogSearchReq
 	err := c.ShouldBindJSON(&req)
@@ -31,6 +40,15 @@ func (w *WafNotifyLogApi) GetListApi(c *gin.Context) {
 }
 
 // GetDetailApi 获取通知日志详情
+// @Summary      获取通知日志详情
+// @Description  根据ID获取单条通知日志详情
+// @Tags         通知日志
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "日志ID"
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /notify/log/detail [get]
 func (w *WafNotifyLogApi) GetDetailApi(c *gin.Context) {
 	var req request.WafNotifyLogDetailReq
 	err := c.ShouldBind(&req)
@@ -43,6 +61,15 @@ func (w *WafNotifyLogApi) GetDetailApi(c *gin.Context) {
 }
 
 // DelApi 删除通知日志
+// @Summary      删除通知日志
+// @Description  根据ID删除指定通知日志记录
+// @Tags         通知日志
+// @Accept       json
+// @Produce      json
+// @Param        id  query     string  true  "日志ID"
+// @Success      200  {object}  response.Response  "删除成功"
+// @Security     ApiKeyAuth
+// @Router       /notify/log/del [get]
 func (w *WafNotifyLogApi) DelApi(c *gin.Context) {
 	var req request.WafNotifyLogDelReq
 	err := c.ShouldBind(&req)

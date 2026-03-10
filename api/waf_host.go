@@ -143,6 +143,13 @@ func (w *WafHostAPi) GetListApi(c *gin.Context) {
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		wafHosts, total, _ := wafHostService.GetListApi(req)
+		hostCodes := make([]string, 0, len(wafHosts))
+		for _, srcHost := range wafHosts {
+			if srcHost.Code != "" {
+				hostCodes = append(hostCodes, srcHost.Code)
+			}
+		}
+		todayStatsMap := waf_service.WafStatServiceApp.GetTodaySiteStatsByHostCodes(hostCodes)
 		// 初始化返回结果列表
 		var repList []response2.HostRep
 		for _, srcHost := range wafHosts {
@@ -167,6 +174,11 @@ func (w *WafHostAPi) GetListApi(c *gin.Context) {
 				Hosts:              srcHost,
 				RealTimeConnectCnt: wafenginecore.GetActiveConnectCnt(srcHost.Code),
 				RealTimeQps:        wafenginecore.GetQPS(srcHost.Code),
+				TodayPvCount:       todayStatsMap[srcHost.Code].TodayPvCount,
+				TodayUvCount:       todayStatsMap[srcHost.Code].TodayUvCount,
+				TodayAttackCount:   todayStatsMap[srcHost.Code].TodayAttackCount,
+				TodayTrafficIn:     todayStatsMap[srcHost.Code].TodayTrafficIn,
+				TodayTrafficOut:    todayStatsMap[srcHost.Code].TodayTrafficOut,
 				HealthyStatus:      healthy,
 			}
 			repList = append(repList, rep)

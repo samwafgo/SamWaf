@@ -3,6 +3,7 @@ package api
 import (
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -89,6 +90,48 @@ func (w *WafStatApi) StatHomeSumDayTopIPRangeApi(c *gin.Context) {
 		response.OkWithDetailed(wafStat, "获取成功", c)
 	} else {
 
+		response.FailWithMessage("解析失败", c)
+	}
+}
+
+// StatSiteOverviewApi 站点综合概览
+// @Summary      站点综合概览统计
+// @Description  按日期范围查询各站点的综合访问数据（PV/UV/IP/流量/攻击），完全基于预聚合表
+// @Tags         统计-数据统计
+// @Produce      json
+// @Param        start_day  query     string  false  "开始日期 如 20260301"
+// @Param        end_day    query     string  false  "结束日期 如 20260310"
+// @Success      200        {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /stat/siteoverview [get]
+func (w *WafStatApi) StatSiteOverviewApi(c *gin.Context) {
+	var req request.WafStatsSiteOverviewReq
+	err := c.ShouldBind(&req)
+	if err == nil {
+		data, _ := wafStatService.StatSiteOverviewApi(req)
+		response.OkWithDetailed(data, "获取成功", c)
+	} else {
+		response.FailWithMessage("解析失败", c)
+	}
+}
+
+// StatSiteDetailApi 站点详情趋势
+// @Summary      站点详情趋势查询
+// @Description  查询指定站点的趋势数据（24h走小时聚合，7d/30d走天聚合），完全基于预聚合表
+// @Tags         统计-数据统计
+// @Produce      json
+// @Param        host_code   query     string  true   "网站唯一码"
+// @Param        time_range  query     string  true   "时间范围:  24h | 7d | 30d"
+// @Success      200         {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /stat/sitedetail [get]
+func (w *WafStatApi) StatSiteDetailApi(c *gin.Context) {
+	var req request.WafStatsSiteDetailReq
+	err := c.ShouldBind(&req)
+	if err == nil {
+		data, _ := wafStatService.StatSiteDetailApi(req)
+		response.OkWithDetailed(data, "获取成功", c)
+	} else {
 		response.FailWithMessage("解析失败", c)
 	}
 }

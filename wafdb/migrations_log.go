@@ -162,6 +162,32 @@ func RunLogDBMigrations(db *gorm.DB) error {
 				return tx.Migrator().DropTable(&model.OPlatformLog{})
 			},
 		},
+		// 迁移5: 为 web_logs 表添加 res_content_length 字段（响应内容大小）
+		{
+			ID: "202603100001_add_web_logs_res_content_length",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202603100001: 为 web_logs 表添加 res_content_length 字段")
+
+				if tx.Migrator().HasColumn(&innerbean.WebLog{}, "res_content_length") {
+					zlog.Info("res_content_length 字段已存在，跳过添加")
+					return nil
+				}
+
+				if err := tx.Migrator().AddColumn(&innerbean.WebLog{}, "RES_CONTENT_LENGTH"); err != nil {
+					return fmt.Errorf("添加 res_content_length 字段失败: %w", err)
+				}
+
+				zlog.Info("res_content_length 字段添加成功（用于记录响应内容大小，支持流量统计）")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202603100001: 删除 web_logs 表的 res_content_length 字段")
+				if tx.Migrator().HasColumn(&innerbean.WebLog{}, "res_content_length") {
+					return tx.Migrator().DropColumn(&innerbean.WebLog{}, "RES_CONTENT_LENGTH")
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

@@ -89,6 +89,37 @@ func RunStatsDBMigrations(db *gorm.DB) error {
 				return dropStatsIndexes(tx)
 			},
 		},
+		// 迁移3: 创建站点综合统计表（天级+小时级）
+		{
+			ID: "202603100001_create_site_stats_tables",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202603100001: 创建站点综合统计表")
+				if err := tx.AutoMigrate(
+					&model.StatsSiteDay{},
+					&model.StatsSiteHour{},
+				); err != nil {
+					return fmt.Errorf("创建站点统计表失败: %w", err)
+				}
+				zlog.Info("迁移 202603100001: 创建站点统计索引")
+				sqls := []string{
+					"CREATE INDEX IF NOT EXISTS idx_stats_site_days_lookup ON stats_site_days (host_code, day)",
+					"CREATE INDEX IF NOT EXISTS idx_stats_site_hours_lookup ON stats_site_hours (host_code, hour_time)",
+				}
+				for _, s := range sqls {
+					if err := tx.Exec(s).Error; err != nil {
+						return fmt.Errorf("创建站点统计索引失败: %w", err)
+					}
+				}
+				zlog.Info("迁移 202603100001: 完成")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202603100001: 删除站点统计表")
+				_ = tx.Exec("DROP INDEX IF EXISTS idx_stats_site_days_lookup").Error
+				_ = tx.Exec("DROP INDEX IF EXISTS idx_stats_site_hours_lookup").Error
+				return tx.Migrator().DropTable(&model.StatsSiteDay{}, &model.StatsSiteHour{})
+			},
+		},
 	})
 
 	// 执行迁移

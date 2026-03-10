@@ -177,6 +177,346 @@ func (receiver *WafStatService) StatHomeSysinfo(c *gin.Context) response2.WafHom
 	}
 }
 
+// GetTodaySiteStatsByHostCodes 获取指定站点今天的 PV/UV/拦截数/吞吐量
+func (receiver *WafStatService) GetTodaySiteStatsByHostCodes(hostCodes []string) map[string]response2.HostTodayStat {
+	statsMap := make(map[string]response2.HostTodayStat)
+	if len(hostCodes) == 0 {
+		return statsMap
+	}
+
+	currentDay, _ := strconv.Atoi(time.Now().Format("20060102"))
+
+	type siteRow struct {
+		HostCode    string
+		TotalCount  int64
+		AttackCount int64
+		TrafficIn   int64
+		TrafficOut  int64
+	}
+	var siteRows []siteRow
+	global.GWAF_LOCAL_STATS_DB.Model(&model.StatsSiteDay{}).
+		Where("day = ? and host_code in ?", currentDay, hostCodes).
+		Select("host_code, sum(total_count) as total_count, sum(attack_count) as attack_count, sum(traffic_in) as traffic_in, sum(traffic_out) as traffic_out").
+		Group("host_code").
+		Scan(&siteRows)
+
+	for _, row := range siteRows {
+		statsMap[row.HostCode] = response2.HostTodayStat{
+			TodayPvCount:     row.TotalCount,
+			TodayAttackCount: row.AttackCount,
+			TodayTrafficIn:   row.TrafficIn,
+			TodayTrafficOut:  row.TrafficOut,
+		}
+	}
+
+	type uvRow struct {
+		HostCode string
+		UvCount  int64
+	}
+	var uvRows []uvRow
+	global.GWAF_LOCAL_STATS_DB.Model(&model.StatsIPDay{}).
+		Where("day = ? and host_code in ?", currentDay, hostCodes).
+		Select("host_code, count(distinct ip) as uv_count").
+		Group("host_code").
+		Scan(&uvRows)
+
+	for _, row := range uvRows {
+		stat := statsMap[row.HostCode]
+		stat.TodayUvCount = row.UvCount
+		statsMap[row.HostCode] = stat
+	}
+
+	return statsMap
+}
+
+// StatSiteOverviewApi 站点综合概览（按天范围查询，完全不依赖 web_logs）
+func (receiver *WafStatService) StatSiteOverviewApi(req request.WafStatsSiteOverviewReq) (response2.WafSiteOverview, error) {
+	// 1) 从 StatsSiteDay 按 host_code 聚合
+	type siteRow struct {
+		HostCode       string
+		Host           string
+		TotalCount     int64
+		AttackCount    int64
+		NormalCount    int64
+		TrafficIn      int64
+		TrafficOut     int64
+		TotalTimeSpent int64
+	}
+	var rows []siteRow
+	global.GWAF_LOCAL_STATS_DB.Model(&model.StatsSiteDay{}).
+		Where("day between ? and ?", req.StartDay, req.EndDay).
+		Select("host_code, host, sum(total_count) as total_count, sum(attack_count) as attack_count, sum(normal_count) as normal_count, sum(traffic_in) as traffic_in, sum(traffic_out) as traffic_out, sum(total_time_spent) as total_time_spent").
+		Group("host_code").
+		Scan(&rows)
+
+	// 2) 根据 host_code 回填站点备注
+	type hostRemarkRow struct {
+		Code    string
+		Remarks string
+	}
+	hostCodes := make([]string, 0, len(rows))
+	for _, r := range rows {
+		if r.HostCode == "" {
+			continue
+		}
+		hostCodes = append(hostCodes, r.HostCode)
+	}
+	hostRemarkMap := make(map[string]string)
+	if len(hostCodes) > 0 {
+		var hostRows []hostRemarkRow
+		global.GWAF_LOCAL_DB.Model(&model.Hosts{}).
+			Where("code in ?", hostCodes).
+			Select("code, remarks").
+			Scan(&hostRows)
+		for _, r := range hostRows {
+			hostRemarkMap[r.Code] = r.Remarks
+		}
+	}
+
+	// 3) 从 StatsIPDay 按 host_code 查 UV/IP 数
+	type uvRow struct {
+		HostCode string
+		UvCount  int64
+	}
+	var uvRows []uvRow
+	global.GWAF_LOCAL_STATS_DB.Model(&model.StatsIPDay{}).
+		Where("day between ? and ?", req.StartDay, req.EndDay).
+		Select("host_code, count(distinct ip) as uv_count").
+		Group("host_code").
+		Scan(&uvRows)
+	uvMap := make(map[string]int64)
+	for _, r := range uvRows {
+		uvMap[r.HostCode] = r.UvCount
+	}
+
+	// 4) 组装结果
+	var overview response2.WafSiteOverview
+	for _, r := range rows {
+		uv := uvMap[r.HostCode]
+		var avgMs float64
+		if r.TotalCount > 0 {
+			avgMs = float64(r.TotalTimeSpent) / float64(r.TotalCount)
+		}
+		detail := response2.WafSiteStatDetail{
+			HostCode:     r.HostCode,
+			Host:         r.Host,
+			HostRemark:   hostRemarkMap[r.HostCode],
+			TotalCount:   r.TotalCount,
+			AttackCount:  r.AttackCount,
+			NormalCount:  r.NormalCount,
+			TrafficInMb:  float64(r.TrafficIn) / 1024 / 1024,
+			TrafficOutMb: float64(r.TrafficOut) / 1024 / 1024,
+			UvCount:      uv,
+			IpCount:      uv,
+			AvgTimeMs:    avgMs,
+		}
+		overview.SiteList = append(overview.SiteList, detail)
+		overview.TotalPv += r.TotalCount
+		overview.TotalAttack += r.AttackCount
+		overview.TotalUv += uv
+		overview.TotalIp += uv
+		overview.TotalInMb += detail.TrafficInMb
+		overview.TotalOutMb += detail.TrafficOutMb
+	}
+	if overview.SiteList == nil {
+		overview.SiteList = []response2.WafSiteStatDetail{}
+	}
+	return overview, nil
+}
+
+// StatSiteDetailApi 站点详情趋势（完全不查 web_logs，小时/天级预聚合）
+func (receiver *WafStatService) StatSiteDetailApi(req request.WafStatsSiteDetailReq) (response2.WafSiteDetail, error) {
+	detail := response2.WafSiteDetail{
+		HostCode:  req.HostCode,
+		HourTrend: []response2.WafSiteHourPoint{},
+		DayTrend:  []response2.WafSiteDayPoint{},
+	}
+
+	now := time.Now()
+	switch req.TimeRange {
+	case "1h":
+		// 最近1小时，按小时查（最多2个点：上一整点+当前整点）
+		startTs := (now.Add(-1*time.Hour).Unix() / 3600) * 3600
+		var pts []model.StatsSiteHour
+		global.GWAF_LOCAL_STATS_DB.Model(&model.StatsSiteHour{}).
+			Where("host_code = ? and hour_time >= ?", req.HostCode, startTs).
+			Order("hour_time asc").Scan(&pts)
+
+		ptMap := make(map[int64]model.StatsSiteHour)
+		for _, p := range pts {
+			ptMap[p.HourTime] = p
+		}
+
+		currentTs := (now.Unix() / 3600) * 3600
+		for ts := startTs; ts <= currentTs; ts += 3600 {
+			if p, ok := ptMap[ts]; ok {
+				detail.HourTrend = append(detail.HourTrend, response2.WafSiteHourPoint{
+					HourTime: p.HourTime, TotalCount: p.TotalCount,
+					AttackCount: p.AttackCount, NormalCount: p.NormalCount,
+				})
+				detail.TotalTimeSpentSum += p.TotalTimeSpent
+				detail.TotalCountSum += p.TotalCount
+			} else {
+				detail.HourTrend = append(detail.HourTrend, response2.WafSiteHourPoint{
+					HourTime: ts, TotalCount: 0, AttackCount: 0, NormalCount: 0,
+				})
+			}
+		}
+	case "24h":
+		// 最近24小时，按小时查（最多24个点：过去23小时+当前整点）
+		startTs := (now.Add(-23*time.Hour).Unix() / 3600) * 3600
+		var pts []model.StatsSiteHour
+		global.GWAF_LOCAL_STATS_DB.Model(&model.StatsSiteHour{}).
+			Where("host_code = ? and hour_time >= ?", req.HostCode, startTs).
+			Order("hour_time asc").Scan(&pts)
+
+		ptMap := make(map[int64]model.StatsSiteHour)
+		for _, p := range pts {
+			ptMap[p.HourTime] = p
+		}
+
+		currentTs := (now.Unix() / 3600) * 3600
+		for ts := startTs; ts <= currentTs; ts += 3600 {
+			if p, ok := ptMap[ts]; ok {
+				detail.HourTrend = append(detail.HourTrend, response2.WafSiteHourPoint{
+					HourTime: p.HourTime, TotalCount: p.TotalCount,
+					AttackCount: p.AttackCount, NormalCount: p.NormalCount,
+				})
+				detail.TotalTimeSpentSum += p.TotalTimeSpent
+				detail.TotalCountSum += p.TotalCount
+			} else {
+				detail.HourTrend = append(detail.HourTrend, response2.WafSiteHourPoint{
+					HourTime: ts, TotalCount: 0, AttackCount: 0, NormalCount: 0,
+				})
+			}
+		}
+	case "7d":
+		startDay, _ := strconv.Atoi(now.AddDate(0, 0, -6).Format("20060102"))
+		endDay, _ := strconv.Atoi(now.Format("20060102"))
+		type dayRow struct {
+			Day            int
+			TotalCount     int64
+			AttackCount    int64
+			NormalCount    int64
+			TotalTimeSpent int64
+		}
+		var dayRows []dayRow
+		global.GWAF_LOCAL_STATS_DB.Model(&model.StatsSiteDay{}).
+			Where("host_code = ? and day between ? and ?", req.HostCode, startDay, endDay).
+			Select("day, sum(total_count) as total_count, sum(attack_count) as attack_count, sum(normal_count) as normal_count, sum(total_time_spent) as total_time_spent").
+			Group("day").Order("day asc").Scan(&dayRows)
+		// UV
+		type uvDay struct {
+			Day     int
+			UvCount int64
+		}
+		var uvDays []uvDay
+		global.GWAF_LOCAL_STATS_DB.Model(&model.StatsIPDay{}).
+			Where("host_code = ? and day between ? and ?", req.HostCode, startDay, endDay).
+			Select("day, count(distinct ip) as uv_count").
+			Group("day").Order("day asc").Scan(&uvDays)
+		uvDayMap := make(map[int]int64)
+		for _, u := range uvDays {
+			uvDayMap[u.Day] = u.UvCount
+		}
+		for _, r := range dayRows {
+			detail.DayTrend = append(detail.DayTrend, response2.WafSiteDayPoint{
+				Day: r.Day, TotalCount: r.TotalCount,
+				AttackCount: r.AttackCount, NormalCount: r.NormalCount,
+				UvCount: uvDayMap[r.Day],
+			})
+			detail.TotalTimeSpentSum += r.TotalTimeSpent
+			detail.TotalCountSum += r.TotalCount
+		}
+	case "30d":
+		startDay, _ := strconv.Atoi(now.AddDate(0, 0, -29).Format("20060102"))
+		endDay, _ := strconv.Atoi(now.Format("20060102"))
+		type dayRow struct {
+			Day            int
+			TotalCount     int64
+			AttackCount    int64
+			NormalCount    int64
+			TotalTimeSpent int64
+		}
+		var dayRows []dayRow
+		global.GWAF_LOCAL_STATS_DB.Model(&model.StatsSiteDay{}).
+			Where("host_code = ? and day between ? and ?", req.HostCode, startDay, endDay).
+			Select("day, sum(total_count) as total_count, sum(attack_count) as attack_count, sum(normal_count) as normal_count, sum(total_time_spent) as total_time_spent").
+			Group("day").Order("day asc").Scan(&dayRows)
+		type uvDay struct {
+			Day     int
+			UvCount int64
+		}
+		var uvDays []uvDay
+		global.GWAF_LOCAL_STATS_DB.Model(&model.StatsIPDay{}).
+			Where("host_code = ? and day between ? and ?", req.HostCode, startDay, endDay).
+			Select("day, count(distinct ip) as uv_count").
+			Group("day").Order("day asc").Scan(&uvDays)
+		uvDayMap := make(map[int]int64)
+		for _, u := range uvDays {
+			uvDayMap[u.Day] = u.UvCount
+		}
+		for _, r := range dayRows {
+			detail.DayTrend = append(detail.DayTrend, response2.WafSiteDayPoint{
+				Day: r.Day, TotalCount: r.TotalCount,
+				AttackCount: r.AttackCount, NormalCount: r.NormalCount,
+				UvCount: uvDayMap[r.Day],
+			})
+			detail.TotalTimeSpentSum += r.TotalTimeSpent
+			detail.TotalCountSum += r.TotalCount
+		}
+	default:
+		// 默认 24h
+		startTs := (now.Add(-23*time.Hour).Unix() / 3600) * 3600
+		var pts []model.StatsSiteHour
+		global.GWAF_LOCAL_STATS_DB.Model(&model.StatsSiteHour{}).
+			Where("host_code = ? and hour_time >= ?", req.HostCode, startTs).
+			Order("hour_time asc").Scan(&pts)
+
+		ptMap := make(map[int64]model.StatsSiteHour)
+		for _, p := range pts {
+			ptMap[p.HourTime] = p
+		}
+
+		currentTs := (now.Unix() / 3600) * 3600
+		for ts := startTs; ts <= currentTs; ts += 3600 {
+			if p, ok := ptMap[ts]; ok {
+				detail.HourTrend = append(detail.HourTrend, response2.WafSiteHourPoint{
+					HourTime: p.HourTime, TotalCount: p.TotalCount,
+					AttackCount: p.AttackCount, NormalCount: p.NormalCount,
+				})
+				detail.TotalTimeSpentSum += p.TotalTimeSpent
+				detail.TotalCountSum += p.TotalCount
+			} else {
+				detail.HourTrend = append(detail.HourTrend, response2.WafSiteHourPoint{
+					HourTime: ts, TotalCount: 0, AttackCount: 0, NormalCount: 0,
+				})
+			}
+		}
+	}
+
+	// 计算平均响应时间和正常流量占比
+	if detail.TotalCountSum > 0 {
+		detail.AvgTimeMs = float64(detail.TotalTimeSpentSum) / float64(detail.TotalCountSum)
+		// 从趋势数据累加 normal_count
+		var totalNormal int64
+		for _, p := range detail.HourTrend {
+			totalNormal += p.NormalCount
+		}
+		for _, p := range detail.DayTrend {
+			totalNormal += p.NormalCount
+		}
+		detail.NormalRatePercent = float64(totalNormal) / float64(detail.TotalCountSum) * 100
+	}
+	// 查询域名
+	var siteDay model.StatsSiteDay
+	global.GWAF_LOCAL_STATS_DB.Model(&model.StatsSiteDay{}).
+		Where("host_code = ?", req.HostCode).First(&siteDay)
+	detail.Host = siteDay.Host
+
+	return detail, nil
+}
+
 // 获取运行系统基本信息
 func (receiver *WafStatService) StatHomeRumtimeSysinfo() []response2.WafNameValue {
 	/*c, _ := cpu.Info()

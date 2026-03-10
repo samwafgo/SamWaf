@@ -65,11 +65,38 @@ func CollectStatsFromLogs(logs []*innerbean.WebLog) {
 		IP   string
 		Rule string
 	}
+	// 站点天级聚合 key
+	type siteDayKey struct {
+		TenantId string
+		UserCode string
+		HostCode string
+		Day      int
+		Host     string
+	}
+	// 站点小时级聚合 key
+	type siteHourKey struct {
+		TenantId string
+		UserCode string
+		HostCode string
+		HourTime int64 // 整点unix时间戳
+		Host     string
+	}
+	// 站点聚合值
+	type siteAggVal struct {
+		TotalCount     int64
+		AttackCount    int64
+		NormalCount    int64
+		TrafficIn      int64
+		TrafficOut     int64
+		TotalTimeSpent int64
+	}
 
 	hostAgg := make(map[hostKey]int)
 	ipAgg := make(map[ipKey]int)
 	cityAgg := make(map[cityKey]int)
 	ipTagAgg := make(map[ipTagKey]int64)
+	siteDayAgg := make(map[siteDayKey]*siteAggVal)
+	siteHourAgg := make(map[siteHourKey]*siteAggVal)
 
 	for _, lg := range logs {
 		// 主机聚合
@@ -115,6 +142,51 @@ func CollectStatsFromLogs(logs []*innerbean.WebLog) {
 			rule = "正常"
 		}
 		ipTagAgg[ipTagKey{IP: lg.SRC_IP, Rule: rule}]++
+
+		// 站点天级聚合
+		sdk := siteDayKey{
+			TenantId: lg.TenantId,
+			UserCode: lg.USER_CODE,
+			HostCode: lg.HOST_CODE,
+			Day:      lg.Day,
+			Host:     lg.HOST,
+		}
+		if siteDayAgg[sdk] == nil {
+			siteDayAgg[sdk] = &siteAggVal{}
+		}
+		sdv := siteDayAgg[sdk]
+		sdv.TotalCount++
+		if lg.ACTION == "阻止" {
+			sdv.AttackCount++
+		} else {
+			sdv.NormalCount++
+		}
+		sdv.TrafficIn += lg.CONTENT_LENGTH
+		sdv.TrafficOut += lg.RES_CONTENT_LENGTH
+		sdv.TotalTimeSpent += lg.TimeSpent
+
+		// 站点小时级聚合（将时间戳截断到整点，注意UNIX_ADD_TIME是毫秒）
+		hourTs := (lg.UNIX_ADD_TIME / 1000 / 3600) * 3600
+		shk := siteHourKey{
+			TenantId: lg.TenantId,
+			UserCode: lg.USER_CODE,
+			HostCode: lg.HOST_CODE,
+			HourTime: hourTs,
+			Host:     lg.HOST,
+		}
+		if siteHourAgg[shk] == nil {
+			siteHourAgg[shk] = &siteAggVal{}
+		}
+		shv := siteHourAgg[shk]
+		shv.TotalCount++
+		if lg.ACTION == "阻止" {
+			shv.AttackCount++
+		} else {
+			shv.NormalCount++
+		}
+		shv.TrafficIn += lg.CONTENT_LENGTH
+		shv.TrafficOut += lg.RES_CONTENT_LENGTH
+		shv.TotalTimeSpent += lg.TimeSpent
 	}
 
 	// 添加聚合结果的调试信息
@@ -295,11 +367,127 @@ func CollectStatsFromLogs(logs []*innerbean.WebLog) {
 	}
 	zlog.Debug("IP标签处理完成", "更新记录数", ipTagUpdateCount, "插入记录数", ipTagInsertCount)
 
+	// 5) 站点天级聚合 增量
+	siteDayUpdateCount := 0
+	siteDayInsertCount := 0
+	for k, v := range siteDayAgg {
+		if k.HostCode == "" {
+			continue
+		}
+		tx := global.GWAF_LOCAL_STATS_DB.Model(&model.StatsSiteDay{}).
+			Where("tenant_id = ? and user_code = ? and host_code = ? and day = ?",
+				k.TenantId, k.UserCode, k.HostCode, k.Day).
+			Updates(map[string]interface{}{
+				"total_count":      gorm.Expr("total_count + ?", v.TotalCount),
+				"attack_count":     gorm.Expr("attack_count + ?", v.AttackCount),
+				"normal_count":     gorm.Expr("normal_count + ?", v.NormalCount),
+				"traffic_in":       gorm.Expr("traffic_in + ?", v.TrafficIn),
+				"traffic_out":      gorm.Expr("traffic_out + ?", v.TrafficOut),
+				"total_time_spent": gorm.Expr("total_time_spent + ?", v.TotalTimeSpent),
+				"update_time":      now,
+			})
+		if tx.Error != nil {
+			zlog.Debug("站点天聚合更新失败", "错误", tx.Error.Error(), "主机", k.HostCode)
+			continue
+		}
+		if tx.RowsAffected == 0 {
+			err := global.GWAF_LOCAL_STATS_DB.Create(&model.StatsSiteDay{
+				BaseOrm: baseorm.BaseOrm{
+					Id:          uuid.GenUUID(),
+					USER_CODE:   k.UserCode,
+					Tenant_ID:   k.TenantId,
+					CREATE_TIME: now,
+					UPDATE_TIME: now,
+				},
+				HostCode:       k.HostCode,
+				Day:            k.Day,
+				Host:           k.Host,
+				TotalCount:     v.TotalCount,
+				AttackCount:    v.AttackCount,
+				NormalCount:    v.NormalCount,
+				TrafficIn:      v.TrafficIn,
+				TrafficOut:     v.TrafficOut,
+				TotalTimeSpent: v.TotalTimeSpent,
+			}).Error
+			if err != nil {
+				zlog.Debug("站点天聚合插入失败", "错误", err.Error(), "主机", k.HostCode)
+			} else {
+				siteDayInsertCount++
+			}
+		} else {
+			siteDayUpdateCount++
+		}
+	}
+	zlog.Debug("站点天聚合处理完成", "更新记录数", siteDayUpdateCount, "插入记录数", siteDayInsertCount)
+
+	// 6) 站点小时级聚合 增量
+	siteHourUpdateCount := 0
+	siteHourInsertCount := 0
+	for k, v := range siteHourAgg {
+		if k.HostCode == "" {
+			continue
+		}
+		tx := global.GWAF_LOCAL_STATS_DB.Model(&model.StatsSiteHour{}).
+			Where("tenant_id = ? and user_code = ? and host_code = ? and hour_time = ?",
+				k.TenantId, k.UserCode, k.HostCode, k.HourTime).
+			Updates(map[string]interface{}{
+				"total_count":      gorm.Expr("total_count + ?", v.TotalCount),
+				"attack_count":     gorm.Expr("attack_count + ?", v.AttackCount),
+				"normal_count":     gorm.Expr("normal_count + ?", v.NormalCount),
+				"traffic_in":       gorm.Expr("traffic_in + ?", v.TrafficIn),
+				"traffic_out":      gorm.Expr("traffic_out + ?", v.TrafficOut),
+				"total_time_spent": gorm.Expr("total_time_spent + ?", v.TotalTimeSpent),
+				"update_time":      now,
+			})
+		if tx.Error != nil {
+			zlog.Debug("站点小时聚合更新失败", "错误", tx.Error.Error(), "主机", k.HostCode)
+			continue
+		}
+		if tx.RowsAffected == 0 {
+			err := global.GWAF_LOCAL_STATS_DB.Create(&model.StatsSiteHour{
+				BaseOrm: baseorm.BaseOrm{
+					Id:          uuid.GenUUID(),
+					USER_CODE:   k.UserCode,
+					Tenant_ID:   k.TenantId,
+					CREATE_TIME: now,
+					UPDATE_TIME: now,
+				},
+				HostCode:       k.HostCode,
+				HourTime:       k.HourTime,
+				Host:           k.Host,
+				TotalCount:     v.TotalCount,
+				AttackCount:    v.AttackCount,
+				NormalCount:    v.NormalCount,
+				TrafficIn:      v.TrafficIn,
+				TrafficOut:     v.TrafficOut,
+				TotalTimeSpent: v.TotalTimeSpent,
+			}).Error
+			if err != nil {
+				zlog.Debug("站点小时聚合插入失败", "错误", err.Error(), "主机", k.HostCode)
+			} else {
+				siteHourInsertCount++
+			}
+		} else {
+			siteHourUpdateCount++
+		}
+	}
+	zlog.Debug("站点小时聚合处理完成", "更新记录数", siteHourUpdateCount, "插入记录数", siteHourInsertCount)
+
+	// 自动清理超过3天的小时级数据
+	expireTs := time.Now().Add(-72 * time.Hour).Unix()
+	if err := global.GWAF_LOCAL_STATS_DB.
+		Where("hour_time < ?", expireTs).
+		Delete(&model.StatsSiteHour{}).Error; err != nil {
+		zlog.Debug("清理过期小时统计失败", "错误", err.Error())
+	}
+
 	// 总结统计信息
 	zlog.Debug("统计收集器处理完成",
 		"总处理日志数", len(logs),
 		"主机聚合", map[string]interface{}{"更新": hostUpdateCount, "插入": hostInsertCount},
 		"IP聚合", map[string]interface{}{"更新": ipUpdateCount, "插入": ipInsertCount},
 		"城市聚合", map[string]interface{}{"更新": cityUpdateCount, "插入": cityInsertCount},
-		"IP标签", map[string]interface{}{"更新": ipTagUpdateCount, "插入": ipTagInsertCount})
+		"IP标签", map[string]interface{}{"更新": ipTagUpdateCount, "插入": ipTagInsertCount},
+		"站点天聚合", map[string]interface{}{"更新": siteDayUpdateCount, "插入": siteDayInsertCount},
+		"站点小时聚合", map[string]interface{}{"更新": siteHourUpdateCount, "插入": siteHourInsertCount})
 }

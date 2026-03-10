@@ -18,6 +18,7 @@ type WebLog struct {
 	CITY                 string `json:"city"`
 	CREATE_TIME          string `gorm:"index:idx_weblog_time" json:"create_time"`
 	CONTENT_LENGTH       int64  `json:"content_length"`
+	RES_CONTENT_LENGTH   int64  `json:"res_content_length"` //响应内容大小（字节）
 	COOKIES              string `json:"cookies"`
 	BODY                 string `json:"body"`
 	REQ_UUID             string `json:"req_uuid"`

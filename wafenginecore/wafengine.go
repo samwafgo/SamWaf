@@ -934,6 +934,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 				weblogfrist.ACTION = "放行"
 				weblogfrist.STATUS = resp.Status
 				weblogfrist.STATUS_CODE = resp.StatusCode
+				weblogfrist.RES_CONTENT_LENGTH = resp.ContentLength
 
 				resHeader := ""
 				for key, values := range resp.Header {
@@ -986,6 +987,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 			weblogfrist.ACTION = "放行"
 			weblogfrist.STATUS = resp.Status
 			weblogfrist.STATUS_CODE = resp.StatusCode
+			weblogfrist.RES_CONTENT_LENGTH = resp.ContentLength
 
 			//返回内容的类型
 			respContentType := strings.ToLower(resp.Header.Get("Content-Type"))

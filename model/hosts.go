@@ -151,8 +151,13 @@ type CacheConfig struct {
 	MaxMemorySizeMB float64 `json:"max_memory_size_mb"` // 最大内存缓存大小(MB)，当location为memory时使用  0 是不限制
 }
 
-// StaticSiteConfig 静态站点配置
+// StaticSecurityHeader 静态站点安全响应头项
+type StaticSecurityHeader struct {
+	HeaderName  string `json:"header_name"`  // 响应头名称
+	HeaderValue string `json:"header_value"` // 响应头值，留空则使用系统默认值
+}
 
+// StaticSiteConfig 静态站点配置
 type StaticSiteConfig struct {
 	IsEnableStaticSite  int    `json:"is_enable_static_site"` // 是否开启静态站点 1开启 0关闭
 	StaticSitePath      string `json:"static_site_path"`      // 静态站点路径
@@ -161,6 +166,9 @@ type StaticSiteConfig struct {
 	SensitiveExtensions string `json:"sensitive_extensions"`  // 敏感文件扩展名，逗号分隔
 	AllowedExtensions   string `json:"allowed_extensions"`    // 允许的文件扩展名白名单，逗号分隔
 	SensitivePatterns   string `json:"sensitive_patterns"`    // 敏感文件名模式（正则表达式），逗号分隔
+	// 安全响应头列表，数组为空则全部使用系统默认值；
+	// 某项 header_value 为空则该项也使用系统默认值
+	SecurityHeaders []StaticSecurityHeader `json:"security_headers"`
 }
 
 // TransportConfig 传输配置

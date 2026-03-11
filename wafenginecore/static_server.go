@@ -245,7 +245,7 @@ func (waf *WafEngine) serveStaticFile(w http.ResponseWriter, r *http.Request, co
 	}
 
 	// 设置安全头
-	waf.setSecurityHeaders(w)
+	waf.setSecurityHeaders(w, config)
 
 	// 记录合法的静态文件访问到日志队列
 	waf.logStaticFileAccess(r.URL.Path, r.RemoteAddr, fileInfo.Size(), weblog, hostsafe)
@@ -376,14 +376,61 @@ func (waf *WafEngine) isAllowedFileType(filePath string, config model.StaticSite
 	return false
 }
 
-// setSecurityHeaders 设置安全响应头
-func (waf *WafEngine) setSecurityHeaders(w http.ResponseWriter) {
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("X-Frame-Options", "DENY")
-	w.Header().Set("X-XSS-Protection", "1; mode=block")
-	w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
-	w.Header().Set("Content-Security-Policy", "default-src 'self'")
-	w.Header().Set("Cache-Control", "public, max-age=3600")
+// defaultSecurityHeaders 内置默认安全响应头（顺序固定，方便查找）
+var defaultSecurityHeaders = []struct{ name, value string }{
+	{"X-Content-Type-Options", "nosniff"},
+	{"X-Frame-Options", "DENY"},
+	{"X-XSS-Protection", "1; mode=block"},
+	{"Referrer-Policy", "strict-origin-when-cross-origin"},
+	{"Content-Security-Policy", "default-src 'self'"},
+	{"Cache-Control", "public, max-age=3600"},
+}
+
+// setSecurityHeaders 设置安全响应头。
+// 若 config.SecurityHeaders 为空，则全部使用默认值；
+// 否则以用户配置为准，某项 HeaderValue 为空时该项回退到默认值。
+func (waf *WafEngine) setSecurityHeaders(w http.ResponseWriter, config model.StaticSiteConfig) {
+	if len(config.SecurityHeaders) == 0 {
+		// 未配置，直接写入全部默认头
+		for _, h := range defaultSecurityHeaders {
+			w.Header().Set(h.name, h.value)
+		}
+		return
+	}
+
+	// 把用户配置转为 map，便于 O(1) 查找
+	userHeaders := make(map[string]string, len(config.SecurityHeaders))
+	for _, h := range config.SecurityHeaders {
+		if h.HeaderName != "" {
+			userHeaders[strings.ToLower(h.HeaderName)] = h.HeaderValue
+		}
+	}
+
+	// 遍历默认头：用户配置了就用用户的，值为空则回退默认
+	writtenKeys := make(map[string]bool)
+	for _, def := range defaultSecurityHeaders {
+		key := strings.ToLower(def.name)
+		if val, ok := userHeaders[key]; ok {
+			if val == "" {
+				w.Header().Set(def.name, def.value) // 值为空，回退默认
+			} else {
+				w.Header().Set(def.name, val) // 使用用户自定义值
+			}
+			writtenKeys[key] = true
+		} else {
+			w.Header().Set(def.name, def.value) // 用户未配置该项，使用默认
+		}
+	}
+
+	// 写入用户额外配置的非默认头（不在 defaultSecurityHeaders 列表中的）
+	for _, h := range config.SecurityHeaders {
+		if h.HeaderName == "" || h.HeaderValue == "" {
+			continue
+		}
+		if !writtenKeys[strings.ToLower(h.HeaderName)] {
+			w.Header().Set(h.HeaderName, h.HeaderValue)
+		}
+	}
 }
 
 // logStaticFileAccess 记录成功的静态文件访问到传入的weblog

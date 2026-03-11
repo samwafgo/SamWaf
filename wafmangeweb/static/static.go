@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	gzipMiddleware "github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 )
 
@@ -44,6 +45,26 @@ func correctMimeTypeMiddleware() gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// staticCacheMiddleware 为带 hash 指纹的静态资源设置长期缓存
+// assets/ 目录下的文件名含 hash，可以安全地使用长期缓存
+func staticCacheMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		path := c.Request.URL.Path
+		ext := strings.ToLower(filepath.Ext(path))
+
+		switch ext {
+		case ".js", ".mjs", ".css", ".woff", ".woff2", ".ttf", ".eot", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp":
+			// 带 hash 指纹的资源文件，缓存 1 年
+			c.Header("Cache-Control", "public, max-age=31536000, immutable")
+		case ".html":
+			// HTML 不缓存，确保每次都能获取最新入口
+			c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+		}
+
+		c.Next()
+	}
+}
 func initIndex() {
 	indexFile, err := static.Open("index.html")
 	if err != nil {
@@ -69,8 +90,20 @@ func Static(r *gin.Engine, noRoute func(handlers ...gin.HandlerFunc)) {
 	initStatic()
 	initIndex()
 
+	// Gzip 压缩中间件：对 JS/CSS/HTML/JSON/SVG 等文本资源启用压缩
+	r.Use(gzipMiddleware.Gzip(gzipMiddleware.DefaultCompression,
+		gzipMiddleware.WithExcludedExtensions([]string{
+			".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico",
+			".woff", ".woff2", ".ttf", ".eot",
+			".wasm", ".mp4", ".mp3",
+		}),
+	))
+
 	// 应用 MIME 类型修正中间件
 	r.Use(correctMimeTypeMiddleware())
+
+	// 应用静态资源缓存中间件
+	r.Use(staticCacheMiddleware())
 
 	folders := []string{"assets"}
 	for i, folder := range folders {

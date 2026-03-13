@@ -36,10 +36,8 @@ func (waf *WafEngine) CheckAllowIP(r *http.Request, weblogbean *innerbean.WebLog
 	}
 	//ip白名单策略（全局）
 	if waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].Host.GUARD_STATUS == 1 && waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPWhiteLists != nil {
-		// 全局白名单使用全局 host 的 IP 模式
-		globalClientIp := model.GetClientIPByMode(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].Host.IPMode, weblogbean.NetSrcIp, weblogbean.SRC_IP)
 		for i := 0; i < len(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPWhiteLists); i++ {
-			if utils.CheckIPInCIDR(globalClientIp, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPWhiteLists[i].Ip) {
+			if utils.CheckIPInCIDR(clientIp, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPWhiteLists[i].Ip) {
 				result.JumpGuardResult = true
 				break
 			}

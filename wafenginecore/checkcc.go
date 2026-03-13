@@ -24,10 +24,10 @@ func (waf *WafEngine) CheckCC(r *http.Request, weblogbean *innerbean.WebLog, for
 		Title:           "",
 		Content:         "",
 	}
+	// 根据IP模式选择使用的IP（从 Host 级别读取）
+	clientIP := model.GetClientIPByMode(hostTarget.Host.IPMode, weblogbean.NetSrcIp, weblogbean.SRC_IP)
 	// cc 防护 (局部检测)
 	if hostTarget.PluginIpRateLimiter != nil {
-		// 根据IP模式选择使用的IP（从 Host 级别读取）
-		clientIP := model.GetClientIPByMode(hostTarget.Host.IPMode, weblogbean.NetSrcIp, weblogbean.SRC_IP)
 		isCheckCC := false
 		if hostTarget.AntiCCBean.IsEnableRule {
 			if hostTarget.PluginIpRateLimiter.Rule != nil {
@@ -62,9 +62,6 @@ func (waf *WafEngine) CheckCC(r *http.Request, weblogbean *innerbean.WebLog, for
 
 	// cc 防护 （全局检测）
 	if waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].Host.GUARD_STATUS == 1 && waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].PluginIpRateLimiter != nil {
-		// 根据IP模式选择使用的IP（从 Host 级别读取）
-		clientIP := model.GetClientIPByMode(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].Host.IPMode, weblogbean.NetSrcIp, weblogbean.SRC_IP)
-
 		if !waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].PluginIpRateLimiter.Allow(clientIP) {
 			weblogbean.RISK_LEVEL = 1
 			result.IsBlock = true

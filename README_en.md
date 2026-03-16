@@ -151,6 +151,7 @@ curl -sSO https://update.samwaf.com/latest/install_samwaf.sh && bash install_sam
 ### Docker
 ```
 docker run -d --name=samwaf-instance \
+           --restart always \
            -p 26666:26666 \
            -p 80:80 \
            -p 443:443 \

@@ -153,8 +153,13 @@ func (waf *WafTunnelEngine) EditTunnel(oldTunnel model.Tunnel, newTunnel model.T
 				newIpVersion = "both"
 			}
 
-			// 检查是否需要重启服务：状态变化或IP版本变化
-			needRestart := oldTunnel.StartStatus != newTunnel.StartStatus || oldIpVersion != newIpVersion
+			// 检查是否需要重启服务：状态变化、IP版本变化或SSL配置变化
+			needRestart := oldTunnel.StartStatus != newTunnel.StartStatus ||
+				oldIpVersion != newIpVersion ||
+				oldTunnel.SSLStatus != newTunnel.SSLStatus ||
+				oldTunnel.SSLCertificate != newTunnel.SSLCertificate ||
+				oldTunnel.SSLCertificateKey != newTunnel.SSLCertificateKey ||
+				oldTunnel.SSLProtocols != newTunnel.SSLProtocols
 
 			// 更新隧道信息
 			for port := range oldPortMap {
@@ -240,8 +245,13 @@ func (waf *WafTunnelEngine) EditTunnel(oldTunnel model.Tunnel, newTunnel model.T
 					newIpVersion = "both"
 				}
 
-				// 检查是否需要重启服务：状态变化或IP版本变化
-				needRestart := tunnelSafe.Tunnel.StartStatus != newTunnel.StartStatus || oldIpVersion != newIpVersion
+				// 检查是否需要重启服务：状态变化、IP版本变化或SSL配置变化
+				needRestart := tunnelSafe.Tunnel.StartStatus != newTunnel.StartStatus ||
+					oldIpVersion != newIpVersion ||
+					tunnelSafe.Tunnel.SSLStatus != newTunnel.SSLStatus ||
+					tunnelSafe.Tunnel.SSLCertificate != newTunnel.SSLCertificate ||
+					tunnelSafe.Tunnel.SSLCertificateKey != newTunnel.SSLCertificateKey ||
+					tunnelSafe.Tunnel.SSLProtocols != newTunnel.SSLProtocols
 
 				// 更新隧道信息
 				tunnelSafe.Tunnel = newTunnel

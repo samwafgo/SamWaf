@@ -20,6 +20,10 @@ type WafTunnelAddReq struct {
 	AllowedTimeRanges string `json:"allowed_time_ranges" form:"allowed_time_ranges"`
 	IpVersion         string `json:"ip_version" form:"ip_version"`
 	Remark            string `json:"remark" form:"remark"`
+	SSLStatus         int    `json:"ssl_status" form:"ssl_status"`
+	SSLCertificate    string `json:"ssl_certificate" form:"ssl_certificate"`
+	SSLCertificateKey string `json:"ssl_certificate_key" form:"ssl_certificate_key"`
+	SSLProtocols      string `json:"ssl_protocols" form:"ssl_protocols"`
 }
 type WafTunnelEditReq struct {
 	Id string `json:"id"`
@@ -41,6 +45,10 @@ type WafTunnelEditReq struct {
 	AllowedTimeRanges string `json:"allowed_time_ranges" form:"allowed_time_ranges"`
 	IpVersion         string `json:"ip_version" form:"ip_version"`
 	Remark            string `json:"remark" form:"remark"`
+	SSLStatus         int    `json:"ssl_status" form:"ssl_status"`
+	SSLCertificate    string `json:"ssl_certificate" form:"ssl_certificate"`
+	SSLCertificateKey string `json:"ssl_certificate_key" form:"ssl_certificate_key"`
+	SSLProtocols      string `json:"ssl_protocols" form:"ssl_protocols"`
 }
 type WafTunnelDetailReq struct {
 	Id string `json:"id"   form:"id"`

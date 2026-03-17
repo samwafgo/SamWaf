@@ -24,4 +24,8 @@ type Tunnel struct {
 	AllowedTimeRanges string `json:"allowed_time_ranges"` // 允许访问的时间段 格式: 08:00-10:00;11:00-12:00 空表示24小时可访问
 	IpVersion         string `json:"ip_version"`          // IP版本支持: "ipv4" 仅IPv4, "ipv6" 仅IPv6, "both" 同时支持IPv4和IPv6, 默认为"both"
 	Remark            string `json:"remark"`              //备注
+	SSLStatus         int    `json:"ssl_status"`          // SSL开关 0关闭 1开启
+	SSLCertificate    string `json:"ssl_certificate"`     // SSL证书路径
+	SSLCertificateKey string `json:"ssl_certificate_key"` // SSL密钥路径
+	SSLProtocols      string `json:"ssl_protocols"`       // SSL协议版本 如 TLSv1.2 TLSv1.3
 }

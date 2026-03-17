@@ -42,6 +42,10 @@ func (receiver *WafTunnelService) AddApi(req request.WafTunnelAddReq) (*model.Tu
 		AllowedTimeRanges: req.AllowedTimeRanges,
 		IpVersion:         req.IpVersion,
 		Remark:            req.Remark,
+		SSLStatus:         req.SSLStatus,
+		SSLCertificate:    req.SSLCertificate,
+		SSLCertificateKey: req.SSLCertificateKey,
+		SSLProtocols:      req.SSLProtocols,
 	}
 	if bean.Code == "" {
 		bean.Code = bean.Id
@@ -132,6 +136,10 @@ func (receiver *WafTunnelService) ModifyApi(req request.WafTunnelEditReq) error 
 		"AllowedTimeRanges": req.AllowedTimeRanges,
 		"IpVersion":         req.IpVersion,
 		"Remark":            req.Remark,
+		"SSLStatus":         req.SSLStatus,
+		"SSLCertificate":    req.SSLCertificate,
+		"SSLCertificateKey": req.SSLCertificateKey,
+		"SSLProtocols":      req.SSLProtocols,
 
 		"UPDATE_TIME": customtype.JsonTime(time.Now()),
 	}

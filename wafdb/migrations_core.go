@@ -652,6 +652,45 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移18: 为 tunnel 表添加 SSL 相关字段
+		{
+			ID: "202603170001_add_tunnel_ssl_fields",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202603170001: 为 tunnel 表添加 SSL 相关字段")
+
+				sslFields := []string{"ssl_status", "ssl_certificate", "ssl_certificate_key", "ssl_protocols"}
+				for _, field := range sslFields {
+					if tx.Migrator().HasColumn(&model.Tunnel{}, field) {
+						zlog.Info(field + " 字段已存在，跳过添加")
+						continue
+					}
+					if err := tx.Migrator().AddColumn(&model.Tunnel{}, field); err != nil {
+						return fmt.Errorf("添加 %s 字段失败: %w", field, err)
+					}
+					zlog.Info(field + " 字段添加成功")
+				}
+
+				// ssl_status 默认值为 0（关闭）
+				if err := tx.Exec("UPDATE tunnels SET ssl_status = 0 WHERE ssl_status IS NULL").Error; err != nil {
+					zlog.Warn("设置 ssl_status 默认值失败", "error", err.Error())
+				}
+
+				zlog.Info("tunnel 表 SSL 相关字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202603170001: 删除 tunnel 表的 SSL 相关字段")
+				sslFields := []string{"ssl_status", "ssl_certificate", "ssl_certificate_key", "ssl_protocols"}
+				for _, field := range sslFields {
+					if tx.Migrator().HasColumn(&model.Tunnel{}, field) {
+						if err := tx.Migrator().DropColumn(&model.Tunnel{}, field); err != nil {
+							zlog.Warn("删除字段失败", "field", field, "error", err.Error())
+						}
+					}
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

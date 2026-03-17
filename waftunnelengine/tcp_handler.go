@@ -4,10 +4,12 @@ import (
 	"SamWaf/common/zlog"
 	"SamWaf/model/waftunnelmodel"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -73,6 +75,54 @@ func (waf *WafTunnelEngine) startTCPServer(netRuntime waftunnelmodel.NetRunTime)
 			zlog.Error(fmt.Sprintf("TCP服务器启动失败 [服务端口:%s IP版本:both 错误:%s]", serverPort, err.Error()))
 			return
 		}
+	}
+
+	// 如果开启了 SSL，用 TLS 包装 listener
+	if tunnelInfo.Tunnel.SSLStatus == 1 {
+		certFile := tunnelInfo.Tunnel.SSLCertificate
+		keyFile := tunnelInfo.Tunnel.SSLCertificateKey
+		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+		if err != nil {
+			listener.Close()
+			zlog.Error(fmt.Sprintf("加载 SSL 证书失败 [服务端口:%s 证书:%s 错误:%s]",
+				strconv.Itoa(netRuntime.Port), certFile, err.Error()))
+			return
+		}
+
+		tlsConfig := &tls.Config{
+			Certificates: []tls.Certificate{cert},
+			MinVersion:   tls.VersionTLS12,
+		}
+
+		// 解析协议版本字符串，支持 TLSv1.2 TLSv1.3
+		if tunnelInfo.Tunnel.SSLProtocols != "" {
+			var minVer uint16 = tls.VersionTLS12
+			hasV13 := strings.Contains(tunnelInfo.Tunnel.SSLProtocols, "TLSv1.3") ||
+				strings.Contains(tunnelInfo.Tunnel.SSLProtocols, "TLS1.3")
+			hasV12 := strings.Contains(tunnelInfo.Tunnel.SSLProtocols, "TLSv1.2") ||
+				strings.Contains(tunnelInfo.Tunnel.SSLProtocols, "TLS1.2")
+			hasV11 := strings.Contains(tunnelInfo.Tunnel.SSLProtocols, "TLSv1.1") ||
+				strings.Contains(tunnelInfo.Tunnel.SSLProtocols, "TLS1.1")
+			hasV10 := strings.Contains(tunnelInfo.Tunnel.SSLProtocols, "TLSv1.0") ||
+				strings.Contains(tunnelInfo.Tunnel.SSLProtocols, "TLSv1 ") ||
+				strings.HasSuffix(tunnelInfo.Tunnel.SSLProtocols, "TLSv1")
+			switch {
+			case hasV10 || hasV11:
+				minVer = tls.VersionTLS10
+			case hasV12:
+				minVer = tls.VersionTLS12
+			case hasV13:
+				minVer = tls.VersionTLS13
+			}
+			tlsConfig.MinVersion = minVer
+			if hasV13 && !hasV12 && !hasV11 && !hasV10 {
+				tlsConfig.MinVersion = tls.VersionTLS13
+			}
+		}
+
+		listener = tls.NewListener(listener, tlsConfig)
+		zlog.Info(fmt.Sprintf("TCP 服务器已启用 SSL/TLS [服务端口:%s 证书:%s 协议:%s]",
+			strconv.Itoa(netRuntime.Port), certFile, tunnelInfo.Tunnel.SSLProtocols))
 	}
 
 	// 更新状态

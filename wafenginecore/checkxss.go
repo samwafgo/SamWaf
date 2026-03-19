@@ -21,16 +21,17 @@ func (waf *WafEngine) CheckXss(r *http.Request, weblogbean *innerbean.WebLog, fo
 		Content:         "",
 	}
 	var xssFlag = false
-	if libinjection.IsXSS(weblogbean.RawQuery) ||
-		libinjection.IsXSS(weblogbean.POST_FORM) {
+	// 使用逐参数值检测，避免参数名（如 style、href、filter 等）被 libinjection 误当 HTML 属性导致误报
+	if libinjection.IsXSSInQueryValues(weblogbean.RawQuery) ||
+		libinjection.IsXSSInQueryValues(weblogbean.POST_FORM) {
 		xssFlag = true
 	}
 	if xssFlag == false {
 		for _, value := range formValue {
 			for _, v := range value {
-				if libinjection.IsXSS(v) {
-					//xssFlag = true
-				}
+				// 注意：此处暂时不启用，formValue 中的值在某些业务场景下存在误报风险。
+				// 若需启用，使用 libinjection.IsXSSSingleValue(v) 以降低误报率（预过滤+逐值检测）。
+				_ = v
 			}
 		}
 	}

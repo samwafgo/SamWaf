@@ -47,6 +47,7 @@ type Hosts struct {
 	LogOnlyMode               int    `json:"log_only_mode"`                //仅记录模式 1开启 0关闭
 	CustomHeadersJSON         string `json:"custom_headers_json"`          //自定义头信息配置 json
 	CustomResponseHeadersJSON string `json:"custom_response_headers_json"` //自定义响应头信息配置 json
+	ResponseCompressJSON      string `json:"response_compress_json"`       //响应压缩配置 json（Gzip/Brotli）
 	IPMode                    string `json:"ip_mode"`                      //IP提取模式: "nic" 网卡模式 或 "proxy" 代理模式
 }
 
@@ -171,6 +172,18 @@ type StaticSiteConfig struct {
 	SecurityHeaders []StaticSecurityHeader `json:"security_headers"`
 }
 
+// ResponseCompressConfig 反代响应压缩（类似 nginx gzip / brotli）
+type ResponseCompressConfig struct {
+	IsEnable                 int    `json:"is_enable"`                   // 1 开启 0 关闭
+	Prefer                   string `json:"prefer"`                      // br_first | gzip_only | br_only
+	MinLength                int    `json:"min_length"`                  // 最小压缩字节数，0 表示用默认
+	IncludeTypes             string `json:"include_types"`               // 分号分隔 MIME 前缀或完整类型，空则用内置默认
+	IncludeExtensions        string `json:"include_extensions"`          // 分号分隔，如 .js;.css，与类型取并集
+	ExcludeExtensions        string `json:"exclude_extensions"`          // 分号或换行分隔后缀
+	ExcludePaths             string `json:"exclude_paths"`               // 换行或分号，URL 前缀匹配
+	CompressWhenStaticAssist int    `json:"compress_when_static_assist"` // 1 时对静态协助响应也读体压缩
+}
+
 // TransportConfig 传输配置
 type TransportConfig struct {
 	MaxIdleConns          int `json:"max_idle_conns"`          // 最大空闲连接数
@@ -191,6 +204,51 @@ type CustomHeaderItem struct {
 type CustomHeadersConfig struct {
 	IsEnableCustomHeaders int                `json:"is_enable_custom_headers"` // 是否开启自定义头信息 1开启 0关闭
 	Headers               []CustomHeaderItem `json:"headers"`                  // 自定义头信息列表
+}
+
+// defaultResponseCompressMimeTypes 与 nginx gzip_types 常见默认类似
+var defaultResponseCompressMimeTypes = []string{
+	"text/html",
+	"text/plain",
+	"text/css",
+	"text/javascript",
+	"text/xml",
+	"application/json",
+	"application/javascript",
+	"application/x-javascript",
+	"application/xml",
+	"application/rss+xml",
+	"application/atom+xml",
+	"image/svg+xml",
+}
+
+// ParseResponseCompressConfig 解析响应压缩配置
+func ParseResponseCompressConfig(jsonStr string) ResponseCompressConfig {
+	var c ResponseCompressConfig
+	c.IsEnable = 0
+	c.Prefer = "br_first"
+	c.MinLength = 256
+	c.CompressWhenStaticAssist = 0
+	if jsonStr == "" {
+		return c
+	}
+	if err := json.Unmarshal([]byte(jsonStr), &c); err != nil {
+		return ResponseCompressConfig{
+			IsEnable: 0, Prefer: "br_first", MinLength: 256, CompressWhenStaticAssist: 0,
+		}
+	}
+	if c.Prefer == "" {
+		c.Prefer = "br_first"
+	}
+	if c.MinLength <= 0 {
+		c.MinLength = 256
+	}
+	return c
+}
+
+// DefaultResponseCompressMimeTypes 返回内置默认 MIME 列表（供引擎匹配）
+func DefaultResponseCompressMimeTypes() []string {
+	return append([]string(nil), defaultResponseCompressMimeTypes...)
 }
 
 // ParseTransportConfig 解析传输配置

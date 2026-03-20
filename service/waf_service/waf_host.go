@@ -98,6 +98,7 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 		TransportJSON:             wafHostAddReq.TransportJSON,
 		CustomHeadersJSON:         wafHostAddReq.CustomHeadersJSON,
 		CustomResponseHeadersJSON: wafHostAddReq.CustomResponseHeadersJSON,
+		ResponseCompressJSON:      wafHostAddReq.ResponseCompressJSON,
 		IPMode:                    wafHostAddReq.IPMode,
 	}
 	global.GWAF_LOCAL_DB.Create(wafHost)
@@ -161,6 +162,7 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 		"TransportJSON":             wafHostEditReq.TransportJSON,
 		"CustomHeadersJSON":         wafHostEditReq.CustomHeadersJSON,
 		"CustomResponseHeadersJSON": wafHostEditReq.CustomResponseHeadersJSON,
+		"ResponseCompressJSON":      wafHostEditReq.ResponseCompressJSON,
 		"IPMode":                    wafHostEditReq.IPMode,
 	}
 	err := global.GWAF_LOCAL_DB.Debug().Model(model.Hosts{}).Where("CODE=?", wafHostEditReq.CODE).Updates(hostMap).Error
@@ -440,6 +442,12 @@ func (receiver *WafHostService) CopyConfigApi(req request.WafHostBatchCopyConfig
 				tx.Rollback()
 				return errors.New("复制缓存配置失败: " + err.Error())
 			}
+		case "response_compress":
+			err := receiver.copyResponseCompressConfig(tx, sourceHost, targetHost)
+			if err != nil {
+				tx.Rollback()
+				return errors.New("复制响应压缩配置失败: " + err.Error())
+			}
 		// 可以在这里添加其他模块的复制逻辑
 		// case "defense":
 		//     err := receiver.copyDefenseConfig(tx, sourceHost, targetHost)
@@ -490,6 +498,27 @@ func (receiver *WafHostService) copyCacheConfig(tx *gorm.DB, sourceHost, targetH
 	}
 
 	return nil
+}
+
+// copyResponseCompressConfig 复制响应压缩配置
+func (receiver *WafHostService) copyResponseCompressConfig(tx *gorm.DB, sourceHost, targetHost model.Hosts) error {
+	var cfg model.ResponseCompressConfig
+	if sourceHost.ResponseCompressJSON != "" {
+		if err := json.Unmarshal([]byte(sourceHost.ResponseCompressJSON), &cfg); err != nil {
+			return errors.New("解析源主机响应压缩配置失败: " + err.Error())
+		}
+	} else {
+		cfg = model.ParseResponseCompressConfig("")
+	}
+	out, err := json.Marshal(cfg)
+	if err != nil {
+		return errors.New("序列化响应压缩配置失败: " + err.Error())
+	}
+	updateMap := map[string]interface{}{
+		"ResponseCompressJSON": string(out),
+		"UPDATE_TIME":          customtype.JsonTime(time.Now()),
+	}
+	return tx.Model(&model.Hosts{}).Where("CODE = ?", targetHost.Code).Updates(updateMap).Error
 }
 
 // copyCacheRules 复制缓存规则

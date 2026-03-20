@@ -1002,6 +1002,8 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 			isStreamContent := strings.Contains(contentType, "text/event-stream") ||
 				strings.Contains(contentType, "application/stream+json")
 
+			compressCfg := model.ParseResponseCompressConfig(waf.HostTarget[host].Host.ResponseCompressJSON)
+
 			//记录响应body
 			if !isStaticAssist && resp.Body != nil && resp.Body != http.NoBody {
 
@@ -1091,6 +1093,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 					if responseEncodingError == nil {
 						newPayload := []byte("" + utils.DeSenText(string(orgContentBytes)))
 						finalCompressBytes, _ := waf.compressContent(resp, isStaticAssist, newPayload, charsetName)
+						finalCompressBytes = waf.maybeApplyResponseCompress(r, resp, finalCompressBytes, compressCfg)
 
 						resp.Body = io.NopCloser(bytes.NewBuffer(finalCompressBytes))
 						// head 修改追加内容
@@ -1145,6 +1148,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 					}
 					//将数据在回写上去
 					finalCompressBytes, _ := waf.compressContent(resp, isStaticAssist, orgContentBytes, charsetName)
+					finalCompressBytes = waf.maybeApplyResponseCompress(r, resp, finalCompressBytes, compressCfg)
 					resp.Body = io.NopCloser(bytes.NewBuffer(finalCompressBytes))
 					resp.ContentLength = int64(len(finalCompressBytes))
 					resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalCompressBytes)), 10))
@@ -1153,6 +1157,8 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 					resp.Body = io.NopCloser(bytes.NewBuffer(orgContentBytes))
 					zlog.Warn(fmt.Sprintf("识别响应内容编码失败，响应日志，敏感词替换 不可用 %v，请求URL: %s ,可以在主机其他设置里面设置默认编码", responseEncodingError, r.URL.String()))
 				}
+			} else if isStaticAssist && !isStreamContent && resp.Body != nil && resp.Body != http.NoBody {
+				waf.maybeCompressStaticAssistResponse(r, resp, compressCfg)
 			}
 
 			//检测cache

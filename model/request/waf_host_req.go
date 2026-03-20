@@ -41,6 +41,7 @@ type WafHostAddReq struct {
 	TransportJSON             string `json:"transport_json"`               //Transport配置 json
 	CustomHeadersJSON         string `json:"custom_headers_json"`          //自定义头信息配置 json
 	CustomResponseHeadersJSON string `json:"custom_response_headers_json"` //自定义响应头信息配置 json
+	ResponseCompressJSON      string `json:"response_compress_json"`       //响应压缩配置 json
 	IPMode                    string `json:"ip_mode"`                      //IP提取模式: "nic" 网卡模式 或 "proxy" 代理模式
 }
 
@@ -91,6 +92,7 @@ type WafHostEditReq struct {
 	TransportJSON             string `json:"transport_json"`               //Transport配置 json
 	CustomHeadersJSON         string `json:"custom_headers_json"`          //自定义头信息配置 json
 	CustomResponseHeadersJSON string `json:"custom_response_headers_json"` //自定义响应头信息配置 json
+	ResponseCompressJSON      string `json:"response_compress_json"`       //响应压缩配置 json
 	IPMode                    string `json:"ip_mode"`                      //IP提取模式: "nic" 网卡模式 或 "proxy" 代理模式
 }
 type WafHostGuardStatusReq struct {

@@ -691,6 +691,33 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移19: 为 hosts 表添加 response_compress_json（站点级响应压缩）
+		{
+			ID: "202603200001_add_hosts_response_compress_json",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202603200001: 为 hosts 表添加 response_compress_json 字段")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "response_compress_json") {
+					zlog.Info("response_compress_json 字段已存在，跳过添加")
+					return nil
+				}
+				if err := tx.Migrator().AddColumn(&model.Hosts{}, "response_compress_json"); err != nil {
+					return fmt.Errorf("添加 response_compress_json 字段失败: %w", err)
+				}
+				defaultJSON := `{"is_enable":0,"prefer":"br_first","min_length":256,"include_types":"","include_extensions":"","exclude_extensions":"","exclude_paths":"","compress_when_static_assist":0}`
+				if err := tx.Exec("UPDATE hosts SET response_compress_json = ? WHERE response_compress_json IS NULL OR response_compress_json = ''", defaultJSON).Error; err != nil {
+					zlog.Warn("设置 response_compress_json 默认值失败", "error", err.Error())
+				}
+				zlog.Info("response_compress_json 字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202603200001: 删除 hosts 表的 response_compress_json 字段")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "response_compress_json") {
+					return tx.Migrator().DropColumn(&model.Hosts{}, "response_compress_json")
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

@@ -18,7 +18,7 @@ var wafSystemMonitorService = waf_service.WafSystemMonitorServiceApp
 // @Produce      json
 // @Success      200  {object}  response.Response  "获取成功"
 // @Security     ApiKeyAuth
-// @Router       /monitor/info [get]
+// @Router       /monitor/system_info [get]
 func (w *WafSystemMonitorApi) GetSystemMonitorApi(c *gin.Context) {
 	systemInfo, err := wafSystemMonitorService.GetSystemMonitorInfo()
 	if err != nil {

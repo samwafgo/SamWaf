@@ -39,6 +39,9 @@ func (w *WafSslOrderApi) AddApi(c *gin.Context) {
 	var req request.WafSslorderaddReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		if req.ApplyMethod != "dns01" {
+			req.SkipDNSVerify = 0
+		}
 		hostBean := wafHostService.GetDetailByCodeApi(req.HostCode)
 		if hostBean.Id == "" {
 			response.FailWithMessage("查找主机未找到", c)
@@ -178,6 +181,9 @@ func (w *WafSslOrderApi) ModifyApi(c *gin.Context) {
 	var req request.WafSslordereditReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		if req.ApplyMethod != "dns01" {
+			req.SkipDNSVerify = 0
+		}
 		existingOrder := wafSslOrderService.GetDetailById(req.Id)
 		if existingOrder.Id == "" {
 			response.FailWithMessage("SSL订单不存在", c)

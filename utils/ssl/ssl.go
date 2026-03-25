@@ -14,10 +14,12 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/go-acme/lego/v4/certcrypto"
 	"github.com/go-acme/lego/v4/certificate"
 	"github.com/go-acme/lego/v4/challenge"
+	"github.com/go-acme/lego/v4/challenge/dns01"
 	"github.com/go-acme/lego/v4/lego"
 	"github.com/go-acme/lego/v4/providers/dns/alidns"
 	"github.com/go-acme/lego/v4/providers/dns/baiducloud"
@@ -102,7 +104,7 @@ func RegistrationSSL(order model.SslOrder, savePath string, caServerAddress stri
 		if err != nil {
 			return order, err
 		}
-		err = client.Challenge.SetDNS01Provider(dnsProvider)
+		err = setDNS01ProviderWithRetry(client, dnsProvider, order.SkipDNSVerify)
 	}
 
 	if err != nil {
@@ -270,7 +272,7 @@ func ReNewSSL(order model.SslOrder, savePath string, caServerAddress string, app
 		if err != nil {
 			return order, err
 		}
-		err = client.Challenge.SetDNS01Provider(dnsProvider)
+		err = setDNS01ProviderWithRetry(client, dnsProvider, order.SkipDNSVerify)
 	}
 
 	if err != nil {
@@ -440,4 +442,37 @@ func GetDnsProvider(dnsName string) (challenge.Provider, error) {
 	default:
 		return nil, fmt.Errorf("unrecognized DNS provider: %s", dnsName)
 	}
+}
+
+func setDNS01ProviderWithRetry(client *lego.Client, dnsProvider challenge.Provider, skipDNSVerify int64) error {
+	// 默认重试3次，每次间隔15秒
+	dnsPrecheckRetry := 3
+	dnsPrecheckRetryInterval := 15 * time.Second
+
+	if skipDNSVerify == 1 {
+		// 跳过本地DNS传播校验：固定等待后直接通知CA进行验证
+		return client.Challenge.SetDNS01Provider(dnsProvider, dns01.PropagationWait(60*time.Second, true))
+	}
+
+	// 默认执行本地DNS传播校验，并增加重试机制
+	return client.Challenge.SetDNS01Provider(dnsProvider,
+		dns01.WrapPreCheck(func(domain, fqdn, value string, check dns01.PreCheckFunc) (bool, error) {
+			var lastErr error
+			for i := 1; i <= dnsPrecheckRetry; i++ {
+				ok, err := check(fqdn, value)
+				if ok && err == nil {
+					return true, nil
+				}
+				lastErr = err
+				if i < dnsPrecheckRetry {
+					time.Sleep(dnsPrecheckRetryInterval)
+				}
+			}
+
+			if lastErr != nil {
+				return false, lastErr
+			}
+			return false, fmt.Errorf("dns propagation precheck failed after %d retries", dnsPrecheckRetry)
+		}),
+	)
 }

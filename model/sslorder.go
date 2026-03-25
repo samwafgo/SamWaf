@@ -13,6 +13,7 @@ type SslOrder struct {
 	HostCode                string    `json:"host_code"`                 //网站唯一码（主要键）
 	ApplyPlatform           string    `json:"apply_platform"`            //申请平台
 	ApplyMethod             string    `json:"apply_method"`              //申请方式http01，dns
+	SkipDNSVerify           int64     `json:"skip_dns_verify"`           //dns01是否跳过本地DNS传播校验 0否 1是
 	ApplyDns                string    `json:"apply_dns"`                 //申请dns服务商
 	ApplyEmail              string    `json:"apply_email"`               //申请邮箱
 	ApplyKey                string    `json:"apply_key"`                 //申请私钥

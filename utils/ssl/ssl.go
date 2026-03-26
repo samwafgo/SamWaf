@@ -113,9 +113,6 @@ func RegistrationSSL(order model.SslOrder, savePath string, caServerAddress stri
 		}
 	}
 
-	if err != nil {
-		return order, err
-	}
 	// New users will need to register
 	var reg *registration.Resource
 	if applyPlatform == "zerossl" {

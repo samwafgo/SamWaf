@@ -2,12 +2,14 @@ package waf_service
 
 import (
 	"SamWaf/common/uuid"
+	"SamWaf/common/zlog"
 	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -16,6 +18,13 @@ type WafSystemConfigService struct{}
 var WafSystemConfigServiceApp = new(WafSystemConfigService)
 
 func (receiver *WafSystemConfigService) AddApi(wafSystemConfigAddReq request.WafSystemConfigAddReq) error {
+	// 幂等保护：先检查 item 是否已存在，存在则跳过，防止重复插入
+	var existing model.SystemConfig
+	result := global.GWAF_LOCAL_DB.Where("item = ?", wafSystemConfigAddReq.Item).First(&existing)
+	if result.Error == nil && existing.Id != "" {
+		// 已存在，跳过插入
+		return nil
+	}
 	var bean = &model.SystemConfig{
 		BaseOrm: baseorm.BaseOrm{
 			Id:          uuid.GenUUID(),
@@ -140,6 +149,7 @@ func (receiver *WafSystemConfigService) DelApi(req request.WafSystemConfigDelReq
 }
 
 // GetAllConfigs 批量获取所有配置项，返回以item为key的map
+// 同时会对历史数据中同一 item 存在多条记录的情况进行预处理：保留最新一条，删除其余重复数据
 func (receiver *WafSystemConfigService) GetAllConfigs() map[string]model.SystemConfig {
 	var configs []model.SystemConfig
 	configMap := make(map[string]model.SystemConfig)
@@ -147,9 +157,50 @@ func (receiver *WafSystemConfigService) GetAllConfigs() map[string]model.SystemC
 	// 一次性查询所有配置
 	global.GWAF_LOCAL_DB.Find(&configs)
 
-	// 构建以item为key的map
+	// 预处理：检测并清理同一 item 的重复记录（兼容历史版本脏数据）
+	// 按 item 分组，如果同一 item 有多条记录，保留 UPDATE_TIME 最新的一条，删除其余
+	itemGroup := make(map[string][]model.SystemConfig)
 	for _, config := range configs {
-		configMap[config.Item] = config
+		itemGroup[config.Item] = append(itemGroup[config.Item], config)
+	}
+	for item, group := range itemGroup {
+		if len(group) <= 1 {
+			continue
+		}
+		// 找出 UPDATE_TIME 最新的记录作为保留项
+		keepIdx := 0
+		for i := 1; i < len(group); i++ {
+			if time.Time(group[i].UPDATE_TIME).After(time.Time(group[keepIdx].UPDATE_TIME)) {
+				keepIdx = i
+			}
+		}
+		// 收集需要删除的记录 ID（排除保留项，且仅删除有 Id 的记录）
+		var deleteIds []string
+		for i, g := range group {
+			if i != keepIdx && g.Id != "" {
+				deleteIds = append(deleteIds, g.Id)
+			}
+		}
+		if len(deleteIds) > 0 {
+			zlog.Warn(fmt.Sprintf(
+				"[配置去重] item=%s 发现 %d 条重复记录，保留 id=%s (UPDATE_TIME=%s)，即将删除 %d 条: %v",
+				item,
+				len(group),
+				group[keepIdx].Id,
+				time.Time(group[keepIdx].UPDATE_TIME).Format("2006-01-02 15:04:05"),
+				len(deleteIds),
+				deleteIds,
+			))
+			global.GWAF_LOCAL_DB.Where("id IN ?", deleteIds).Delete(&model.SystemConfig{})
+		}
+		// 将保留项放入 map
+		configMap[item] = group[keepIdx]
+	}
+	// 对于没有重复的 item，直接放入 map
+	for _, config := range configs {
+		if _, exists := configMap[config.Item]; !exists {
+			configMap[config.Item] = config
+		}
 	}
 
 	return configMap

@@ -140,11 +140,6 @@ func RegistrationSSL(order model.SslOrder, savePath string, caServerAddress stri
 
 	certificates := &certificate.Resource{}
 	if !isIpSSL {
-		// 诊断域名权威 NS
-		if order.ApplyMethod == "dns01" {
-			DiagnoseDomainNS(order.ApplyDomain)
-		}
-
 		request := certificate.ObtainRequest{
 			Domains: strings.Split(order.ApplyDomain, ","),
 			Bundle:  true,
@@ -317,11 +312,6 @@ func ReNewSSL(order model.SslOrder, savePath string, caServerAddress string, app
 	certificates := &certificate.Resource{}
 
 	if !isIpSSL {
-		// 诊断域名权威 NS
-		if order.ApplyMethod == "dns01" {
-			DiagnoseDomainNS(order.ApplyDomain)
-		}
-
 		// 域名证书：使用续期方式
 		certRes := certificate.Resource{
 			Domain:            order.ResultDomain,
@@ -493,32 +483,4 @@ func setDNS01ProviderWithRetry(client *lego.Client, dnsProvider challenge.Provid
 			return false, fmt.Errorf("dns propagation precheck failed after %d retries", dnsPrecheckRetry)
 		}),
 	)
-}
-
-// DiagnoseDomainNS 诊断域名的权威 NS 服务器
-func DiagnoseDomainNS(domain string) error {
-	zlog.Info(fmt.Sprintf("Checking authoritative nameservers for domain: %s", domain))
-
-	// 查询域名的权威 NS 记录
-	nameServers, err := net.LookupNS(domain)
-	if err != nil {
-		zlog.Warn(fmt.Sprintf("Failed to lookup NS records for %s: %v", domain, err))
-		return err
-	}
-
-	// 检查是否是预期的 DNS 提供商
-	nsStr := strings.ToLower(fmt.Sprintf("%v", nameServers))
-	if strings.Contains(nsStr, "dnspod") || strings.Contains(nsStr, "tencent") {
-		zlog.Info(fmt.Sprintf("Domain %s is managed by Tencent Cloud DNSPod", domain))
-	} else if strings.Contains(nsStr, "alidns") || strings.Contains(nsStr, "alibaba") {
-		zlog.Warn(fmt.Sprintf("Domain %s appears to be managed by Alibaba Cloud (not Tencent Cloud)", domain))
-	} else if strings.Contains(nsStr, "huawei") {
-		zlog.Warn(fmt.Sprintf("Domain %s appears to be managed by Huawei Cloud (not Tencent Cloud)", domain))
-	} else if strings.Contains(nsStr, "cloudflare") {
-		zlog.Warn(fmt.Sprintf("Domain %s appears to be managed by Cloudflare (not Tencent Cloud)", domain))
-	} else {
-		zlog.Warn(fmt.Sprintf("Domain %s's authoritative NS is not recognized. Make sure NS records point to your DNS provider", domain))
-	}
-
-	return nil
 }

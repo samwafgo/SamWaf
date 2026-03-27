@@ -718,6 +718,42 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移20: 为 ssl_orders 表添加 skip_dns_verify 字段（DNS校验跳过开关）
+		{
+			ID: "202603250001_add_ssl_orders_skip_dns_verify",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202603250001: 为 ssl_orders 表添加 skip_dns_verify 字段")
+
+				// 检查字段是否已存在
+				if tx.Migrator().HasColumn(&model.SslOrder{}, "skip_dns_verify") {
+					zlog.Info("skip_dns_verify 字段已存在，执行默认值回填")
+					if err := tx.Exec("UPDATE ssl_orders SET skip_dns_verify = 0 WHERE skip_dns_verify IS NULL").Error; err != nil {
+						zlog.Warn("回填 skip_dns_verify 默认值失败", "error", err.Error())
+					}
+					return nil
+				}
+
+				// 添加字段
+				if err := tx.Migrator().AddColumn(&model.SslOrder{}, "skip_dns_verify"); err != nil {
+					return fmt.Errorf("添加 skip_dns_verify 字段失败: %w", err)
+				}
+
+				// 为历史数据回填默认值 0（不跳过DNS校验）
+				if err := tx.Exec("UPDATE ssl_orders SET skip_dns_verify = 0 WHERE skip_dns_verify IS NULL").Error; err != nil {
+					zlog.Warn("设置 skip_dns_verify 默认值失败", "error", err.Error())
+				}
+
+				zlog.Info("skip_dns_verify 字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202603250001: 删除 ssl_orders 表的 skip_dns_verify 字段")
+				if tx.Migrator().HasColumn(&model.SslOrder{}, "skip_dns_verify") {
+					return tx.Migrator().DropColumn(&model.SslOrder{}, "skip_dns_verify")
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

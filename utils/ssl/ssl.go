@@ -1,6 +1,7 @@
 package ssl
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/model"
 	"SamWaf/utils"
 	"crypto"
@@ -14,10 +15,12 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/go-acme/lego/v4/certcrypto"
 	"github.com/go-acme/lego/v4/certificate"
 	"github.com/go-acme/lego/v4/challenge"
+	"github.com/go-acme/lego/v4/challenge/dns01"
 	"github.com/go-acme/lego/v4/lego"
 	"github.com/go-acme/lego/v4/providers/dns/alidns"
 	"github.com/go-acme/lego/v4/providers/dns/baiducloud"
@@ -91,23 +94,25 @@ func RegistrationSSL(order model.SslOrder, savePath string, caServerAddress stri
 	// because we aren't running as root and can't bind a listener to port 80 and 443
 	// (used later when we attempt to pass challenges). Keep in mind that you still
 	// need to proxy challenge traffic to port 5002 and 5001.
-	if order.ApplyMethod == "http01" {
+	switch order.ApplyMethod {
+	case "http01":
 		provider, err := webroot.NewHTTPProvider(savePath)
 		if err != nil {
 			return order, err
 		}
 		err = client.Challenge.SetHTTP01Provider(provider)
-	} else if order.ApplyMethod == "dns01" {
+	case "dns01":
 		dnsProvider, err := GetDnsProvider(order.ApplyDns)
 		if err != nil {
+			zlog.Error(fmt.Sprintf("Failed to initialize DNS provider `%s`: %v", order.ApplyDns, err))
 			return order, err
 		}
-		err = client.Challenge.SetDNS01Provider(dnsProvider)
+		err = setDNS01ProviderWithRetry(client, dnsProvider, order.SkipDNSVerify)
+		if err != nil {
+			zlog.Error(fmt.Sprintf("Failed to set DNS-01 provider: %v", err))
+		}
 	}
 
-	if err != nil {
-		return order, err
-	}
 	// New users will need to register
 	var reg *registration.Resource
 	if applyPlatform == "zerossl" {
@@ -185,7 +190,6 @@ func RegistrationSSL(order model.SslOrder, savePath string, caServerAddress stri
 	}
 	// Each certificate comes back with the cert bytes, the bytes of the client's
 	// private key, and a certificate URL. SAVE THESE TO DISK.
-	fmt.Printf("%#v\n", certificates)
 
 	order.ResultPrivateKey = certificates.PrivateKey
 	order.ResultCertificate = certificates.Certificate
@@ -268,13 +272,13 @@ func ReNewSSL(order model.SslOrder, savePath string, caServerAddress string, app
 	} else if order.ApplyMethod == "dns01" {
 		dnsProvider, err := GetDnsProvider(order.ApplyDns)
 		if err != nil {
+			zlog.Error(fmt.Sprintf("Failed to initialize DNS provider `%s`: %v", order.ApplyDns, err))
 			return order, err
 		}
-		err = client.Challenge.SetDNS01Provider(dnsProvider)
-	}
-
-	if err != nil {
-		return order, err
+		err = setDNS01ProviderWithRetry(client, dnsProvider, order.SkipDNSVerify)
+		if err != nil {
+			zlog.Error(fmt.Sprintf("Failed to set DNS-01 provider: %v", err))
+		}
 	}
 	// New users will need to register
 	var reg *registration.Resource
@@ -363,7 +367,6 @@ func ReNewSSL(order model.SslOrder, savePath string, caServerAddress string, app
 
 	// Each certificate comes back with the cert bytes, the bytes of the client's
 	// private key, and a certificate URL. SAVE THESE TO DISK.
-	fmt.Printf("%#v\n", certificates)
 
 	order.ResultPrivateKey = certificates.PrivateKey
 	order.ResultCertificate = certificates.Certificate
@@ -429,15 +432,48 @@ func GetDnsProvider(dnsName string) (challenge.Provider, error) {
 	case "huaweicloud":
 		return huaweicloud.NewDNSProvider()
 	case "tencentcloud":
-
 		return tencentcloud.NewDNSProvider()
 	case "cloudflare":
-
 		return cloudflare.NewDNSProvider()
 	case "baiducloud":
-
 		return baiducloud.NewDNSProvider()
 	default:
 		return nil, fmt.Errorf("unrecognized DNS provider: %s", dnsName)
 	}
+}
+
+func setDNS01ProviderWithRetry(client *lego.Client, dnsProvider challenge.Provider, skipDNSVerify int64) error {
+	// 默认重试10次，每次间隔30秒
+	dnsPrecheckRetry := 10
+	dnsPrecheckRetryInterval := 30 * time.Second
+
+	// DNS 传播等待时间：300秒（3分钟）
+	propagationTimeout := 180 * time.Second
+
+	if skipDNSVerify == 1 {
+		// 跳过本地DNS传播校验：固定等待后直接通知CA进行验证
+		return client.Challenge.SetDNS01Provider(dnsProvider, dns01.PropagationWait(propagationTimeout, true))
+	}
+
+	// 默认执行本地DNS传播校验，并增加重试机制
+	return client.Challenge.SetDNS01Provider(dnsProvider,
+		dns01.WrapPreCheck(func(domain, fqdn, value string, check dns01.PreCheckFunc) (bool, error) {
+			var lastErr error
+			for i := 1; i <= dnsPrecheckRetry; i++ {
+				ok, err := check(fqdn, value)
+				if ok && err == nil {
+					return true, nil
+				}
+				lastErr = err
+				if i < dnsPrecheckRetry {
+					time.Sleep(dnsPrecheckRetryInterval)
+				}
+			}
+
+			if lastErr != nil {
+				return false, lastErr
+			}
+			return false, fmt.Errorf("dns propagation precheck failed after %d retries", dnsPrecheckRetry)
+		}),
+	)
 }

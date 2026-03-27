@@ -31,6 +31,7 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 		//加载环境变量
 		privateGroupName := bean.PrivateGroupName
 		privateGroupBelongCloud := bean.ApplyDns
+		zlog.Debug(fmt.Sprintf("Loading DNS provider env info - Group: `%s`, Cloud: `%s` for domain: %s", privateGroupName, privateGroupBelongCloud, bean.ApplyDomain))
 		//查询环境变量信息
 		wafssl.LoadDnsProviderEnvInfo(privateGroupName, privateGroupBelongCloud)
 	}

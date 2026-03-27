@@ -192,6 +192,7 @@ func IsStaticAssist(res *http.Response, contentType string) bool {
 		"application/x-javascript",
 		"application/font",
 		"application/x-font",
+		"application/wasm",
 	}
 	for _, staticType := range staticContentTypes {
 		if strings.HasPrefix(lowerContentType, staticType) || strings.Contains(lowerContentType, staticType) {
@@ -236,7 +237,7 @@ func IsStaticAssist(res *http.Response, contentType string) bool {
 			path := strings.ToLower(res.Request.URL.Path)
 			staticExtensions := []string{".js", ".css", ".jpg", ".jpeg", ".png", ".gif", ".ico",
 				".svg", ".webp", ".woff", ".woff2", ".ttf", ".otf", ".eot", ".mp3", ".wav",
-				".mp4", ".webm", ".pdf", ".swf", ".bmp", ".tiff", ".tif", ".avif"}
+				".mp4", ".webm", ".pdf", ".swf", ".bmp", ".tiff", ".tif", ".avif", ".wasm"}
 
 			for _, ext := range staticExtensions {
 				if strings.HasSuffix(path, ext) {

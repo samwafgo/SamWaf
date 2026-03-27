@@ -280,10 +280,6 @@ func ReNewSSL(order model.SslOrder, savePath string, caServerAddress string, app
 			zlog.Error(fmt.Sprintf("Failed to set DNS-01 provider: %v", err))
 		}
 	}
-
-	if err != nil {
-		return order, err
-	}
 	// New users will need to register
 	var reg *registration.Resource
 	if applyPlatform == "zerossl" {

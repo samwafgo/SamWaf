@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/andybalholm/brotli"
+	"github.com/klauspost/compress/zstd"
 	"golang.org/x/net/html/charset"
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/simplifiedchinese"
@@ -72,6 +73,8 @@ func (waf *WafEngine) compressContent(res *http.Response, isStaticAssist bool, i
 		respBytes, err = utils.DeflateEncode(encodedBytes)
 	case "br":
 		respBytes, err = utils.BrotliEncode(encodedBytes)
+	case "zstd":
+		respBytes, err = utils.ZstdEncode(encodedBytes)
 	default:
 		respBytes = encodedBytes
 	}
@@ -112,6 +115,14 @@ func (waf *WafEngine) getOrgContent(resp *http.Response, isStaticAssist bool, de
 	case "br":
 		brotliReader := brotli.NewReader(resp.Body)
 		bodyReader = brotliReader
+	case "zstd":
+		zstdReader, zstdErr := zstd.NewReader(resp.Body)
+		if zstdErr != nil {
+			zlog.Warn("zstd解压失败: %v", zstdErr)
+			return bodyBytes, "", fmt.Errorf("zstd解压失败: %v", zstdErr)
+		}
+		bodyReader = zstdReader
+		defer zstdReader.Close()
 	default:
 		bodyReader = resp.Body
 	}
@@ -271,6 +282,14 @@ func (waf *WafEngine) decompressRequestContent(req *http.Request) ([]byte, error
 	case "br":
 		brotliReader := brotli.NewReader(bytes.NewReader(bodyBytes))
 		bodyReader = brotliReader
+	case "zstd":
+		zstdReader, zstdErr := zstd.NewReader(bytes.NewReader(bodyBytes))
+		if zstdErr != nil {
+			zlog.Warn("请求zstd解压失败: %v", zstdErr)
+			return bodyBytes, fmt.Errorf("请求zstd解压失败: %v", zstdErr)
+		}
+		bodyReader = zstdReader
+		defer zstdReader.Close()
 	default:
 		// 没有压缩或不支持的压缩格式，直接返回原始内容
 		return bodyBytes, nil

@@ -5,6 +5,8 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"github.com/andybalholm/brotli"
+	"github.com/klauspost/compress/zstd"
+	"io"
 )
 
 func BrotliEncode(input []byte) ([]byte, error) {
@@ -107,4 +109,30 @@ func GZipDecode(input []byte) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+func ZstdEncode(input []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	zstdWriter, err := zstd.NewWriter(&buf)
+	if err != nil {
+		return nil, err
+	}
+	_, err = zstdWriter.Write(input)
+	if err != nil {
+		_ = zstdWriter.Close()
+		return nil, err
+	}
+	if err := zstdWriter.Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func ZstdDecode(input []byte) ([]byte, error) {
+	reader, err := zstd.NewReader(bytes.NewReader(input))
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Close()
+	return io.ReadAll(reader)
 }

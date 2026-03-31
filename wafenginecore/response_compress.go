@@ -56,6 +56,8 @@ func (waf *WafEngine) maybeApplyResponseCompress(req *http.Request, resp *http.R
 		out, err = utils.BrotliEncode(body)
 	case "gzip":
 		out, err = utils.GZipEncode(body)
+	case "zstd":
+		out, err = utils.ZstdEncode(body)
 	default:
 		return body
 	}
@@ -139,6 +141,8 @@ func (waf *WafEngine) maybeCompressStaticAssistResponse(req *http.Request, resp 
 		out, err = utils.BrotliEncode(raw)
 	case "gzip":
 		out, err = utils.GZipEncode(raw)
+	case "zstd":
+		out, err = utils.ZstdEncode(raw)
 	default:
 		resp.Body = io.NopCloser(bytes.NewReader(raw))
 		resp.ContentLength = int64(len(raw))
@@ -184,12 +188,20 @@ func chooseCompressEncoding(acceptEncoding, prefer string) string {
 			return "br"
 		}
 		return ""
+	case "zstd_only":
+		if strings.Contains(ae, "zstd") {
+			return "zstd"
+		}
+		return ""
 	default: // br_first
 		if strings.Contains(ae, "br") {
 			return "br"
 		}
 		if acceptEncodingSupportsGzip(ae) {
 			return "gzip"
+		}
+		if strings.Contains(ae, "zstd") {
+			return "zstd"
 		}
 		return ""
 	}

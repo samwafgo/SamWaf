@@ -47,7 +47,7 @@ type Hosts struct {
 	LogOnlyMode               int    `json:"log_only_mode"`                //仅记录模式 1开启 0关闭
 	CustomHeadersJSON         string `json:"custom_headers_json"`          //自定义头信息配置 json
 	CustomResponseHeadersJSON string `json:"custom_response_headers_json"` //自定义响应头信息配置 json
-	ResponseCompressJSON      string `json:"response_compress_json"`       //响应压缩配置 json（Gzip/Brotli）
+	ResponseCompressJSON      string `json:"response_compress_json"`       //响应压缩配置 json（Gzip/Brotli/Zstd）
 	IPMode                    string `json:"ip_mode"`                      //IP提取模式: "nic" 网卡模式 或 "proxy" 代理模式
 }
 
@@ -172,10 +172,10 @@ type StaticSiteConfig struct {
 	SecurityHeaders []StaticSecurityHeader `json:"security_headers"`
 }
 
-// ResponseCompressConfig 反代响应压缩（类似 nginx gzip / brotli）
+// ResponseCompressConfig 反代响应压缩（类似 nginx gzip / brotli / zstd）
 type ResponseCompressConfig struct {
 	IsEnable                 int    `json:"is_enable"`                   // 1 开启 0 关闭
-	Prefer                   string `json:"prefer"`                      // br_first | gzip_only | br_only
+	Prefer                   string `json:"prefer"`                      // br_first | gzip_only | br_only | zstd_only
 	MinLength                int    `json:"min_length"`                  // 最小压缩字节数，0 表示用默认
 	IncludeTypes             string `json:"include_types"`               // 分号分隔 MIME 前缀或完整类型，空则用内置默认
 	IncludeExtensions        string `json:"include_extensions"`          // 分号分隔，如 .js;.css，与类型取并集

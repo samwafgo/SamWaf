@@ -530,23 +530,27 @@ func (m *wafSystenService) run() {
 								}
 								//如果本次是关闭，那么应该关闭主机
 								if hosts[0].START_STATUS == 1 {
-									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hosts[0])
+									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hostsOld)
 								}
 								//如果本次ssl和上次ssl不同
 								if hosts[0].Ssl != hostsOld.Ssl || hosts[0].Keyfile != hostsOld.Keyfile || hosts[0].Certfile != hostsOld.Certfile {
-									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hosts[0])
+									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hostsOld)
 								}
 								//绑定更多域名变更了
 								if hosts[0].BindMoreHost != hostsOld.BindMoreHost {
-									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hosts[0])
+									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hostsOld)
+								}
+								//绑定更多端口变更了（副端口增删），需先移除旧配置再重载
+								if hosts[0].BindMorePort != hostsOld.BindMorePort {
+									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hostsOld)
 								}
 								// 远程 IP 或端口变化，需重载
 								if hosts[0].Remote_ip != hostsOld.Remote_ip || hosts[0].Remote_port != hostsOld.Remote_port {
-									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hosts[0])
+									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hostsOld)
 								}
 								// 负载状态或策略变化，需重载
 								if hosts[0].IsEnableLoadBalance != hostsOld.IsEnableLoadBalance || hosts[0].LoadBalanceStage != hostsOld.LoadBalanceStage {
-									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hosts[0])
+									globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.RemoveHost(hostsOld)
 								}
 								globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.LoadHost(hosts[0])
 								globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartAllProxyServer()

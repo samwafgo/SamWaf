@@ -115,7 +115,7 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 			_, ok := waf.ServerOnline.Get(port)
 			if ok == false {
 				if inHost.START_STATUS == 0 {
-					if port == 443 {
+					if port == 443 || (inHost.Ssl == 1 && port != 80) {
 						waf.ServerOnline.Set(port, innerbean.ServerRunTime{
 							ServerType: "https",
 							Port:       port,
@@ -261,8 +261,7 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 		for _, port := range ports {
 			//目标关系情况
 			waf.HostTarget[inHost.Host+":"+strconv.Itoa(port)] = hostsafe
-			//赋值到对照表里面
-			waf.HostCode[inHost.Code] = inHost.Host + ":" + strconv.Itoa(port)
+			// 注意：HostCode[code] 始终指向主端口 key（已在上方赋值），不在此处覆盖
 		}
 	}
 
@@ -286,7 +285,16 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 	if inHost.BindMoreHost != "" {
 		lines := strings.Split(inHost.BindMoreHost, "\n")
 		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			// 主端口
 			waf.HostTargetMoreDomain[line+":"+strconv.Itoa(inHost.Port)] = inHost.Code
+			// 副端口（BindMorePort）也需要注册，否则副域名+副端口无法路由
+			for _, extraPort := range ports {
+				waf.HostTargetMoreDomain[line+":"+strconv.Itoa(extraPort)] = inHost.Code
+			}
 		}
 	}
 
@@ -341,8 +349,20 @@ func (waf *WafEngine) RemoveHost(host model.Hosts) {
 	// 移除当前信息
 	//a.移除对照关系
 	delete(waf.HostCode, host.Code)
-	//b.移除主机保护信息
+	//b.移除主机保护信息（主端口）
 	delete(waf.HostTarget, host.Host+":"+strconv.Itoa(host.Port))
+	//b2.移除 BindMorePort 副端口对应的 HostTarget 条目，避免残留 stale 指针
+	if host.BindMorePort != "" && host.GLOBAL_HOST == 0 {
+		for _, portStr := range strings.Split(host.BindMorePort, ",") {
+			if p, err := strconv.Atoi(strings.TrimSpace(portStr)); err == nil {
+				delete(waf.HostTarget, host.Host+":"+strconv.Itoa(p))
+			}
+		}
+	}
+	//b3.移除 AutoJumpHTTPS 添加的 80 端口条目
+	if host.AutoJumpHTTPS == 1 {
+		delete(waf.HostTarget, host.Host+":80")
+	}
 	//c.移除某个端口下的证书数据
 	waf.AllCertificate.RemoveSSL(host.Host)
 

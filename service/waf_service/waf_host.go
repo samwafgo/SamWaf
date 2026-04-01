@@ -11,6 +11,7 @@ import (
 	"SamWaf/utils"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -307,8 +308,26 @@ func (receiver *WafHostService) CheckPortExistApi(port int) int64 {
 
 func (receiver *WafHostService) CheckAvailablePortExistApi(port int) int64 {
 	var total int64 = 0
-	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where(" start_status = 0 and port=?", port).Count(&total)
-	return total
+	// 先检查主端口
+	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where("start_status = 0 and port=?", port).Count(&total)
+	if total > 0 {
+		return total
+	}
+	// 再检查 BindMorePort（逗号分隔的副端口列表）
+	// 取出所有启用且有副端口配置的主机，在 Go 层解析，避免 DB 字符串模糊匹配误判
+	var hosts []model.Hosts
+	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).
+		Where("start_status = 0 and bind_more_port != ''").
+		Select("bind_more_port").Find(&hosts)
+	portStr := strconv.Itoa(port)
+	for _, h := range hosts {
+		for _, p := range strings.Split(h.BindMorePort, ",") {
+			if strings.TrimSpace(p) == portStr {
+				return 1
+			}
+		}
+	}
+	return 0
 }
 
 func (receiver *WafHostService) IsEmptyHost() bool {

@@ -78,7 +78,7 @@ func (ac *AllCertificate) RemoveSSL(domain string) error {
 	domain = strings.ToLower(domain)
 	_, ok := ac.Map[domain]
 	if ok {
-		ac.Map[domain] = nil
+		delete(ac.Map, domain)
 	}
 	return nil
 }

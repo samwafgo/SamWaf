@@ -316,6 +316,52 @@ func getCertInfo(certPath string) CertInfo {
 	return info
 }
 
+// GetSecurityEntryApi 获取安全路径入口配置
+// @Summary      获取安全路径入口配置
+// @Description  获取当前安全路径入口的启用状态及访问码
+// @Tags         管理端配置
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /vipconfig/getSecurityEntry [get]
+func (w *WafVpConfigApi) GetSecurityEntryApi(c *gin.Context) {
+	resp := response2.WafVpConfigSecurityEntryGetResp{
+		EntryEnable: global.GWAF_SECURITY_ENTRY_ENABLE,
+		EntryPath:   global.GWAF_SECURITY_ENTRY_PATH,
+	}
+	response.OkWithDetailed(resp, "获取成功", c)
+}
+
+// UpdateSecurityEntryApi 更新安全路径入口配置
+// @Summary      更新安全路径入口配置
+// @Description  开启/关闭安全路径入口，路径为空时自动生成18位随机码，立即生效无需重启
+// @Tags         管理端配置
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafVpConfigSecurityEntryUpdateReq  true  "安全路径配置"
+// @Success      200   {object}  response.Response  "更新成功"
+// @Security     ApiKeyAuth
+// @Router       /vipconfig/updateSecurityEntry [post]
+func (w *WafVpConfigApi) UpdateSecurityEntryApi(c *gin.Context) {
+	var req request.WafVpConfigSecurityEntryUpdateReq
+	err := c.ShouldBindJSON(&req)
+	if err != nil {
+		response.FailWithMessage("解析请求失败", c)
+		return
+	}
+	err = wafconfig.UpdateSecurityEntry(req.EntryEnable, req.EntryPath)
+	if err != nil {
+		response.FailWithMessage("更新安全路径配置失败: "+err.Error(), c)
+		return
+	}
+	resp := response2.WafVpConfigSecurityEntryGetResp{
+		EntryEnable: global.GWAF_SECURITY_ENTRY_ENABLE,
+		EntryPath:   global.GWAF_SECURITY_ENTRY_PATH,
+	}
+	response.OkWithDetailed(resp, "更新安全路径配置成功", c)
+}
+
 // RestartManagerApi 重启管理端
 // @Summary      重启管理端
 // @Description  触发管理端1秒后重启，请等待5-10秒后重新访问

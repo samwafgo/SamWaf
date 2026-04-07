@@ -14,3 +14,9 @@ type WafVpConfigSslStatusGetResp struct {
 	CertContent  string `json:"cert_content"`   // 证书内容
 	KeyContent   string `json:"key_content"`    // 私钥内容
 }
+
+// WafVpConfigSecurityEntryGetResp 安全路径入口获取响应
+type WafVpConfigSecurityEntryGetResp struct {
+	EntryEnable bool   `json:"entry_enable"` // 是否启用安全路径
+	EntryPath   string `json:"entry_path"`   // 安全路径码
+}

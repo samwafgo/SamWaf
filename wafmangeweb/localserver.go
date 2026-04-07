@@ -34,6 +34,62 @@ type WafWebManager struct {
 	isShuttingDown        bool // 标记是否正在完全关闭（非重启）
 }
 
+// securityPathHandler 安全路径入口包装器
+// 动态读取全局变量，无需重启即可生效。
+//
+// 影响范围：此 handler 位于 http.Server 层，拦截所有进入管理端的请求，包括：
+//   - 管理界面浏览器访问（静态资源、SPA 路由）
+//   - WebSocket 连接（/api/v1/ws）
+//   - 开放平台 API Key 外部调用（/api/v1/oplatform/...）
+//   - 任何通过脚本/程序直接调用的 /api/v1/... 接口
+//
+// 启用后，所有调用方的 URL 均需改为：
+//
+//	http(s)://host:port/{安全码}/api/v1/...
+type securityPathHandler struct {
+	inner http.Handler // 内部 Gin Handler
+}
+
+func (h *securityPathHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// 动态检查：安全路径未启用时直接透传
+	if !global.GWAF_SECURITY_ENTRY_ENABLE || global.GWAF_SECURITY_ENTRY_PATH == "" {
+		h.inner.ServeHTTP(w, r)
+		return
+	}
+
+	prefix := "/" + global.GWAF_SECURITY_ENTRY_PATH
+	path := r.URL.Path
+
+	// 精确匹配前缀（无尾斜杠），重定向到带斜杠版本
+	if path == prefix {
+		http.Redirect(w, r, prefix+"/", http.StatusMovedPermanently)
+		return
+	}
+
+	// 检查路径是否以 prefix/ 开头
+	if len(path) > len(prefix) && path[:len(prefix)+1] == prefix+"/" {
+		// 剥离安全路径前缀，让内部 Handler 看到原始路径
+		r2 := r.Clone(r.Context())
+		r2.URL.Path = path[len(prefix):]
+		if r2.URL.Path == "" {
+			r2.URL.Path = "/"
+		}
+		// 同步更新 RequestURI
+		if r.URL.RawQuery != "" {
+			r2.RequestURI = r2.URL.Path + "?" + r.URL.RawQuery
+		} else {
+			r2.RequestURI = r2.URL.Path
+		}
+		h.inner.ServeHTTP(w, r2)
+		return
+	}
+
+	// 路径不匹配，返回 403
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusForbidden)
+	_, _ = w.Write([]byte("403 Forbidden"))
+}
+
 func (web *WafWebManager) initRouter(r *gin.Engine) {
 
 	PublicRouterGroup := r.Group("")
@@ -176,9 +232,16 @@ func (web *WafWebManager) StartLocalServer() error {
 	web.initRouter(r)
 
 	web.R = r
+
+	// 始终使用 securityPathHandler 包装，内部动态检查全局开关，无需重启即可生效
+	handler := &securityPathHandler{inner: r}
+	if global.GWAF_SECURITY_ENTRY_ENABLE && global.GWAF_SECURITY_ENTRY_PATH != "" {
+		zlog.Info(web.LogName, "安全路径入口已启用，访问码: "+global.GWAF_SECURITY_ENTRY_PATH)
+	}
+
 	web.HttpServer = &http.Server{
 		Addr:    ":" + strconv.Itoa(global.GWAF_LOCAL_SERVER_PORT),
-		Handler: r,
+		Handler: handler,
 	}
 	err := waf_service.WafTokenInfoServiceApp.ReloadAllValidTokensToCache()
 	if err != nil {

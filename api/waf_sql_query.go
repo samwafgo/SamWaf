@@ -24,3 +24,17 @@ func (w *WafSqlQueryApi) ExecuteQueryApi(c *gin.Context) {
 		response.FailWithMessage("解析失败: "+err.Error(), c)
 	}
 }
+
+func (w *WafSqlQueryApi) GetTableInfoApi(c *gin.Context) {
+	var req request.WafDbTableInfoReq
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.FailWithMessage("参数解析失败: "+err.Error(), c)
+		return
+	}
+	result, err := wafSqlQueryService.GetTableInfo(req)
+	if err != nil {
+		response.FailWithMessage("获取表信息失败: "+err.Error(), c)
+	} else {
+		response.OkWithDetailed(result, "获取成功", c)
+	}
+}

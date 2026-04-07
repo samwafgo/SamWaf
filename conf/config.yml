@@ -4,6 +4,8 @@ local_port: 26666
 notice:
     isenable: false
 security:
+    entry_enable: false
+    entry_path: mysafeurl
     ip_whitelist: 0.0.0.0/0,::/0
     ssl_enable: true
 soft_id: SamWafCom

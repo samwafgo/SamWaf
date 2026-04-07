@@ -84,6 +84,7 @@ func initIndex() {
 	if err != nil {
 		zlog.Error("failed to read dist/index.html")
 	}
+	// 存储原始 HTML，安全路径注入由 NoRoute handler 在每次请求时动态完成
 	global.GWAF_LOCAL_INDEX_HTML = string(index)
 }
 func Static(r *gin.Engine, noRoute func(handlers ...gin.HandlerFunc)) {
@@ -143,7 +144,16 @@ func Static(r *gin.Engine, noRoute func(handlers ...gin.HandlerFunc)) {
 	noRoute(func(c *gin.Context) {
 		c.Header("Content-Type", "text/html")
 		c.Status(200)
-		_, _ = c.Writer.WriteString(global.GWAF_LOCAL_INDEX_HTML)
+		html := global.GWAF_LOCAL_INDEX_HTML
+		// 动态注入安全路径 JS 变量和静态资源路径前缀（每次请求时检查全局开关）
+		if global.GWAF_SECURITY_ENTRY_ENABLE && global.GWAF_SECURITY_ENTRY_PATH != "" {
+			secPath := "/" + global.GWAF_SECURITY_ENTRY_PATH
+			html = strings.ReplaceAll(html, ` src="/assets/`, ` src="`+secPath+`/assets/`)
+			html = strings.ReplaceAll(html, ` href="/assets/`, ` href="`+secPath+`/assets/`)
+			injectScript := `<script>window.__SAMWAF_SECURITY_PATH__='` + secPath + `';</script>`
+			html = strings.ReplaceAll(html, `</head>`, injectScript+`</head>`)
+		}
+		_, _ = c.Writer.WriteString(html)
 		c.Writer.Flush()
 		c.Writer.WriteHeaderNow()
 	})

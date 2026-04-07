@@ -453,7 +453,13 @@ func (m *wafSystenService) run() {
 		zlog.Info("regInfo", err)
 	}
 
-	zlog.Info("SamWaf has started successfully.You can open http://127.0.0.1:" + strconv.Itoa(global.GWAF_LOCAL_SERVER_PORT) + " in your Browser")
+	if global.GWAF_SECURITY_ENTRY_ENABLE && global.GWAF_SECURITY_ENTRY_PATH != "" {
+		zlog.Info("SamWaf has started successfully.")
+		zlog.Info("Security Entry Path Enabled! Your access code is: " + global.GWAF_SECURITY_ENTRY_PATH)
+		zlog.Info("Access URL: http://127.0.0.1:" + strconv.Itoa(global.GWAF_LOCAL_SERVER_PORT) + "/" + global.GWAF_SECURITY_ENTRY_PATH + "/")
+	} else {
+		zlog.Info("SamWaf has started successfully.You can open http://127.0.0.1:" + strconv.Itoa(global.GWAF_LOCAL_SERVER_PORT) + " in your Browser")
+	}
 	for {
 		select {
 		case msg := <-global.GWAF_CHAN_MSG:

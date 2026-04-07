@@ -4,12 +4,30 @@ import (
 	"SamWaf/common/uuid"
 	"SamWaf/global"
 	"SamWaf/utils"
+	"crypto/rand"
 	"fmt"
 	"github.com/denisbrodbeck/machineid"
 	"github.com/spf13/viper"
+	"math/big"
 	"os"
 	"time"
 )
+
+// generateSecurityEntryPath 生成18位随机安全路径码（大小写字母+数字）
+func generateSecurityEntryPath() string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	const length = 18
+	result := make([]byte, length)
+	for i := range result {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		if err != nil {
+			result[i] = charset[i%len(charset)]
+		} else {
+			result[i] = charset[n.Int64()]
+		}
+	}
+	return string(result)
+}
 
 // 加载配置并初始化
 func LoadAndInitConfig() {
@@ -133,6 +151,31 @@ func LoadAndInitConfig() {
 		config.Set("security.ssl_enable", global.GWAF_SSL_ENABLE)
 		configChanged = true
 	}
+
+	//配置和提取安全路径入口开关
+	if config.IsSet("security.entry_enable") {
+		global.GWAF_SECURITY_ENTRY_ENABLE = config.GetBool("security.entry_enable")
+	} else {
+		config.Set("security.entry_enable", global.GWAF_SECURITY_ENTRY_ENABLE)
+		configChanged = true
+	}
+
+	//配置和提取安全路径
+	if config.IsSet("security.entry_path") {
+		global.GWAF_SECURITY_ENTRY_PATH = config.GetString("security.entry_path")
+	} else {
+		config.Set("security.entry_path", global.GWAF_SECURITY_ENTRY_PATH)
+		configChanged = true
+	}
+
+	//如果启用了安全路径但路径为空，自动生成18位随机码
+	if global.GWAF_SECURITY_ENTRY_ENABLE && global.GWAF_SECURITY_ENTRY_PATH == "" {
+		global.GWAF_SECURITY_ENTRY_PATH = generateSecurityEntryPath()
+		config.Set("security.entry_path", global.GWAF_SECURITY_ENTRY_PATH)
+		configChanged = true
+		fmt.Printf("%s\tINFO\t安全路径入口已启用，自动生成访问码: %s\n", currentTime, global.GWAF_SECURITY_ENTRY_PATH)
+	}
+
 	// 只有在配置发生变化时才写入文件
 	if configChanged {
 		err := config.WriteConfig()
@@ -248,5 +291,61 @@ func UpdateSslEnable(sslEnable bool) error {
 
 	fmt.Printf("%s\tINFO\tSSL enable config updated\n", currentTime)
 
+	return nil
+}
+
+// UpdateSecurityEntry 更新安全路径入口配置
+// entryEnable: 是否启用安全路径
+// entryPath: 安全路径码，传空字符串时若 entryEnable=true 则自动生成18位随机码
+func UpdateSecurityEntry(entryEnable bool, entryPath string) error {
+	currentTime := time.Now().Format("2006-01-02 15:04:05.000")
+
+	configDir := utils.GetCurrentDir() + "/conf/"
+	if _, err := os.Stat(configDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(configDir, os.ModePerm); err != nil {
+			fmt.Printf("%s\tERROR\t创建config目录失败:%v\n", currentTime, err)
+			return err
+		}
+	}
+
+	config := viper.New()
+	config.AddConfigPath(configDir)
+	config.SetConfigName("config")
+	config.SetConfigType("yml")
+
+	if err := config.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			fmt.Printf("%s\tWARN\t找不到配置文件..\n", currentTime)
+			config.Set("local_port", global.GWAF_LOCAL_SERVER_PORT)
+			err = config.SafeWriteConfig()
+			if err != nil {
+				return err
+			}
+		} else {
+			fmt.Printf("%s\tERROR\t配置文件出错..\n", currentTime)
+			return err
+		}
+	}
+
+	// 如果启用且路径为空，自动生成18位随机码
+	if entryEnable && entryPath == "" {
+		entryPath = generateSecurityEntryPath()
+		fmt.Printf("%s\tINFO\t安全路径已启用，自动生成访问码: %s\n", currentTime, entryPath)
+	}
+
+	config.Set("security.entry_enable", entryEnable)
+	config.Set("security.entry_path", entryPath)
+
+	// 更新全局变量（立即生效，无需重启）
+	global.GWAF_SECURITY_ENTRY_ENABLE = entryEnable
+	global.GWAF_SECURITY_ENTRY_PATH = entryPath
+
+	err := config.WriteConfig()
+	if err != nil {
+		fmt.Printf("%s\tERROR\twrite config failed:%v\n", currentTime, err)
+		return err
+	}
+
+	fmt.Printf("%s\tINFO\tsecurity entry config updated: enable=%v path=%s\n", currentTime, entryEnable, entryPath)
 	return nil
 }

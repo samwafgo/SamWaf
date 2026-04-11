@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-gormigrate/gormigrate/v2"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 // RunStatsDBMigrations 执行统计数据库迁移（完全兼容老用户）
@@ -118,6 +119,49 @@ func RunStatsDBMigrations(db *gorm.DB) error {
 				_ = tx.Exec("DROP INDEX IF EXISTS idx_stats_site_days_lookup").Error
 				_ = tx.Exec("DROP INDEX IF EXISTS idx_stats_site_hours_lookup").Error
 				return tx.Migrator().DropTable(&model.StatsSiteDay{}, &model.StatsSiteHour{})
+			},
+		},
+		// 迁移4: 创建清理专用单列索引（性能关键，避免大表全表扫描）
+		{
+			ID: "202604100001_create_cleanup_indexes",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202604100001: 创建stats清理专用单列索引（大表建索引耗时属正常，请耐心等待）")
+
+				// DDL 建索引需要全表扫描，耗时与表数据量成正比，这里使用静默 logger
+				// 避免 GORM 慢查询阈值把正常的 DDL 误报为 SLOW SQL
+				ddlDB := tx.Session(&gorm.Session{
+					Logger: NewGormZLogger().LogMode(logger.Silent),
+				})
+
+				indexes := []struct {
+					name string
+					sql  string
+				}{
+					{"idx_stats_ip_days_day", "CREATE INDEX IF NOT EXISTS idx_stats_ip_days_day ON stats_ip_days(day)"},
+					{"idx_stats_ip_city_days_day", "CREATE INDEX IF NOT EXISTS idx_stats_ip_city_days_day ON stats_ip_city_days(day)"},
+					{"idx_ip_tags_create_time", "CREATE INDEX IF NOT EXISTS idx_ip_tags_create_time ON ip_tags(create_time)"},
+					{"idx_ip_tags_update_time", "CREATE INDEX IF NOT EXISTS idx_ip_tags_update_time ON ip_tags(update_time)"},
+				}
+
+				for _, idx := range indexes {
+					zlog.Info("创建索引中...", "index", idx.name)
+					start := time.Now()
+					if err := ddlDB.Exec(idx.sql).Error; err != nil {
+						return fmt.Errorf("创建清理索引 %s 失败: %w", idx.name, err)
+					}
+					zlog.Info("索引创建完成", "index", idx.name, "耗时", time.Since(start).String())
+				}
+
+				zlog.Info("迁移 202604100001: 清理专用索引创建完成")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202604100001: 删除清理专用索引")
+				_ = tx.Exec("DROP INDEX IF EXISTS idx_stats_ip_days_day").Error
+				_ = tx.Exec("DROP INDEX IF EXISTS idx_stats_ip_city_days_day").Error
+				_ = tx.Exec("DROP INDEX IF EXISTS idx_ip_tags_create_time").Error
+				_ = tx.Exec("DROP INDEX IF EXISTS idx_ip_tags_update_time").Error
+				return nil
 			},
 		},
 	})

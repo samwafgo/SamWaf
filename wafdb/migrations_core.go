@@ -754,6 +754,97 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移: 创建数据保留策略表并初始化默认策略
+		{
+			ID: "202604100002_add_data_retention_policies",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202604100002: 创建 data_retention_policies 表")
+				if err := tx.AutoMigrate(&model.DataRetentionPolicy{}); err != nil {
+					return fmt.Errorf("创建 data_retention_policies 表失败: %w", err)
+				}
+
+				// 初始化默认策略（幂等：按 table_name 检查）
+				defaultPolicies := []model.DataRetentionPolicy{
+					{
+						BaseOrm: baseorm.BaseOrm{
+							Id:          uuid.GenUUID(),
+							USER_CODE:   global.GWAF_USER_CODE,
+							Tenant_ID:   global.GWAF_TENANT_ID,
+							CREATE_TIME: customtype.JsonTime(time.Now()),
+							UPDATE_TIME: customtype.JsonTime(time.Now()),
+						},
+						TableName:     "stats_ip_days",
+						DbType:        "stats",
+						RetainDays:    90,
+						RetainRows:    100000,
+						DayField:      "day",
+						DayFieldType:  "int_day",
+						RowOrderField: "day",
+						RowOrderDir:   "DESC",
+						CleanEnabled:  1,
+						Remarks:       "IP日统计-按day字段判断天数,保留day值最大(最新)的行",
+					},
+					{
+						BaseOrm: baseorm.BaseOrm{
+							Id:          uuid.GenUUID(),
+							USER_CODE:   global.GWAF_USER_CODE,
+							Tenant_ID:   global.GWAF_TENANT_ID,
+							CREATE_TIME: customtype.JsonTime(time.Now()),
+							UPDATE_TIME: customtype.JsonTime(time.Now()),
+						},
+						TableName:     "stats_ip_city_days",
+						DbType:        "stats",
+						RetainDays:    90,
+						RetainRows:    100000,
+						DayField:      "day",
+						DayFieldType:  "int_day",
+						RowOrderField: "day",
+						RowOrderDir:   "DESC",
+						CleanEnabled:  1,
+						Remarks:       "IP城市日统计-按day字段判断天数,保留day值最大(最新)的行",
+					},
+					{
+						BaseOrm: baseorm.BaseOrm{
+							Id:          uuid.GenUUID(),
+							USER_CODE:   global.GWAF_USER_CODE,
+							Tenant_ID:   global.GWAF_TENANT_ID,
+							CREATE_TIME: customtype.JsonTime(time.Now()),
+							UPDATE_TIME: customtype.JsonTime(time.Now()),
+						},
+						TableName:     "ip_tags",
+						DbType:        "stats",
+						RetainDays:    90,
+						RetainRows:    50000,
+						DayField:      "create_time",
+						DayFieldType:  "datetime",
+						RowOrderField: "update_time",
+						RowOrderDir:   "DESC",
+						CleanEnabled:  1,
+						Remarks:       "IP标签-按create_time判断天数,按update_time排序保留最近活跃的行",
+					},
+				}
+
+				for _, policy := range defaultPolicies {
+					var count int64
+					tx.Model(&model.DataRetentionPolicy{}).Where("table_name = ?", policy.TableName).Count(&count)
+					if count == 0 {
+						if err := tx.Create(&policy).Error; err != nil {
+							return fmt.Errorf("初始化策略 %s 失败: %w", policy.TableName, err)
+						}
+						zlog.Info("默认保留策略已创建", "table", policy.TableName)
+					} else {
+						zlog.Debug("默认保留策略已存在，跳过", "table", policy.TableName)
+					}
+				}
+
+				zlog.Info("迁移 202604100002: data_retention_policies 初始化完成")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202604100002: 删除 data_retention_policies 表")
+				return tx.Migrator().DropTable(&model.DataRetentionPolicy{})
+			},
+		},
 	})
 
 	// 执行迁移

@@ -147,6 +147,7 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitFirewallIPBlockRouter(RouterGroup)
 		router.ApiGroupApp.InitLogFileWriteRouter(RouterGroup)
 		router.ApiGroupApp.InitIPLocationRouter(RouterGroup)
+		router.ApiGroupApp.InitWafDataRetentionRouter(RouterGroup)
 	}
 
 	// 仅允许后台 Token 登录访问，拒绝 API Key 访问（安全敏感接口）

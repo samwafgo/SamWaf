@@ -397,6 +397,7 @@ func (m *wafSystenService) run() {
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_STATS_PUSH, waftask.TaskStatsPush)
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_DB_MONITOR, waftask.TaskDatabaseMonitor)
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_FIREWALL_CLEAN_EXPIRED, waftask.TaskFirewallCleanExpired)
+	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_STATS_DATA_CLEANUP, waftask.TaskStatsDataCleanup)
 
 	go waftask.TaskShareDbInfo()
 

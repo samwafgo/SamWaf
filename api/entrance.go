@@ -57,6 +57,7 @@ type APIGroup struct {
 	WafOPlatformKeyApi
 	WafOPlatformLogApi
 	WafOPlatformDocApi
+	WafDataRetentionApi
 }
 
 var APIGroupAPP = new(APIGroup)
@@ -124,4 +125,6 @@ var (
 
 	wafOPlatformKeyService = waf_service.WafOPlatformKeyServiceApp
 	wafOPlatformLogService = waf_service.WafOPlatformLogServiceApp
+
+	wafDataRetentionService = waf_service.WafDataRetentionServiceApp
 )

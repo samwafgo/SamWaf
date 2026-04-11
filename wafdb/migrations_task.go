@@ -364,7 +364,6 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 			},
 			Rollback: func(tx *gorm.DB) error {
 				zlog.Info("回滚 202601050002: 删除系统任务（保护用户自定义任务）")
-				// 只删除系统预定义的任务，根据 task_method 来识别
 				systemTaskMethods := []string{
 					enums.TASK_RUNTIME_QPS_CLEAN,
 					enums.TASK_HOST_QPS_CLEAN,
@@ -388,8 +387,45 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 					enums.TASK_NOTICE,
 					enums.TASK_CLEAR_WEBCACHE,
 				}
-
 				return tx.Where("task_method IN ?", systemTaskMethods).Delete(&model.Task{}).Error
+			},
+		},
+		// 迁移2: 新增统计数据清理任务（独立迁移，兼容老用户）
+		{
+			ID: "202604100003_add_stats_cleanup_task",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202604100003: 新增统计数据清理任务")
+
+				var count int64
+				tx.Model(&model.Task{}).Where("task_method = ?", enums.TASK_STATS_DATA_CLEANUP).Count(&count)
+				if count > 0 {
+					zlog.Info("统计清理任务已存在，跳过", "task_method", enums.TASK_STATS_DATA_CLEANUP)
+					return nil
+				}
+
+				task := model.Task{
+					BaseOrm: baseorm.BaseOrm{
+						Id:          uuid.GenUUID(),
+						USER_CODE:   global.GWAF_USER_CODE,
+						Tenant_ID:   global.GWAF_TENANT_ID,
+						CREATE_TIME: customtype.JsonTime(time.Now()),
+						UPDATE_TIME: customtype.JsonTime(time.Now()),
+					},
+					TaskName:   "每天凌晨04:30清理统计数据（按保留策略）",
+					TaskUnit:   enums.TASK_DAY,
+					TaskValue:  1,
+					TaskAt:     "04:30",
+					TaskMethod: enums.TASK_STATS_DATA_CLEANUP,
+				}
+				if err := tx.Create(&task).Error; err != nil {
+					return fmt.Errorf("创建统计清理任务失败: %w", err)
+				}
+				zlog.Info("统计数据清理任务创建成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202604100003: 删除统计数据清理任务")
+				return tx.Where("task_method = ?", enums.TASK_STATS_DATA_CLEANUP).Delete(&model.Task{}).Error
 			},
 		},
 	})

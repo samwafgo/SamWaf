@@ -22,4 +22,5 @@ const (
 	TASK_STATS_PUSH                   = "task_stats_push"                   //系统统计数据推送
 	TASK_DB_MONITOR                   = "task_db_monitor"                   //数据库监控
 	TASK_FIREWALL_CLEAN_EXPIRED       = "task_firewall_clean_expired"       //清理过期防火墙IP封禁规则
+	TASK_STATS_DATA_CLEANUP           = "task_stats_data_cleanup"           //清理统计数据（按保留策略）
 )

@@ -68,15 +68,30 @@ func (fw *FireWallEngine) executeCommand(cmd *exec.Cmd) (error error, printstr s
 		fmt.Println(err)
 		return err, err.Error()
 	}
-	cmd.Start()
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		fmt.Println(err)
+		return err, err.Error()
+	}
+	if err := cmd.Start(); err != nil {
+		fmt.Println(err)
+		return err, err.Error()
+	}
 	in := bufio.NewScanner(stdout)
 	printstr = ""
 	for in.Scan() {
 		cmdRe := ConvertByte2String(in.Bytes(), "GB18030")
-		//fmt.Println(cmdRe)
 		printstr += cmdRe
 	}
-	cmd.Wait()
+	errScanner := bufio.NewScanner(stderr)
+	for errScanner.Scan() {
+		cmdRe := ConvertByte2String(errScanner.Bytes(), "GB18030")
+		printstr += cmdRe
+	}
+	waitErr := cmd.Wait()
+	if waitErr != nil {
+		return waitErr, printstr
+	}
 	return nil, printstr
 }
 
@@ -106,11 +121,20 @@ func (fw *FireWallEngine) AddRule(ruleName, ipToAdd, action, proc, localport str
 	err, output := fw.executeCommand(cmd)
 	if err != nil {
 		fmt.Printf("[ERROR] 添加规则失败: %v, 输出: %s\n", err, output)
-		return err
+		return fmt.Errorf("%s", output)
+	}
+
+	if strings.Contains(output, "请求的操作需要提升") || strings.Contains(output, "requires elevation") {
+		fmt.Printf("[ERROR] 添加规则失败，需要管理员权限: %s\n", output)
+		return fmt.Errorf("需要管理员权限，请以管理员身份运行: %s", output)
+	}
+	if !strings.Contains(output, "确定") && !strings.Contains(output, "Ok") {
+		fmt.Printf("[ERROR] 添加规则可能失败, 输出: %s\n", output)
+		return fmt.Errorf("添加规则失败: %s", output)
 	}
 
 	fmt.Printf("[DEBUG] 添加规则成功, 输出: %s\n", output)
-	return err
+	return nil
 }
 
 func (fw *FireWallEngine) EditRule(ruleNum int, newRule string) error {

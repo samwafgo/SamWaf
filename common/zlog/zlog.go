@@ -19,6 +19,9 @@ import (
 // zlog.Warn("hello", zap.String("name", "Kevin"), zap.Any("arbitraryObj", dummyObject))
 var logger *zap.Logger
 
+// baseCores 保存 InitZLog 创建的基础 cores，供 AddCore 重建时使用
+var baseCores []zapcore.Core
+
 // InitZLog 初始化zlog
 func InitZLog(debugEnable bool, outputFormat string) {
 	encoderConfig := zap.NewProductionEncoderConfig()
@@ -35,22 +38,32 @@ func InitZLog(debugEnable bool, outputFormat string) {
 	fileWriteSyncer := getFileLogWriter()
 
 	if debugEnable == true {
-		core := zapcore.NewTee(
-			// 调试默认
+		baseCores = []zapcore.Core{
 			zapcore.NewCore(encoder, zapcore.AddSync(os.Stdout), zapcore.DebugLevel),
 			zapcore.NewCore(encoder, fileWriteSyncer, zapcore.DebugLevel),
-		)
-		logger = zap.New(core)
+		}
 	} else {
-		core := zapcore.NewTee(
+		baseCores = []zapcore.Core{
 			zapcore.NewCore(encoder, zapcore.AddSync(os.Stdout), zapcore.InfoLevel),
 			zapcore.NewCore(encoder, fileWriteSyncer, zapcore.InfoLevel),
 			zapcore.NewCore(encoder, fileWriteSyncer, zapcore.ErrorLevel),
 			zapcore.NewCore(encoder, fileWriteSyncer, zapcore.FatalLevel),
-		)
-		logger = zap.New(core)
+		}
 	}
 
+	logger = zap.New(zapcore.NewTee(baseCores...))
+}
+
+// AddCore 在现有 logger 上追加一个额外的 zapcore.Core（通常在 zlog 初始化之后调用）
+// 追加后原有的所有 baseCores 依然保留，新 core 并联写入
+func AddCore(extra zapcore.Core) {
+	if logger == nil || extra == nil {
+		return
+	}
+	all := make([]zapcore.Core, 0, len(baseCores)+1)
+	all = append(all, baseCores...)
+	all = append(all, extra)
+	logger = zap.New(zapcore.NewTee(all...))
 }
 
 func getFileLogWriter() (writeSyncer zapcore.WriteSyncer) {

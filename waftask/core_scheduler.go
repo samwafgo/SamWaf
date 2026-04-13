@@ -1,14 +1,16 @@
 package waftask
 
 import (
+	"SamWaf/common/tasklog"
 	"SamWaf/common/zlog"
 	"SamWaf/enums"
 	"fmt"
-	"github.com/go-co-op/gocron"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/go-co-op/gocron"
 )
 
 // TaskScheduler 用于封装任务调度器
@@ -81,8 +83,30 @@ func (ts *TaskScheduler) ScheduleTask(unit string, interval int, at string, task
 	ts.taskTags[taskMethod] = jobTag
 	ts.mu.Unlock()
 
+	// 按任务执行频率设置日志策略（速率限制 + 保留天数）
+	applyTaskLogPolicy(taskMethod, unit, interval)
+
 	zlog.Debug(fmt.Sprintf("Task scheduled: %v every %d %s\n", job, interval, unit))
 	return nil
+}
+
+// applyTaskLogPolicy 根据任务执行频率，为其设置日志速率限制和保留策略：
+//   - 秒级任务：INFO/DEBUG 每 60s 最多一次；日志仅保留 1 天
+//   - 分钟级（间隔 ≤ 2 分钟）：INFO/DEBUG 每 30s 最多一次；保留天数使用全局默认
+//   - 其他任务：不限制，保留天数使用全局默认
+func applyTaskLogPolicy(taskMethod string, unit string, interval int) {
+	if tasklog.GlobalTaskLogManager == nil {
+		return
+	}
+	switch unit {
+	case enums.TASK_SECOND:
+		tasklog.GlobalTaskLogManager.SetTaskLogPolicy(taskMethod, 60*time.Second)
+		tasklog.GlobalTaskLogManager.SetTaskRetainDays(taskMethod, 1)
+	case enums.TASK_MIN:
+		if interval <= 2 {
+			tasklog.GlobalTaskLogManager.SetTaskLogPolicy(taskMethod, 30*time.Second)
+		}
+	}
 }
 func (ts *TaskScheduler) Start() {
 	ts.Scheduler.StartAsync()

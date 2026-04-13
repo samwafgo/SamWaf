@@ -781,7 +781,7 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 						DayFieldType:  "int_day",
 						RowOrderField: "day",
 						RowOrderDir:   "DESC",
-						CleanEnabled:  1,
+						CleanEnabled:  0,
 						Remarks:       "IP日统计-按day字段判断天数,保留day值最大(最新)的行",
 					},
 					{
@@ -800,7 +800,7 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 						DayFieldType:  "int_day",
 						RowOrderField: "day",
 						RowOrderDir:   "DESC",
-						CleanEnabled:  1,
+						CleanEnabled:  0,
 						Remarks:       "IP城市日统计-按day字段判断天数,保留day值最大(最新)的行",
 					},
 					{
@@ -819,7 +819,7 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 						DayFieldType:  "datetime",
 						RowOrderField: "update_time",
 						RowOrderDir:   "DESC",
-						CleanEnabled:  1,
+						CleanEnabled:  0,
 						Remarks:       "IP标签-按create_time判断天数,按update_time排序保留最近活跃的行",
 					},
 				}

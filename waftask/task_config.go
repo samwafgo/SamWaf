@@ -1,6 +1,7 @@
 package waftask
 
 import (
+	"SamWaf/common/tasklog"
 	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/iplocation"
@@ -173,6 +174,12 @@ func setConfigIntValue(name string, value int64, change int) {
 		syncLogFileWriterConfig()
 	case "open_platform_enabled":
 		global.GCONFIG_OPEN_PLATFORM_ENABLED = value
+	case "task_log_retain_days":
+		global.GCONFIG_TASK_LOG_RETAIN_DAYS = value
+		// 动态更新任务日志管理器的保留天数
+		if tasklog.GlobalTaskLogManager != nil {
+			tasklog.GlobalTaskLogManager.UpdateRetainDays(int(value))
+		}
 	default:
 		zlog.Warn("Unknown config item:", name)
 	}
@@ -437,4 +444,7 @@ func TaskLoadSetting(initLoad bool) {
 
 	// 开放平台配置
 	updateConfigIntItem(initLoad, "openplatform", "open_platform_enabled", global.GCONFIG_OPEN_PLATFORM_ENABLED, "开放平台开关（1启用 0禁用）", "options", "0|禁用,1|启用", configMap)
+
+	// 任务日志配置
+	updateConfigIntItem(initLoad, "task", "task_log_retain_days", global.GCONFIG_TASK_LOG_RETAIN_DAYS, "任务日志保留天数（默认30天）", "int", "", configMap)
 }

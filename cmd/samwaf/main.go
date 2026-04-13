@@ -3,6 +3,7 @@ package main
 import (
 	"SamWaf/cache"
 	"SamWaf/common/gwebsocket"
+	"SamWaf/common/tasklog"
 	"SamWaf/common/zlog"
 	"SamWaf/enums"
 	"SamWaf/global"
@@ -51,6 +52,7 @@ import (
 	dlp "github.com/bytedance/godlp"
 	"github.com/kardianos/service"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"gorm.io/gorm"
 )
 
@@ -323,6 +325,11 @@ func (m *wafSystenService) run() {
 
 	//初始化一次系统参数信息
 	waftask.TaskLoadSetting(true)
+	// 初始化任务日志管理器（需在 TaskLoadSetting 后执行，以获取正确的 retainDays 配置）
+	taskLogDir := filepath.Join(utils.GetCurrentDir(), "logs", "task")
+	tasklog.InitGlobalTaskLogManager(taskLogDir, int(global.GCONFIG_TASK_LOG_RETAIN_DAYS))
+	// 将 TaskZapCore 挂到全局 zlog，使任务执行期间的 zlog 输出同步写入任务日志文件
+	zlog.AddCore(tasklog.NewTaskZapCore(zapcore.DebugLevel))
 	//启动通知相关程序
 	global.GNOTIFY_KAKFA_SERVICE = wafnotify.InitNotifyKafkaEngine(global.GCONFIG_RECORD_KAFKA_ENABLE, global.GCONFIG_RECORD_KAFKA_URL, global.GCONFIG_RECORD_KAFKA_TOPIC) //kafka
 	// 日志文件写入

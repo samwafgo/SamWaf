@@ -17,4 +17,6 @@ func (receiver *WafTaskRouter) InitWafTaskRouter(group *gin.RouterGroup) {
 	router.POST("/api/v1/wafhost/task/edit", api.ModifyApi)
 	router.GET("/api/v1/wafhost/task/del", api.DelApi)
 	router.GET("/api/v1/wafhost/task/manual_exec", api.ManualExecuteApi)
+	router.GET("/api/v1/wafhost/task/log", api.GetTaskLogApi)
+	router.GET("/api/v1/wafhost/task/log/clear", api.ClearTaskLogApi)
 }

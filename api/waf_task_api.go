@@ -1,10 +1,12 @@
 package api
 
 import (
+	"SamWaf/common/tasklog"
 	"SamWaf/global"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	"errors"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -176,4 +178,83 @@ func (w *WafTaskApi) ManualExecuteApi(c *gin.Context) {
 	} else {
 		response.FailWithMessage("解析失败", c)
 	}
+}
+
+// GetTaskLogApi 获取任务日志
+// @Summary      获取定时任务日志
+// @Description  读取指定任务方法的日志内容，支持增量加载（通过 offset 参数）
+// @Tags         定时任务管理
+// @Accept       json
+// @Produce      json
+// @Param        task_method  query     string  true   "任务方法名"
+// @Param        lines        query     int     false  "最大行数（offset=0时生效，默认200，最大1000）"
+// @Param        offset       query     int64   false  "文件偏移量（0=从头读取，>0=增量读取）"
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/task/log [get]
+func (w *WafTaskApi) GetTaskLogApi(c *gin.Context) {
+	taskMethod := c.Query("task_method")
+	if taskMethod == "" {
+		response.FailWithMessage("task_method 不能为空", c)
+		return
+	}
+
+	linesStr := c.DefaultQuery("lines", "200")
+	lines, err := strconv.Atoi(linesStr)
+	if err != nil || lines <= 0 {
+		lines = 200
+	}
+	if lines > 1000 {
+		lines = 1000
+	}
+
+	offsetStr := c.DefaultQuery("offset", "0")
+	offset, err := strconv.ParseInt(offsetStr, 10, 64)
+	if err != nil || offset < 0 {
+		offset = 0
+	}
+
+	if tasklog.GlobalTaskLogManager == nil {
+		response.FailWithMessage("任务日志管理器未初始化", c)
+		return
+	}
+
+	result, err := tasklog.GlobalTaskLogManager.ReadLog(taskMethod, lines, offset)
+	if err != nil {
+		response.FailWithMessage("读取任务日志失败: "+err.Error(), c)
+		return
+	}
+
+	response.OkWithDetailed(result, "获取成功", c)
+}
+
+// ClearTaskLogApi 清空任务日志
+// @Summary      清空定时任务日志
+// @Description  清空指定任务方法的日志文件内容
+// @Tags         定时任务管理
+// @Accept       json
+// @Produce      json
+// @Param        task_method  query     string  true  "任务方法名"
+// @Success      200  {object}  response.Response  "清空成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/task/log/clear [get]
+func (w *WafTaskApi) ClearTaskLogApi(c *gin.Context) {
+	taskMethod := c.Query("task_method")
+	if taskMethod == "" {
+		response.FailWithMessage("task_method 不能为空", c)
+		return
+	}
+
+	if tasklog.GlobalTaskLogManager == nil {
+		response.FailWithMessage("任务日志管理器未初始化", c)
+		return
+	}
+
+	err := tasklog.GlobalTaskLogManager.ClearLog(taskMethod)
+	if err != nil {
+		response.FailWithMessage("清空任务日志失败: "+err.Error(), c)
+		return
+	}
+
+	response.OkWithMessage("清空成功", c)
 }

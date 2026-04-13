@@ -1,11 +1,13 @@
 package waftask
 
 import (
+	"SamWaf/common/tasklog"
 	"SamWaf/common/zlog"
 	"SamWaf/utils"
 	"fmt"
 	"runtime/debug"
 	"sync"
+	"time"
 )
 
 // TaskFunc 定义任务执行的函数类型
@@ -53,19 +55,35 @@ func (tr *TaskRegistry) ExecuteTask(taskName string) {
 
 			// 如果任务锁正在占用，输出提示
 			if !taskMutex.TryLock() { // 如果锁已经被占用
-				zlog.Error(fmt.Sprintf("%s 任务方法 '%s' 正在执行 跳过当前执行", innerName, taskName))
+				msg := fmt.Sprintf("%s 任务方法 '%s' 正在执行 跳过当前执行", innerName, taskName)
+				zlog.Error(msg)
+				tasklog.GlobalTaskLogManager.Log(taskName, "WARN", "任务正在执行中，跳过本次触发")
 				return
 			}
 			defer taskMutex.Unlock() // 确保任务完成后释放锁
+
+			// 注册当前 goroutine 的任务上下文，使 zlog 输出同步路由到任务日志文件
+			tasklog.SetCurrentTask(taskName)
+			defer tasklog.ClearCurrentTask()
+
 			// 捕获任务执行中的异常并打印详细信息
 			defer func() {
 				if err := recover(); err != nil {
-					// 处理异常，打印错误详情
+					errMsg := fmt.Sprintf("任务执行出错: %v", err)
 					zlog.Error(fmt.Sprintf("任务 '%s' 执行出错: %v 调试信息:%s", taskName, err, debug.Stack()))
 					debug.PrintStack()
+					tasklog.GlobalTaskLogManager.Log(taskName, "ERROR", errMsg)
 				}
 			}()
+
+			startTime := time.Now()
+			tasklog.GlobalTaskLogManager.Log(taskName, "INFO", "任务开始执行")
+
 			taskFunc()
+
+			elapsed := time.Since(startTime)
+			tasklog.GlobalTaskLogManager.Log(taskName, "INFO",
+				fmt.Sprintf("任务执行完成，耗时 %v", elapsed.Round(time.Millisecond)))
 		}()
 	} else {
 		zlog.Error(fmt.Sprintf("%s 任务方法 '%s'  未找到", innerName, taskName))

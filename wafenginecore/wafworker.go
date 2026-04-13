@@ -274,12 +274,29 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 	if inHost.UnrestrictedPort == 1 {
 		zlog.Debug("来源端口宽松模式")
 		waf.HostTargetNoPort[inHost.Host] = inHost.Host + ":" + strconv.Itoa(inHost.Port)
+		// 多域名也注册到宽松端口映射
+		if inHost.BindMoreHost != "" {
+			for _, moreLine := range strings.Split(inHost.BindMoreHost, "\n") {
+				moreLine = strings.TrimSpace(moreLine)
+				if moreLine != "" {
+					waf.HostTargetNoPort[moreLine] = inHost.Host + ":" + strconv.Itoa(inHost.Port)
+				}
+			}
+		}
 	} else {
 		if _, ok := waf.HostTargetNoPort[inHost.Host]; ok {
 			zlog.Debug("来源端口严苛模式")
 			delete(waf.HostTargetNoPort, inHost.Host)
 		}
-
+		// 多域名也从宽松端口映射中移除
+		if inHost.BindMoreHost != "" {
+			for _, moreLine := range strings.Split(inHost.BindMoreHost, "\n") {
+				moreLine = strings.TrimSpace(moreLine)
+				if moreLine != "" {
+					delete(waf.HostTargetNoPort, moreLine)
+				}
+			}
+		}
 	}
 	//如果存在一个主机绑定了多个域名的情况
 	if inHost.BindMoreHost != "" {
@@ -362,6 +379,16 @@ func (waf *WafEngine) RemoveHost(host model.Hosts) {
 	//b3.移除 AutoJumpHTTPS 添加的 80 端口条目
 	if host.AutoJumpHTTPS == 1 {
 		delete(waf.HostTarget, host.Host+":80")
+	}
+	//b4.移除 HostTargetNoPort 中的主域名和多域名条目
+	delete(waf.HostTargetNoPort, host.Host)
+	if host.BindMoreHost != "" {
+		for _, moreLine := range strings.Split(host.BindMoreHost, "\n") {
+			moreLine = strings.TrimSpace(moreLine)
+			if moreLine != "" {
+				delete(waf.HostTargetNoPort, moreLine)
+			}
+		}
 	}
 	//c.移除某个端口下的证书数据
 	waf.AllCertificate.RemoveSSL(host.Host)

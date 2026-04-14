@@ -904,22 +904,19 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 		}
 		r := resp.Request
 
-		// 应用自定义响应头信息
+		// 应用自定义响应头信息（支持多规则路径匹配）
 		if wafCtx, ok := r.Context().Value("waf_context").(innerbean.WafHttpContextData); ok {
 			host := waf.HostCode[wafCtx.HostCode]
 			if hostTarget, exists := waf.HostTarget[host]; exists {
 				customResponseHeadersConfig := model.ParseCustomResponseHeadersConfig(hostTarget.Host.CustomResponseHeadersJSON)
-				if customResponseHeadersConfig.IsEnableCustomHeaders == 1 {
+				if customResponseHeadersConfig.IsEnableCustomHeaders == 1 && len(customResponseHeadersConfig.Rules) > 0 {
 					clientIP := r.RemoteAddr
 					if idx := strings.LastIndex(clientIP, ":"); idx != -1 {
 						clientIP = clientIP[:idx]
 					}
-					for _, header := range customResponseHeadersConfig.Headers {
-						if header.HeaderName == "" {
-							continue
-						}
-						headerValue := waf.parseHeaderValue(header.HeaderValue, r, clientIP)
-						resp.Header.Set(header.HeaderName, headerValue)
+					finalHeaders := waf.applyCustomResponseHeaders(customResponseHeadersConfig.Rules, r, clientIP)
+					for name, value := range finalHeaders {
+						resp.Header.Set(name, value)
 					}
 				}
 			}

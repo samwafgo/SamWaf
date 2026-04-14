@@ -277,6 +277,94 @@ func (waf *WafEngine) getCustomHeaders(r *http.Request, host string, isEnableLoa
 	return customHeaders
 }
 
+// matchResponseHeaderRule 判断请求路径是否匹配某条响应头规则
+// MatchType: global(全部匹配) / prefix(路径前缀) / suffix(文件后缀，分号分隔) / exact(精确) / regex(正则)
+func matchResponseHeaderRule(rule model.CustomResponseHeaderRule, urlPath string) bool {
+	switch rule.MatchType {
+	case "global", "":
+		return true
+	case "prefix":
+		return strings.HasPrefix(urlPath, rule.MatchValue)
+	case "exact":
+		return urlPath == rule.MatchValue
+	case "suffix":
+		// 支持分号分隔多个后缀，如 ".mp4;.mp3;.webm"
+		ext := ""
+		if idx := strings.LastIndex(urlPath, "."); idx != -1 {
+			ext = strings.ToLower(urlPath[idx:])
+		}
+		if ext == "" {
+			return false
+		}
+		for _, s := range strings.Split(rule.MatchValue, ";") {
+			s = strings.TrimSpace(strings.ToLower(s))
+			if s != "" && ext == s {
+				return true
+			}
+		}
+		return false
+	case "regex":
+		matched, err := regexp.MatchString(rule.MatchValue, urlPath)
+		if err != nil {
+			return false
+		}
+		return matched
+	default:
+		return false
+	}
+}
+
+// applyCustomResponseHeaders 根据规则列表和请求路径，计算最终需要设置的响应头 map
+// 合并逻辑：先汇总所有 global 规则的 headers，再找第一条匹配的 location 规则按 MergeMode 合并。
+func (waf *WafEngine) applyCustomResponseHeaders(
+	rules []model.CustomResponseHeaderRule,
+	r *http.Request,
+	clientIP string,
+) map[string]string {
+	result := map[string]string{}
+
+	// 1. 收集全局规则 headers（可能有多条 global 规则）
+	for _, rule := range rules {
+		if rule.MatchType == "global" || rule.MatchType == "" {
+			for _, h := range rule.Headers {
+				if h.HeaderName == "" {
+					continue
+				}
+				result[h.HeaderName] = waf.parseHeaderValue(h.HeaderValue, r, clientIP)
+			}
+		}
+	}
+
+	// 2. 按顺序找第一条匹配的非 global 规则
+	for _, rule := range rules {
+		if rule.MatchType == "global" || rule.MatchType == "" {
+			continue
+		}
+		if !matchResponseHeaderRule(rule, r.URL.Path) {
+			continue
+		}
+		// 找到匹配规则
+		locationHeaders := map[string]string{}
+		for _, h := range rule.Headers {
+			if h.HeaderName == "" {
+				continue
+			}
+			locationHeaders[h.HeaderName] = waf.parseHeaderValue(h.HeaderValue, r, clientIP)
+		}
+		if rule.MergeMode == "override" {
+			// override：丢弃全局，仅用本规则
+			return locationHeaders
+		}
+		// merge（默认）：全局 + 本规则，同名以本规则为准
+		for k, v := range locationHeaders {
+			result[k] = v
+		}
+		return result
+	}
+
+	return result
+}
+
 // parseHeaderValue 解析头信息值中的变量
 // 支持的变量：
 // ${header:HeaderName} - 获取原始请求头

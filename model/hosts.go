@@ -200,10 +200,28 @@ type CustomHeaderItem struct {
 	HeaderValue string `json:"header_value"` // 头信息值，支持内置变量
 }
 
-// CustomHeadersConfig 自定义头信息配置
+// CustomHeadersConfig 自定义头信息配置（用于请求头）
 type CustomHeadersConfig struct {
 	IsEnableCustomHeaders int                `json:"is_enable_custom_headers"` // 是否开启自定义头信息 1开启 0关闭
 	Headers               []CustomHeaderItem `json:"headers"`                  // 自定义头信息列表
+}
+
+// CustomResponseHeaderRule 自定义响应头规则（类似 nginx location 块）
+// MatchType 支持: global(全局) / prefix(路径前缀) / suffix(文件后缀) / exact(精确路径) / regex(正则)
+// MergeMode 支持: merge(与全局规则合并，同名以本规则为准) / override(仅使用本规则，忽略全局)
+type CustomResponseHeaderRule struct {
+	RuleName   string             `json:"rule_name"`   // 规则名称，方便识别
+	MatchType  string             `json:"match_type"`  // global / prefix / suffix / exact / regex
+	MatchValue string             `json:"match_value"` // 匹配值；suffix 用分号分隔，如 ".mp4;.mp3;.webm"
+	Headers    []CustomHeaderItem `json:"headers"`     // 该规则的响应头列表
+	MergeMode  string             `json:"merge_mode"`  // merge(默认) / override
+}
+
+// CustomResponseHeadersConfig 自定义响应头配置（V2 支持多规则路径匹配）
+type CustomResponseHeadersConfig struct {
+	IsEnableCustomHeaders int                        `json:"is_enable_custom_headers"` // 是否开启 1开启 0关闭
+	Rules                 []CustomResponseHeaderRule `json:"rules"`                    // 规则列表（V2）
+	Headers               []CustomHeaderItem         `json:"headers,omitempty"`        // 兼容旧版扁平列表
 }
 
 // defaultResponseCompressMimeTypes 与 nginx gzip_types 常见默认类似
@@ -318,9 +336,49 @@ func ParseCustomHeadersConfig(customHeadersJSON string) CustomHeadersConfig {
 	return config
 }
 
-// ParseCustomResponseHeadersConfig 解析自定义响应头信息配置
-func ParseCustomResponseHeadersConfig(customResponseHeadersJSON string) CustomHeadersConfig {
-	return ParseCustomHeadersConfig(customResponseHeadersJSON)
+// ParseCustomResponseHeadersConfig 解析自定义响应头信息配置（支持 V2 多规则格式和旧版扁平格式）
+// 旧格式（只有 headers 字段）会自动转换为一条 global 规则，保持向后兼容。
+func ParseCustomResponseHeadersConfig(customResponseHeadersJSON string) CustomResponseHeadersConfig {
+	var config CustomResponseHeadersConfig
+	config.IsEnableCustomHeaders = 0
+	config.Rules = []CustomResponseHeaderRule{}
+
+	if customResponseHeadersJSON == "" {
+		return config
+	}
+
+	if err := json.Unmarshal([]byte(customResponseHeadersJSON), &config); err != nil {
+		return config
+	}
+
+	// 向后兼容：若 rules 为空但存在旧版 headers 字段，转换为一条 global 规则
+	if len(config.Rules) == 0 && len(config.Headers) > 0 {
+		config.Rules = []CustomResponseHeaderRule{
+			{
+				RuleName:   "全局默认",
+				MatchType:  "global",
+				MatchValue: "",
+				MergeMode:  "merge",
+				Headers:    config.Headers,
+			},
+		}
+		config.Headers = nil
+	}
+
+	// 为每条规则设置默认值
+	for i := range config.Rules {
+		if config.Rules[i].MatchType == "" {
+			config.Rules[i].MatchType = "global"
+		}
+		if config.Rules[i].MergeMode == "" {
+			config.Rules[i].MergeMode = "merge"
+		}
+		if config.Rules[i].Headers == nil {
+			config.Rules[i].Headers = []CustomHeaderItem{}
+		}
+	}
+
+	return config
 }
 
 // GetClientIPByMode 根据IP模式获取客户端IP

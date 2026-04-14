@@ -18,7 +18,7 @@ type WafSysLogApi struct {
 // @Param        id  query     string  true  "日志ID"
 // @Success      200  {object}  response.Response  "获取成功"
 // @Security     ApiKeyAuth
-// @Router       /syslog/detail [get]
+// @Router       /sys_log/detail [get]
 func (w *WafSysLogApi) GetDetailApi(c *gin.Context) {
 	var req request.WafSysLogDetailReq
 	err := c.ShouldBind(&req)
@@ -39,7 +39,7 @@ func (w *WafSysLogApi) GetDetailApi(c *gin.Context) {
 // @Param        data  body      request.WafSysLogSearchReq  true  "分页查询参数"
 // @Success      200   {object}  response.Response{data=response.PageResult}  "获取成功"
 // @Security     ApiKeyAuth
-// @Router       /syslog/list [post]
+// @Router       /sys_log/list [get]
 func (w *WafSysLogApi) GetListApi(c *gin.Context) {
 	var req request.WafSysLogSearchReq
 	err := c.ShouldBind(&req)

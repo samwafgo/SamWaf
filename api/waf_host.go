@@ -16,10 +16,11 @@ import (
 	"SamWaf/wafenginecore"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 	"strconv"
 	"strings"
+
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type WafHostAPi struct {
@@ -344,7 +345,7 @@ func (w *WafHostAPi) ModifyHostApi(c *gin.Context) {
 // @Param        data  body      request.WafHostGuardStatusReq  true  "防御状态参数"
 // @Success      200   {object}  response.Response  "状态更新成功"
 // @Security     ApiKeyAuth
-// @Router       /wafhost/host/guardstatus [post]
+// @Router       /wafhost/host/guardstatus [get]
 func (w *WafHostAPi) ModifyGuardStatusApi(c *gin.Context) {
 	var req request.WafHostGuardStatusReq
 	err := c.ShouldBind(&req)
@@ -418,7 +419,7 @@ func (w *WafHostAPi) ModifyAllGuardStatusApi(c *gin.Context) {
 // @Param        data  body      request.WafHostStartStatusReq  true  "启动状态参数"
 // @Success      200   {object}  response.Response  "状态更新成功"
 // @Security     ApiKeyAuth
-// @Router       /wafhost/host/startstatus [post]
+// @Router       /wafhost/host/startstatus [get]
 func (w *WafHostAPi) ModifyStartStatusApi(c *gin.Context) {
 	var req request.WafHostStartStatusReq
 	err := c.ShouldBind(&req)

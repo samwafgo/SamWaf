@@ -388,7 +388,7 @@ func (w *WafRuleAPi) FormatRuleApi(c *gin.Context) {
 // @Param        data  body      request.WafRuleStatusReq  true  "状态参数"
 // @Success      200   {object}  response.Response  "状态更新成功"
 // @Security     ApiKeyAuth
-// @Router       /wafhost/rule/status [post]
+// @Router       /wafhost/rule/rulestatus [get]
 func (w *WafRuleAPi) ModifyRuleStatusApi(c *gin.Context) {
 	var req request.WafRuleStatusReq
 	err := c.ShouldBind(&req)

@@ -25,7 +25,7 @@ type WafAllowUrlApi struct {
 // @Param        data  body      request.WafAllowUrlAddReq  true  "URL白名单配置"
 // @Success      200   {object}  response.Response  "添加成功"
 // @Security     ApiKeyAuth
-// @Router       /wafhost/allowurl/add [post]
+// @Router       /wafhost/urlwhite/add [post]
 func (w *WafAllowUrlApi) AddApi(c *gin.Context) {
 	var req request.WafAllowUrlAddReq
 	err := c.ShouldBindJSON(&req)
@@ -60,7 +60,7 @@ func (w *WafAllowUrlApi) AddApi(c *gin.Context) {
 // @Param        id  query     string  true  "记录ID"
 // @Success      200  {object}  response.Response  "获取成功"
 // @Security     ApiKeyAuth
-// @Router       /wafhost/allowurl/detail [get]
+// @Router       /wafhost/urlwhite/detail [get]
 func (w *WafAllowUrlApi) GetDetailApi(c *gin.Context) {
 	var req request.WafAllowUrlDetailReq
 	err := c.ShouldBind(&req)
@@ -81,7 +81,7 @@ func (w *WafAllowUrlApi) GetDetailApi(c *gin.Context) {
 // @Param        data  body      request.WafAllowUrlSearchReq  true  "分页查询参数"
 // @Success      200   {object}  response.Response{data=response.PageResult}  "获取成功"
 // @Security     ApiKeyAuth
-// @Router       /wafhost/allowurl/list [post]
+// @Router       /wafhost/urlwhite/list [post]
 func (w *WafAllowUrlApi) GetListApi(c *gin.Context) {
 	var req request.WafAllowUrlSearchReq
 	err := c.ShouldBindJSON(&req)
@@ -107,7 +107,7 @@ func (w *WafAllowUrlApi) GetListApi(c *gin.Context) {
 // @Param        id  query     string  true  "记录ID"
 // @Success      200  {object}  response.Response  "删除成功"
 // @Security     ApiKeyAuth
-// @Router       /wafhost/allowurl/del [get]
+// @Router       /wafhost/urlwhite/del [get]
 func (w *WafAllowUrlApi) DelAllowUrlApi(c *gin.Context) {
 	var req request.WafAllowUrlDelReq
 	err := c.ShouldBind(&req)
@@ -137,7 +137,7 @@ func (w *WafAllowUrlApi) DelAllowUrlApi(c *gin.Context) {
 // @Param        data  body      request.WafAllowUrlEditReq  true  "URL白名单配置"
 // @Success      200   {object}  response.Response  "编辑成功"
 // @Security     ApiKeyAuth
-// @Router       /wafhost/allowurl/edit [post]
+// @Router       /wafhost/urlwhite/edit [post]
 func (w *WafAllowUrlApi) ModifyAllowUrlApi(c *gin.Context) {
 	var req request.WafAllowUrlEditReq
 	err := c.ShouldBindJSON(&req)

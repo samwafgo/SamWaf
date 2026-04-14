@@ -25,7 +25,7 @@ type WafAllowIpApi struct {
 // @Param        data  body      request.WafAllowIpAddReq  true  "IP白名单配置"
 // @Success      200   {object}  response.Response  "添加成功"
 // @Security     ApiKeyAuth
-// @Router       /wafhost/allowip/add [post]
+// @Router       /wafhost/ipwhite/add [post]
 func (w *WafAllowIpApi) AddApi(c *gin.Context) {
 	var req request.WafAllowIpAddReq
 	err := c.ShouldBindJSON(&req)
@@ -60,7 +60,7 @@ func (w *WafAllowIpApi) AddApi(c *gin.Context) {
 // @Param        id  query     string  true  "记录ID"
 // @Success      200  {object}  response.Response  "获取成功"
 // @Security     ApiKeyAuth
-// @Router       /wafhost/allowip/detail [get]
+// @Router       /wafhost/ipwhite/detail [get]
 func (w *WafAllowIpApi) GetDetailApi(c *gin.Context) {
 	var req request.WafAllowIpDetailReq
 	err := c.ShouldBind(&req)
@@ -81,7 +81,7 @@ func (w *WafAllowIpApi) GetDetailApi(c *gin.Context) {
 // @Param        data  body      request.WafAllowIpSearchReq  true  "分页查询参数"
 // @Success      200   {object}  response.Response{data=response.PageResult}  "获取成功"
 // @Security     ApiKeyAuth
-// @Router       /wafhost/allowip/list [post]
+// @Router       /wafhost/ipwhite/list [post]
 func (w *WafAllowIpApi) GetListApi(c *gin.Context) {
 	var req request.WafAllowIpSearchReq
 	err := c.ShouldBindJSON(&req)
@@ -107,7 +107,7 @@ func (w *WafAllowIpApi) GetListApi(c *gin.Context) {
 // @Param        id  query     string  true  "记录ID"
 // @Success      200  {object}  response.Response  "删除成功"
 // @Security     ApiKeyAuth
-// @Router       /wafhost/allowip/del [get]
+// @Router       /wafhost/ipwhite/del [get]
 func (w *WafAllowIpApi) DelAllowIpApi(c *gin.Context) {
 	var req request.WafAllowIpDelReq
 	err := c.ShouldBind(&req)
@@ -137,7 +137,7 @@ func (w *WafAllowIpApi) DelAllowIpApi(c *gin.Context) {
 // @Param        data  body      request.WafAllowIpEditReq  true  "IP白名单配置"
 // @Success      200   {object}  response.Response  "编辑成功"
 // @Security     ApiKeyAuth
-// @Router       /wafhost/allowip/edit [post]
+// @Router       /wafhost/ipwhite/edit [post]
 func (w *WafAllowIpApi) ModifyAllowIpApi(c *gin.Context) {
 	var req request.WafAllowIpEditReq
 	err := c.ShouldBindJSON(&req)

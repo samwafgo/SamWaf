@@ -24,7 +24,7 @@ type WafSslConfigApi struct{}
 // @Param        data  body      request.SslConfigAddReq  true  "SSL证书配置"
 // @Success      200   {object}  response.Response  "添加成功"
 // @Security     ApiKeyAuth
-// @Router       /wafhost/sslconfig/add [post]
+// @Router       /sslconfig/add [post]
 func (s *WafSslConfigApi) AddSslConfigApi(c *gin.Context) {
 	var req request.SslConfigAddReq
 	err := c.ShouldBindJSON(&req)
@@ -50,7 +50,7 @@ func (s *WafSslConfigApi) AddSslConfigApi(c *gin.Context) {
 // @Param        id  query     string  true  "证书ID"
 // @Success      200  {object}  response.Response  "获取成功"
 // @Security     ApiKeyAuth
-// @Router       /wafhost/sslconfig/detail [get]
+// @Router       /sslconfig/detail [get]
 func (s *WafSslConfigApi) GetSslConfigDetailApi(c *gin.Context) {
 	var req request.SslConfigDetailReq
 	err := c.ShouldBind(&req)
@@ -71,7 +71,7 @@ func (s *WafSslConfigApi) GetSslConfigDetailApi(c *gin.Context) {
 // @Param        data  body      request.SslConfigSearchReq  true  "分页查询参数"
 // @Success      200   {object}  response.Response{data=response.PageResult}  "获取成功"
 // @Security     ApiKeyAuth
-// @Router       /wafhost/sslconfig/list [post]
+// @Router       /sslconfig/list [post]
 func (s *WafSslConfigApi) GetSslConfigListApi(c *gin.Context) {
 	var req request.SslConfigSearchReq
 	err := c.ShouldBindJSON(&req)
@@ -97,7 +97,7 @@ func (s *WafSslConfigApi) GetSslConfigListApi(c *gin.Context) {
 // @Param        id  query     string  true  "证书ID"
 // @Success      200  {object}  response.Response  "删除成功"
 // @Security     ApiKeyAuth
-// @Router       /wafhost/sslconfig/del [get]
+// @Router       /sslconfig/del [get]
 func (s *WafSslConfigApi) DelSslConfigApi(c *gin.Context) {
 	var req request.SslConfigDeleteReq
 	err := c.ShouldBind(&req)
@@ -124,7 +124,7 @@ func (s *WafSslConfigApi) DelSslConfigApi(c *gin.Context) {
 // @Param        data  body      request.SslConfigEditReq  true  "SSL证书配置"
 // @Success      200   {object}  response.Response  "编辑成功"
 // @Security     ApiKeyAuth
-// @Router       /wafhost/sslconfig/edit [post]
+// @Router       /sslconfig/edit [post]
 func (s *WafSslConfigApi) ModifySslConfigApi(c *gin.Context) {
 	var req request.SslConfigEditReq
 	err := c.ShouldBindJSON(&req)

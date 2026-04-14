@@ -16,7 +16,7 @@ type WafEngineApi struct {
 // @Produce      json
 // @Success      200  {object}  response.Response  "重启指令发起成功"
 // @Security     ApiKeyAuth
-// @Router       /wafhost/engine/restart [post]
+// @Router       /resetWAF [get]
 func (w *WafEngineApi) ResetWaf(c *gin.Context) {
 	//重启WAF引擎
 	global.GWAF_CHAN_ENGINE <- 1

@@ -125,7 +125,7 @@ func (w *WafSystemConfigApi) ModifyApi(c *gin.Context) {
 // @Param        data  body      request.WafSystemConfigEditByItemReq  true  "配置参数"
 // @Success      200   {object}  response.Response  "编辑成功"
 // @Security     ApiKeyAuth
-// @Router       /systemconfig/updateitem [post]
+// @Router       /systemconfig/editByItem [post]
 func (w *WafSystemConfigApi) ModifyByItemApi(c *gin.Context) {
 	var req request.WafSystemConfigEditByItemReq
 	err := c.ShouldBindJSON(&req)

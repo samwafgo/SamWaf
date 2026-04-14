@@ -22,7 +22,7 @@ type WafFirewallIPBlockApi struct {
 // @Param        data  body      request.WafFirewallIPBlockAddReq  true  "IP封禁配置"
 // @Success      200   {object}  response.Response  "添加成功"
 // @Security     ApiKeyAuth
-// @Router       /firewallipblock/add [post]
+// @Router       /firewall/ipblock/add [post]
 func (w *WafFirewallIPBlockApi) AddApi(c *gin.Context) {
 	var req request.WafFirewallIPBlockAddReq
 	err := c.ShouldBindJSON(&req)
@@ -62,7 +62,7 @@ func (w *WafFirewallIPBlockApi) GetDetailApi(c *gin.Context) {
 // @Param        data  body      request.WafFirewallIPBlockSearchReq  true  "分页查询参数"
 // @Success      200   {object}  response.Response{data=response.PageResult}  "获取成功"
 // @Security     ApiKeyAuth
-// @Router       /firewallipblock/list [post]
+// @Router       /firewall/ipblock/list [post]
 func (w *WafFirewallIPBlockApi) GetListApi(c *gin.Context) {
 	var req request.WafFirewallIPBlockSearchReq
 	err := c.ShouldBindJSON(&req)
@@ -94,7 +94,7 @@ func (w *WafFirewallIPBlockApi) GetListApi(c *gin.Context) {
 // @Param        id  query     string  true  "封禁记录ID"
 // @Success      200  {object}  response.Response  "删除成功"
 // @Security     ApiKeyAuth
-// @Router       /firewallipblock/del [get]
+// @Router       /firewall/ipblock/del [get]
 func (w *WafFirewallIPBlockApi) DelApi(c *gin.Context) {
 	var req request.WafFirewallIPBlockDelReq
 	err := c.ShouldBind(&req)
@@ -122,7 +122,7 @@ func (w *WafFirewallIPBlockApi) DelApi(c *gin.Context) {
 // @Param        data  body      request.WafFirewallIPBlockEditReq  true  "IP封禁配置"
 // @Success      200   {object}  response.Response  "编辑成功"
 // @Security     ApiKeyAuth
-// @Router       /firewallipblock/edit [post]
+// @Router       /firewall/ipblock/edit [post]
 func (w *WafFirewallIPBlockApi) ModifyApi(c *gin.Context) {
 	var req request.WafFirewallIPBlockEditReq
 	err := c.ShouldBindJSON(&req)

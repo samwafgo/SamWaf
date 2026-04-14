@@ -25,7 +25,7 @@ type WafBlockIpApi struct {
 // @Param        data  body      request.WafBlockIpAddReq  true  "IP黑名单配置"
 // @Success      200   {object}  response.Response  "添加成功"
 // @Security     ApiKeyAuth
-// @Router       /wafhost/blockip/add [post]
+// @Router       /wafhost/ipblock/add [post]
 func (w *WafBlockIpApi) AddApi(c *gin.Context) {
 	var req request.WafBlockIpAddReq
 	err := c.ShouldBindJSON(&req)
@@ -60,7 +60,7 @@ func (w *WafBlockIpApi) AddApi(c *gin.Context) {
 // @Param        id  query     string  true  "记录ID"
 // @Success      200  {object}  response.Response  "获取成功"
 // @Security     ApiKeyAuth
-// @Router       /wafhost/blockip/detail [get]
+// @Router       /wafhost/ipblock/detail [get]
 func (w *WafBlockIpApi) GetDetailApi(c *gin.Context) {
 	var req request.WafBlockIpDetailReq
 	err := c.ShouldBind(&req)
@@ -81,7 +81,7 @@ func (w *WafBlockIpApi) GetDetailApi(c *gin.Context) {
 // @Param        data  body      request.WafBlockIpSearchReq  true  "分页查询参数"
 // @Success      200   {object}  response.Response{data=response.PageResult}  "获取成功"
 // @Security     ApiKeyAuth
-// @Router       /wafhost/blockip/list [post]
+// @Router       /wafhost/ipblock/list [post]
 func (w *WafBlockIpApi) GetListApi(c *gin.Context) {
 	var req request.WafBlockIpSearchReq
 	err := c.ShouldBindJSON(&req)
@@ -107,7 +107,7 @@ func (w *WafBlockIpApi) GetListApi(c *gin.Context) {
 // @Param        id  query     string  true  "记录ID"
 // @Success      200  {object}  response.Response  "删除成功"
 // @Security     ApiKeyAuth
-// @Router       /wafhost/blockip/del [get]
+// @Router       /wafhost/ipblock/del [get]
 func (w *WafBlockIpApi) DelBlockIpApi(c *gin.Context) {
 	var req request.WafBlockIpDelReq
 	err := c.ShouldBind(&req)
@@ -137,7 +137,7 @@ func (w *WafBlockIpApi) DelBlockIpApi(c *gin.Context) {
 // @Param        data  body      request.WafBlockIpEditReq  true  "IP黑名单配置"
 // @Success      200   {object}  response.Response  "编辑成功"
 // @Security     ApiKeyAuth
-// @Router       /wafhost/blockip/edit [post]
+// @Router       /wafhost/ipblock/edit [post]
 func (w *WafBlockIpApi) ModifyBlockIpApi(c *gin.Context) {
 	var req request.WafBlockIpEditReq
 	err := c.ShouldBindJSON(&req)

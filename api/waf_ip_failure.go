@@ -50,7 +50,7 @@ func (w *WafIPFailureApi) GetConfigApi(c *gin.Context) {
 // @Param        data  body      request.WafIPFailureSetConfigReq  true  "配置参数"
 // @Success      200   {object}  response.Response  "设置成功"
 // @Security     ApiKeyAuth
-// @Router       /wafhost/ipfailure/setconfig [post]
+// @Router       /wafhost/ipfailure/config [post]
 func (w *WafIPFailureApi) SetConfigApi(c *gin.Context) {
 	var req request.WafIPFailureSetConfigReq
 	err := c.ShouldBindJSON(&req)

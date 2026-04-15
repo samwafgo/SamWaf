@@ -105,6 +105,13 @@ func LoadAndInitConfig() {
 		config.Set("notice.isenable", false)
 		configChanged = true
 	}
+	if config.IsSet("notice.title") {
+		global.GWAF_NOTICE_TITLE = config.GetString("notice.title")
+	} else {
+		global.GWAF_NOTICE_TITLE = global.GWAF_CUSTOM_SERVER_NAME
+		config.Set("notice.title", global.GWAF_CUSTOM_SERVER_NAME)
+		configChanged = true
+	}
 
 	if config.IsSet("export_download") == false {
 		config.Set("export_download", global.GWAF_CAN_EXPORT_DOWNLOAD_LOG)
@@ -347,5 +354,51 @@ func UpdateSecurityEntry(entryEnable bool, entryPath string) error {
 	}
 
 	fmt.Printf("%s\tINFO\tsecurity entry config updated: enable=%v path=%s\n", currentTime, entryEnable, entryPath)
+	return nil
+}
+
+// UpdateNoticeTitle 更新通知消息标题前缀配置（立即生效）
+func UpdateNoticeTitle(title string) error {
+	currentTime := time.Now().Format("2006-01-02 15:04:05.000")
+
+	configDir := utils.GetCurrentDir() + "/conf/"
+	if _, err := os.Stat(configDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(configDir, os.ModePerm); err != nil {
+			fmt.Printf("%s\tERROR\t创建config目录失败:%v\n", currentTime, err)
+			return err
+		}
+	}
+
+	config := viper.New()
+	config.AddConfigPath(configDir)
+	config.SetConfigName("config")
+	config.SetConfigType("yml")
+
+	if err := config.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			fmt.Printf("%s\tWARN\t找不到配置文件..\n", currentTime)
+			config.Set("local_port", global.GWAF_LOCAL_SERVER_PORT)
+			err = config.SafeWriteConfig()
+			if err != nil {
+				return err
+			}
+		} else {
+			fmt.Printf("%s\tERROR\t配置文件出错..\n", currentTime)
+			return err
+		}
+	}
+
+	config.Set("notice.title", title)
+
+	// 立即更新全局变量，无需重启
+	global.GWAF_NOTICE_TITLE = title
+
+	err := config.WriteConfig()
+	if err != nil {
+		fmt.Printf("%s\tERROR\twrite config failed:%v\n", currentTime, err)
+		return err
+	}
+
+	fmt.Printf("%s\tINFO\tnotice title config updated: %s\n", currentTime, title)
 	return nil
 }

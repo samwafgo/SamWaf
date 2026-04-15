@@ -90,6 +90,7 @@ var (
 	GWAF_RELEASE_VERSION         string              = "v1.0.0"   // 发行版的版本号
 	GWAF_LAST_UPDATE_TIME        time.Time                        // 上次时间
 	GWAF_NOTICE_ENABLE           bool                = false      // 是否开启通知
+	GWAF_NOTICE_TITLE            string                           // 通知消息标题前缀（用于区分多实例，默认使用 custom_server_name）
 	GWAF_CAN_EXPORT_DOWNLOAD_LOG bool                = false      //是否可以导出下载日志
 	GWAF_DLP                     dlpheader.EngineAPI              // 脱敏引擎
 	GWAF_DLP_CONFIG              string                           // 脱敏引擎配置数据

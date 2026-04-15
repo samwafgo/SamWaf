@@ -21,3 +21,8 @@ type WafVpConfigSecurityEntryUpdateReq struct {
 	EntryEnable bool   `json:"entry_enable"` // 是否启用安全路径
 	EntryPath   string `json:"entry_path"`   // 安全路径码，为空时自动生成
 }
+
+// WafVpConfigNoticeTitleUpdateReq 通知标题前缀更新请求
+type WafVpConfigNoticeTitleUpdateReq struct {
+	NoticeTitle string `json:"notice_title"` // 通知消息标题前缀，用于区分多实例
+}

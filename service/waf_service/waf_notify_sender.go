@@ -21,6 +21,11 @@ var WafNotifySenderServiceApp = new(WafNotifySenderService)
 
 // SendNotification 发送通知
 func (receiver *WafNotifySenderService) SendNotification(messageType, title, content string) {
+	// 如果配置了通知标题前缀，则在标题前加上 [前缀] 以区分多实例
+	if global.GWAF_NOTICE_TITLE != "" {
+		title = "[" + global.GWAF_NOTICE_TITLE + "] " + title
+	}
+
 	// 获取订阅
 	subscriptions := WafNotifySubscriptionServiceApp.GetSubscriptionsByMessageType(messageType)
 	if len(subscriptions) == 0 {

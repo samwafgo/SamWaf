@@ -215,6 +215,8 @@ var registeredRoutes = []route{
 	{"GET", "/api/v1/vipconfig/getSslStatus", "获取SSL启用状态"},
 	{"GET", "/api/v1/vipconfig/getSecurityEntry", "获取安全入口"},
 	{"POST", "/api/v1/vipconfig/updateSecurityEntry", "更新安全入口"},
+	{"GET", "/api/v1/vipconfig/getNoticeTitle", "获取通知标题前缀"},
+	{"POST", "/api/v1/vipconfig/updateNoticeTitle", "更新通知标题前缀"},
 
 	// ── 系统配置 ───────────────────────────────────────────────────
 	{"POST", "/api/v1/systemconfig/list", "获取系统配置列表"},

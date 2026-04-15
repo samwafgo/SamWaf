@@ -362,6 +362,50 @@ func (w *WafVpConfigApi) UpdateSecurityEntryApi(c *gin.Context) {
 	response.OkWithDetailed(resp, "更新安全路径配置成功", c)
 }
 
+// GetNoticeTitleApi 获取通知标题前缀
+// @Summary      获取通知标题前缀
+// @Description  获取当前通知消息的标题前缀，用于区分多个 SamWaf 实例
+// @Tags         管理端配置
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /vipconfig/getNoticeTitle [get]
+func (w *WafVpConfigApi) GetNoticeTitleApi(c *gin.Context) {
+	resp := response2.WafVpConfigNoticeTitleGetResp{
+		NoticeTitle: global.GWAF_NOTICE_TITLE,
+	}
+	response.OkWithDetailed(resp, "获取成功", c)
+}
+
+// UpdateNoticeTitleApi 更新通知标题前缀
+// @Summary      更新通知标题前缀
+// @Description  更新通知消息的标题前缀，立即生效无需重启，用于区分多个 SamWaf 实例
+// @Tags         管理端配置
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafVpConfigNoticeTitleUpdateReq  true  "通知标题配置"
+// @Success      200   {object}  response.Response  "更新成功"
+// @Security     ApiKeyAuth
+// @Router       /vipconfig/updateNoticeTitle [post]
+func (w *WafVpConfigApi) UpdateNoticeTitleApi(c *gin.Context) {
+	var req request.WafVpConfigNoticeTitleUpdateReq
+	err := c.ShouldBindJSON(&req)
+	if err != nil {
+		response.FailWithMessage("解析请求失败", c)
+		return
+	}
+	err = wafconfig.UpdateNoticeTitle(req.NoticeTitle)
+	if err != nil {
+		response.FailWithMessage("更新通知标题失败: "+err.Error(), c)
+		return
+	}
+	resp := response2.WafVpConfigNoticeTitleGetResp{
+		NoticeTitle: global.GWAF_NOTICE_TITLE,
+	}
+	response.OkWithDetailed(resp, "更新通知标题成功", c)
+}
+
 // RestartManagerApi 重启管理端
 // @Summary      重启管理端
 // @Description  触发管理端1秒后重启，请等待5-10秒后重新访问

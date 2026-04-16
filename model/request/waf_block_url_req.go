@@ -3,10 +3,10 @@ package request
 import "SamWaf/model/common/request"
 
 type WafBlockUrlAddReq struct {
-	HostCode    string `json:"host_code"`                        //网站唯一码（主要键）
-	CompareType string `json:"compare_type" form:"compare_type"` //对比方式
-	Url         string `json:"url"`                              //Block url
-	Remarks     string `json:"remarks"`                          //备注
+	HostCode    string `json:"host_code" binding:"required"`                         //网站唯一码（主要键）
+	CompareType string `json:"compare_type" form:"compare_type"  binding:"required"` //对比方式
+	Url         string `json:"url"  binding:"required"`                              //Block url
+	Remarks     string `json:"remarks"`                                              //备注
 }
 type WafBlockUrlSearchReq struct {
 	HostCode string `json:"host_code" ` //主机码
@@ -21,11 +21,11 @@ type WafBlockUrlDetailReq struct {
 	Id string `json:"id"  form:"id"` //Block Url唯一键
 }
 type WafBlockUrlEditReq struct {
-	Id          string `json:"id"`                               //Block url唯一键
-	HostCode    string `json:"host_code"`                        //网站唯一码（主要键）
-	CompareType string `json:"compare_type" form:"compare_type"` //对比方式
-	Url         string `json:"url"`                              //Block url
-	Remarks     string `json:"remarks"`                          //备注
+	Id          string `json:"id" binding:"required"`                               //Block url唯一键
+	HostCode    string `json:"host_code" binding:"required"`                        //网站唯一码（主要键）
+	CompareType string `json:"compare_type" form:"compare_type" binding:"required"` //对比方式
+	Url         string `json:"url" binding:"required"`                              //Block url
+	Remarks     string `json:"remarks"`                                             //备注
 }
 
 // 批量删除请求结构体

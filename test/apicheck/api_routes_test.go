@@ -12,7 +12,9 @@ package apicheck
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -24,8 +26,8 @@ import (
 // ─────────────────────────────────────────────────────────────────────────────
 
 const (
-	baseURL = "http://127.0.0.1:26666" // 服务地址
-	sk      = "1111111"                // X-Token 登录令牌，按实际值修改
+	baseURL = "http://127.0.0.1:26666"              // 服务地址
+	sk      = "sk-f4e7230617a118e8869a8089269e4b4b" // X-Token 登录令牌，按实际值修改
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -279,7 +281,17 @@ func sendRequest(method, url string) (*http.Response, error) {
 	return httpClient.Do(req)
 }
 
-// TestAllRoutes 逐条验证 @Router 中的路由是否注册可达（非 404）
+// checkJSON 判断 body 是否为合法 JSON（允许对象或数组）
+func checkJSON(data []byte) bool {
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 {
+		return false
+	}
+	var v json.RawMessage
+	return json.Unmarshal(data, &v) == nil
+}
+
+// TestAllRoutes 逐条验证 @Router 中的路由是否注册可达（非 404）且响应为合法 JSON
 func TestAllRoutes(t *testing.T) {
 	if testing.Short() {
 		t.Skip("跳过集成测试（-short 模式）")
@@ -287,9 +299,12 @@ func TestAllRoutes(t *testing.T) {
 
 	type result struct {
 		route
-		status int
-		err    string
-		passed bool
+		status      int
+		err         string
+		notFound    bool // 路由不存在（404）
+		notJSON     bool // Content-Type 不含 application/json
+		invalidJSON bool // body 无法解析为 JSON
+		passed      bool
 	}
 
 	results := make([]result, 0, len(registeredRoutes))
@@ -304,33 +319,55 @@ func TestAllRoutes(t *testing.T) {
 			res.err = err.Error()
 			res.passed = false
 		} else {
+			bodyBytes, _ := io.ReadAll(resp.Body)
 			resp.Body.Close()
+
 			res.status = resp.StatusCode
-			res.passed = resp.StatusCode != http.StatusNotFound
+			res.notFound = resp.StatusCode == http.StatusNotFound
+
+			ct := resp.Header.Get("Content-Type")
+			res.notJSON = !strings.Contains(ct, "application/json")
+			res.invalidJSON = !checkJSON(bodyBytes)
+
+			res.passed = !res.notFound && !res.notJSON && !res.invalidJSON
 		}
 		results = append(results, res)
-
 		if !res.passed {
 			failCount++
 		}
 	}
 
 	// ── 打印汇总 ──────────────────────────────────────────────────
-	t.Log(strings.Repeat("─", 80))
-	t.Logf("%-6s %-50s %-6s %s", "方法", "路径", "状态", "描述")
-	t.Log(strings.Repeat("─", 80))
+	t.Log(strings.Repeat("─", 90))
+	t.Logf("%-6s %-50s %-6s %-16s %s", "方法", "路径", "状态", "问题", "描述")
+	t.Log(strings.Repeat("─", 90))
 	for _, res := range results {
 		statusStr := fmt.Sprintf("%d", res.status)
 		if res.err != "" {
 			statusStr = "ERR"
 		}
 		mark := "✓"
+		issue := "-"
 		if !res.passed {
 			mark = "✗"
+			problems := []string{}
+			if res.err != "" {
+				problems = append(problems, "连接失败")
+			}
+			if res.notFound {
+				problems = append(problems, "404")
+			}
+			if res.notJSON {
+				problems = append(problems, "非JSON类型")
+			}
+			if res.invalidJSON {
+				problems = append(problems, "JSON解析失败")
+			}
+			issue = strings.Join(problems, ",")
 		}
-		t.Logf("%s %-6s %-50s %-6s %s", mark, res.method, res.path, statusStr, res.desc)
+		t.Logf("%s %-6s %-50s %-6s %-16s %s", mark, res.method, res.path, statusStr, issue, res.desc)
 	}
-	t.Log(strings.Repeat("─", 80))
+	t.Log(strings.Repeat("─", 90))
 	t.Logf("合计 %d 条，通过 %d 条，失败 %d 条", len(results), len(results)-failCount, failCount)
 
 	if failCount > 0 {
@@ -352,10 +389,20 @@ func TestSingleRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("请求失败: %v", err)
 	}
-	defer resp.Body.Close()
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
 
-	t.Logf("%s %s → HTTP %d", method, url, resp.StatusCode)
+	ct := resp.Header.Get("Content-Type")
+	t.Logf("%s %s → HTTP %d  Content-Type: %s", method, url, resp.StatusCode, ct)
+	t.Logf("响应体: %s", string(bodyBytes))
+
 	if resp.StatusCode == http.StatusNotFound {
 		t.Errorf("路由不存在 (404)")
+	}
+	if !strings.Contains(ct, "application/json") {
+		t.Errorf("Content-Type 不是 application/json，实际: %s", ct)
+	}
+	if !checkJSON(bodyBytes) {
+		t.Errorf("响应体不是合法 JSON")
 	}
 }

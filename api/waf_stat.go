@@ -19,8 +19,12 @@ type WafStatApi struct {
 // @Security     ApiKeyAuth
 // @Router       /statsysinfo [get]
 func (w *WafStatApi) StatSysinfoApi(c *gin.Context) {
-
-	response.OkWithDetailed(wafStatService.StatHomeSysinfo(c), "获取成功", c)
+	data, err := wafStatService.StatHomeSysinfo(c)
+	if err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	response.OkWithDetailed(data, "获取成功", c)
 }
 
 // StatRumtimeSysinfoApi 获取运行时系统基本信息

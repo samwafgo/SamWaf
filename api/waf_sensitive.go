@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	"strings"
 )
 
 type WafSensitiveApi struct {
@@ -26,25 +27,36 @@ type WafSensitiveApi struct {
 func (w *WafSensitiveApi) AddApi(c *gin.Context) {
 	var req request.WafSensitiveAddReq
 	err := c.ShouldBindJSON(&req)
-	if err == nil {
-		err = wafSensitiveService.CheckIsExistApi(req)
-		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
-			err = wafSensitiveService.AddApi(req)
-			if err == nil {
-				w.NotifyWaf()
-				response.OkWithMessage("添加成功", c)
-			} else {
-
-				response.FailWithMessage("添加失败", c)
-			}
-			return
-		} else {
-			response.FailWithMessage("当前敏感词已经存在", c)
-			return
-		}
-
-	} else {
+	if err != nil {
 		response.FailWithMessage("解析失败", c)
+		return
+	}
+	req.Content = strings.TrimSpace(req.Content)
+	req.CheckDirection = strings.TrimSpace(req.CheckDirection)
+	req.Action = strings.TrimSpace(req.Action)
+	if req.Content == "" {
+		response.FailWithMessage("敏感词内容不能为空", c)
+		return
+	}
+	if req.CheckDirection == "" {
+		response.FailWithMessage("检测方向不能为空", c)
+		return
+	}
+	if req.Action == "" {
+		response.FailWithMessage("检测动作不能为空", c)
+		return
+	}
+	err = wafSensitiveService.CheckIsExistApi(req)
+	if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
+		err = wafSensitiveService.AddApi(req)
+		if err == nil {
+			w.NotifyWaf()
+			response.OkWithMessage("添加成功", c)
+		} else {
+			response.FailWithMessage("添加失败", c)
+		}
+	} else {
+		response.FailWithMessage("当前敏感词已经存在", c)
 	}
 }
 
@@ -178,17 +190,31 @@ func (w *WafSensitiveApi) DelAllSensitiveApi(c *gin.Context) {
 func (w *WafSensitiveApi) ModifySensitiveApi(c *gin.Context) {
 	var req request.WafSensitiveEditReq
 	err := c.ShouldBindJSON(&req)
-	if err == nil {
-		err = wafSensitiveService.ModifyApi(req)
-		if err != nil {
-			response.FailWithMessage("编辑发生错误", c)
-		} else {
-			w.NotifyWaf()
-			response.OkWithMessage("编辑成功", c)
-		}
-
-	} else {
+	if err != nil {
 		response.FailWithMessage("解析失败", c)
+		return
+	}
+	req.Content = strings.TrimSpace(req.Content)
+	req.CheckDirection = strings.TrimSpace(req.CheckDirection)
+	req.Action = strings.TrimSpace(req.Action)
+	if req.Content == "" {
+		response.FailWithMessage("敏感词内容不能为空", c)
+		return
+	}
+	if req.CheckDirection == "" {
+		response.FailWithMessage("检测方向不能为空", c)
+		return
+	}
+	if req.Action == "" {
+		response.FailWithMessage("检测动作不能为空", c)
+		return
+	}
+	err = wafSensitiveService.ModifyApi(req)
+	if err != nil {
+		response.FailWithMessage("编辑发生错误", c)
+	} else {
+		w.NotifyWaf()
+		response.OkWithMessage("编辑成功", c)
 	}
 }
 

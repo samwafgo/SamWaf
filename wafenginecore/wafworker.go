@@ -441,6 +441,10 @@ func (waf *WafEngine) ReLoadSensitive() {
 	var customData map[string]interface{}
 	customData = make(map[string]interface{})
 	for _, sensitive := range waf.Sensitive {
+		if len(sensitive.Content) == 0 {
+			// ahocorasick 不支持空字符串模式，跳过以避免 index out of range [-1] panic
+			continue
+		}
 		keywords = append(keywords, []rune(sensitive.Content))
 		customData[sensitive.Content] = sensitive
 		if sensitive.CheckDirection == "in" && waf.SensitiveDirectionMap["in"] == false {
@@ -455,6 +459,9 @@ func (waf *WafEngine) ReLoadSensitive() {
 		}
 	}
 
+	if len(keywords) == 0 {
+		return
+	}
 	m := new(goahocorasick.Machine)
 	err := m.BuildByCustom(keywords, customData)
 	if err != nil {

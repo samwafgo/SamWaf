@@ -3,10 +3,10 @@ package waf_service
 import (
 	"SamWaf/global"
 	"SamWaf/model"
-	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	response2 "SamWaf/model/response"
 	"SamWaf/utils"
+	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/shirou/gopsutil/host"
@@ -163,18 +163,17 @@ func (receiver *WafStatService) StatHomeSumDayTopIPRangeApi(req request.WafStats
 }
 
 // 获取系统基本信息
-func (receiver *WafStatService) StatHomeSysinfo(c *gin.Context) response2.WafHomeSysinfoStat {
+func (receiver *WafStatService) StatHomeSysinfo(c *gin.Context) (response2.WafHomeSysinfoStat, error) {
 	tokenStr := c.GetHeader("X-Token")
 	tokenInfo := WafTokenInfoServiceApp.GetInfoByAccessToken(tokenStr)
 	if tokenInfo.LoginAccount == "" {
-		response.FailWithMessage("token可能已经失效", c)
-		return response2.WafHomeSysinfoStat{}
+		return response2.WafHomeSysinfoStat{}, errors.New("token可能已经失效")
 	}
 	return response2.WafHomeSysinfoStat{
 		IsDefaultAccount: WafAccountServiceApp.IsExistDefaultAccount(),
 		IsEmptyHost:      WafHostServiceApp.IsEmptyHost(),
 		IsEmptyOtp:       WafOtpServiceApp.IsEmptyOtp(tokenInfo.LoginAccount),
-	}
+	}, nil
 }
 
 // GetTodaySiteStatsByHostCodes 获取指定站点今天的 PV/UV/拦截数/吞吐量

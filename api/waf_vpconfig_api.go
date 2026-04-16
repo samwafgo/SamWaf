@@ -11,8 +11,10 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -34,17 +36,49 @@ type WafVpConfigApi struct {
 func (w *WafVpConfigApi) UpdateIpWhitelistApi(c *gin.Context) {
 	var req request.WafVpConfigIpWhitelistUpdateReq
 	err := c.ShouldBindJSON(&req)
-	if err == nil {
-
-		// 调用配置文件更新函数
-		err = wafconfig.UpdateIpWhitelist(req.IpWhitelist)
-		if err != nil {
-			response.FailWithMessage("更新IP白名单失败: "+err.Error(), c)
-		} else {
-			response.OkWithMessage("更新IP白名单成功", c)
-		}
-	} else {
+	if err != nil {
 		response.FailWithMessage("解析请求失败", c)
+		return
+	}
+
+	// 防护1：不允许提交空白名单，避免所有人被锁在外面
+	if strings.TrimSpace(req.IpWhitelist) == "" {
+		response.FailWithMessage("IP白名单不能为空，否则将无法访问管理端", c)
+		return
+	}
+
+	// 防护2：新白名单必须包含当前请求方的 IP，防止把自己锁在外面
+	clientIP := c.ClientIP()
+	entries := strings.Split(req.IpWhitelist, ",")
+	selfIncluded := false
+	for _, entry := range entries {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		if strings.Contains(entry, "/") {
+			// CIDR 格式
+			_, ipNet, cidrErr := net.ParseCIDR(entry)
+			if cidrErr == nil && ipNet.Contains(net.ParseIP(clientIP)) {
+				selfIncluded = true
+				break
+			}
+		} else if entry == clientIP {
+			selfIncluded = true
+			break
+		}
+	}
+	if !selfIncluded {
+		response.FailWithMessage(fmt.Sprintf("当前访问IP(%s)不在新白名单中，保存后将无法访问管理端，请先将自己的IP加入白名单", clientIP), c)
+		return
+	}
+
+	// 调用配置文件更新函数
+	err = wafconfig.UpdateIpWhitelist(req.IpWhitelist)
+	if err != nil {
+		response.FailWithMessage("更新IP白名单失败: "+err.Error(), c)
+	} else {
+		response.OkWithMessage("更新IP白名单成功", c)
 	}
 }
 

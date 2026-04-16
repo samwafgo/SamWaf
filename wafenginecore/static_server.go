@@ -6,15 +6,36 @@ import (
 	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/model/wafenginmodel"
+	"bytes"
 	"go.uber.org/zap"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
+
+// staticRespRecorder 用于捕获 http.ServeFile 的响应，以便在写出前应用压缩。
+type staticRespRecorder struct {
+	header     http.Header
+	buf        bytes.Buffer
+	statusCode int
+}
+
+func (rec *staticRespRecorder) Header() http.Header {
+	return rec.header
+}
+
+func (rec *staticRespRecorder) Write(b []byte) (int, error) {
+	return rec.buf.Write(b)
+}
+
+func (rec *staticRespRecorder) WriteHeader(statusCode int) {
+	rec.statusCode = statusCode
+}
 
 // 敏感文件和路径黑名单
 var (
@@ -244,14 +265,58 @@ func (waf *WafEngine) serveStaticFile(w http.ResponseWriter, r *http.Request, co
 		return true
 	}
 
-	// 设置安全头
-	waf.setSecurityHeaders(w, config)
-
 	// 记录合法的静态文件访问到日志队列
 	waf.logStaticFileAccess(r.URL.Path, r.RemoteAddr, fileInfo.Size(), weblog, hostsafe)
 
-	// 提供文件服务
-	http.ServeFile(w, r, absFullPath)
+	// 解析压缩配置
+	compressCfg := model.ParseResponseCompressConfig(hostsafe.Host.ResponseCompressJSON)
+	if compressCfg.IsEnable != 1 {
+		// 压缩未启用，直接服务文件
+		waf.setSecurityHeaders(w, config)
+		http.ServeFile(w, r, absFullPath)
+		return true
+	}
+
+	// 用 recorder 捕获 http.ServeFile 的完整响应，再按配置决定是否压缩后写出
+	rec := &staticRespRecorder{
+		header:     make(http.Header),
+		statusCode: http.StatusOK,
+	}
+	http.ServeFile(rec, r, absFullPath)
+
+	// 仅对 200 OK 且尚无 Content-Encoding 的响应尝试压缩；
+	// 304、206 Range、已压缩等情况直接透传。
+	if rec.statusCode == http.StatusOK && strings.TrimSpace(rec.header.Get("Content-Encoding")) == "" {
+		body := rec.buf.Bytes()
+		fakeResp := &http.Response{
+			StatusCode: rec.statusCode,
+			Header:     rec.header,
+		}
+		compressed := waf.maybeApplyResponseCompress(r, fakeResp, body, compressCfg)
+		// 将 recorder 中的头写入真实 ResponseWriter
+		for k, vv := range rec.header {
+			for _, v := range vv {
+				w.Header().Set(k, v)
+			}
+		}
+		// 若内容被压缩，更新 Content-Length
+		if len(compressed) != len(body) {
+			w.Header().Set("Content-Length", strconv.FormatInt(int64(len(compressed)), 10))
+		}
+		waf.setSecurityHeaders(w, config)
+		w.WriteHeader(rec.statusCode)
+		w.Write(compressed)
+	} else {
+		// 透传：304 Not Modified、206 Partial Content 或已有编码等
+		for k, vv := range rec.header {
+			for _, v := range vv {
+				w.Header().Set(k, v)
+			}
+		}
+		waf.setSecurityHeaders(w, config)
+		w.WriteHeader(rec.statusCode)
+		w.Write(rec.buf.Bytes())
+	}
 	return true
 }
 

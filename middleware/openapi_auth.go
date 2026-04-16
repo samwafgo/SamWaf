@@ -169,11 +169,16 @@ func OpenApiLogMiddleware() gin.HandlerFunc {
 			strings.Contains(path, "/upload")
 
 		if !isFileRequest && c.Request.Body != nil {
-			bodyBytes, err := io.ReadAll(io.LimitReader(c.Request.Body, 2048))
+			bodyBytes, err := io.ReadAll(c.Request.Body)
 			if err == nil {
-				requestBody = string(bodyBytes)
-				// 恢复 body 供后续 handler 使用
+				// 恢复完整 body 供后续 handler 使用
 				c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+				// 日志仅记录前 2048 字节，避免大请求体撑爆日志
+				if len(bodyBytes) > 2048 {
+					requestBody = string(bodyBytes[:2048]) + "...(truncated)"
+				} else {
+					requestBody = string(bodyBytes)
+				}
 			}
 		}
 

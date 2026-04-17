@@ -857,14 +857,72 @@ func (waf *WafEngine) getClientIP(r *http.Request, headers ...string) (error, st
 	return errors.New("invalid IP address (not IPv4 or IPv6): " + ip), "", ""
 }
 
+// classifyProxyError 根据 ReverseProxy 回调的错误以及请求上下文判断错误来源
+// 返回：
+//
+//	category   - 用于日志分类的字符串标签
+//	statusCode - 建议写入 weblog 的状态码（仿 nginx：客户端取消使用 499）
+//	statusText - weblog STATUS 字段文案
+//	isClient   - 是否属于客户端主动取消 / 断开，用于调整日志等级
+func classifyProxyError(err error, ctxErr error) (category string, statusCode int, statusText string, isClient bool) {
+	switch {
+	case errors.Is(err, context.Canceled) || errors.Is(ctxErr, context.Canceled):
+		return "client_canceled", 499, "Client Closed Request", true
+	case errors.Is(err, context.DeadlineExceeded) || errors.Is(ctxErr, context.DeadlineExceeded):
+		return "timeout", 504, "Gateway Timeout", false
+	case errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF):
+		return "backend_eof", 502, "Bad Gateway", false
+	}
+	// net 包内部超时（如 dial i/o timeout、ResponseHeaderTimeout 的旧路径）
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return "timeout", 504, "Gateway Timeout", false
+	}
+	return "backend_error", 503, "Service Unavailable", false
+}
+
 func (waf *WafEngine) errorResponse() func(http.ResponseWriter, *http.Request, error) {
 	return func(w http.ResponseWriter, req *http.Request, err error) {
 
 		if wafHttpContext, ok := req.Context().Value("waf_context").(innerbean.WafHttpContextData); ok {
 			weblogReq := wafHttpContext.Weblog
 
+			ctxErr := req.Context().Err()
+			category, statusCode, statusText, isClient := classifyProxyError(err, ctxErr)
+
 			requestInfo := fmt.Sprintf("Method: %s \r\nURL: %s   \r\nHeaders: %v", req.Method, req.URL.String(), req.Header)
-			zlog.Error("服务不可用 response:", zap.Any("err", err.Error()), zap.String("request_info", requestInfo))
+
+			// 统一组织诊断字段，方便区分"客户端取消 vs 后端故障 vs 超时"
+			ctxErrStr := "<nil>"
+			if ctxErr != nil {
+				ctxErrStr = ctxErr.Error()
+			}
+			if isClient {
+				// 客户端自己断开不是错误，降级为 Info，避免刷屏
+				zlog.Info("反向代理客户端已断开",
+					zap.String("category", category),
+					zap.String("err", err.Error()),
+					zap.String("ctx_err", ctxErrStr),
+					zap.Bool("is_context_canceled", errors.Is(err, context.Canceled)),
+					zap.Bool("is_deadline_exceeded", errors.Is(err, context.DeadlineExceeded)),
+					zap.Bool("ctx_is_canceled", errors.Is(ctxErr, context.Canceled)),
+					zap.Bool("ctx_is_deadline", errors.Is(ctxErr, context.DeadlineExceeded)),
+					zap.Int("status_code", statusCode),
+					zap.String("request_info", requestInfo),
+				)
+			} else {
+				zlog.Error("反向代理后端错误",
+					zap.String("category", category),
+					zap.String("err", err.Error()),
+					zap.String("ctx_err", ctxErrStr),
+					zap.Bool("is_context_canceled", errors.Is(err, context.Canceled)),
+					zap.Bool("is_deadline_exceeded", errors.Is(err, context.DeadlineExceeded)),
+					zap.Bool("ctx_is_canceled", errors.Is(ctxErr, context.Canceled)),
+					zap.Bool("ctx_is_deadline", errors.Is(ctxErr, context.DeadlineExceeded)),
+					zap.Int("status_code", statusCode),
+					zap.String("request_info", requestInfo),
+				)
+			}
 
 			resBytes := []byte("<html><head><title>服务不可用</title></head><body><center><h1>服务不可用</h1> <br><h3></h3></center></body> </html>")
 
@@ -879,13 +937,21 @@ func (waf *WafEngine) errorResponse() func(http.ResponseWriter, *http.Request, e
 			}
 
 			weblogReq.ResHeader = resHeader
-			weblogReq.ACTION = "放行"
-			weblogReq.STATUS = "Service Unavailable"
-			weblogReq.STATUS_CODE = 503
-			weblogReq.RES_BODY = fmt.Sprintf("请求相关信息:%v \r\n 错误信息:%v \r\n", requestInfo, err.Error())
+			if isClient {
+				weblogReq.ACTION = "客户端断开"
+			} else {
+				weblogReq.ACTION = "放行"
+			}
+			weblogReq.STATUS = statusText
+			weblogReq.STATUS_CODE = statusCode
+			weblogReq.RES_BODY = fmt.Sprintf("类型:%s \r\n请求相关信息:%v \r\n 错误信息:%v \r\n ctxErr:%v \r\n", category, requestInfo, err.Error(), ctxErr)
 			weblogReq.TASK_FLAG = 1
-			global.GQEQUE_LOG_DB.Enqueue(weblogReq)
-			w.WriteHeader(http.StatusServiceUnavailable)
+			if global.GQEQUE_LOG_DB != nil {
+				global.GQEQUE_LOG_DB.Enqueue(weblogReq)
+			}
+
+			// 客户端已断开时再写响应通常也写不出去，但仍保持原有写入行为，只是降级日志
+			w.WriteHeader(statusCode)
 			if _, writeErr := w.Write(resBytes); writeErr != nil {
 				zlog.Debug("write fail:", zap.Any("err", writeErr))
 				return

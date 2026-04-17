@@ -845,6 +845,37 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return tx.Migrator().DropTable(&model.DataRetentionPolicy{})
 			},
 		},
+		// 迁移21: 为 anti_ccs 表添加 skip_global_cc 字段（局部CC命中后跳过全局CC检测）
+		{
+			ID: "202604170001_add_anticc_skip_global_cc",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202604170001: 为 anti_ccs 表添加 skip_global_cc 字段")
+
+				if tx.Migrator().HasColumn(&model.AntiCC{}, "skip_global_cc") {
+					zlog.Info("skip_global_cc 字段已存在，跳过添加")
+					return nil
+				}
+
+				if err := tx.Migrator().AddColumn(&model.AntiCC{}, "skip_global_cc"); err != nil {
+					return fmt.Errorf("添加 skip_global_cc 字段失败: %w", err)
+				}
+
+				// 历史数据默认值为 false（保持原有行为：继续检测全局CC）
+				if err := tx.Exec("UPDATE anti_ccs SET skip_global_cc = 0 WHERE skip_global_cc IS NULL").Error; err != nil {
+					zlog.Warn("设置 skip_global_cc 默认值失败", "error", err.Error())
+				}
+
+				zlog.Info("skip_global_cc 字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202604170001: 删除 anti_ccs 表的 skip_global_cc 字段")
+				if tx.Migrator().HasColumn(&model.AntiCC{}, "skip_global_cc") {
+					return tx.Migrator().DropColumn(&model.AntiCC{}, "skip_global_cc")
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

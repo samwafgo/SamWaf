@@ -19,5 +19,6 @@ type AntiCC struct {
 	Url           string `json:"url"`
 	IsEnableRule  bool   `json:"is_enable_rule" gorm:"column:is_enable_rule"` //是否启动规则
 	RuleContent   string `json:"rule_content" gorm:"column:rule_content"`     //规则内容
+	SkipGlobalCC  bool   `json:"skip_global_cc" gorm:"column:skip_global_cc"` //命中局部CC规则后跳过全局CC检测
 	Remarks       string `json:"remarks"`                                     //备注
 }

@@ -38,6 +38,7 @@ func (receiver *WafAntiCCService) AddApi(req request.WafAntiCCAddReq) error {
 		Remarks:       req.Remarks,
 		LimitMode:     req.LimitMode,
 		IsEnableRule:  req.IsEnableRule,
+		SkipGlobalCC:  req.SkipGlobalCC,
 		RuleContent:   req.RuleContent,
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
@@ -65,6 +66,7 @@ func (receiver *WafAntiCCService) ModifyApi(req request.WafAntiCCEditReq) error 
 		"UPDATE_TIME":   customtype.JsonTime(time.Now()),
 		"LimitMode":     req.LimitMode,
 		"IsEnableRule":  req.IsEnableRule,
+		"SkipGlobalCC":  req.SkipGlobalCC,
 		"RuleContent":   req.RuleContent,
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.AntiCC{}).Where("id = ?", req.Id).Updates(ipWhiteMap).Error

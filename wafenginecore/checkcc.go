@@ -55,6 +55,10 @@ func (waf *WafEngine) CheckCC(r *http.Request, weblogbean *innerbean.WebLog, for
 				global.GCACHE_WAFCACHE.SetWithTTl(cacheKey, 1, time.Duration(hostTarget.AntiCCBean.LockIPMinutes)*time.Minute)
 				return result
 			}
+			// 局部CC已检测且未封禁，若配置了跳过全局CC则直接返回
+			if hostTarget.AntiCCBean.SkipGlobalCC {
+				return result
+			}
 		} else {
 			return result
 		}

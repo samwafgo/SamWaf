@@ -67,7 +67,7 @@ func (w *WafAntiCCApi) AddApi(c *gin.Context) {
 		}
 
 	} else {
-		response.FailWithMessage("解析失败", c)
+		response.FailWithMessage("解析失败"+err.Error(), c)
 	}
 }
 
@@ -237,7 +237,7 @@ func (w *WafAntiCCApi) ModifyAntiCCApi(c *gin.Context) {
 		}
 
 	} else {
-		response.FailWithMessage("解析失败", c)
+		response.FailWithMessage("解析失败"+err.Error(), c)
 	}
 }
 

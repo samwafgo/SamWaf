@@ -193,6 +193,17 @@ func chooseCompressEncoding(acceptEncoding, prefer string) string {
 			return "zstd"
 		}
 		return ""
+	case "zstd_first":
+		if strings.Contains(ae, "zstd") {
+			return "zstd"
+		}
+		if strings.Contains(ae, "br") {
+			return "br"
+		}
+		if acceptEncodingSupportsGzip(ae) {
+			return "gzip"
+		}
+		return ""
 	default: // br_first
 		if strings.Contains(ae, "br") {
 			return "br"

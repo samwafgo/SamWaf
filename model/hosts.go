@@ -244,7 +244,7 @@ var defaultResponseCompressMimeTypes = []string{
 func ParseResponseCompressConfig(jsonStr string) ResponseCompressConfig {
 	var c ResponseCompressConfig
 	c.IsEnable = 0
-	c.Prefer = "br_first"
+	c.Prefer = "zstd_first"
 	c.MinLength = 256
 	c.CompressWhenStaticAssist = 0
 	if jsonStr == "" {
@@ -252,11 +252,11 @@ func ParseResponseCompressConfig(jsonStr string) ResponseCompressConfig {
 	}
 	if err := json.Unmarshal([]byte(jsonStr), &c); err != nil {
 		return ResponseCompressConfig{
-			IsEnable: 0, Prefer: "br_first", MinLength: 256, CompressWhenStaticAssist: 0,
+			IsEnable: 0, Prefer: "zstd_first", MinLength: 256, CompressWhenStaticAssist: 0,
 		}
 	}
 	if c.Prefer == "" {
-		c.Prefer = "br_first"
+		c.Prefer = "zstd_first"
 	}
 	if c.MinLength <= 0 {
 		c.MinLength = 256

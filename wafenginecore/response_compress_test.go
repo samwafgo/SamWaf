@@ -26,6 +26,19 @@ func TestChooseCompressEncoding(t *testing.T) {
 	if chooseCompressEncoding("", "gzip_only") != "" {
 		t.Fatal("empty accept should not compress")
 	}
+	// zstd_first: zstd > br > gzip
+	if chooseCompressEncoding("zstd, br, gzip", "zstd_first") != "zstd" {
+		t.Fatal("zstd_first should pick zstd when available")
+	}
+	if chooseCompressEncoding("br, gzip", "zstd_first") != "br" {
+		t.Fatal("zstd_first should fall back to br when zstd unavailable")
+	}
+	if chooseCompressEncoding("gzip", "zstd_first") != "gzip" {
+		t.Fatal("zstd_first should fall back to gzip when neither zstd nor br available")
+	}
+	if chooseCompressEncoding("", "zstd_first") != "" {
+		t.Fatal("zstd_first should return empty when no encoding supported")
+	}
 }
 
 func TestMaybeApplyResponseCompress_SkipsWhenAlreadyEncoded(t *testing.T) {

@@ -56,6 +56,7 @@ type ApiGroup struct {
 	WafOPlatformLogRouter
 	WafOPlatformDocRouter
 	WafDataRetentionRouter
+	WafOwaspRouter
 }
 type PublicApiGroup struct {
 	LoginRouter

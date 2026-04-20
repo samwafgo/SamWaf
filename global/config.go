@@ -27,6 +27,8 @@ var (
 	GCONFIG_ENABLE_STRICT_IP_BINDING  int64 = 1 // 是否启用严格IP绑定 1启用 0禁用
 
 	GCONFIG_RECORD_ENABLE_OWASP        int64  = 0         //启动OWASP数据检测
+	GCONFIG_OWASP_MODE                 string = "On"      //OWASP 检测引擎工作模式: On(拦截) / DetectionOnly(观察/仅记录) / Off(关闭)
+	GCONFIG_OWASP_BLOCK_THRESHOLD      int64  = 7         //OWASP 入站 anomaly score 阈值(官方默认 5,我们宽松到 7)
 	GCONFIG_RECORD_ENABLE_HTTP_80      int64  = 0         //启动80端口服务（为自动申请证书使用 HTTP文件验证类型，DNS验证不需要）
 	GCONFIG_RECORD_SSLOrder_EXPIRE_DAY int64  = 30        // 提前多少天进行自动申请
 	GCONFIG_RECORD_SSL_IP_CERT_IP      string = ""        // 获取IP证书时的IP地址

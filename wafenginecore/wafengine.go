@@ -83,6 +83,11 @@ func (waf *WafEngine) Error() string {
 func inferAttackType(ruleTitle string) string {
 	ruleTitle = strings.ToLower(ruleTitle)
 
+	// OWASP CRS 拦截：Title 格式为 "owasp:<ruleID>"，需在其他关键词匹配之前优先处理
+	if strings.HasPrefix(ruleTitle, "owasp:") {
+		return "owasp_attack"
+	}
+
 	// CC攻击
 	if strings.Contains(ruleTitle, "cc") || strings.Contains(ruleTitle, "频次") || strings.Contains(ruleTitle, "rate limit") {
 		return "cc_attack"
@@ -567,9 +572,11 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						return
 					}
 				}
-				//检测OWASP
-				if handleBlock(waf.CheckOwasp) {
-					return
+				//检测OWASP（全局开关或站点级 owaspset 启用时才进入）
+				if global.GCONFIG_RECORD_ENABLE_OWASP == 1 || hostDefense.DEFENSE_OWASP_SET == 1 {
+					if handleBlock(waf.CheckOwasp) {
+						return
+					}
 				}
 
 				// 添加防盗链检查

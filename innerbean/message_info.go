@@ -125,10 +125,11 @@ IP封禁信息
 */
 type IPBanMessageInfo struct {
 	BaseMessageInfo
-	Ip       string `json:"ip"`       // IP地址
-	Reason   string `json:"reason"`   // 封禁原因
-	Duration int    `json:"duration"` // 封禁时长（分钟）
-	Time     string `json:"time"`     // 封禁时间
+	Ip               string `json:"ip"`                // IP地址
+	Reason           string `json:"reason"`            // 封禁原因
+	Duration         int    `json:"duration"`          // 封禁时长（分钟）
+	RemainingSeconds int    `json:"remaining_seconds"` // 剩余封禁时间（秒）
+	Time             string `json:"time"`              // 封禁时间
 }
 
 func (r RuleMessageInfo) ToFormat() map[string]*wechat.DataItem {

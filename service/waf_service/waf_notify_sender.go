@@ -183,9 +183,17 @@ func (receiver *WafNotifySenderService) FormatSystemErrorMessage(errorType, erro
 }
 
 // FormatIPBanMessage 格式化IP封禁消息
-func (receiver *WafNotifySenderService) FormatIPBanMessage(ip, reason, time string, duration int) (string, string) {
+func (receiver *WafNotifySenderService) FormatIPBanMessage(ip, reason, time string, duration int, remainingSeconds int) (string, string) {
 	title := "IP封禁通知"
-	content := fmt.Sprintf("**IP地址:** %s\n\n**封禁原因:** %s\n\n**封禁时长:** %d分钟\n\n**封禁时间:** %s", ip, reason, duration, time)
+	var remainingStr string
+	if remainingSeconds <= 0 {
+		remainingStr = "已过期"
+	} else if remainingSeconds < 60 {
+		remainingStr = fmt.Sprintf("%d秒", remainingSeconds)
+	} else {
+		remainingStr = fmt.Sprintf("%d分%d秒", remainingSeconds/60, remainingSeconds%60)
+	}
+	content := fmt.Sprintf("**IP地址:** %s\n\n**封禁原因:** %s\n\n**封禁时长:** %d分钟\n\n**剩余时间:** %s\n\n**封禁时间:** %s", ip, reason, duration, remainingStr, time)
 	return title, content
 }
 
@@ -277,6 +285,6 @@ func (receiver *WafNotifySenderService) FormatSystemErrorMessageFromBean(msg inn
 // FormatIPBanMessageFromBean 格式化IP封禁消息（从Bean）
 func (receiver *WafNotifySenderService) FormatIPBanMessageFromBean(msg innerbean.IPBanMessageInfo) (string, string, string) {
 	messageType := "ip_ban" // IP封禁类型
-	title, content := receiver.FormatIPBanMessage(msg.Ip, msg.Reason, msg.Time, msg.Duration)
+	title, content := receiver.FormatIPBanMessage(msg.Ip, msg.Reason, msg.Time, msg.Duration, msg.RemainingSeconds)
 	return messageType, title, content
 }

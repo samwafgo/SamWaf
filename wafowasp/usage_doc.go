@@ -18,17 +18,35 @@ const usageDocMD = `# OWASP 规则在线管理使用指南
 - CRS 采用**评分机制**：每条规则命中会按 severity 给 tx.anomaly_score 加分；累计达到阈值就拦截。
 - 默认 paranoia-level=1、threshold=7（SamWaf 在官方默认值 5 基础上放宽至 7，降低单条规则直接 block 的概率）。
 
-## 二、目录结构
+## 二、目录结构与三层策略
 
-| 路径 | 作用 |
-| --- | --- |
-| data/owasp/coraza.conf | Coraza 基础配置（请勿直接改） |
-| data/owasp/coreruleset/ | 官方规则基线（升级时整体替换） |
-| data/owasp/overrides/ | 用户自定义层（**升级不覆盖**） |
-| overrides/00-tuning.conf | 全局调优参数 |
-| overrides/10-disabled-rules.conf | 按 ID 禁用的规则（SecRuleRemoveById） |
-| overrides/20-custom-rules.conf | 用户改写后的规则 |
-| overrides/override_registry.json | 元数据：记录哪些 ID 被改动 |
+三层策略叠加，加载顺序如下：
+
+    Layer 0 (CRS 上游，在线升级时整体替换)
+      data/owasp/coreruleset/rules/*.conf
+
+    Layer 1 (SamWaf 产品默认层，随 SamWaf 版本更新)
+      data/owasp/overrides/00-samwaf-base.conf
+
+    Layer 2 (用户自定义层，永不被任何升级覆盖)
+      data/owasp/overrides/05-user-vars.conf
+      data/owasp/overrides/10-disabled-rules.conf
+      data/owasp/overrides/20-custom-rules.conf
+      data/owasp/overrides/override_registry.json
+
+| 路径 | 层 | 作用 |
+| --- | --- | --- |
+| data/owasp/coraza.conf | — | Coraza 基础配置（请勿直接改） |
+| data/owasp/coreruleset/ | 0 | 官方规则基线（CRS 在线升级时整体替换） |
+| overrides/00-samwaf-base.conf | **1** | SamWaf 产品默认 tx.* 变量（随 SamWaf 二进制更新） |
+| overrides/05-user-vars.conf | **2** | 用户覆盖的 tx.* 变量（优先于 Layer 1） |
+| overrides/10-disabled-rules.conf | **2** | 按 ID 禁用的规则（SecRuleRemoveById） |
+| overrides/20-custom-rules.conf | **2** | 用户改写后的规则 |
+| overrides/override_registry.json | **2** | 元数据：记录哪些 ID 被改动 |
+
+加载顺序：coraza.conf → crs-setup.conf → 00-samwaf-base.conf → 05-user-vars.conf → rules/*.conf → 10-disabled-rules.conf → 20-custom-rules.conf
+
+tx.* 变量必须在 rules/*.conf 之前设置：CRS rule 901160 只在变量未设置时才写默认值。
 
 ## 三、误报应对阶梯
 

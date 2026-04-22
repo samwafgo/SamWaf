@@ -95,8 +95,8 @@ func CheckUpgrade(m *OwaspManager) (*UpgradeInfo, error) {
 //  1. CheckUpgrade 拿 manifest
 //  2. 下载 zip，sha256 校验
 //  3. 解压到 tmp/owasp-<ver>/
-//  4. 备份当前 coreruleset → coreruleset.bak
-//  5. 替换 coreruleset（保留 overrides）
+//  4. 备份当前 coreruleset → coreruleset.bak，samwaf → samwaf.bak（若 ZIP 含 samwaf/）
+//  5. 替换 coreruleset（保留 overrides）；同步替换 samwaf（Layer 1 SamWaf 钩子）
 //  6. 将 registry 里标记为 modified 的 ID 从新的 coreruleset 中移除（合并策略 "by_rule_id"）
 //  7. 更新 version 文件
 //  8. m.Reload()
@@ -162,7 +162,7 @@ func ApplyUpgrade(m *OwaspManager) error {
 		}
 	}
 
-	// 备份 + 替换 coreruleset
+	// ── 备份 + 替换 coreruleset ──────────────────────────────────────────────
 	coreDir := filepath.Join(owaspRoot, "coreruleset")
 	backupDir := filepath.Join(owaspRoot, "coreruleset.bak")
 	_ = os.RemoveAll(backupDir)
@@ -172,23 +172,53 @@ func ApplyUpgrade(m *OwaspManager) error {
 		}
 	}
 
+	rollbackCore := func() {
+		_ = os.RemoveAll(coreDir)
+		if _, statErr := os.Stat(backupDir); statErr == nil {
+			_ = os.Rename(backupDir, coreDir)
+		}
+	}
+
 	// 解压目录下可能是 coreruleset/ 直接结构，也可能是 <name>/coreruleset/；
 	// 这里尝试自动识别。
 	srcCore, err := resolveCorerulesetInExtract(extractDir)
 	if err != nil {
-		// 回滚
-		if _, statErr := os.Stat(backupDir); statErr == nil {
-			_ = os.Rename(backupDir, coreDir)
-		}
+		rollbackCore()
 		return fmt.Errorf("定位 coreruleset 目录失败: %w", err)
 	}
 	if err := os.Rename(srcCore, coreDir); err != nil {
-		// 回滚
-		if _, statErr := os.Stat(backupDir); statErr == nil {
-			_ = os.Rename(backupDir, coreDir)
-		}
+		rollbackCore()
 		return fmt.Errorf("应用新 coreruleset 失败: %w", err)
 	}
+
+	// ── 备份 + 替换 samwaf（Layer 1 SamWaf 钩子，ZIP 含 samwaf/ 时才执行）──
+	// samwaf/ 由 SamWaf 开发团队维护，随版本发布整体替换；
+	// 用户自定义内容应放在 overrides/，不受此步影响。
+	samwafInExtract := filepath.Join(extractDir, "samwaf")
+	if st, statErr := os.Stat(samwafInExtract); statErr == nil && st.IsDir() {
+		samwafDir := filepath.Join(owaspRoot, "samwaf")
+		samwafBak := filepath.Join(owaspRoot, "samwaf.bak")
+		_ = os.RemoveAll(samwafBak)
+		if _, err := os.Stat(samwafDir); err == nil {
+			if err := os.Rename(samwafDir, samwafBak); err != nil {
+				// coreruleset 已替换成功，samwaf 备份失败不致命，记录日志继续
+				zlog.Error("备份 samwaf 失败，继续升级", map[string]interface{}{"err": err.Error()})
+				goto afterSamwaf
+			}
+		}
+		if err := os.Rename(samwafInExtract, samwafDir); err != nil {
+			// 回滚 samwaf
+			_ = os.RemoveAll(samwafDir)
+			if _, statErr := os.Stat(samwafBak); statErr == nil {
+				_ = os.Rename(samwafBak, samwafDir)
+			}
+			// 同时回滚 coreruleset
+			rollbackCore()
+			return fmt.Errorf("应用新 samwaf 失败: %w", err)
+		}
+		_ = os.RemoveAll(samwafBak)
+	}
+afterSamwaf:
 
 	// 写 version 文件
 	if err := os.WriteFile(filepath.Join(owaspRoot, "version"), []byte(info.LatestVersion), 0644); err != nil {

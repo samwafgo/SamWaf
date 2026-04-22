@@ -216,6 +216,10 @@ func (w *WafOWASP) logDetectionOnlyWouldBlock(tx types.Transaction, r *http.Requ
 			"severity": rm.Severity().String(),
 			"msg":      mr.Message(),
 		})
+		// 命中统计：DetectionOnly 下记录观察模式命中
+		if rm.ID() > 0 {
+			GlobalHitStats.RecordDetected(rm.ID(), mr.Message(), rm.Severity().String())
+		}
 	}
 
 	srcIP := ""
@@ -408,6 +412,14 @@ func (w *WafOWASP) handleInterruption(tx types.Transaction, it *types.Interrupti
 	// 这样 checkowasp.go 拼出的 result.Title 只有 "OWASP:<ruleID>"，不会把规则消息泄漏给访客或塞满通知面板。
 	if it != nil {
 		it.Data = ""
+	}
+
+	// 命中统计：只记录有 message 的规则（排除 CRS 初始化类 SecAction，它们 message 为空）。
+	for _, mr := range matched {
+		rm := mr.Rule()
+		if rm.ID() > 0 && mr.Message() != "" {
+			GlobalHitStats.RecordBlocked(rm.ID(), mr.Message(), rm.Severity().String())
+		}
 	}
 
 	// 慢路径：仅 debug 模式下采集完整上下文

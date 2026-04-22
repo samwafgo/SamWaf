@@ -21,6 +21,11 @@ func (r *WafOwaspRouter) InitWafOwaspRouter(group *gin.RouterGroup) {
 	g.POST("/api/v1/owasp/rule_reset", owaspApi.RuleResetApi)
 	g.GET("/api/v1/owasp/files", owaspApi.FilesListApi)
 	g.GET("/api/v1/owasp/file_content", owaspApi.FileContentApi)
+	// Layer 1 基线配置（可修改，优先级低于 Layer 2 tuning）
+	g.GET("/api/v1/owasp/base_config", owaspApi.BaseConfigGetApi)
+	g.POST("/api/v1/owasp/base_config", owaspApi.BaseConfigSetApi)
+
+	// Layer 2 用户覆盖配置（优先级最高）
 	g.GET("/api/v1/owasp/tuning", owaspApi.TuningGetApi)
 	g.POST("/api/v1/owasp/tuning", owaspApi.TuningSetApi)
 	g.POST("/api/v1/owasp/reload", owaspApi.ReloadApi)
@@ -40,4 +45,8 @@ func (r *WafOwaspRouter) InitWafOwaspRouter(group *gin.RouterGroup) {
 
 	// 使用文档
 	g.GET("/api/v1/owasp/usage/doc", owaspApi.UsageDocApi)
+
+	// 规则命中统计（运行期内存统计，重启清零）
+	g.GET("/api/v1/owasp/hit_stats", owaspApi.HitStatsApi)
+	g.POST("/api/v1/owasp/hit_stats/reset", owaspApi.HitStatsResetApi)
 }

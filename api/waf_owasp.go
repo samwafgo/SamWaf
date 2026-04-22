@@ -405,6 +405,78 @@ func (w *WafOwaspApi) CRSVarDeleteApi(c *gin.Context) {
 	response.OkWithMessage("CRS 变量已删除并热重载", c)
 }
 
+// BaseConfigGetApi 读取 Layer 1 基线配置（samwaf_base.json）。
+func (w *WafOwaspApi) BaseConfigGetApi(c *gin.Context) {
+	m := w.manager(c)
+	if m == nil {
+		return
+	}
+	cfg, err := m.Overrides().GetBaseConfig()
+	if err != nil {
+		response.FailWithMessage("读取失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithDetailed(cfg, "获取成功", c)
+}
+
+// BaseConfigSetApi 写入 Layer 1 基线配置并热重载。
+// Layer 1 仅包含 CRS tx.* 数值变量；SecRuleEngine 和 CustomVars 不在此管理。
+func (w *WafOwaspApi) BaseConfigSetApi(c *gin.Context) {
+	m := w.manager(c)
+	if m == nil {
+		return
+	}
+	raw := map[string]interface{}{}
+	if err := c.ShouldBindJSON(&raw); err != nil {
+		response.FailWithMessage("解析失败: "+err.Error(), c)
+		return
+	}
+	pickInt := func(keys ...string) int {
+		for _, k := range keys {
+			if v, ok := raw[k]; ok && v != nil {
+				switch n := v.(type) {
+				case float64:
+					return int(n)
+				case int:
+					return n
+				case string:
+					if x, err := strconv.Atoi(n); err == nil {
+						return x
+					}
+				}
+			}
+		}
+		return 0
+	}
+	cfg := wafowasp.BaseConfig{
+		BlockingParanoia:     pickInt("blocking_paranoia_level", "blocking_paranoia"),
+		DetectionParanoia:    pickInt("detection_paranoia_level", "detection_paranoia"),
+		InboundThreshold:     pickInt("inbound_anomaly_score_threshold", "inbound_threshold"),
+		OutboundThreshold:    pickInt("outbound_anomaly_score_threshold", "outbound_threshold"),
+		EarlyBlocking:        pickInt("early_blocking"),
+		EnforceBodyProcessor: pickInt("enforce_bodyproc_urlencoded", "enforce_body_processor"),
+	}
+	if cfg.BlockingParanoia < 1 || cfg.BlockingParanoia > 4 {
+		response.FailWithMessage("blocking_paranoia_level 必须在 1..4", c)
+		return
+	}
+	if cfg.DetectionParanoia < cfg.BlockingParanoia || cfg.DetectionParanoia > 4 {
+		response.FailWithMessage("detection_paranoia_level 必须 >= blocking_paranoia_level 且 <= 4", c)
+		return
+	}
+	if cfg.InboundThreshold <= 0 {
+		cfg.InboundThreshold = 7
+	}
+	if cfg.OutboundThreshold <= 0 {
+		cfg.OutboundThreshold = 4
+	}
+	if err := m.ApplyBaseConfig(cfg); err != nil {
+		response.FailWithMessage("应用失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("Layer 1 基线已更新并热重载", c)
+}
+
 // TuningGetApi 读取当前 tuning。
 func (w *WafOwaspApi) TuningGetApi(c *gin.Context) {
 	m := w.manager(c)
@@ -799,4 +871,33 @@ func buildDryRunResp(tx types.Transaction, it *types.Interruption) DryRunResp {
 		}
 	}
 	return resp
+}
+
+// HitStatsApi 返回运行期间规则命中 Top-N 统计（内存数据，重启清零）。
+//
+// Query params:
+//
+//	limit  int    最多返回条数，默认 50，最大 500
+//	mode   string 排序维度：all(默认，按总次数) / blocked / detected
+func (w *WafOwaspApi) HitStatsApi(c *gin.Context) {
+	limit := 50
+	if v, err := strconv.Atoi(c.DefaultQuery("limit", "50")); err == nil && v > 0 {
+		limit = v
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	mode := c.DefaultQuery("mode", "all")
+
+	list := wafowasp.GlobalHitStats.TopN(limit, mode)
+	response.OkWithDetailed(gin.H{
+		"list":       list,
+		"rule_count": wafowasp.GlobalHitStats.TotalRuleCount(),
+	}, "获取成功", c)
+}
+
+// HitStatsResetApi 清空内存中的规则命中统计。
+func (w *WafOwaspApi) HitStatsResetApi(c *gin.Context) {
+	wafowasp.GlobalHitStats.Reset()
+	response.OkWithMessage("命中统计已清空", c)
 }

@@ -433,15 +433,23 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if serverName == "" {
 				serverName = "未命名服务器"
 			}
+			banDuration, _ := global.GCACHE_WAFCACHE.GetInt(ccCacheKey)
+			remainingSeconds := 0
+			if expireTime, err := global.GCACHE_WAFCACHE.GetExpireTime(ccCacheKey); err == nil {
+				if r := int(time.Until(expireTime).Seconds()); r > 0 {
+					remainingSeconds = r
+				}
+			}
 			global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.IPBanMessageInfo{
 				BaseMessageInfo: innerbean.BaseMessageInfo{
 					OperaType: "CC封禁提醒",
 					Server:    serverName,
 				},
-				Ip:       ccCheckIP + " (" + regionStr + ")",
-				Reason:   "CC攻击，访问频次过高",
-				Duration: 0, // CC封禁时长由配置决定
-				Time:     time.Now().Format("2006-01-02 15:04:05"),
+				Ip:               ccCheckIP + " (" + regionStr + ")",
+				Reason:           "CC攻击，访问频次过高",
+				Duration:         banDuration,
+				RemainingSeconds: remainingSeconds,
+				Time:             time.Now().Format("2006-01-02 15:04:05"),
 			})
 			EchoErrorInfo(w, r, &weblogbean, "", "当前IP由于访问频次太高暂时无法访问", hostTarget, waf.HostTarget[waf.HostCode[global.GWAF_GLOBAL_HOST_CODE]], false, "cc_attack")
 			return

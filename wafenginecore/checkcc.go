@@ -52,7 +52,7 @@ func (waf *WafEngine) CheckCC(r *http.Request, weblogbean *innerbean.WebLog, for
 				result.Content = "您的访问被阻止超量了"
 				cacheKey := enums.CACHE_CCVISITBAN_PRE + clientIP
 				//将该IP添加到封禁里
-				global.GCACHE_WAFCACHE.SetWithTTl(cacheKey, 1, time.Duration(hostTarget.AntiCCBean.LockIPMinutes)*time.Minute)
+				global.GCACHE_WAFCACHE.SetWithTTl(cacheKey, hostTarget.AntiCCBean.LockIPMinutes, time.Duration(hostTarget.AntiCCBean.LockIPMinutes)*time.Minute)
 				return result
 			}
 			// 局部CC已检测且未封禁，若配置了跳过全局CC则直接返回
@@ -73,7 +73,7 @@ func (waf *WafEngine) CheckCC(r *http.Request, weblogbean *innerbean.WebLog, for
 			result.Content = "您的访问被阻止超量了"
 			cacheKey := enums.CACHE_CCVISITBAN_PRE + clientIP
 			//将该IP添加到封禁里
-			global.GCACHE_WAFCACHE.SetWithTTl(cacheKey, 1, time.Duration(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].AntiCCBean.LockIPMinutes)*time.Minute)
+			global.GCACHE_WAFCACHE.SetWithTTl(cacheKey, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].AntiCCBean.LockIPMinutes, time.Duration(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].AntiCCBean.LockIPMinutes)*time.Minute)
 			return result
 		}
 	}

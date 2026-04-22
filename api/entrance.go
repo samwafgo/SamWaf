@@ -58,6 +58,7 @@ type APIGroup struct {
 	WafOPlatformLogApi
 	WafOPlatformDocApi
 	WafDataRetentionApi
+	WafOwaspApi
 }
 
 var APIGroupAPP = new(APIGroup)

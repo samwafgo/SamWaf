@@ -9,6 +9,7 @@ import (
 	"SamWaf/model/request"
 	"SamWaf/wafipban"
 	"SamWaf/wafnotify/logfilewriter"
+	"SamWaf/wafowasp"
 	"strconv"
 )
 
@@ -75,6 +76,12 @@ func setConfigIntValue(name string, value int64, change int) {
 		break
 	case "enable_owasp":
 		global.GCONFIG_RECORD_ENABLE_OWASP = value
+		break
+	case "owasp_block_threshold":
+		if value <= 0 {
+			value = 7
+		}
+		global.GCONFIG_OWASP_BLOCK_THRESHOLD = value
 		break
 	case "enable_http_80":
 		global.GCONFIG_RECORD_ENABLE_HTTP_80 = value
@@ -202,6 +209,19 @@ func setConfigStringValue(name string, value string, change int) {
 		break
 	case "gwaf_proxy_header":
 		global.GCONFIG_RECORD_PROXY_HEADER = value
+		break
+	case "owasp_mode":
+		switch value {
+		case "On", "DetectionOnly", "Off":
+			global.GCONFIG_OWASP_MODE = value
+		case "":
+			global.GCONFIG_OWASP_MODE = "On"
+		default:
+			zlog.Warn("invalid owasp_mode value, fallback to On", value)
+			global.GCONFIG_OWASP_MODE = "On"
+		}
+		// 同步到 wafowasp 热路径，使 DetectionOnly "本该拦截" 的 INFO 日志能按当前模式生效
+		wafowasp.SetEngineMode(global.GCONFIG_OWASP_MODE)
 		break
 	case "kafka_url":
 		global.GCONFIG_RECORD_KAFKA_URL = value

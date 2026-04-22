@@ -95,7 +95,8 @@ var (
 	GWAF_DLP                     dlpheader.EngineAPI              // 脱敏引擎
 	GWAF_DLP_CONFIG              string                           // 脱敏引擎配置数据
 
-	GWAF_OWASP *wafowasp.WafOWASP //owasp引擎
+	GWAF_OWASP         *wafowasp.WafOWASP     //owasp引擎（兼容保留：由 GWAF_OWASP_MANAGER.Current() 更新；请勿直接赋值新实例，否则热重载会失效）
+	GWAF_OWASP_MANAGER *wafowasp.OwaspManager //owasp 管理器（支持热重载）
 	/**链聚合**/
 	GWAF_CHAN_HOST                                  = make(chan model.Hosts, 10)         //主机链
 	GWAF_CHAN_ENGINE                                = make(chan int, 10)                 //引擎链

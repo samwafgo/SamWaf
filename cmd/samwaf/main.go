@@ -8,6 +8,7 @@ import (
 	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/globalobj"
+	"SamWaf/innerbean"
 	"SamWaf/iplocation"
 	"SamWaf/model"
 	"SamWaf/model/wafenginmodel"
@@ -266,8 +267,30 @@ func (m *wafSystenService) run() {
 	// 创建 Snowflake 实例
 	global.GWAF_SNOWFLAKE_GEN = wafsnowflake.NewSnowflake(1609459200000, 1, 1) // 设置epoch时间、机器ID和数据中心ID
 
-	// 创建owasp
-	global.GWAF_OWASP = wafowasp.NewWafOWASP(true, utils.GetCurrentDir())
+	// 创建owasp 管理器（支持热重载）
+	global.GWAF_OWASP_MANAGER = wafowasp.NewOwaspManager(utils.GetCurrentDir())
+	global.GWAF_OWASP = global.GWAF_OWASP_MANAGER.Current()
+	// 注入升级上下文：避免 wafowasp → global 的循环依赖
+	wafowasp.ConfigureUpgrader(wafowasp.UpgradeConfig{
+		UpdateVersionURL: global.GUPDATE_VERSION_URL,
+		NotifyFunc: func(success bool, msg string) {
+			if global.GQEQUE_MESSAGE_DB == nil {
+				return
+			}
+			successStr := "false"
+			if success {
+				successStr = "true"
+			}
+			global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.UpdateResultMessageInfo{
+				BaseMessageInfo: innerbean.BaseMessageInfo{
+					OperaType: "OWASP 规则升级",
+					Server:    global.GWAF_CUSTOM_SERVER_NAME,
+				},
+				Msg:     msg,
+				Success: successStr,
+			})
+		},
+	})
 
 	// 初始化ip ban
 	wafipban.InitIPBanManager(global.GCACHE_WAFCACHE)

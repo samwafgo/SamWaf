@@ -22,13 +22,16 @@ const usageDocMD = `# OWASP 规则在线管理使用指南
 
 三层策略叠加，加载顺序如下：
 
-    Layer 0 (CRS 上游，在线升级时整体替换)
+    Layer 1（基线，CRS 上游，在线升级时整体替换）
       data/owasp/coreruleset/rules/*.conf
 
-    Layer 1 (SamWaf 产品默认层，随 SamWaf 版本更新)
-      data/owasp/overrides/00-samwaf-base.conf
+    Layer 2（SamWaf 官方层，随 SamWaf 版本更新）
+      data/owasp/samwaf/samwaf_base.json           ← Layer 2 配置持久化源
+      data/owasp/samwaf/before/00-samwaf-base.conf ← 数值变量（paranoia/threshold，由 samwaf_base.json 生成）
+      data/owasp/samwaf/before/*.conf              ← 字符串/列表变量
+      data/owasp/samwaf/after/*.conf               ← 补充检测规则
 
-    Layer 2 (用户自定义层，永不被任何升级覆盖)
+    Layer 3（用户自定义层，永不被任何升级覆盖）
       data/owasp/overrides/05-user-vars.conf
       data/owasp/overrides/10-disabled-rules.conf
       data/owasp/overrides/20-custom-rules.conf
@@ -37,14 +40,17 @@ const usageDocMD = `# OWASP 规则在线管理使用指南
 | 路径 | 层 | 作用 |
 | --- | --- | --- |
 | data/owasp/coraza.conf | — | Coraza 基础配置（请勿直接改） |
-| data/owasp/coreruleset/ | 0 | 官方规则基线（CRS 在线升级时整体替换） |
-| overrides/00-samwaf-base.conf | **1** | SamWaf 产品默认 tx.* 变量（随 SamWaf 二进制更新） |
-| overrides/05-user-vars.conf | **2** | 用户覆盖的 tx.* 变量（优先于 Layer 1） |
-| overrides/10-disabled-rules.conf | **2** | 按 ID 禁用的规则（SecRuleRemoveById） |
-| overrides/20-custom-rules.conf | **2** | 用户改写后的规则 |
-| overrides/override_registry.json | **2** | 元数据：记录哪些 ID 被改动 |
+| data/owasp/coreruleset/ | **1** | 官方规则基线（CRS 在线升级时整体替换） |
+| samwaf/samwaf_base.json | **2** | Layer 2 配置源（由后台 API 写入） |
+| samwaf/before/00-samwaf-base.conf | **2** | SamWaf 产品默认 tx.* 数值变量（由 samwaf_base.json 生成） |
+| samwaf/before/*.conf | **2** | SamWaf 字符串/列表变量（allowed_methods 等） |
+| samwaf/after/*.conf | **2** | SamWaf 补充检测规则 |
+| overrides/05-user-vars.conf | **3** | 用户覆盖的 tx.* 变量（优先于 Layer 2） |
+| overrides/10-disabled-rules.conf | **3** | 按 ID 禁用的规则（SecRuleRemoveById） |
+| overrides/20-custom-rules.conf | **3** | 用户改写后的规则 |
+| overrides/override_registry.json | **3** | 元数据：记录哪些 ID 被改动 |
 
-加载顺序：coraza.conf → crs-setup.conf → 00-samwaf-base.conf → 05-user-vars.conf → rules/*.conf → 10-disabled-rules.conf → 20-custom-rules.conf
+加载顺序：coraza.conf → crs-setup.conf → samwaf/before/*.conf（含 00-samwaf-base.conf）→ overrides/05-user-vars.conf → coreruleset/rules/*.conf → samwaf/after/*.conf → overrides/10-disabled-rules.conf → overrides/20-custom-rules.conf
 
 tx.* 变量必须在 rules/*.conf 之前设置：CRS rule 901160 只在变量未设置时才写默认值。
 

@@ -113,6 +113,10 @@ func ApplyUpgrade(m *OwaspManager) error {
 
 	owaspRoot := m.OwaspRoot()
 
+	if _, err := os.Stat(filepath.Join(owaspRoot, "lock.txt")); err == nil {
+		return fmt.Errorf("检测到 lock.txt，本地规则已被用户锁定，跳过升级")
+	}
+
 	info, err := CheckUpgrade(m)
 	if err != nil {
 		return err
@@ -194,7 +198,8 @@ func ApplyUpgrade(m *OwaspManager) error {
 	// ── 备份 + 替换 samwaf（Layer 1 SamWaf 钩子，ZIP 含 samwaf/ 时才执行）──
 	// samwaf/ 由 SamWaf 开发团队维护，随版本发布整体替换；
 	// 用户自定义内容应放在 overrides/，不受此步影响。
-	samwafInExtract := filepath.Join(extractDir, "samwaf")
+	// 用 filepath.Dir(srcCore) 而非 extractDir，兼容 zip 含顶层包装目录的情况。
+	samwafInExtract := filepath.Join(filepath.Dir(srcCore), "samwaf")
 	if st, statErr := os.Stat(samwafInExtract); statErr == nil && st.IsDir() {
 		samwafDir := filepath.Join(owaspRoot, "samwaf")
 		samwafBak := filepath.Join(owaspRoot, "samwaf.bak")

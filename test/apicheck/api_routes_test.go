@@ -257,6 +257,30 @@ var registeredRoutes = []route{
 
 	// ── WAF 引擎 ───────────────────────────────────────────────────
 	{"GET", "/api/v1/resetWAF", "重启WAF引擎"},
+
+	// ── OWASP 规则管理 ─────────────────────────────────────────────
+	{"GET", "/api/v1/owasp/rules", "获取OWASP规则列表"},
+	{"GET", "/api/v1/owasp/rule_detail", "获取OWASP规则详情"},
+	{"POST", "/api/v1/owasp/rule_toggle", "启用/禁用OWASP规则"},
+	{"POST", "/api/v1/owasp/rule_override", "改写OWASP规则内容"},
+	{"POST", "/api/v1/owasp/rule_reset", "还原OWASP规则为上游版本"},
+	{"GET", "/api/v1/owasp/audit_log", "获取OWASP规则变更审计日志"},
+	{"GET", "/api/v1/owasp/crs_vars", "获取所有自定义CRS事务变量"},
+	{"POST", "/api/v1/owasp/crs_var", "设置单个CRS事务变量"},
+	{"DELETE", "/api/v1/owasp/crs_var", "删除单个CRS事务变量"},
+	{"GET", "/api/v1/owasp/base_config", "获取OWASP基线配置"},
+	{"POST", "/api/v1/owasp/base_config", "更新OWASP基线配置"},
+	{"GET", "/api/v1/owasp/tuning", "获取OWASP调参配置"},
+	{"POST", "/api/v1/owasp/tuning", "更新OWASP调参配置"},
+	{"POST", "/api/v1/owasp/reload", "手动触发WAF热重载"},
+	{"GET", "/api/v1/owasp/files", "获取OWASP规则文件列表"},
+	{"GET", "/api/v1/owasp/file_content", "获取OWASP规则文件原始内容"},
+	{"POST", "/api/v1/owasp/test/dry_run", "OWASP沙盒测试"},
+	{"GET", "/api/v1/owasp/update/check", "检查OWASP规则库是否有新版本"},
+	{"POST", "/api/v1/owasp/update/apply", "执行OWASP规则库升级"},
+	{"GET", "/api/v1/owasp/usage/doc", "获取OWASP规则管理使用说明"},
+	{"GET", "/api/v1/owasp/hit_stats", "获取OWASP规则命中统计"},
+	{"POST", "/api/v1/owasp/hit_stats/reset", "清空OWASP规则命中统计"},
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

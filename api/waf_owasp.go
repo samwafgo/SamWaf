@@ -301,7 +301,7 @@ func (w *WafOwaspApi) RuleOverrideApi(c *gin.Context) {
 
 // RuleResetReq 还原规则。
 type RuleResetReq struct {
-	ID int `json:"id" form:"id" binding:"required"`
+	ID int `json:"id" binding:"required"`
 }
 
 // RuleResetApi 还原某条规则为上游版本。
@@ -311,7 +311,7 @@ func (w *WafOwaspApi) RuleResetApi(c *gin.Context) {
 		return
 	}
 	var req RuleResetReq
-	if err := c.ShouldBind(&req); err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithMessage("解析失败: "+err.Error(), c)
 		return
 	}

@@ -31,7 +31,7 @@ type OwaspManager struct {
 func NewOwaspManager(currentDir string) *OwaspManager {
 	m := &OwaspManager{dir: currentDir}
 	m.active.Store(true)
-	m.overrides = NewOverrideStore(m.OverridesDir())
+	m.overrides = NewOverrideStore(m.OverridesDir(), m.samwafDir())
 	// 首次启动：若 overrides 目录不存在，生成默认 tuning 与 registry
 	if err := m.overrides.EnsureDirAndDefaults(); err != nil {
 		zlog.Error("EnsureDirAndDefaults overrides failed", map[string]interface{}{"error": err.Error()})
@@ -52,7 +52,7 @@ func (m *OwaspManager) Overrides() *OverrideStore {
 	return m.overrides
 }
 
-// ApplyBaseConfig 写入 Layer 1 基线配置（samwaf_base.json + 00-samwaf-base.conf）并触发热重载。
+// ApplyBaseConfig 写入 Layer 2 基线配置（samwaf/samwaf_base.json + samwaf/00-samwaf-base.conf）并触发热重载。
 func (m *OwaspManager) ApplyBaseConfig(cfg BaseConfig) error {
 	if m.overrides == nil {
 		return fmt.Errorf("override store not initialized")
@@ -151,15 +151,20 @@ func (m *OwaspManager) OwaspRoot() string {
 	return filepath.Join(m.dir, "data", "owasp")
 }
 
-// OverridesDir 返回 overrides/ 目录（用户改动层）。
+// OverridesDir 返回 overrides/ 目录（Layer 3 用户自定义层）。
 func (m *OwaspManager) OverridesDir() string {
 	return filepath.Join(m.OwaspRoot(), "overrides")
+}
+
+// samwafDir 返回 samwaf/ 根目录（Layer 2 SamWaf 官方层）。
+func (m *OwaspManager) samwafDir() string {
+	return filepath.Join(m.OwaspRoot(), "samwaf")
 }
 
 // samwafHooksDir 返回 samwaf 钩子子目录（before 或 after）的路径。
 // 仅在目录存在时才有效；不存在时调用方跳过即可，不视为错误。
 func (m *OwaspManager) samwafHooksDir(sub string) string {
-	return filepath.Join(m.OwaspRoot(), "samwaf", sub)
+	return filepath.Join(m.samwafDir(), sub)
 }
 
 // loadDirConfs 将指定目录下所有 .conf 文件（按字典序）依次追加到 cfg。
@@ -186,27 +191,28 @@ func loadDirConfs(cfg coraza.WAFConfig, dir string) coraza.WAFConfig {
 //
 // 完整加载顺序（优先级从低到高，后加载者覆盖同名变量）：
 //
-//  Layer 1（SamWaf 出厂默认，全部先于 Layer 2 加载）：
+//  Layer 2 前置（SamWaf 官方，全部先于 Layer 3 加载）：
 //  1. data/owasp/coraza.conf
 //  2. data/owasp/coreruleset/crs-setup.conf
-//  3. data/owasp/overrides/00-samwaf-base.conf  ← 数值变量（paranoia/threshold，990001-990009）
-//  4. data/owasp/samwaf/before/*.conf           ← 字符串变量（allowed_methods 等，991001-991099）
+//  3. data/owasp/samwaf/before/*.conf        ← 全部 SamWaf 变量（字母序，00-samwaf-base.conf 先于 01-samwaf-init-vars.conf）
+//     含：00-samwaf-base.conf（数值变量 paranoia/threshold，990001-990009）
+//         01-samwaf-init-vars.conf（字符串变量 allowed_methods 等，991001-991099）
 //
-//  Layer 2（用户设置，最后加载 → 优先级最高）：
-//  5. data/owasp/overrides/05-user-vars.conf    ← 用户所有覆盖（950001+ / 990100+）
+//  Layer 3 前置（用户设置，最后加载 → 优先级最高）：
+//  4. data/owasp/overrides/05-user-vars.conf ← 用户所有覆盖（950001+ / 990100+）
 //
-//  ↑ 步骤 3-5 必须在 CRS rules 之前：CRS rule 901160 只在变量未设置时才写默认值。
-//  ↑ Layer 2（步骤 5）加载最晚 → 同名变量用户值胜出，正确覆盖 Layer 1。
+//  ↑ 步骤 3-4 必须在 CRS rules 之前：CRS rule 901160 只在变量未设置时才写默认值。
+//  ↑ Layer 3（步骤 4）加载最晚 → 同名变量用户值胜出，正确覆盖 Layer 2。
 //
-//  Layer 0（CRS 规则集）：
-//  6. data/owasp/coreruleset/rules/*.conf
+//  Layer 1（CRS 规则集）：
+//  5. data/owasp/coreruleset/rules/*.conf
 //
-//  Layer 1 后置（CRS 执行后补充）：
-//  7. data/owasp/samwaf/after/*.conf            ← 补充检测（991100-991199）
+//  Layer 2 后置（SamWaf 官方补充，CRS 执行后）：
+//  6. data/owasp/samwaf/after/*.conf         ← 补充检测（991100-991199）
 //
-//  Layer 2 后置（用户禁用 / 改写，须在 CRS 之后）：
-//  8. data/owasp/overrides/10-disabled-rules.conf
-//  9. data/owasp/overrides/20-custom-rules.conf
+//  Layer 3 后置（用户禁用 / 改写，须在 CRS 之后）：
+//  7. data/owasp/overrides/10-disabled-rules.conf
+//  8. data/owasp/overrides/20-custom-rules.conf
 //
 // 构建失败时旧实例保留，返回错误由调用方决定如何处理。
 func (m *OwaspManager) Reload() error {
@@ -229,36 +235,29 @@ func (m *OwaspManager) Reload() error {
 		zlog.Error("crs-setup.conf missing, skipping", map[string]interface{}{"path": setupConf, "err": err.Error()})
 	}
 
-	// 步骤 3：Layer 1a — 00-samwaf-base.conf（数值型变量：paranoia / threshold，ID 990001-990009）
-	samwafBase := filepath.Join(m.OverridesDir(), OverrideSamWafBaseFile)
-	if _, err := os.Stat(samwafBase); err == nil {
-		cfg = cfg.WithDirectivesFromFile(samwafBase)
-	}
-
-	// 步骤 4：Layer 1b — samwaf/before/*.conf（字符串/列表型变量：allowed_methods 等，ID 991001-991099）
-	// 必须在 Layer 2（05-user-vars.conf）之前，确保用户覆盖优先级更高。
+	// 步骤 3：Layer 2 before — samwaf/before/*.conf（按字母序，00-samwaf-base.conf 先于 01-samwaf-init-vars.conf）
+	// 包含数值变量（paranoia/threshold）和字符串/列表变量（allowed_methods 等）。
 	cfg = loadDirConfs(cfg, m.samwafHooksDir("before"))
 
-	// 步骤 5：Layer 2 — 05-user-vars.conf（用户覆盖层，最后加载 → 同名变量用户值胜出）
-	// 同时覆盖 Layer 1a 的数值变量和 Layer 1b 的字符串变量。
+	// 步骤 4：Layer 3 — overrides/05-user-vars.conf（用户覆盖层，最后加载 → 同名变量用户值胜出）
+	// 覆盖 Layer 2 before 中的数值变量和字符串变量。
 	tuningConf := filepath.Join(m.OverridesDir(), OverrideTuningFile)
 	if _, err := os.Stat(tuningConf); err == nil {
 		cfg = cfg.WithDirectivesFromFile(tuningConf)
 	}
 
-	// 步骤 6：Layer 0 — CRS 官方规则集（此时所有 tx.* 变量均已就绪）
+	// 步骤 5：Layer 1 — CRS 官方规则集（此时所有 tx.* 变量均已就绪）
 	rulesGlob := filepath.Join(root, "coreruleset", "rules", "*.conf")
 	cfg = cfg.WithDirectivesFromFile(rulesGlob)
 
-	// 步骤 7：Layer 1 后置钩子（samwaf/after/*.conf，ID 991100-991199）—— CRS 规则执行后
+	// 步骤 6：Layer 2 后置钩子（samwaf/after/*.conf，ID 991100-991199）—— CRS 规则执行后
 	// 用途：补充检测规则、基于评分的自定义动作等。
 	cfg = loadDirConfs(cfg, m.samwafHooksDir("after"))
 
-	// 步骤 8-9：Layer 2 后置文件（用户禁用 / 改写规则，须在 CRS 规则之后才能 RemoveById）
-	// 跳过已在步骤 3-5 提前加载的 pre-rules 文件。
+	// 步骤 7-8：Layer 3 后置文件（用户禁用 / 改写规则，须在 CRS 规则之后才能 RemoveById）
+	// 跳过已在步骤 4 提前加载的 pre-rules 文件。
 	preRules := map[string]bool{
-		OverrideSamWafBaseFile: true,
-		OverrideTuningFile:     true,
+		OverrideTuningFile: true,
 	}
 	if overrides, err := listOverrideConfs(m.OverridesDir()); err == nil && len(overrides) > 0 {
 		for _, p := range overrides {

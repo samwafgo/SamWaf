@@ -96,23 +96,29 @@ func (s *OverrideStore) LoadAuditLog() ([]AuditLogEntry, error) {
 //
 // 三层策略叠加（加载顺序）：
 //
-//	Layer 0: coreruleset/rules/*.conf      ← CRS 上游，在线升级时覆盖
-//	Layer 1: overrides/00-samwaf-base.conf ← SamWaf 产品基线，由 samwaf_base.json 驱动
-//	Layer 2: overrides/05-user-vars.conf   ← 用户 tx.* 变量，优先于 Layer 1（永不被升级覆盖）
-//	         overrides/10-disabled-rules.conf
-//	         overrides/20-custom-rules.conf
+//	Layer 1 (基线):        coreruleset/rules/*.conf      ← CRS 上游，在线升级时整体替换
+//	Layer 2 (SamWaf 官方): samwaf/00-samwaf-base.conf   ← SamWaf 数值变量，由 samwaf_base.json 驱动
+//	                       samwaf/before/*.conf          ← SamWaf 字符串/列表变量
+//	                       samwaf/after/*.conf           ← SamWaf 补充检测规则
+//	Layer 3 (用户):        overrides/05-user-vars.conf  ← 用户 tx.* 变量，优先于 Layer 2（永不被升级覆盖）
+//	                       overrides/10-disabled-rules.conf
+//	                       overrides/20-custom-rules.conf
 //
-// 重要：Layer 1 和 Layer 2 均须在 rules/*.conf 之前加载，原因：
+// 重要：Layer 2 和 Layer 3 均须在 rules/*.conf 之前加载，原因：
 // CRS REQUEST-901-INITIALIZATION.conf 的 rule 901160 检查"变量未设置时才写默认值"，
 // 必须在它之前 setvar，否则 tx.allowed_methods 等设置永远无效。
 const (
-	OverrideSamWafBaseFile = "00-samwaf-base.conf"    // Layer 1：SamWaf 产品基线（由 samwaf_base.json 生成）
-	OverrideBaseConfigFile = "samwaf_base.json"       // Layer 1 持久化：存储 SamWaf 基线参数
-	OverrideTuningFile     = "05-user-vars.conf"      // Layer 2：用户 tx.* 变量覆盖层（永不被升级覆盖）
-	OverrideDisabledFile   = "10-disabled-rules.conf" // Layer 2：用户按 ID 禁用的规则
-	OverrideCustomFile     = "20-custom-rules.conf"   // Layer 2：用户覆盖/自定义的规则
-	OverrideRegistryFile   = "override_registry.json" // 元数据：所有用户改动的单一事实来源
-	OverrideRegistryShema  = 1
+	// Layer 2 — SamWaf 官方层（文件在 samwaf/ 下，随 SamWaf 版本更新）
+	SamWafBaseConfFile = "00-samwaf-base.conf" // 由 samwaf_base.json 生成的数值变量 conf
+	SamWafBaseJSONFile = "samwaf_base.json"    // Layer 2 配置持久化源（paranoia/threshold 等）
+
+	// Layer 3 — 用户自定义层（文件在 overrides/ 下，永不被升级覆盖）
+	OverrideTuningFile   = "05-user-vars.conf"      // 用户 tx.* 变量覆盖层
+	OverrideDisabledFile = "10-disabled-rules.conf" // 用户按 ID 禁用的规则
+	OverrideCustomFile   = "20-custom-rules.conf"   // 用户覆盖/自定义的规则
+	OverrideRegistryFile = "override_registry.json" // 元数据：所有用户改动的单一事实来源
+
+	OverrideRegistryShema = 1
 )
 
 // OverrideAction 用户对某条规则的动作。
@@ -196,12 +202,12 @@ func (b BaseConfig) toTuningConfig() TuningConfig {
 	}
 }
 
-// GetBaseConfig 读取 Layer 1 基线配置（来自 samwaf_base.json）。
+// GetBaseConfig 读取 Layer 2 基线配置（来自 samwaf/samwaf_base.json）。
 // 文件不存在时返回 DefaultBaseConfig()（不视为错误）。
 func (s *OverrideStore) GetBaseConfig() (BaseConfig, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return loadBaseConfigLocked(filepath.Join(s.dir, OverrideBaseConfigFile))
+	return loadBaseConfigLocked(filepath.Join(s.samwafDir, SamWafBaseJSONFile))
 }
 
 func loadBaseConfigLocked(path string) (BaseConfig, error) {
@@ -219,7 +225,7 @@ func loadBaseConfigLocked(path string) (BaseConfig, error) {
 	return cfg, nil
 }
 
-// SetBaseConfig 持久化 Layer 1 配置并重新生成 00-samwaf-base.conf。
+// SetBaseConfig 持久化 Layer 2 配置并重新生成 samwaf/before/00-samwaf-base.conf。
 // 调用方（ApplyBaseConfig）负责触发 Reload()。
 func (s *OverrideStore) SetBaseConfig(cfg BaseConfig) error {
 	s.mu.Lock()
@@ -229,11 +235,11 @@ func (s *OverrideStore) SetBaseConfig(cfg BaseConfig) error {
 	if err != nil {
 		return err
 	}
-	if err := atomicWriteFile(filepath.Join(s.dir, OverrideBaseConfigFile), data); err != nil {
-		return fmt.Errorf("write %s: %w", OverrideBaseConfigFile, err)
+	if err := atomicWriteFile(filepath.Join(s.samwafDir, SamWafBaseJSONFile), data); err != nil {
+		return fmt.Errorf("write %s: %w", SamWafBaseJSONFile, err)
 	}
-	if err := writeSamWafBaseConfFile(filepath.Join(s.dir, OverrideSamWafBaseFile), cfg.toTuningConfig()); err != nil {
-		return fmt.Errorf("write %s: %w", OverrideSamWafBaseFile, err)
+	if err := writeSamWafBaseConfFile(filepath.Join(s.samwafDir, "before", SamWafBaseConfFile), cfg.toTuningConfig()); err != nil {
+		return fmt.Errorf("write %s: %w", SamWafBaseConfFile, err)
 	}
 	s.AppendAuditLog(AuditLogEntry{
 		Action: AuditTuning,
@@ -253,15 +259,17 @@ type OverrideRegistry struct {
 	DeletedFiles []string `json:"deleted_files,omitempty"`
 }
 
-// OverrideStore 封装 overrides 目录的读写，内部持锁串行以避免并发写坏文件。
+// OverrideStore 封装 Layer 2（samwaf/）和 Layer 3（overrides/）的读写，内部持锁串行以避免并发写坏文件。
 type OverrideStore struct {
-	dir string     // overrides/ 目录绝对路径
-	mu  sync.Mutex // 写锁
+	dir       string     // overrides/ 目录绝对路径（Layer 3 用户层）
+	samwafDir string     // samwaf/ 目录绝对路径（Layer 2 SamWaf 官方层）
+	mu        sync.Mutex // 写锁
 }
 
 // NewOverrideStore 创建一个 OverrideStore，不会立即触达磁盘。
-func NewOverrideStore(dir string) *OverrideStore {
-	return &OverrideStore{dir: dir}
+// overridesDir 是 Layer 3 用户层目录（overrides/），samwafDir 是 Layer 2 SamWaf 官方层目录（samwaf/）。
+func NewOverrideStore(overridesDir, samwafDir string) *OverrideStore {
+	return &OverrideStore{dir: overridesDir, samwafDir: samwafDir}
 }
 
 // Dir 返回 overrides 目录路径。
@@ -269,12 +277,14 @@ func (s *OverrideStore) Dir() string {
 	return s.dir
 }
 
-// EnsureDirAndDefaults 确保 overrides 目录存在并写入各层默认文件。
+// EnsureDirAndDefaults 确保各层目录存在并写入各层默认文件。
 //
 // 行为：
-//   - 00-samwaf-base.conf（Layer 1）：每次调用均重写，确保 SamWaf 产品默认值随二进制更新。
-//   - 05-user-vars.conf（Layer 2）：仅首次（registry 缺失时）写入；后续由用户操作写入。
-//   - 兼容迁移：若发现旧版 00-tuning.conf，自动重命名为 05-user-vars.conf。
+//   - samwaf/before/00-samwaf-base.conf（Layer 2）：每次调用均重写，确保 SamWaf 产品默认值随二进制更新。
+//   - overrides/05-user-vars.conf（Layer 3）：仅首次（registry 缺失时）写入；后续由用户操作写入。
+//   - 兼容迁移：若发现旧版 overrides/samwaf_base.json，自动移到 samwaf/samwaf_base.json。
+//   - 兼容迁移：若发现旧版 samwaf/00-samwaf-base.conf，删除（会在 samwaf/before/ 重新生成）。
+//   - 兼容迁移：若发现旧版 overrides/00-tuning.conf，自动重命名为 overrides/05-user-vars.conf。
 func (s *OverrideStore) EnsureDirAndDefaults() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -282,20 +292,47 @@ func (s *OverrideStore) EnsureDirAndDefaults() error {
 	if err := os.MkdirAll(s.dir, 0755); err != nil {
 		return fmt.Errorf("mkdir overrides: %w", err)
 	}
+	if err := os.MkdirAll(s.samwafDir, 0755); err != nil {
+		return fmt.Errorf("mkdir samwaf: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Join(s.samwafDir, "before"), 0755); err != nil {
+		return fmt.Errorf("mkdir samwaf/before: %w", err)
+	}
 
-	// Layer 1：从 samwaf_base.json 读取配置（不存在时用出厂默认值），生成 00-samwaf-base.conf。
+	// 兼容迁移：旧版将 samwaf_base.json 放在 overrides/，新版移到 samwaf/。
+	oldBaseJSON := filepath.Join(s.dir, SamWafBaseJSONFile)
+	newBaseJSON := filepath.Join(s.samwafDir, SamWafBaseJSONFile)
+	if _, err := os.Stat(oldBaseJSON); err == nil {
+		if _, err2 := os.Stat(newBaseJSON); os.IsNotExist(err2) {
+			_ = os.Rename(oldBaseJSON, newBaseJSON)
+		} else {
+			_ = os.Remove(oldBaseJSON)
+		}
+	}
+	// 旧版 overrides/00-samwaf-base.conf 不再在此目录生成，清理占位。
+	oldOverridesConf := filepath.Join(s.dir, SamWafBaseConfFile)
+	if _, err := os.Stat(oldOverridesConf); err == nil {
+		_ = os.Remove(oldOverridesConf)
+	}
+	// 旧版 samwaf/00-samwaf-base.conf（中间迁移路径），现改为 samwaf/before/，删除旧文件。
+	oldSamwafConf := filepath.Join(s.samwafDir, SamWafBaseConfFile)
+	if _, err := os.Stat(oldSamwafConf); err == nil {
+		_ = os.Remove(oldSamwafConf)
+	}
+
+	// Layer 2：从 samwaf/samwaf_base.json 读取配置（不存在时用出厂默认值），生成 samwaf/before/00-samwaf-base.conf。
 	// samwaf_base.json 可由 API 修改，因此每次启动只重新生成 .conf 文件而不覆盖 .json。
-	baseJSONPath := filepath.Join(s.dir, OverrideBaseConfigFile)
+	baseJSONPath := newBaseJSON
 	baseCfg, _ := loadBaseConfigLocked(baseJSONPath)
-	// 首次运行：写入出厂默认值到 samwaf_base.json
+	// 首次运行：写入出厂默认值到 samwaf/samwaf_base.json
 	if _, err := os.Stat(baseJSONPath); os.IsNotExist(err) {
 		if data, err2 := json.MarshalIndent(baseCfg, "", "  "); err2 == nil {
 			_ = atomicWriteFile(baseJSONPath, data)
 		}
 	}
-	basePath := filepath.Join(s.dir, OverrideSamWafBaseFile)
+	basePath := filepath.Join(s.samwafDir, "before", SamWafBaseConfFile)
 	if err := writeSamWafBaseConfFile(basePath, baseCfg.toTuningConfig()); err != nil {
-		return fmt.Errorf("write %s: %w", OverrideSamWafBaseFile, err)
+		return fmt.Errorf("write %s: %w", SamWafBaseConfFile, err)
 	}
 
 	// 兼容迁移：旧版使用 00-tuning.conf，自动重命名为 05-user-vars.conf。
@@ -711,30 +748,30 @@ func rewriteCustomConfLocked(dir string, reg *OverrideRegistry) error {
 // =============================================================================
 // SamWaf SecAction/SecRule ID 分配表（全局，禁止跨层冲突）
 //
-//	ID 范围           层        文件
-//	900000–989999    CRS        coreruleset/rules/*.conf  （禁止使用）
-//	990001–990009    Layer 1    overrides/00-samwaf-base.conf（paranoia/threshold）
-//	990100–990999    Layer 2    overrides/05-user-vars.conf（用户自定义 CRS 变量）
-//	991001–991099    Layer 1    samwaf/before/*.conf（CRS 变量初始化，如 allowed_methods）
-//	991100–991199    Layer 1    samwaf/after/*.conf（补充检测规则）
-//	950001–950006    Layer 2    overrides/05-user-vars.conf（调参：paranoia/threshold 覆盖）
-//	                            注：CRS 从 950010 开始，950001-950006 实测无冲突
+//	ID 范围           层               文件
+//	900000–989999    CRS (Layer 1)    coreruleset/rules/*.conf  （禁止使用）
+//	990001–990009    Layer 2          samwaf/00-samwaf-base.conf（paranoia/threshold）
+//	990100–990999    Layer 3          overrides/05-user-vars.conf（用户自定义 CRS 变量）
+//	991001–991099    Layer 2          samwaf/before/*.conf（CRS 变量初始化，如 allowed_methods）
+//	991100–991199    Layer 2          samwaf/after/*.conf（补充检测规则）
+//	950001–950006    Layer 3          overrides/05-user-vars.conf（调参：paranoia/threshold 覆盖）
+//	                                  注：CRS 从 950010 开始，950001-950006 实测无冲突
 //
 // 验证结论（2026-04-21）：
 //   CRS 4.x 实际 rule ID 范围 901001~980170，没有落在 990xxx / 991xxx / 950001-950006 段。
 // =============================================================================
 
-// writeSamWafBaseConfFile 生成 Layer 1 文件 00-samwaf-base.conf：SamWaf 基线 tx.* 数值变量。
+// writeSamWafBaseConfFile 生成 Layer 2 文件 samwaf/before/00-samwaf-base.conf：SamWaf 基线 tx.* 数值变量。
 //
 // 仅设置 paranoia level / anomaly threshold 等数值参数；
-// 不包含 SecRuleEngine（用户运营决策）和字符串/列表型变量（由 samwaf/before/*.conf 负责）。
+// 不包含 SecRuleEngine（用户运营决策）和字符串/列表型变量（由 samwaf/before/01-samwaf-init-vars.conf 负责）。
 // 使用 ID 段 990001–990009（CRS 安全区）。
 func writeSamWafBaseConfFile(path string, t TuningConfig) error {
 	var sb strings.Builder
-	sb.WriteString("# Layer 1: SamWaf product defaults (numeric). Managed by SamWaf, updated with SamWaf releases.\n")
+	sb.WriteString("# Layer 2: SamWaf product defaults (numeric). Managed by SamWaf, updated with SamWaf releases.\n")
 	sb.WriteString("# DO NOT EDIT MANUALLY. To override, use 后台 → OWASP 规则管理 → 全局调参。\n")
-	sb.WriteString("# User settings in 05-user-vars.conf take precedence (loaded after this file).\n")
-	sb.WriteString("# ID range: 990001-990009 (SamWaf Layer 1 base, safe above CRS max 980170)\n\n")
+	sb.WriteString("# User settings in overrides/05-user-vars.conf take precedence (loaded after this file).\n")
+	sb.WriteString("# ID range: 990001-990009 (SamWaf Layer 2 base, safe above CRS max 980170)\n\n")
 
 	writeSetvar := func(id int, desc, name string, value int) {
 		if value <= 0 {
@@ -760,17 +797,17 @@ func writeSamWafBaseConfFile(path string, t TuningConfig) error {
 	return atomicWriteFile(path, []byte(sb.String()))
 }
 
-// writeTuningConfFile 根据 TuningConfig 生成 Layer 2 文件（05-user-vars.conf）。
+// writeTuningConfFile 根据 TuningConfig 生成 Layer 3 文件（overrides/05-user-vars.conf）。
 //
 // 包含用户设置的全部内容：SecRuleEngine、tx.* 数值调参变量、用户自定义字符串变量。
-// 加载顺序在 00-samwaf-base.conf 和 samwaf/before/*.conf 之后，同名变量以本文件为准。
+// 加载顺序在 samwaf/00-samwaf-base.conf 和 samwaf/before/*.conf 之后，同名变量以本文件为准。
 // ID 段：调参变量 950001-950006；用户自定义 CRS 变量 990100-990999（上限约 900 条）。
 // 注：CRS 实际从 950010 开始，950001-950006 无冲突（已验证）。
 func writeTuningConfFile(path string, t TuningConfig) error {
 	var sb strings.Builder
-	sb.WriteString("# Layer 2: User variable overrides. Managed by SamWaf via API. NEVER overwritten by any upgrade.\n")
+	sb.WriteString("# Layer 3: User variable overrides. Managed by SamWaf via API. NEVER overwritten by any upgrade.\n")
 	sb.WriteString("# Use 后台 → OWASP 规则管理 → 全局调参 来修改这里的内容。\n")
-	sb.WriteString("# Values here take precedence over 00-samwaf-base.conf (SamWaf defaults).\n\n")
+	sb.WriteString("# Values here take precedence over samwaf/00-samwaf-base.conf (SamWaf defaults).\n\n")
 
 	// RuleEngine: DetectionOnly/On/Off 通过 SecRuleEngine 指令直接设定
 	engine := strings.TrimSpace(t.RuleEngine)

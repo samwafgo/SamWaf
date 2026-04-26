@@ -335,26 +335,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		cookies, _ := json.Marshal(r.Cookies())
 
-		hlen := 0
-		for key, values := range r.Header {
-			for _, value := range values {
-				hlen += len(key)
-				hlen += len(": ")
-				hlen += len(value)
-				hlen += len("\r\n")
-			}
-		}
-		var Header strings.Builder
-		Header.Grow(hlen)
-		for key, values := range r.Header {
-			for _, value := range values {
-				Header.WriteString(key)
-				Header.WriteString(": ")
-				Header.WriteString(value)
-				Header.WriteString("\r\n")
-			}
-		}
-		header := Header.String()
+		header := joinHeader(r.Header)
 
 		region := utils.GetCountry(clientIP)
 
@@ -944,11 +925,7 @@ func (waf *WafEngine) errorResponse() func(http.ResponseWriter, *http.Request, e
 			//记录响应Header信息
 			resHeader := ""
 			if req.Response != nil {
-				for key, values := range req.Response.Header {
-					for _, value := range values {
-						resHeader += key + ": " + value + "\r\n"
-					}
-				}
+				resHeader = joinHeader(req.Response.Header)
 			}
 
 			weblogReq.ResHeader = resHeader
@@ -1014,12 +991,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 				weblogfrist.STATUS_CODE = resp.StatusCode
 				weblogfrist.RES_CONTENT_LENGTH = resp.ContentLength
 
-				resHeader := ""
-				for key, values := range resp.Header {
-					for _, value := range values {
-						resHeader += key + ": " + value + "\r\n"
-					}
-				}
+				resHeader := joinHeader(resp.Header)
 				weblogfrist.ResHeader = resHeader
 
 				datetimeNow := time.Now()
@@ -1099,12 +1071,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 					weblogfrist.TASK_FLAG = 1
 
 					// 记录响应Header信息
-					resHeader := ""
-					for key, values := range resp.Header {
-						for _, value := range values {
-							resHeader += key + ": " + value + "\r\n"
-						}
-					}
+					resHeader := joinHeader(resp.Header)
 					weblogfrist.ResHeader = resHeader
 
 					datetimeNow := time.Now()
@@ -1374,12 +1341,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 						resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(resBytes)), 10))
 
 						// 记录响应Header信息
-						resHeader := ""
-						for key, values := range resp.Header {
-							for _, value := range values {
-								resHeader += key + ": " + value + "\r\n"
-							}
-						}
+						resHeader := joinHeader(resp.Header)
 						weblogfrist.ResHeader = resHeader
 
 						// 记录日志信息
@@ -1417,12 +1379,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 					}
 
 					//记录响应Header信息
-					resHeader := ""
-					for key, values := range resp.Header {
-						for _, value := range values {
-							resHeader += key + ": " + value + "\r\n"
-						}
-					}
+					resHeader := joinHeader(resp.Header)
 					weblogfrist.ResHeader = resHeader
 					weblogfrist.ACTION = "放行"
 					weblogfrist.STATUS = resp.Status
@@ -1457,6 +1414,26 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 
 		return nil
 	}
+}
+
+func joinHeader(h http.Header) string {
+	var buf strings.Builder
+	blen := 0
+	for key, values := range h {
+		for _, value := range values {
+			blen += len(key) + len(": ") + len(value) + len("\r\n")
+		}
+	}
+	buf.Grow(blen)
+	for key, values := range h {
+		for _, value := range values {
+			buf.WriteString(key)
+			buf.WriteString(": ")
+			buf.WriteString(value)
+			buf.WriteString("\r\n")
+		}
+	}
+	return buf.String()
 }
 
 func (waf *WafEngine) StartWaf() {

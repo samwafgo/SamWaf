@@ -38,6 +38,7 @@ import (
 	"time"
 
 	"github.com/pires/go-proxyproto"
+	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
 	goahocorasick "github.com/samwafgo/ahocorasick"
 	"go.uber.org/zap"
@@ -1638,6 +1639,9 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 						Addr:      ":" + strconv.Itoa(innruntime.Port),
 						Handler:   waf,
 						TLSConfig: svr.TLSConfig,
+					}
+					if global.GCONFIG_ENABLE_HTTP3_BBR == 1 {
+						h3.QUICConfig.Congestion = func() quic.SendAlgorithmWithDebugInfos { return quic.NewBBRv1(nil) }
 					}
 					svr.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						h3.SetQUICHeaders(w.Header())

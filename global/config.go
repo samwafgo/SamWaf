@@ -26,6 +26,7 @@ var (
 	// 指纹认证相关配置
 	GCONFIG_ENABLE_DEVICE_FINGERPRINT int64 = 1 // 是否启用设备指纹认证 1启用 0禁用
 	GCONFIG_ENABLE_STRICT_IP_BINDING  int64 = 1 // 是否启用严格IP绑定 1启用 0禁用
+	GCONFIG_ENABLE_REPLAY_PROTECT     int64 = 1 // 防重放攻击开关 1启用 0禁用
 
 	GCONFIG_RECORD_ENABLE_OWASP        int64  = 0               //启动OWASP数据检测
 	GCONFIG_OWASP_MODE                 string = "DetectionOnly" //OWASP 检测引擎工作模式: On(拦截) / DetectionOnly(观察/仅记录) / Off(关闭)

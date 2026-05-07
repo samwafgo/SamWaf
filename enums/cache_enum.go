@@ -13,4 +13,5 @@ const (
 	CACHE_WEBFILE        = "CACHE_WEBFILE"
 	CACHE_FILE_INFO      = "CACHE_FILE_INFO"      //文件信息
 	CACHE_IP_FAILURE_PRE = "CACHE_IP_FAILURE_PRE" //IP失败记录前缀
+	CACHE_REPLAY_NONCE   = "CACHE_REPLAY_NONCE_"  // 防重放 nonce 前缀
 )

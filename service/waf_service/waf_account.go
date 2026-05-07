@@ -58,7 +58,7 @@ func (receiver *WafAccountService) ModifyApi(req request.WafAccountEditReq) erro
 func (receiver *WafAccountService) ResetPwdApi(req request.WafAccountResetPwdReq) error {
 
 	var superAccount model.Account
-	global.GWAF_LOCAL_DB.Where("login_account = ?", global.GWAF_DEFAULT_ACCOUNT).Find(&superAccount)
+	global.GWAF_LOCAL_DB.Where("role = ?", "superAdmin").First(&superAccount)
 	if superAccount.LoginPassword != utils.Md5String(req.LoginSuperPassword+global.GWAF_DEFAULT_ACCOUNT_SALT) {
 		return errors.New("超级管理员密码不正确")
 	}
@@ -156,8 +156,10 @@ func (receiver *WafAccountService) DelApi(req request.WafAccountDelReq) error {
 	if err != nil {
 		return err
 	} else {
-		if bean.LoginAccount == "admin" {
-			return errors.New("管理员帐号不能删除")
+		var total int64
+		global.GWAF_LOCAL_DB.Model(&model.Account{}).Count(&total)
+		if total <= 1 {
+			return errors.New("系统中只剩一个账号，不能删除")
 		}
 	}
 	err = global.GWAF_LOCAL_DB.Where("id = ?", req.Id).Delete(model.Account{}).Error

@@ -14,11 +14,83 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
+
+// healthTransportPool 复用 Transport，按实际拨号地址(ip:port)缓存，避免每次健康检测都创建新对象
+var (
+	healthTransportMu   sync.RWMutex
+	healthTransportPool = make(map[string]*http.Transport)
+)
+
+// cleanupStaleTransports 关闭并删除不再使用的后端对应的 Transport，防止长期积累
+func cleanupStaleTransports(validDialAddrs map[string]struct{}) {
+	healthTransportMu.Lock()
+	defer healthTransportMu.Unlock()
+	for addr, t := range healthTransportPool {
+		if _, ok := validDialAddrs[addr]; !ok {
+			t.CloseIdleConnections()
+			delete(healthTransportPool, addr)
+		}
+	}
+}
+
+func getHealthTransport(dialAddr string) *http.Transport {
+	healthTransportMu.RLock()
+	if t, ok := healthTransportPool[dialAddr]; ok {
+		healthTransportMu.RUnlock()
+		return t
+	}
+	healthTransportMu.RUnlock()
+
+	healthTransportMu.Lock()
+	defer healthTransportMu.Unlock()
+	if t, ok := healthTransportPool[dialAddr]; ok {
+		return t
+	}
+	captured := dialAddr
+	t := &http.Transport{
+		TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
+		MaxIdleConnsPerHost: 2,
+		// 空闲连接超过 90s 自动关闭，防止后端长期不可达时连接僵死
+		IdleConnTimeout: 90 * time.Second,
+		// 始终拨号到固定后端地址，忽略 URL 中的 host 部分
+		DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, network, captured)
+		},
+	}
+	healthTransportPool[dialAddr] = t
+	return t
+}
+
+// buildValidKeys 根据当前运行的主机列表，同时返回：
+//   - statusKeys：合法的 HealthyStatus map key（hostCode_backendID）
+//   - dialAddrs：合法的 Transport Pool key（ip:port）
+func buildValidKeys(hosts []model.Hosts) (statusKeys map[string]struct{}, dialAddrs map[string]struct{}) {
+	statusKeys = make(map[string]struct{})
+	dialAddrs = make(map[string]struct{})
+	for _, host := range hosts {
+		if host.IsEnableLoadBalance > 0 {
+			loadBalances := waf_service.WafLoadBalanceServiceApp.GetListByHostCodeApi(host.Code)
+			for i, lb := range loadBalances {
+				statusKeys[host.Code+"_"+fmt.Sprintf("%d", i)] = struct{}{}
+				if lb.Remote_ip != "" {
+					dialAddrs[net.JoinHostPort(lb.Remote_ip, strconv.Itoa(lb.Remote_port))] = struct{}{}
+				}
+			}
+		} else {
+			statusKeys[host.Code+"_single"] = struct{}{}
+			if host.Remote_ip != "" {
+				dialAddrs[net.JoinHostPort(host.Remote_ip, strconv.Itoa(host.Remote_port))] = struct{}{}
+			}
+		}
+	}
+	return
+}
 
 // TaskHealth 后端主机状态检查
 func TaskHealth() {
@@ -35,11 +107,10 @@ func TaskHealth() {
 	sem := make(chan struct{}, maxConcurrent)
 	var wg sync.WaitGroup
 
-	// 创建一个带超时的上下文
-	ctx, cancel := context.WithCancel(context.Background())
+	// 整体超时略小于调度间隔（30s），防止任务无限期阻塞导致后续触发全部被跳过
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
 
-	// 移除监控goroutine，直接在主循环中检查
 	for _, host := range hosts {
 		// 检查关闭信号
 		if global.GWAF_SHUTDOWN_SIGNAL {
@@ -57,7 +128,7 @@ func TaskHealth() {
 		sem <- struct{}{}
 		go func(h model.Hosts) {
 			defer func() {
-				<-sem // 释放信号量
+				<-sem
 				wg.Done()
 			}()
 			checkHostHealth(h, ctx)
@@ -66,6 +137,12 @@ func TaskHealth() {
 
 	wg.Wait()
 	close(sem)
+
+	// 清理已删除主机/后端的残留条目，防止内存/连接持续增长
+	statusKeys, dialAddrs := buildValidKeys(hosts)
+	wafenginecore.CleanupStaleHealthStatus(statusKeys)
+	cleanupStaleTransports(dialAddrs)
+
 	zlog.Debug("TaskHealth - 后端健康度检测完成")
 }
 
@@ -100,19 +177,24 @@ func checkHostHealth(host model.Hosts, ctx context.Context) {
 		if loadBalances == nil {
 			return
 		}
-		// 检查每个后端服务器
+		// 检查每个后端服务器，整体预算耗尽时停止派发新检测
 		for i, lb := range loadBalances {
+			if ctx.Err() != nil {
+				return
+			}
 			backendID := fmt.Sprintf("%d", i)
-			checkBackendHealth(host, lb.Remote_ip, lb.Remote_port, healthyConfig, backendID, ctx)
+			checkBackendHealth(host, lb.Remote_ip, lb.Remote_port, healthyConfig, backendID)
 		}
 	} else {
 		// 非负载均衡情况，只检查单一后端
-		checkBackendHealth(host, host.Remote_ip, host.Remote_port, healthyConfig, "single", ctx)
+		checkBackendHealth(host, host.Remote_ip, host.Remote_port, healthyConfig, "single")
 	}
 }
 
 // checkBackendHealth 检查后端服务器健康状态
-func checkBackendHealth(host model.Hosts, ip string, port int, config model.HealthyConfig, backendID string, ctx context.Context) {
+// 注意：不接收外部 ctx，内部自行创建 config.ResponseTime 超时的独立 context，
+// 防止整体 TaskHealth 超时取消时误判慢但健康的后端为不健康
+func checkBackendHealth(host model.Hosts, ip string, port int, config model.HealthyConfig, backendID string) {
 	// 使用配置的检测路径
 	checkPath := "/"
 	if config.CheckPath != "" {
@@ -126,48 +208,42 @@ func checkBackendHealth(host model.Hosts, ip string, port int, config model.Heal
 	// 构建检测URL
 	checkURL := fmt.Sprintf("%s%s", mainHost, checkPath)
 
+	// 校验 checkURL 是否可健康检测：空 host 或包含未解析的通配符 * 均无法检测
+	// 这类情况属于"无法检测"而非"不健康"，直接跳过，不改变后端健康状态
+	parsedURL, parseErr := url.Parse(checkURL)
+	if parseErr != nil || parsedURL.Host == "" || strings.Contains(parsedURL.Host, "*") {
+		zlog.Warn("健康检测跳过：URL 无效或包含未解析通配符",
+			"主机", host.Host, "后端ID", backendID, "URL", checkURL)
+		return
+	}
+
 	// 打印请求信息
 	zlog.Debug("健康检测请求", "主机", host.Host, "后端ID", backendID, "URL", checkURL, "方法", config.CheckMethod)
 
 	// 解析预期状态码
 	expectedCodes := parseExpectedCodes(config.ExpectedCodes)
 
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true,
-		},
-		DisableKeepAlives:     true, // 禁用Keep-Alive，防止连接池累积导致连接泄漏
-		ResponseHeaderTimeout: time.Duration(config.ResponseTime) * time.Second,
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			dialer := net.Dialer{
-				Timeout: time.Duration(config.ResponseTime) * time.Second,
-			}
-			if host.IsEnableLoadBalance > 0 {
-				conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(ip, strconv.Itoa(port)))
-				if err == nil {
-					return conn, nil
-				}
-			} else {
-				if host.Remote_ip != "" {
-					conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(host.Remote_ip, strconv.Itoa(host.Remote_port)))
-					if err == nil {
-						return conn, nil
-					}
-				}
-			}
-
-			return dialer.DialContext(ctx, network, addr)
-		},
+	// 确定实际拨号地址，优先使用明确配置的后端 IP
+	var dialAddr string
+	if host.IsEnableLoadBalance > 0 {
+		dialAddr = net.JoinHostPort(ip, strconv.Itoa(port))
+	} else if host.Remote_ip != "" {
+		dialAddr = net.JoinHostPort(host.Remote_ip, strconv.Itoa(host.Remote_port))
+	} else {
+		dialAddr = parsedURL.Host // 回退到 URL 中的 host，由系统 DNS 解析
 	}
-	defer transport.CloseIdleConnections() // 确保健康检测完成后释放所有空闲连接
 
-	client := &http.Client{
-		Timeout:   time.Duration(config.ResponseTime) * time.Second,
-		Transport: transport,
-	}
+	transport := getHealthTransport(dialAddr)
+
+	// 每个请求独立创建超时 context，与 TaskHealth 整体超时隔离：
+	// 即使整体 25s 预算到期，已在途的请求不会被取消，不会误判为不健康
+	reqCtx, reqCancel := context.WithTimeout(context.Background(), time.Duration(config.ResponseTime)*time.Second)
+	defer reqCancel()
+
+	client := &http.Client{Transport: transport}
 
 	// 创建请求
-	req, err := http.NewRequestWithContext(ctx, config.CheckMethod, checkURL, nil)
+	req, err := http.NewRequestWithContext(reqCtx, config.CheckMethod, checkURL, nil)
 	if err != nil {
 		zlog.Debug("健康检测请求创建失败", "错误", err.Error())
 		updateHealthStatus(host.Code, backendID, false, 0, "创建请求失败: "+err.Error(), ip, port, config)
@@ -211,9 +287,8 @@ func checkBackendHealth(host model.Hosts, ip string, port int, config model.Heal
 		"耗时(ms)", responseTime,
 		"响应头", fmt.Sprintf("%v", resp.Header))
 
-	// 完全读取并丢弃响应体，确保底层TCP连接能被正确关闭
-	// 不完全读取会导致连接无法复用或释放，造成连接泄漏
-	_, _ = io.Copy(io.Discard, resp.Body)
+	// 最多读取 4KB 响应体，确保 TCP 连接能被正确归还，同时防止大响应体造成内存峰值
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
 
 	// 检查状态码是否符合预期
 	isHealthy := false
@@ -286,7 +361,7 @@ func updateHealthStatus(hostCode, backendID string, isSuccess bool, responseTime
 		if status.IsHealthy && status.FailCount >= config.FailCount {
 			status.IsHealthy = false
 			if status.FailCount > 1000 {
-				status.SuccessCount = 0
+				status.FailCount = 0 // 修复：此处应重置 FailCount 而非 SuccessCount
 			}
 			zlog.Info("健康检测", "后端服务器不健康", key, errorReason)
 		}

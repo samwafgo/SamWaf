@@ -10,6 +10,7 @@ import (
 	"SamWaf/model/baseorm"
 	"SamWaf/utils"
 	"SamWaf/wafdb"
+	"SamWaf/wafdb/dialect"
 	"fmt"
 	"os"
 	"time"
@@ -33,7 +34,7 @@ func TaskShareDbInfo() {
 
 	//获取当前日志数量
 	var total int64 = 0
-	global.GWAF_LOCAL_LOG_DB.Table("web_logs INDEXED BY  idx_tenant_usercode_web_logs").Count(&total)
+	global.GWAF_LOCAL_LOG_DB.Table(dialect.Get().ForceIndexClause("web_logs", "idx_tenant_usercode_web_logs")).Count(&total)
 
 	//获取当前数据库文件大小
 	currentDir := utils.GetCurrentDir()
@@ -88,52 +89,47 @@ func TaskShareDbInfo() {
 			Cnt:         total,
 		}
 
-		currentDir := utils.GetCurrentDir()
-		oldDBFilename = currentDir + "/data/" + oldDBFilename
-		newDBFilename = currentDir + "/data/" + newDBFilename
 		zlog.Info(innerLogName, "正在切库中...")
-		sqlDB, err := global.GWAF_LOCAL_LOG_DB.DB()
+		if dialect.Get().IsFileBased() {
+			// SQLite：关闭连接 → 重命名三个 WAL 文件 → 重建 LogDb
+			currentDir := utils.GetCurrentDir()
+			oldDBFilename = currentDir + "/data/" + oldDBFilename
+			newDBFilename = currentDir + "/data/" + newDBFilename
 
-		if err != nil {
-			zlog.Error(innerLogName, "切换关闭时候错误", err)
-		} else {
-
-			// 关闭数据库连接
-			if err := sqlDB.Close(); err != nil {
+			sqlDB, err := global.GWAF_LOCAL_LOG_DB.DB()
+			if err != nil {
 				zlog.Error(innerLogName, "切换关闭时候错误", err)
+			} else {
+				if err := sqlDB.Close(); err != nil {
+					zlog.Error(innerLogName, "切换关闭时候错误", err)
+				}
 			}
-		}
-		var testTotal int64
-		for {
-			testError := global.GWAF_LOCAL_LOG_DB.Model(&innerbean.WebLog{}).Count(&testTotal).Error
-			if testError != nil {
-				zlog.Error(innerLogName, "检测数据", testError)
-				break
+			var testTotal int64
+			for {
+				testError := global.GWAF_LOCAL_LOG_DB.Model(&innerbean.WebLog{}).Count(&testTotal).Error
+				if testError != nil {
+					zlog.Error(innerLogName, "检测数据", testError)
+					break
+				}
+				time.Sleep(1 * time.Second)
 			}
-			time.Sleep(1 * time.Second)
-		}
 
-		// 关闭与数据库相关的连接或程序
-		// 重命名数据库文件
-		if err := os.Rename(oldDBFilename, newDBFilename); err != nil {
-			zlog.Error(innerLogName, "Error renaming database file:", err)
+			if err := os.Rename(oldDBFilename, newDBFilename); err != nil {
+				zlog.Error(innerLogName, "Error renaming database file:", err)
+			}
+			if err := os.Rename(oldDBFilename+"-shm", newDBFilename+"-shm"); err != nil {
+				zlog.Error(innerLogName, "Error renaming .db-shm file:", err)
+			}
+			if err := os.Rename(oldDBFilename+"-wal", newDBFilename+"-wal"); err != nil {
+				zlog.Error(innerLogName, "Error renaming .db-wal file:", err)
+			}
+			global.GWAF_LOCAL_DB.Create(sharDbBean)
+			global.GWAF_LOCAL_LOG_DB = nil
+			wafdb.InitLogDb("")
+		} else {
+			// MySQL / SQL Server：RENAME TABLE + AutoMigrate 重建空表（Milestone 2 实现）
+			zlog.Warn(innerLogName, "当前数据库驱动暂不支持自动分库，跳过:", dialect.Get().Name())
 		}
-
-		// 重命名 .db-shm 文件
-		if err := os.Rename(oldDBFilename+"-shm", newDBFilename+"-shm"); err != nil {
-			zlog.Error(innerLogName, "Error renaming .db-shm file:", err)
-			// 如果有必要，可以选择回滚数据库文件的重命名
-
-		}
-
-		// 重命名 .db-wal 文件
-		if err := os.Rename(oldDBFilename+"-wal", newDBFilename+"-wal"); err != nil {
-			zlog.Error(innerLogName, "Error renaming .db-wal file:", err)
-			// 如果有必要，可以选择回滚数据库文件的重命名
-		}
-		global.GWAF_LOCAL_DB.Create(sharDbBean)
-		global.GWAF_LOCAL_LOG_DB = nil
-		wafdb.InitLogDb("")
 		global.GDATA_CURRENT_CHANGE = false
 		zlog.Info(innerLogName, "切库完成...")
 	}

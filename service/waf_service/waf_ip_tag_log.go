@@ -4,6 +4,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/model/request"
+	"SamWaf/wafdb/dialect"
 	"fmt"
 	"time"
 )
@@ -17,26 +18,20 @@ func (receiver *WafLogService) GetAttackIpListApi(req request.WafAttackIpTagSear
 	_, offset := time.Now().Zone()
 	offsetMinutes := offset / 60
 
-	// 构建时区偏移修饰符
-	var offsetModifier string
-	if offsetMinutes >= 0 {
-		offsetModifier = fmt.Sprintf("'+%d minutes'", offsetMinutes)
-	} else {
-		offsetModifier = fmt.Sprintf("'%d minutes'", offsetMinutes) // 负数自带负号
-	}
-
 	// 基础查询部分
+	firstTimeExpr := dialect.Get().FormatTimeWithOffset("MIN(update_time)", offsetMinutes)
+	latestTimeExpr := dialect.Get().FormatTimeWithOffset("MAX(update_time)", offsetMinutes)
 	query := `
-	SELECT 
+	SELECT
 		tenant_id,
 		user_code,
-		ip, 
-		SUM(CASE WHEN ip_tag = '正常' THEN cnt ELSE 0 END) AS pass_num, 
+		ip,
+		SUM(CASE WHEN ip_tag = '正常' THEN cnt ELSE 0 END) AS pass_num,
 		SUM(CASE WHEN ip_tag <> '正常' THEN cnt ELSE 0 END) AS deny_num,
-		strftime('%Y-%m-%d %H:%M:%S', MIN(update_time), ` + offsetModifier + `) AS first_time, 
-		strftime('%Y-%m-%d %H:%M:%S', MAX(update_time), ` + offsetModifier + `) AS latest_time,
+		` + firstTimeExpr + ` AS first_time,
+		` + latestTimeExpr + ` AS latest_time,
 		GROUP_CONCAT(DISTINCT CASE WHEN ip_tag <> '正常' THEN ip_tag END) AS ip_total_tag
-	FROM 
+	FROM
 		ip_tags
 	WHERE tenant_id=? and user_code=?`
 

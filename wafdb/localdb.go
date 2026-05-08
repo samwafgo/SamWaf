@@ -24,6 +24,7 @@ import (
 
 	//"github.com/kangarooxin/gorm-webplugin-crypto"
 	//"github.com/kangarooxin/gorm-webplugin-crypto/strategy"
+	"SamWaf/wafdb/dialect"
 	gowxsqlite3 "github.com/samwafgo/go-wxsqlite3"
 	sqlite "github.com/samwafgo/sqlitedriver"
 	"gorm.io/gorm"
@@ -309,6 +310,9 @@ func before_update(db *gorm.DB) {
 
 // 在线备份
 func BackupDatabase(db *gorm.DB, backupFile string) error {
+	if !dialect.Get().SupportsBackup() {
+		return fmt.Errorf("BackupDatabase 仅在 SQLite 模式下可用，当前驱动: %s", dialect.Get().Name())
+	}
 	// 获取底层的 sql.DB 对象
 	sqlDB, err := db.DB()
 	if err != nil {
@@ -442,6 +446,9 @@ func cleanupOldBackups(backupDir string, keepCount int) {
 // dbPath: 数据库文件路径
 // password: 数据库密码（如果有加密）
 func RepairDatabase(dbPath string, password string) error {
+	if !dialect.Get().SupportsRepair() {
+		return fmt.Errorf("RepairDatabase 仅在 SQLite 模式下可用，当前驱动: %s", dialect.Get().Name())
+	}
 	zlog.Info("========================================")
 	zlog.Info("开始修复数据库:", dbPath)
 	zlog.Info("========================================")

@@ -4,7 +4,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/model/request"
 	"SamWaf/model/response"
-	"database/sql"
+	"SamWaf/wafdb/dialect"
 	"errors"
 	"fmt"
 	"regexp"
@@ -34,88 +34,55 @@ func (receiver *WafSqlQueryService) GetTableInfo(req request.WafDbTableInfoReq) 
 		return result, errors.New("无效的数据库类型")
 	}
 
-	// 获取所有用户表（排除 sqlite 内部表）
-	tableRows, err := db.Raw("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").Rows()
+	// 获取所有用户表
+	tableNames, err := dialect.Get().ListTables(db)
 	if err != nil {
 		return result, fmt.Errorf("获取表列表失败: %w", err)
 	}
-	var tableNames []string
-	for tableRows.Next() {
-		var name string
-		if scanErr := tableRows.Scan(&name); scanErr == nil {
-			tableNames = append(tableNames, name)
-		}
-	}
-	tableRows.Close()
 
 	for _, tableName := range tableNames {
 		tableInfo := response.TableInfo{
 			TableName: tableName,
 		}
 
-		// 获取字段信息（dflt_value 可能为 NULL，必须用 NullString 扫描）
-		colRows, err := db.Raw("PRAGMA table_info(" + quoteSQLiteName(tableName) + ")").Rows()
-		if err == nil {
-			for colRows.Next() {
-				var cid int
-				var colName, colType string
-				var notNull, pk int
-				var dfltValue sql.NullString
-				if scanErr := colRows.Scan(&cid, &colName, &colType, &notNull, &dfltValue, &pk); scanErr == nil {
-					tableInfo.Columns = append(tableInfo.Columns, response.TableColumnInfo{
-						Cid:        cid,
-						Name:       colName,
-						Type:       colType,
-						NotNull:    notNull == 1,
-						DefaultVal: dfltValue.String,
-						PrimaryKey: pk > 0,
-					})
-				}
+		// 获取字段信息
+		cols, colErr := dialect.Get().ColumnInfo(db, tableName)
+		if colErr == nil {
+			for _, c := range cols {
+				tableInfo.Columns = append(tableInfo.Columns, response.TableColumnInfo{
+					Cid:        c.Cid,
+					Name:       c.Name,
+					Type:       c.Type,
+					NotNull:    c.NotNull,
+					DefaultVal: c.DefaultVal,
+					PrimaryKey: c.PrimaryKey,
+				})
 			}
-			colRows.Close()
 		}
 
 		// 获取索引列表
-		idxRows, err := db.Raw("PRAGMA index_list(" + quoteSQLiteName(tableName) + ")").Rows()
-		if err == nil {
-			for idxRows.Next() {
-				var seq int
-				var idxName, origin string
-				var unique, partial int
-				if scanErr := idxRows.Scan(&seq, &idxName, &unique, &origin, &partial); scanErr == nil {
-					idxInfo := response.TableIndexInfo{
-						Name:   idxName,
-						Unique: unique == 1,
-						Origin: origin,
-					}
-					// 获取该索引包含的列（name 列可能为 NULL，用 NullString 扫描）
-					idxColRows, icErr := db.Raw("PRAGMA index_info(" + quoteSQLiteName(idxName) + ")").Rows()
-					if icErr == nil {
-						for idxColRows.Next() {
-							var seqNo, cid int
-							var idxColName sql.NullString
-							if scanErr2 := idxColRows.Scan(&seqNo, &cid, &idxColName); scanErr2 == nil {
-								idxInfo.Columns = append(idxInfo.Columns, response.TableIndexColumnInfo{
-									SeqNo: seqNo,
-									Cid:   cid,
-									Name:  idxColName.String,
-								})
-							}
-						}
-						idxColRows.Close()
-					}
-					tableInfo.Indexes = append(tableInfo.Indexes, idxInfo)
+		idxs, idxErr := dialect.Get().IndexInfo(db, tableName)
+		if idxErr == nil {
+			for _, idx := range idxs {
+				idxInfo := response.TableIndexInfo{
+					Name:   idx.Name,
+					Unique: idx.Unique,
+					Origin: idx.Origin,
 				}
+				for _, col := range idx.Columns {
+					idxInfo.Columns = append(idxInfo.Columns, response.TableIndexColumnInfo{
+						SeqNo: col.SeqNo,
+						Cid:   col.Cid,
+						Name:  col.Name,
+					})
+				}
+				tableInfo.Indexes = append(tableInfo.Indexes, idxInfo)
 			}
-			idxRows.Close()
 		}
 
 		// 获取行数
 		var count int64
-		countRow := db.Raw("SELECT COUNT(*) FROM " + quoteSQLiteName(tableName)).Row()
-		if countRow != nil {
-			_ = countRow.Scan(&count)
-		}
+		db.Table(tableName).Count(&count)
 		tableInfo.RowCount = count
 		// DataSize: 该 SQLite 编译版本不支持 dbstat 虚拟表，暂不查询数据大小
 
@@ -126,11 +93,6 @@ func (receiver *WafSqlQueryService) GetTableInfo(req request.WafDbTableInfoReq) 
 		result.Tables = []response.TableInfo{}
 	}
 	return result, nil
-}
-
-// quoteSQLiteName 对 SQLite 表名/索引名做双引号转义
-func quoteSQLiteName(name string) string {
-	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
 }
 
 func (receiver *WafSqlQueryService) ExecuteQuery(req request.WafSqlQueryReq) (response.WafSqlQueryResp, error) {

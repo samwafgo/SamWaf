@@ -252,7 +252,7 @@ jobs:
         if: steps.check_win7_build.outputs.skip_win7_build != 'true'
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25'
 
       - name: Install dependencies for Windows cross-compilation
         if: steps.check_win7_build.outputs.skip_win7_build != 'true'
@@ -277,14 +277,16 @@ jobs:
           ls public
           ls public/dist
 
-      - name: Revert Golang1.24 commit for Windows7/8
+      - name: Revert Golang1.25 commit for Windows7/8
         if: steps.check_win7_build.outputs.skip_win7_build != 'true'
         run: |
           cd $(go env GOROOT)
-          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go124/2a406dc9f1ea7323d6ca9fccb2fe9ddebb6b1cc8.diff
-          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go124/7b1fd7d39c6be0185fbe1d929578ab372ac5c632.diff
-          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go124/979d6d8bab3823ff572ace26767fd2ce3cf351ae.diff
-          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go124/ac3e93c061779dfefc0dd13a5b6e6f764a25621e.diff
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go125/1bdabae205052afe1dadb2ad6f1ba612cdbc532a.diff
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go125/34b899c2fb39b092db4fa67c4417e41dc046be4b.diff
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go125/466f6c7a29bc098b0d4c987b803c779222894a11.diff
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go125/a90777dcf692dd2168577853ba743b4338721b06.diff
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go125/bed309eff415bcb3c77dd4bc3277b682b89a388d.diff
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go125/f6bddda4e8ff58a957462a1a09562924d5f3d05c.diff
 
       - name: Get current tag
         if: steps.check_win7_build.outputs.skip_win7_build != 'true'

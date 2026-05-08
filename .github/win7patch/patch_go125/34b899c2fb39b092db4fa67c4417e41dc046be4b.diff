@@ -1,0 +1,36 @@
+diff --git a/src/os/exec_windows.go b/src/os/exec_windows.go
+index 68c7064d2dd0e5..d01453f11169cf 100644
+--- a/src/os/exec_windows.go
++++ b/src/os/exec_windows.go
+@@ -10,6 +10,7 @@ import (
+ 	"runtime"
+ 	"syscall"
+ 	"time"
++	_ "unsafe"
+ )
+ 
+ // Note that Process.handle is never nil because Windows always requires
+@@ -49,9 +50,23 @@ func (p *Process) wait() (ps *ProcessState, err error) {
+ 	// than statusDone.
+ 	p.doRelease(statusReleased)
+ 
++	var maj, min, build uint32
++	rtlGetNtVersionNumbers(&maj, &min, &build)
++	if maj < 10 {
++		// NOTE(brainman): It seems that sometimes process is not dead
++		// when WaitForSingleObject returns. But we do not know any
++		// other way to wait for it. Sleeping for a while seems to do
++		// the trick sometimes.
++		// See https://golang.org/issue/25965 for details.
++		time.Sleep(5 * time.Millisecond)
++	}
++
+ 	return &ProcessState{p.Pid, syscall.WaitStatus{ExitCode: ec}, &u}, nil
+ }
+ 
++//go:linkname rtlGetNtVersionNumbers syscall.rtlGetNtVersionNumbers
++func rtlGetNtVersionNumbers(majorVersion *uint32, minorVersion *uint32, buildNumber *uint32)
++
+ func (p *Process) signal(sig Signal) error {
+ 	handle, status := p.handleTransientAcquire()
+ 	switch status {

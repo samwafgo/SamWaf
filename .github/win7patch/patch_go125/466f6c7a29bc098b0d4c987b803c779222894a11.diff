@@ -44,7 +44,7 @@ index 1ca16caa9563e6..88e40b72024db4 100644
  //   - On wasip1/wasm, Reader uses random_get.
  //
 diff --git a/src/internal/syscall/windows/syscall_windows.go b/src/internal/syscall/windows/syscall_windows.go
-index 905cabc81e4798..94d280b4b470d0 100644
+index dd82ab69c0ef13..8962c72d067b36 100644
 --- a/src/internal/syscall/windows/syscall_windows.go
 +++ b/src/internal/syscall/windows/syscall_windows.go
 @@ -419,7 +419,7 @@ func ErrorLoadingGetTempPath2() error {
@@ -57,7 +57,7 @@ index 905cabc81e4798..94d280b4b470d0 100644
  type FILE_ID_BOTH_DIR_INFO struct {
  	NextEntryOffset uint32
 diff --git a/src/internal/syscall/windows/zsyscall_windows.go b/src/internal/syscall/windows/zsyscall_windows.go
-index 90cf0b92a49bc4..87d0b9e214f783 100644
+index 6937fea044e5be..feb0d54f37bb3e 100644
 --- a/src/internal/syscall/windows/zsyscall_windows.go
 +++ b/src/internal/syscall/windows/zsyscall_windows.go
 @@ -38,7 +38,6 @@ func errnoErr(e syscall.Errno) error {
@@ -68,16 +68,16 @@ index 90cf0b92a49bc4..87d0b9e214f783 100644
  	modiphlpapi         = syscall.NewLazyDLL(sysdll.Add("iphlpapi.dll"))
  	modkernel32         = syscall.NewLazyDLL(sysdll.Add("kernel32.dll"))
  	modnetapi32         = syscall.NewLazyDLL(sysdll.Add("netapi32.dll"))
-@@ -63,7 +62,7 @@ var (
- 	procQueryServiceStatus                = modadvapi32.NewProc("QueryServiceStatus")
- 	procRevertToSelf                      = modadvapi32.NewProc("RevertToSelf")
+@@ -65,7 +64,7 @@ var (
+ 	procSetEntriesInAclW                  = modadvapi32.NewProc("SetEntriesInAclW")
+ 	procSetNamedSecurityInfoW             = modadvapi32.NewProc("SetNamedSecurityInfoW")
  	procSetTokenInformation               = modadvapi32.NewProc("SetTokenInformation")
 -	procProcessPrng                       = modbcryptprimitives.NewProc("ProcessPrng")
 +	procSystemFunction036                 = modadvapi32.NewProc("SystemFunction036")
  	procGetAdaptersAddresses              = modiphlpapi.NewProc("GetAdaptersAddresses")
  	procCreateEventW                      = modkernel32.NewProc("CreateEventW")
  	procCreateIoCompletionPort            = modkernel32.NewProc("CreateIoCompletionPort")
-@@ -242,12 +241,12 @@ func SetTokenInformation(tokenHandle syscall.Token, tokenInformationClass uint32
+@@ -270,12 +269,12 @@ func SetTokenInformation(tokenHandle syscall.Token, tokenInformationClass uint32
  	return
  }
  
@@ -87,8 +87,8 @@ index 90cf0b92a49bc4..87d0b9e214f783 100644
  	if len(buf) > 0 {
  		_p0 = &buf[0]
  	}
--	r1, _, e1 := syscall.Syscall(procProcessPrng.Addr(), 2, uintptr(unsafe.Pointer(_p0)), uintptr(len(buf)), 0)
-+	r1, _, e1 := syscall.Syscall(procSystemFunction036.Addr(), 2, uintptr(unsafe.Pointer(_p0)), uintptr(len(buf)), 0)
+-	r1, _, e1 := syscall.SyscallN(procProcessPrng.Addr(), uintptr(unsafe.Pointer(_p0)), uintptr(len(buf)))
++	r1, _, e1 := syscall.SyscallN(procSystemFunction036.Addr(), uintptr(unsafe.Pointer(_p0)), uintptr(len(buf)))
  	if r1 == 0 {
  		err = errnoErr(e1)
  	}

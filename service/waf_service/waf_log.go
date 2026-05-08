@@ -6,6 +6,7 @@ import (
 	"SamWaf/innerbean"
 	"SamWaf/model/request"
 	"SamWaf/wafdb"
+	"SamWaf/wafdb/dialect"
 	"errors"
 	"fmt"
 	"strconv"
@@ -116,9 +117,9 @@ func (receiver *WafLogService) GetListApi(req request.WafAttackLogSearch) ([]inn
 	//强制索引
 	{
 		if strings.Contains(whereField, "unix_add_time") && !strings.Contains(whereField, "src_ip") {
-			forceIndex = "web_logs INDEXED BY  idx_web_time_desc_tenant_user_code"
+			forceIndex = dialect.Get().ForceIndexClause("web_logs", "idx_web_time_desc_tenant_user_code")
 		} else if strings.Contains(whereField, "src_ip") {
-			forceIndex = "web_logs INDEXED BY  idx_web_time_desc_tenant_user_code_ip"
+			forceIndex = dialect.Get().ForceIndexClause("web_logs", "idx_web_time_desc_tenant_user_code_ip")
 		}
 	}
 
@@ -209,7 +210,7 @@ func (receiver *WafLogService) DeleteHistory(day string) {
 // GetUnixTimeByCounter 依据开始时间和到期时间获取一个最新的时间戳
 func (receiver *WafLogService) GetUnixTimeByCounter(lastStartCreateUnix int64, lastEndCreateUnix int64) innerbean.WebLog {
 	var weblog innerbean.WebLog
-	forceIndex := "web_logs INDEXED BY  idx_web_time_desc_tenant_user_code"
+	forceIndex := dialect.Get().ForceIndexClause("web_logs", "idx_web_time_desc_tenant_user_code")
 	global.GWAF_LOCAL_LOG_DB.Table(forceIndex).Where("unix_add_time>=? and unix_add_time<?", lastStartCreateUnix, lastEndCreateUnix).Order("unix_add_time desc").Limit(1).Find(&weblog)
 
 	return weblog

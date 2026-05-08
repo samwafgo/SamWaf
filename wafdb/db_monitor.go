@@ -4,37 +4,39 @@ import (
 	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/utils"
+	"SamWaf/wafdb/dialect"
 	"encoding/json"
 	"fmt"
 	"gorm.io/gorm"
-	"os"
 	"time"
 )
 
 // DatabaseMetrics 数据库性能指标结构体
 type DatabaseMetrics struct {
 	DatabaseName     string  `json:"database_name"`      // 数据库名称
-	DatabasePath     string  `json:"database_path"`      // 数据库文件路径
-	FileSize         int64   `json:"file_size"`          // 文件大小(字节)
-	FileSizeMB       float64 `json:"file_size_mb"`       // 文件大小(MB)
+	DatabasePath     string  `json:"database_path"`      // 数据库文件路径（SQLite）
+	FileSize         int64   `json:"file_size"`          // 文件大小(字节)，SQLite only
+	FileSizeMB       float64 `json:"file_size_mb"`       // 文件大小(MB)，SQLite only
 	ConnectionCount  int     `json:"connection_count"`   // 连接数
 	MaxConnections   int     `json:"max_connections"`    // 最大连接数
 	IdleConnections  int     `json:"idle_connections"`   // 空闲连接数
 	InUseConnections int     `json:"in_use_connections"` // 使用中连接数
 
 	// SQLite特有的PRAGMA信息
-	PageCount       int64  `json:"page_count"`       // 页面总数
-	PageSize        int64  `json:"page_size"`        // 页面大小
-	FreelistCount   int64  `json:"freelist_count"`   // 空闲页面数
-	CacheSize       int64  `json:"cache_size"`       // 缓存大小
-	JournalMode     string `json:"journal_mode"`     // 日志模式
-	SynchronousMode string `json:"synchronous_mode"` // 同步模式
-	TempStore       string `json:"temp_store"`       // 临时存储模式
+	PageCount       int64   `json:"page_count,omitempty"`       // 页面总数
+	PageSize        int64   `json:"page_size,omitempty"`        // 页面大小
+	FreelistCount   int64   `json:"freelist_count,omitempty"`   // 空闲页面数
+	CacheSize       int64   `json:"cache_size,omitempty"`       // 缓存大小
+	JournalMode     string  `json:"journal_mode,omitempty"`     // 日志模式
+	SynchronousMode string  `json:"synchronous_mode,omitempty"` // 同步模式
+	TempStore       string  `json:"temp_store,omitempty"`       // 临时存储模式
+	CacheHitRatio   float64 `json:"cache_hit_ratio,omitempty"`  // 缓存命中率
 
-	// 性能统计
-	QueryCount    int64   `json:"query_count"`     // 查询次数(估算)
-	WriteCount    int64   `json:"write_count"`     // 写入次数(估算)
-	CacheHitRatio float64 `json:"cache_hit_ratio"` // 缓存命中率
+	// MySQL / SQL Server specific
+	EngineVersion string  `json:"engine_version,omitempty"`      // 数据库版本
+	DataSizeMB    float64 `json:"data_size_mb,omitempty"`        // 数据大小(MB)
+	IndexSizeMB   float64 `json:"index_size_mb,omitempty"`       // 索引大小(MB)
+	CurrentConns  int     `json:"current_connections,omitempty"` // 当前连接数(服务器端)
 
 	// 时间戳
 	Timestamp time.Time `json:"timestamp"` // 采集时间
@@ -42,68 +44,33 @@ type DatabaseMetrics struct {
 
 // GetDatabaseMetrics 获取指定数据库的性能指标
 func GetDatabaseMetrics(db *gorm.DB, dbName string, dbPath string) (*DatabaseMetrics, error) {
-	if db == nil {
-		return nil, fmt.Errorf("数据库连接为空: %s", dbName)
-	}
-
-	metrics := &DatabaseMetrics{
-		DatabaseName: dbName,
-		DatabasePath: dbPath,
-		Timestamp:    time.Now(),
-	}
-
-	// 获取底层sql.DB
-	sqlDB, err := db.DB()
+	dm, err := dialect.Get().CollectMetrics(db, dbName, dbPath)
 	if err != nil {
-		return nil, fmt.Errorf("获取sql.DB失败: %v", err)
+		return nil, err
 	}
-
-	// 获取连接池统计信息
-	stats := sqlDB.Stats()
-	metrics.ConnectionCount = stats.OpenConnections
-	metrics.MaxConnections = stats.MaxOpenConnections
-	metrics.IdleConnections = stats.Idle
-	metrics.InUseConnections = stats.InUse
-
-	// 获取文件大小
-	if fileInfo, err := os.Stat(dbPath); err == nil {
-		metrics.FileSize = fileInfo.Size()
-		metrics.FileSizeMB = float64(fileInfo.Size()) / (1024 * 1024)
-	}
-
-	// 获取SQLite PRAGMA信息
-	var pageCount, pageSize, freelistCount, cacheSize int64
-	var journalMode, synchronousMode, tempStore string
-
-	// 页面信息
-	db.Raw("PRAGMA page_count").Scan(&pageCount)
-	db.Raw("PRAGMA page_size").Scan(&pageSize)
-	db.Raw("PRAGMA freelist_count").Scan(&freelistCount)
-	db.Raw("PRAGMA cache_size").Scan(&cacheSize)
-
-	// 模式信息
-	db.Raw("PRAGMA journal_mode").Scan(&journalMode)
-	db.Raw("PRAGMA synchronous").Scan(&synchronousMode)
-	db.Raw("PRAGMA temp_store").Scan(&tempStore)
-
-	metrics.PageCount = pageCount
-	metrics.PageSize = pageSize
-	metrics.FreelistCount = freelistCount
-	metrics.CacheSize = cacheSize
-	metrics.JournalMode = journalMode
-	metrics.SynchronousMode = synchronousMode
-	metrics.TempStore = tempStore
-
-	// 获取缓存命中率等统计信息
-	var cacheHit, cacheMiss int64
-	db.Raw("PRAGMA cache_hit").Scan(&cacheHit)
-	db.Raw("PRAGMA cache_miss").Scan(&cacheMiss)
-
-	if cacheHit+cacheMiss > 0 {
-		metrics.CacheHitRatio = float64(cacheHit) / float64(cacheHit+cacheMiss) * 100
-	}
-
-	return metrics, nil
+	return &DatabaseMetrics{
+		DatabaseName:     dm.DatabaseName,
+		DatabasePath:     dm.DatabasePath,
+		FileSize:         dm.FileSize,
+		FileSizeMB:       dm.FileSizeMB,
+		ConnectionCount:  dm.ConnectionCount,
+		MaxConnections:   dm.MaxConnections,
+		IdleConnections:  dm.IdleConnections,
+		InUseConnections: dm.InUseConnections,
+		Timestamp:        dm.Timestamp,
+		PageCount:        dm.PageCount,
+		PageSize:         dm.PageSize,
+		FreelistCount:    dm.FreelistCount,
+		CacheSize:        dm.CacheSize,
+		JournalMode:      dm.JournalMode,
+		SynchronousMode:  dm.SynchronousMode,
+		TempStore:        dm.TempStore,
+		CacheHitRatio:    dm.CacheHitRatio,
+		EngineVersion:    dm.EngineVersion,
+		DataSizeMB:       dm.DataSizeMB,
+		IndexSizeMB:      dm.IndexSizeMB,
+		CurrentConns:     dm.CurrentConns,
+	}, nil
 }
 
 // MonitorAllDatabases 监控所有数据库的性能指标

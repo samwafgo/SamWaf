@@ -4,6 +4,7 @@ import (
 	"SamWaf/common/uuid"
 	"SamWaf/global"
 	"SamWaf/utils"
+	"SamWaf/wafdb/dialect"
 	"SamWaf/wafowasp"
 	"crypto/rand"
 	"fmt"
@@ -198,6 +199,9 @@ func LoadAndInitConfig() {
 
 	fmt.Printf("%s\tINFO\tuser_code:%s ,soft_id:%s\n",
 		currentTime, global.GWAF_USER_CODE, global.GWAF_TENANT_ID)
+
+	// 注册数据库方言（默认 SQLite；Milestone 2 起按 GWAF_DB_DRIVER 分流）
+	dialect.Register(&dialect.SQLiteDialect{})
 }
 
 // UpdateIpWhitelist 更新IP白名单配置

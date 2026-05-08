@@ -18,3 +18,10 @@ dist/
 /ssl/
 /codetemplete/output/*
 /conf/config.yml
+*.log
+*.exe
+/.trae/
+/.cursor/
+/.claude/
+/docs/openapi/
+/.data/

@@ -29,6 +29,17 @@ func IsBackendHealthy(hostCode string, backendID string) bool {
 	return status.IsHealthy
 }
 
+// CleanupStaleHealthStatus 删除不再运行的主机/后端在 map 中的残留条目，防止内存持续增长
+func CleanupStaleHealthStatus(validKeys map[string]struct{}) {
+	hostStatus.Mux.Lock()
+	defer hostStatus.Mux.Unlock()
+	for k := range hostStatus.HealthyStatus {
+		if _, ok := validKeys[k]; !ok {
+			delete(hostStatus.HealthyStatus, k)
+		}
+	}
+}
+
 // GetBackendHealthy 通过信息获取状态
 func GetBackendHealthy(hostCode string, backendID string) *wafenginmodel.HostHealthy {
 	hostStatus.Mux.Lock()

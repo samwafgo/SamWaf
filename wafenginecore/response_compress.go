@@ -45,7 +45,7 @@ func (waf *WafEngine) maybeApplyResponseCompress(req *http.Request, resp *http.R
 	if !responseCompressTypeOrExtMatches(resp.Header.Get("Content-Type"), urlPath, cfg) {
 		return body
 	}
-	enc := chooseCompressEncoding(req.Header.Get("Accept-Encoding"), cfg.Prefer)
+	enc := chooseCompressEncoding(getAcceptEncoding(req), cfg.Prefer)
 	if enc == "" {
 		return body
 	}
@@ -128,7 +128,7 @@ func (waf *WafEngine) maybeCompressStaticAssistResponse(req *http.Request, resp 
 		resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(raw)), 10))
 		return
 	}
-	enc := chooseCompressEncoding(req.Header.Get("Accept-Encoding"), cfg.Prefer)
+	enc := chooseCompressEncoding(getAcceptEncoding(req), cfg.Prefer)
 	if enc == "" {
 		resp.Body = io.NopCloser(bytes.NewReader(raw))
 		resp.ContentLength = int64(len(raw))
@@ -173,6 +173,19 @@ func appendVaryAcceptEncoding(h http.Header) {
 		return
 	}
 	h.Set("Vary", v+", Accept-Encoding")
+}
+
+// getAcceptEncoding 返回用于压缩决策的 Accept-Encoding 值。
+// 优先从 context 中读取原始客户端值（proxy 路径会在转发前保存），
+// 避免自定义头将转发请求的 Accept-Encoding 清空后误判客户端不支持压缩。
+func getAcceptEncoding(req *http.Request) string {
+	if req == nil {
+		return ""
+	}
+	if v, ok := req.Context().Value("original_accept_encoding").(string); ok {
+		return v
+	}
+	return req.Header.Get("Accept-Encoding")
 }
 
 func chooseCompressEncoding(acceptEncoding, prefer string) string {

@@ -195,9 +195,13 @@ func NewSingleHostReverseProxyCustomHeader(target *url.URL, customHeaders map[st
 			}
 		}
 
-		// 添加自定义 header
+		// 添加自定义 header（空值表示删除该 header）
 		for key, value := range customHeaders {
-			req.Header.Set(key, value)
+			if value == "" {
+				req.Header.Del(key)
+			} else {
+				req.Header.Set(key, value)
+			}
 		}
 		if customConfig["IsTransBackDomain"] == "1" {
 			// 拆分主机名和端口

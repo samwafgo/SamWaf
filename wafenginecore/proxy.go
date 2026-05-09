@@ -21,6 +21,10 @@ import (
 
 func (waf *WafEngine) ProxyHTTP(w http.ResponseWriter, r *http.Request, host string, remoteUrl *url.URL, clientIp string, ctx context.Context, weblog *innerbean.WebLog, hostTarget *wafenginmodel.HostSafe) {
 
+	// 在 director 修改请求头之前，将客户端原始 Accept-Encoding 存入 context，
+	// 供响应压缩逻辑使用（自定义头可能把转发请求的 Accept-Encoding 清空）
+	ctx = context.WithValue(ctx, "original_accept_encoding", r.Header.Get("Accept-Encoding"))
+
 	//检测是否启动负载
 	if hostTarget.Host.IsEnableLoadBalance > 0 {
 		lb := &hostTarget.LoadBalanceRuntime
@@ -172,6 +176,15 @@ func (waf *WafEngine) createTransport(r *http.Request, host string, isEnableLoad
 	}
 
 	transport.ResponseHeaderTimeout = time.Duration(hostTarget.Host.ResponseTimeOut) * time.Second
+
+	// 若自定义头里将 Accept-Encoding 设为空值，则禁用 Transport 自动追加 gzip，
+	customHeadersConfig := model.ParseCustomHeadersConfig(hostTarget.Host.CustomHeadersJSON)
+	for _, h := range customHeadersConfig.Headers {
+		if strings.EqualFold(h.HeaderName, "Accept-Encoding") && h.HeaderValue == "" {
+			transport.DisableCompression = true
+			break
+		}
+	}
 
 	//把下面的参数一次性使用格式化实现
 	zlog.Debug(fmt.Sprintf("Transport配置信息:\nMaxIdleConns: %d\nMaxIdleConnsPerHost: %d\nMaxConnsPerHost: %d\nIdleConnTimeout: %v\nTLSHandshakeTimeout: %v\nExpectContinueTimeout: %v\nResponseHeaderTimeout: %v\nDisableKeepAlives: %v\nDisableCompression: %v",

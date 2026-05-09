@@ -9,6 +9,7 @@ permissions:
   contents: write
 env:
   REGISTRY: docker.io
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 jobs:
   # Linux 和 Windows 编译任务
   goreleaser-linux-windows:

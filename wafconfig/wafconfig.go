@@ -187,6 +187,21 @@ func LoadAndInitConfig() {
 		fmt.Printf("%s\tINFO\t安全路径入口已启用，自动生成访问码: %s\n", currentTime, global.GWAF_SECURITY_ENTRY_PATH)
 	}
 
+	//配置和提取应急路径
+	if config.IsSet("security.emergency_path") {
+		global.GWAF_SECURITY_EMERGENCY_PATH = config.GetString("security.emergency_path")
+	} else {
+		config.Set("security.emergency_path", "")
+		configChanged = true
+	}
+	//应急路径为空时自动生成（首次启动或手动清空后重启均会重新生成）
+	if global.GWAF_SECURITY_EMERGENCY_PATH == "" {
+		global.GWAF_SECURITY_EMERGENCY_PATH = generateSecurityEntryPath()
+		config.Set("security.emergency_path", global.GWAF_SECURITY_EMERGENCY_PATH)
+		configChanged = true
+		fmt.Printf("%s\tINFO\t应急恢复路径已生成: %s\n", currentTime, global.GWAF_SECURITY_EMERGENCY_PATH)
+	}
+
 	// 只有在配置发生变化时才写入文件
 	if configChanged {
 		err := config.WriteConfig()

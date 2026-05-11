@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SamWaf 紧急恢复</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f0f2f5; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .container { background: #fff; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); padding: 32px; width: 100%; max-width: 680px; }
+  h1 { font-size: 20px; color: #1f2329; margin-bottom: 6px; }
+  .subtitle { color: #646a73; font-size: 14px; margin-bottom: 24px; }
+  .alert { background: #fff7e6; border: 1px solid #ffd591; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; color: #874d00; font-size: 14px; }
+  .alert.danger { background: #fff2f0; border-color: #ffccc7; color: #a8071a; }
+  .alert.success { background: #f6ffed; border-color: #b7eb8f; color: #135200; }
+  label { display: block; font-size: 14px; color: #1f2329; margin-bottom: 6px; font-weight: 500; }
+  input { width: 100%; padding: 8px 12px; border: 1px solid #dcdfe6; border-radius: 6px; font-size: 14px; outline: none; transition: border-color .2s; }
+  input:focus { border-color: #0052d9; }
+  .btn { display: inline-block; padding: 8px 20px; border-radius: 6px; font-size: 14px; cursor: pointer; border: none; transition: opacity .2s; }
+  .btn-primary { background: #0052d9; color: #fff; }
+  .btn-primary:hover { opacity: .85; }
+  .btn-danger { background: #e34d59; color: #fff; }
+  .btn-danger:hover { opacity: .85; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .form-item { margin-bottom: 16px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; }
+  th { text-align: left; padding: 10px 12px; background: #f5f7fa; color: #646a73; font-weight: 500; border-bottom: 1px solid #e8eaed; }
+  td { padding: 10px 12px; border-bottom: 1px solid #f0f2f5; color: #1f2329; }
+  tr:hover td { background: #f5f7fa; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; background: #e6f0ff; color: #0052d9; }
+  .tag.unknown { background: #f0f2f5; color: #646a73; }
+  #loginSection, #backupSection, #msgSection { display: none; }
+  #loginSection.active, #backupSection.active, #msgSection.active { display: block; }
+  .actions { display: flex; gap: 10px; margin-top: 20px; }
+  .loading { color: #646a73; font-size: 14px; padding: 20px 0; text-align: center; }
+  .confirm-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 100; align-items: center; justify-content: center; }
+  .confirm-overlay.active { display: flex; }
+  .confirm-box { background: #fff; border-radius: 8px; padding: 24px; max-width: 400px; width: 90%; }
+  .confirm-box h3 { margin-bottom: 12px; color: #1f2329; }
+  .confirm-box p { color: #646a73; font-size: 14px; margin-bottom: 20px; }
+  .confirm-box .actions { justify-content: flex-end; }
+  .version-bar { display: flex; align-items: center; justify-content: space-between; background: #f5f7fa; border: 1px solid #e8eaed; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; font-size: 13px; color: #1f2329; }
+  .version-bar .ver-label { color: #646a73; margin-right: 6px; }
+  .version-bar .ver-val { font-weight: 600; color: #0052d9; }
+  .btn-back { background: #f0f2f5; color: #646a73; }
+  .btn-back:hover { opacity: .85; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>SamWaf 紧急恢复模式</h1>
+  <p class="subtitle">当前版本无法正常访问时，可在此执行版本回退</p>
+
+  <div id="alertBox"></div>
+
+  <!-- 登录区域 -->
+  <div id="loginSection">
+    <div class="alert">请使用管理员账号登录以继续操作</div>
+    <div class="form-item">
+      <label>账号</label>
+      <input id="inputAccount" type="text" placeholder="管理员账号" />
+    </div>
+    <div class="form-item">
+      <label>密码</label>
+      <input id="inputPassword" type="password" placeholder="密码" />
+    </div>
+    <div class="form-item" id="otpRow" style="display:none">
+      <label>安全码 (OTP)</label>
+      <input id="inputOtp" type="password" placeholder="动态安全码" />
+    </div>
+    <button class="btn btn-primary" id="btnLogin">登录</button>
+  </div>
+
+  <!-- 备份列表区域 -->
+  <div id="backupSection">
+    <div id="versionBar" class="version-bar" style="display:none">
+      <div><span class="ver-label">当前运行版本</span><span class="ver-val" id="verValue">-</span><span class="ver-label" id="verName" style="margin-left:8px"></span></div>
+    </div>
+    <div class="alert">选择要回退到的版本，回退后服务将自动重启</div>
+    <div id="backupTableWrap"><div class="loading">加载中...</div></div>
+    <div class="actions">
+      <button class="btn btn-primary" id="btnRefresh" onclick="loadBackups()">刷新列表</button>
+      <button class="btn btn-back" id="btnBack" style="display:none" onclick="goBack()">返回管理界面</button>
+      <button class="btn" onclick="doLogout()" style="background:#f0f2f5;color:#646a73">退出登录</button>
+    </div>
+  </div>
+
+  <!-- 消息区域 -->
+  <div id="msgSection">
+    <div id="msgContent" class="alert success"></div>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn btn-primary" onclick="location.reload()">刷新页面</button>
+      <button class="btn btn-back" id="btnBackMsg" style="display:none" onclick="goBack()">返回管理界面</button>
+    </div>
+  </div>
+</div>
+
+<!-- 确认对话框 -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <h3>确认回退版本</h3>
+    <p id="confirmMsg"></p>
+    <div class="actions">
+      <button class="btn" onclick="closeConfirm()" style="background:#f0f2f5;color:#646a73">取消</button>
+      <button class="btn btn-danger" id="btnConfirmRollback">确认回退</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// 从当前 URL 推断 API 基础路径（兼容安全路径前缀）
+var EMERGENCY_PATH = '{{EMERGENCY_PATH}}';
+(function() {
+  var fullPath = window.location.pathname;
+  var suffix = '/' + EMERGENCY_PATH;
+  window._apiBase = fullPath.endsWith(suffix)
+    ? fullPath.slice(0, fullPath.length - suffix.length)
+    : '';
+})();
+
+function apiUrl(path) {
+  return window._apiBase + path;
+}
+
+// 简单 UUID 生成（不依赖 crypto，每次调用必须不同）
+function genUUID() {
+  var t = Date.now();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = (t + Math.random() * 16) % 16 | 0;
+    t = Math.floor(t / 16);
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
+// 构造每次请求必须携带的标准请求头
+function reqHeaders(extra) {
+  var h = Object.assign({
+    'X-Request-Time': Math.floor(Date.now() / 1000).toString(),
+    'X-Request-Id': genUUID()
+  }, extra || {});
+  return h;
+}
+
+// ─── AES-CBC 解密（Web Crypto API，与后端 wafsec/aes.go 对称）───────────────
+// 格式：Base64(随机16字节IV ‖ 密文)，PKCS7 padding，Key = "7E@u*has$d*@s5YX"
+var _AES_KEY_RAW = '7E@u*has$d*@s5YX';
+
+function _b64ToBytes(b64) {
+  var bin = atob(b64);
+  var bytes = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+function _bytesToB64(bytes) {
+  var bin = '';
+  for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+
+var _cryptoKeyPromise = null;
+function _getAesKey() {
+  if (!_cryptoKeyPromise) {
+    var keyBytes = new TextEncoder().encode(_AES_KEY_RAW);
+    _cryptoKeyPromise = crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CBC' }, false, ['encrypt', 'decrypt']);
+  }
+  return _cryptoKeyPromise;
+}
+
+function aesDecrypt(base64Str) {
+  return _getAesKey().then(function(key) {
+    var data = _b64ToBytes(base64Str);
+    var iv = data.slice(0, 16);
+    var ciphertext = data.slice(16);
+    return crypto.subtle.decrypt({ name: 'AES-CBC', iv: iv }, key, ciphertext);
+  }).then(function(plainBuf) {
+    // 去掉 PKCS7 padding
+    var plain = new Uint8Array(plainBuf);
+    var pad = plain[plain.length - 1];
+    if (pad > 0 && pad <= 16) plain = plain.slice(0, plain.length - pad);
+    return new TextDecoder().decode(plain);
+  });
+}
+
+// ─── 统一 fetch 封装：自动解密 code===0 时的 data 字段 ─────────────────────
+function apiFetch(url, options) {
+  return fetch(url, options)
+    .then(function(r) {
+      if (r.status === 401 || r.status === 403) {
+        doLogout();
+        throw new Error('认证失败，请重新登录');
+      }
+      return r.json();
+    })
+    .then(function(json) {
+      if (json.code === 0 && json.data && typeof json.data === 'string' && json.data.length > 0) {
+        return aesDecrypt(json.data).then(function(plain) {
+          json.data = JSON.parse(plain);
+          return json;
+        });
+      }
+      return json;
+    });
+}
+
+// 从 ?back= 参数读取回跳 URL（App.vue enterEmergencyMode 传入）
+var backUrl = (function() {
+  try {
+    var p = new URLSearchParams(window.location.search);
+    var u = p.get('back');
+    if (!u) return '';
+    // 仅允许同源或相对路径，防止开放重定向
+    var parsed = new URL(u, window.location.origin);
+    return parsed.origin === window.location.origin ? parsed.href : '';
+  } catch (e) { return ''; }
+})();
+
+function goBack() {
+  if (backUrl) window.location.href = backUrl;
+}
+
+function _showBackBtn() {
+  if (backUrl) {
+    document.getElementById('btnBack').style.display = '';
+    document.getElementById('btnBackMsg').style.display = '';
+  }
+}
+
+var token = '';
+
+function showAlert(msg, type) {
+  var el = document.getElementById('alertBox');
+  el.innerHTML = msg ? '<div class="alert ' + (type||'') + '">' + escHtml(msg) + '</div>' : '';
+}
+
+function showSection(name) {
+  ['loginSection','backupSection','msgSection'].forEach(function(s) {
+    document.getElementById(s).classList.remove('active');
+  });
+  document.getElementById(name).classList.add('active');
+}
+
+function doLogout() {
+  token = '';
+  showSection('loginSection');
+  showAlert('');
+}
+
+var currentVersion = '';
+
+function loadVersion() {
+  return apiFetch(apiUrl('/api/v1/sysinfo/version'), {
+    headers: reqHeaders({ 'X-Token': token })
+  }).then(function(res) {
+    if (res.code === 0 && res.data) {
+      currentVersion = res.data.version || '';
+      var name = res.data.version_name ? '(' + res.data.version_name + ')' : '';
+      document.getElementById('verValue').textContent = currentVersion || '-';
+      document.getElementById('verName').textContent = name;
+      document.getElementById('versionBar').style.display = '';
+    }
+  }).catch(function() {});
+}
+
+function enterBackupSection() {
+  showSection('backupSection');
+  _showBackBtn();
+  // 先拿版本号再渲染备份列表，避免比对时版本还未就绪
+  loadVersion().then(function() { loadBackups(); });
+}
+
+// 初始化：检查 localStorage 里是否已有 token
+(function init() {
+  var t = localStorage.getItem('access_token');
+  if (t) {
+    token = t;
+    enterBackupSection();
+  } else {
+    showSection('loginSection');
+  }
+  document.getElementById('btnLogin').addEventListener('click', doLogin);
+})();
+
+function doLogin() {
+  var account = document.getElementById('inputAccount').value.trim();
+  var password = document.getElementById('inputPassword').value;
+  var otp = document.getElementById('inputOtp').value;
+  if (!account || !password) { showAlert('请填写账号和密码', 'danger'); return; }
+
+  // 登录请求发送明文 JSON（后端 SecApi 中间件不解密普通 web JSON POST）
+  apiFetch(apiUrl('/api/v1/login'), {
+    method: 'POST',
+    headers: reqHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ login_account: account, login_password: password, login_otp_secret_code: otp })
+  })
+  .then(function(res) {
+    if (res.code === 0) {
+      token = res.data.access_token;
+      localStorage.setItem('access_token', token);
+      showAlert('');
+      enterBackupSection();
+    } else if (res.code === -2) {
+      document.getElementById('otpRow').style.display = '';
+      showAlert(res.msg || '需要安全码', 'danger');
+    } else {
+      showAlert(res.msg || '登录失败', 'danger');
+    }
+  })
+  .catch(function(e) { showAlert('请求失败: ' + e.message, 'danger'); });
+}
+
+function loadBackups() {
+  var wrap = document.getElementById('backupTableWrap');
+  wrap.innerHTML = '<div class="loading">加载中...</div>';
+
+  apiFetch(apiUrl('/api/v1/sysinfo/rollbacklist'), {
+    headers: reqHeaders({ 'X-Token': token })
+  })
+  .then(function(res) {
+    if (res.code !== 0) { showAlert(res.msg || '获取失败', 'danger'); wrap.innerHTML = ''; return; }
+    var list = res.data;
+    if (!list || list.length === 0) {
+      wrap.innerHTML = '<div class="loading">暂无备份版本</div>';
+      return;
+    }
+    var html = '<table><thead><tr><th>版本</th><th>备份时间</th><th>大小</th><th>操作</th></tr></thead><tbody>';
+    list.forEach(function(b, i) {
+      var isCurrent = currentVersion && b.version === currentVersion;
+      var vTag = b.version === 'unknown'
+        ? '<span class="tag unknown">unknown</span>'
+        : '<span class="tag">' + escHtml(b.version) + '</span>';
+      if (isCurrent) vTag += ' <span class="tag" style="background:#f6ffed;color:#135200;margin-left:4px">运行中</span>';
+      var ts = new Date(b.backup_time).toLocaleString('zh-CN');
+      var size = (b.file_size / 1024 / 1024).toFixed(2) + ' MB';
+      var btn = isCurrent
+        ? '<button class="btn btn-danger" disabled title="当前正在运行此版本，无需回退">回退</button>'
+        : '<button class="btn btn-danger" onclick="askRollback(' + i + ')">回退</button>';
+      html += '<tr>'
+        + '<td>' + vTag + '</td>'
+        + '<td>' + ts + '</td>'
+        + '<td>' + size + '</td>'
+        + '<td>' + btn + '</td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+    wrap._list = list;
+  })
+  .catch(function(e) { showAlert(e.message, 'danger'); wrap.innerHTML = ''; });
+}
+
+var pendingVersion = '';
+function askRollback(idx) {
+  var list = document.getElementById('backupTableWrap')._list || [];
+  var b = list[idx];
+  if (!b) return;
+  pendingVersion = b.version;
+  document.getElementById('confirmMsg').textContent =
+    '确定将程序回退到版本 ' + b.version + '（' + b.file_name + '）？\n回退后服务将自动重启，请耐心等待。';
+  document.getElementById('confirmOverlay').classList.add('active');
+  document.getElementById('btnConfirmRollback').onclick = doRollback;
+}
+
+function closeConfirm() {
+  document.getElementById('confirmOverlay').classList.remove('active');
+}
+
+function doRollback() {
+  closeConfirm();
+  var btn = document.getElementById('btnRefresh');
+  btn.disabled = true;
+  showAlert('正在执行回退，请稍候...', '');
+
+  apiFetch(apiUrl('/api/v1/sysinfo/rollback?version=' + encodeURIComponent(pendingVersion)), {
+    headers: reqHeaders({ 'X-Token': token })
+  })
+  .then(function(res) {
+    btn.disabled = false;
+    if (res.code === 0) {
+      document.getElementById('msgContent').textContent = '回退已触发，服务正在重启，请稍后手动刷新页面...';
+      showSection('msgSection');
+    } else {
+      showAlert('回退失败: ' + (res.msg || '未知错误'), 'danger');
+    }
+  })
+  .catch(function(e) {
+    btn.disabled = false;
+    showAlert('请求失败: ' + e.message, 'danger');
+  });
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>

@@ -15,4 +15,7 @@ func (receiver *WebSysInfoRouter) InitSysInfoRouter(group *gin.RouterGroup) {
 	router.GET("/api/v1/sysinfo/checkversion", api.CheckVersionApi)
 	router.GET("/api/v1/sysinfo/update", api.UpdateApi)
 	router.GET("/api/v1/sysinfo/announcement", api.GetAnnouncementApi)
+	router.GET("/api/v1/sysinfo/systemparams", api.SystemParamsApi)
+	router.GET("/api/v1/sysinfo/rollbacklist", api.RollbackListApi)
+	router.GET("/api/v1/sysinfo/rollback", api.RollbackApi)
 }

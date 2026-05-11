@@ -11,6 +11,7 @@ import (
 	"SamWaf/wafmangeweb/static"
 	"context"
 	"crypto/tls"
+	_ "embed"
 	"errors"
 	"fmt"
 	"io"
@@ -20,11 +21,15 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
 )
+
+//go:embed emergency_page.html
+var emergencyPageHTML string
 
 type WafWebManager struct {
 	HttpServer            *http.Server
@@ -169,6 +174,19 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 
 	// 保存 gin.Engine 引用供 API 文档生成使用
 	api.GinEngineRef = r
+
+	// 应急恢复页面（随机路径，无需认证，先于 NoRoute/静态文件注册）
+	if global.GWAF_SECURITY_EMERGENCY_PATH != "" {
+		emergencyPath := "/" + global.GWAF_SECURITY_EMERGENCY_PATH
+		// 注入应急路径占位符，供页面 JS 推导 API 基础路径
+		renderedPage := strings.ReplaceAll(emergencyPageHTML, "{{EMERGENCY_PATH}}", global.GWAF_SECURITY_EMERGENCY_PATH)
+		r.GET(emergencyPath, func(c *gin.Context) {
+			c.Header("Content-Type", "text/html; charset=utf-8")
+			c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+			c.String(200, renderedPage)
+		})
+		zlog.Info(web.LogName, "emergency page registered at: "+emergencyPath)
+	}
 
 	if global.GWAF_RELEASE == "true" {
 		static.Static(r, func(handlers ...gin.HandlerFunc) {

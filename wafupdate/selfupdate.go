@@ -19,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 )
@@ -690,30 +691,170 @@ func writeTime(path string, t time.Time) bool {
 	return ioutil.WriteFile(path, []byte(t.Format(time.RFC3339)), 0644) == nil
 }
 
-// BackupExecutable 备份当前可执行文件
+// BackupExecutable 备份当前可执行文件，并写入版本号 sidecar 文件
 func BackupExecutable() error {
-	// 获取当前可执行文件路径
 	execPath, err := os.Executable()
 	if err != nil {
 		return err
 	}
-
-	// 如果是符号链接，获取实际路径
 	if resolvedPath, err := filepath.EvalSymlinks(execPath); err == nil {
 		execPath = resolvedPath
 	}
 
-	// 获取当前目录
 	currentDir := utils.GetCurrentDir()
-
-	// 创建备份目录
 	backupDir := filepath.Join(currentDir, "data", "backups_bin")
-
-	// 获取文件名（不带路径）
 	fileName := filepath.Base(execPath)
 	fileNameWithoutExt := strings.TrimSuffix(fileName, filepath.Ext(fileName))
 
-	// 备份文件
-	_, err = utils.BackupFile(execPath, backupDir, fileNameWithoutExt, 5)
-	return err
+	backupPath, err := utils.BackupFile(execPath, backupDir, fileNameWithoutExt, 5)
+	if err != nil {
+		return err
+	}
+	// 写版本 sidecar，供 ListBackups 读取
+	sidecarPath := strings.TrimSuffix(backupPath, filepath.Ext(backupPath)) + ".version"
+	_ = os.WriteFile(sidecarPath, []byte(global.GWAF_RELEASE_VERSION), 0644)
+	return nil
+}
+
+// BackupInfo 描述一个备份版本的元信息
+type BackupInfo struct {
+	FileName   string    `json:"file_name"`
+	Version    string    `json:"version"`     // 来自 sidecar；旧备份无 sidecar 时为 "unknown"
+	BackupTime time.Time `json:"backup_time"` // 文件 ModTime
+	FileSize   int64     `json:"file_size"`
+}
+
+// ListBackups 列出所有可用的备份版本，按时间倒序（最新在前）
+func ListBackups() ([]BackupInfo, error) {
+	currentDir := utils.GetCurrentDir()
+	backupDir := filepath.Join(currentDir, "data", "backups_bin")
+
+	entries, err := os.ReadDir(backupDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []BackupInfo{}, nil
+		}
+		return nil, err
+	}
+
+	execPath, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
+	if resolvedPath, err := filepath.EvalSymlinks(execPath); err == nil {
+		execPath = resolvedPath
+	}
+	fileName := filepath.Base(execPath)
+	fileNameWithoutExt := strings.TrimSuffix(fileName, filepath.Ext(fileName))
+
+	var list []BackupInfo
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		// 跳过 sidecar 文件
+		if strings.HasSuffix(name, ".version") {
+			continue
+		}
+		// 只处理与当前程序同名前缀的备份
+		if !strings.HasPrefix(name, fileNameWithoutExt+"_") {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		bi := BackupInfo{
+			FileName:   name,
+			Version:    "unknown",
+			BackupTime: info.ModTime(),
+			FileSize:   info.Size(),
+		}
+		// 尝试读取版本 sidecar
+		sidecarPath := filepath.Join(backupDir, strings.TrimSuffix(name, filepath.Ext(name))+".version")
+		if versionBytes, err := os.ReadFile(sidecarPath); err == nil {
+			bi.Version = strings.TrimSpace(string(versionBytes))
+		}
+		list = append(list, bi)
+	}
+
+	sort.Slice(list, func(i, j int) bool {
+		return list[i].BackupTime.After(list[j].BackupTime)
+	})
+	return list, nil
+}
+
+// RollbackExecutable 将可执行文件回退到指定版本的备份
+// version 为空时取最新备份
+func RollbackExecutable(version string) error {
+	list, err := ListBackups()
+	if err != nil {
+		return fmt.Errorf("列出备份失败: %w", err)
+	}
+	if len(list) == 0 {
+		return fmt.Errorf("没有可用的备份版本")
+	}
+
+	var target *BackupInfo
+	if version == "" {
+		target = &list[0]
+	} else {
+		for i := range list {
+			if list[i].Version == version {
+				target = &list[i]
+				break
+			}
+		}
+	}
+	if target == nil {
+		return fmt.Errorf("未找到版本 %s 的备份", version)
+	}
+
+	execPath, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	if resolvedPath, err := filepath.EvalSymlinks(execPath); err == nil {
+		execPath = resolvedPath
+	}
+
+	updateDir := filepath.Dir(execPath)
+	filename := filepath.Base(execPath)
+
+	currentDir := utils.GetCurrentDir()
+	backupDir := filepath.Join(currentDir, "data", "backups_bin")
+	backupFilePath := filepath.Join(backupDir, target.FileName)
+
+	// 将备份复制到临时文件
+	rollbackPath := filepath.Join(updateDir, fmt.Sprintf(".%s.rollback", filename))
+	src, err := os.Open(backupFilePath)
+	if err != nil {
+		return fmt.Errorf("打开备份文件失败: %w", err)
+	}
+	dst, err := os.OpenFile(rollbackPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
+	if err != nil {
+		src.Close()
+		return fmt.Errorf("创建临时文件失败: %w", err)
+	}
+	_, copyErr := io.Copy(dst, src)
+	src.Close()
+	dst.Close()
+	if copyErr != nil {
+		return fmt.Errorf("复制备份文件失败: %w", copyErr)
+	}
+
+	// 与 fromStream() 相同的 rename 技巧（Windows 运行中的 exe 允许 rename 但不允许 overwrite）
+	oldPath := filepath.Join(updateDir, fmt.Sprintf(".%s.old", filename))
+	_ = os.Remove(oldPath)
+
+	if err = os.Rename(execPath, oldPath); err != nil {
+		return fmt.Errorf("重命名当前程序失败: %w", err)
+	}
+	if err = os.Rename(rollbackPath, execPath); err != nil {
+		// 尝试恢复
+		_ = os.Rename(oldPath, execPath)
+		return fmt.Errorf("替换程序失败: %w", err)
+	}
+	return nil
 }

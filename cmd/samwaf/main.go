@@ -29,6 +29,7 @@ import (
 	"SamWaf/wafsnowflake"
 	"SamWaf/waftask"
 	"SamWaf/waftunnelengine"
+	"SamWaf/wafupdate"
 	"crypto/tls"
 	"embed"
 	_ "embed"
@@ -926,6 +927,74 @@ func main() {
 			fmt.Println("\n💻 SQL 执行工具")
 			fmt.Println("可以在指定数据库上执行 SQL 语句\n")
 			wafdb.ExecuteSQLCommand("")
+		case "rollback": //版本回退
+			fmt.Println("================================================")
+			fmt.Println("         SamWaf 版本回退工具")
+			fmt.Println("================================================")
+			fmt.Printf("当前运行版本: %s\n\n", global.GWAF_RELEASE_VERSION)
+
+			list, err := wafupdate.ListBackups()
+			if err != nil {
+				fmt.Println("获取备份列表失败:", err)
+				return
+			}
+			if len(list) == 0 {
+				fmt.Println("没有可用的备份版本，无法回退")
+				return
+			}
+
+			fmt.Printf("%-4s %-15s %-22s %-10s %s\n", "序号", "版本", "备份时间", "大小(MB)", "备注")
+			fmt.Println("------------------------------------------------------------------------")
+			for i, b := range list {
+				note := ""
+				if b.Version == global.GWAF_RELEASE_VERSION {
+					note = "[当前版本]"
+				}
+				fmt.Printf("%-4d %-15s %-22s %-10.2f %s\n",
+					i+1,
+					b.Version,
+					b.BackupTime.Format("2006-01-02 15:04:05"),
+					float64(b.FileSize)/(1024*1024),
+					note)
+			}
+			fmt.Println("------------------------------------------------------------------------")
+
+			fmt.Print("\n请输入要回退的序号，或输入 'q' 退出: ")
+			var input string
+			fmt.Scanln(&input)
+			if input == "q" || input == "Q" {
+				fmt.Println("已退出版本回退工具")
+				return
+			}
+
+			idx := 0
+			_, parseErr := fmt.Sscanf(input, "%d", &idx)
+			if parseErr != nil || idx < 1 || idx > len(list) {
+				fmt.Printf("无效的序号: %s\n", input)
+				return
+			}
+
+			target := list[idx-1]
+			if target.Version == global.GWAF_RELEASE_VERSION {
+				fmt.Printf("所选版本 %s 与当前运行版本相同，无需回退\n", target.Version)
+				return
+			}
+
+			fmt.Printf("\n即将回退到: %s（%s）\n", target.Version, target.BackupTime.Format("2006-01-02 15:04:05"))
+			fmt.Print("确认回退？回退后需要手动重启服务 (y/n): ")
+			var confirm string
+			fmt.Scanln(&confirm)
+			if confirm != "y" && confirm != "Y" {
+				fmt.Println("已取消")
+				return
+			}
+
+			fmt.Printf("正在回退到版本 %s...\n", target.Version)
+			if rollbackErr := wafupdate.RollbackExecutable(target.Version); rollbackErr != nil {
+				fmt.Println("回退失败:", rollbackErr)
+				return
+			}
+			fmt.Println("回退成功，请重启服务 (samwaf start 或 samwaf restart)")
 		default:
 			fmt.Printf("Command '%s' is not recognized.\n", command)
 			fmt.Println("\n可用命令:")
@@ -938,6 +1007,7 @@ func main() {
 			fmt.Println("  resetotp  - 重置安全码")
 			fmt.Println("  repairdb  - 修复损坏的数据库")
 			fmt.Println("  execsql   - 执行SQL语句（支持SELECT/UPDATE/DELETE等）")
+			fmt.Println("  rollback  - 回退到历史版本 (--list 列出, --version=v1.x.x 指定版本)")
 			fmt.Println("")
 		}
 		return

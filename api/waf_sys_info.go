@@ -168,6 +168,49 @@ func (w *WafSysInfoApi) CheckVersionApi(c *gin.Context) {
 
 }
 
+// SystemParamsApi 返回认证后才能获取的系统参数（可扩展）
+// GET /api/v1/sysinfo/systemparams
+func (w *WafSysInfoApi) SystemParamsApi(c *gin.Context) {
+	response.OkWithDetailed(gin.H{
+		"emergency_path": "/" + global.GWAF_SECURITY_EMERGENCY_PATH,
+	}, "获取成功", c)
+}
+
+// RollbackListApi 列出所有可回退的备份版本
+// GET /api/v1/sysinfo/rollbacklist
+func (w *WafSysInfoApi) RollbackListApi(c *gin.Context) {
+	list, err := wafupdate.ListBackups()
+	if err != nil {
+		response.FailWithMessage("获取备份列表失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithDetailed(list, "获取成功", c)
+}
+
+// RollbackApi 触发版本回退并重启
+// GET /api/v1/sysinfo/rollback?version=v1.x.x
+func (w *WafSysInfoApi) RollbackApi(c *gin.Context) {
+	if global.GWAF_RUNTIME_IS_UPDATETING {
+		response.FailWithMessage("正在升级/回退中，请稍后", c)
+		return
+	}
+	version := c.Query("version")
+	global.GWAF_RUNTIME_IS_UPDATETING = true
+	err := wafupdate.RollbackExecutable(version)
+	if err != nil {
+		global.GWAF_RUNTIME_IS_UPDATETING = false
+		response.FailWithMessage("回退失败: "+err.Error(), c)
+		return
+	}
+	global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.UpdateResultMessageInfo{
+		BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "系统即将重启", Server: global.GWAF_CUSTOM_SERVER_NAME},
+		Msg:             "版本回退成功，等待重启",
+		Success:         "true",
+	})
+	global.GWAF_CHAN_UPDATE <- 1
+	response.OkWithMessage("已发起回退，等待通知结果", c)
+}
+
 // 去升级
 func (w *WafSysInfoApi) UpdateApi(c *gin.Context) {
 	// 获取请求中的 channel 参数

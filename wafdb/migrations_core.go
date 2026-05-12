@@ -152,6 +152,22 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				)
 			},
 		},
+		// 迁移1b: 同步 MySQL ip_tags 表结构（补全缺失列 + 修复 longtext → varchar，支持建索引）
+		{
+			ID: "202511140001b_fix_mysql_varchar",
+			Migrate: func(tx *gorm.DB) error {
+				if tx.Dialector.Name() != "mysql" {
+					return nil
+				}
+				zlog.Info("迁移 202511140001b: 同步 ip_tags 表结构")
+				if err := tx.AutoMigrate(&model.IPTag{}); err != nil {
+					return fmt.Errorf("同步 ip_tags 表结构失败: %w", err)
+				}
+				zlog.Info("迁移 202511140001b: ip_tags 表结构同步完成")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error { return nil },
+		},
 		// 迁移2: 创建索引（幂等操作）
 		{
 			ID: "202511140002_create_core_indexes",
@@ -204,13 +220,16 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				}
 
 				// 创建索引
-				if err := tx.Exec("CREATE INDEX IF NOT EXISTS idx_firewall_ip_block_ip ON firewall_ip_block(ip)").Error; err != nil {
+				if err := safeCreateIndex(tx, "firewall_ip_block", "idx_firewall_ip_block_ip",
+					"CREATE INDEX IF NOT EXISTS idx_firewall_ip_block_ip ON firewall_ip_block(ip)"); err != nil {
 					zlog.Warn("创建索引 idx_firewall_ip_block_ip 失败", "error", err.Error())
 				}
-				if err := tx.Exec("CREATE INDEX IF NOT EXISTS idx_firewall_ip_block_status ON firewall_ip_block(status)").Error; err != nil {
+				if err := safeCreateIndex(tx, "firewall_ip_block", "idx_firewall_ip_block_status",
+					"CREATE INDEX IF NOT EXISTS idx_firewall_ip_block_status ON firewall_ip_block(status)"); err != nil {
 					zlog.Warn("创建索引 idx_firewall_ip_block_status 失败", "error", err.Error())
 				}
-				if err := tx.Exec("CREATE INDEX IF NOT EXISTS idx_firewall_ip_block_expire_time ON firewall_ip_block(expire_time)").Error; err != nil {
+				if err := safeCreateIndex(tx, "firewall_ip_block", "idx_firewall_ip_block_expire_time",
+					"CREATE INDEX IF NOT EXISTS idx_firewall_ip_block_expire_time ON firewall_ip_block(expire_time)"); err != nil {
 					zlog.Warn("创建索引 idx_firewall_ip_block_expire_time 失败", "error", err.Error())
 				}
 
@@ -955,8 +974,7 @@ func createCoreIndexes(tx *gorm.DB) error {
 		zlog.Info("开始创建索引", "index", idx.Name, "sql", idx.SQL)
 		indexStartTime := time.Now()
 
-		if err := tx.Exec(idx.SQL).Error; err != nil {
-			// 记录详细的错误信息
+		if err := safeCreateIndex(tx, "ip_tags", idx.Name, idx.SQL); err != nil {
 			errMsg := fmt.Sprintf("创建索引失败 %s: %v (错误类型: %T)", idx.Name, err, err)
 			zlog.Error("索引创建失败详情", "index", idx.Name, "error", err.Error(), "sql", idx.SQL)
 			return fmt.Errorf("%s", errMsg)
@@ -983,7 +1001,7 @@ func cleanupDuplicateIPTags(tx *gorm.DB) error {
 			FROM ip_tags
 			GROUP BY user_code, tenant_id, ip, ip_tag
 			HAVING cnt > 1
-		)
+		) AS t
 	`).Scan(&duplicateCount).Error
 
 	if err != nil {
@@ -1019,16 +1037,16 @@ func cleanupDuplicateIPTags(tx *gorm.DB) error {
 func dropCoreIndexes(tx *gorm.DB) error {
 	zlog.Info("开始删除core索引")
 
-	indexes := []string{
-		"uni_iptags_full",
-		"idx_iptag_ip",
+	indexes := []struct{ table, name string }{
+		{"ip_tags", "uni_iptags_full"},
+		{"ip_tags", "idx_iptag_ip"},
 	}
 
-	for _, indexName := range indexes {
-		if err := tx.Exec(fmt.Sprintf("DROP INDEX IF EXISTS %s", indexName)).Error; err != nil {
-			zlog.Warn("删除索引失败（可能不存在）", "index", indexName, "error", err)
+	for _, idx := range indexes {
+		if err := safeDropIndex(tx, idx.table, idx.name); err != nil {
+			zlog.Warn("删除索引失败（可能不存在）", "index", idx.name, "error", err)
 		} else {
-			zlog.Info("索引删除成功", "index", indexName)
+			zlog.Info("索引删除成功", "index", idx.name)
 		}
 	}
 

@@ -32,7 +32,9 @@ func (t *JsonTime) UnmarshalJSON(data []byte) error {
 
 func (t JsonTime) Value() (driver.Value, error) {
 	tm := time.Time(t)
-	//return tm.Format(constant.TimeLayout), nil
+	if tm.IsZero() {
+		return nil, nil // MySQL strict mode rejects 0000-00-00; use NULL for unset times
+	}
 	return tm, nil
 }
 

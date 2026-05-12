@@ -210,13 +210,77 @@ func LoadAndInitConfig() {
 			return
 		}
 		fmt.Printf("%s\tINFO\t config updated\n", currentTime)
+		configChanged = false
 	}
 
 	fmt.Printf("%s\tINFO\tuser_code:%s ,soft_id:%s\n",
 		currentTime, global.GWAF_USER_CODE, global.GWAF_TENANT_ID)
 
-	// 注册数据库方言（默认 SQLite；Milestone 2 起按 GWAF_DB_DRIVER 分流）
-	dialect.Register(&dialect.SQLiteDialect{})
+	// ── 数据库 driver 配置 ──────────────────────────────────────────────
+	if config.IsSet("database.driver") {
+		global.GWAF_DB_DRIVER = config.GetString("database.driver")
+	} else {
+		config.Set("database.driver", global.GWAF_DB_DRIVER) // 写入默认值 sqlite
+		configChanged = true
+	}
+
+	if global.GWAF_DB_DRIVER == "mysql" {
+		// MySQL 连接参数（有默认值，仅在 config.yml 有对应键时才覆盖）
+		if config.IsSet("database.mysql.host") {
+			global.GWAF_MYSQL_HOST = config.GetString("database.mysql.host")
+		}
+		if config.IsSet("database.mysql.port") {
+			global.GWAF_MYSQL_PORT = config.GetInt("database.mysql.port")
+		}
+		if config.IsSet("database.mysql.user") {
+			global.GWAF_MYSQL_USER = config.GetString("database.mysql.user")
+		}
+		if config.IsSet("database.mysql.password") {
+			global.GWAF_MYSQL_PASSWORD = config.GetString("database.mysql.password")
+		}
+		if config.IsSet("database.mysql.charset") {
+			global.GWAF_MYSQL_CHARSET = config.GetString("database.mysql.charset")
+		}
+		if config.IsSet("database.mysql.core_db") {
+			global.GWAF_MYSQL_CORE_DB = config.GetString("database.mysql.core_db")
+		}
+		if config.IsSet("database.mysql.log_db") {
+			global.GWAF_MYSQL_LOG_DB = config.GetString("database.mysql.log_db")
+		}
+		if config.IsSet("database.mysql.stats_db") {
+			global.GWAF_MYSQL_STATS_DB = config.GetString("database.mysql.stats_db")
+		}
+		if config.IsSet("database.mysql.max_open_conns") {
+			global.GWAF_MYSQL_MAX_OPEN_CONNS = config.GetInt("database.mysql.max_open_conns")
+		}
+		if config.IsSet("database.mysql.max_idle_conns") {
+			global.GWAF_MYSQL_MAX_IDLE_CONNS = config.GetInt("database.mysql.max_idle_conns")
+		}
+		if config.IsSet("database.mysql.conn_max_lifetime_minutes") {
+			global.GWAF_MYSQL_CONN_MAX_LIFETIME_MINUTES = config.GetInt("database.mysql.conn_max_lifetime_minutes")
+		}
+	}
+
+	// 只有在配置发生变化时才写入文件（提前写，dialect 注册在下方）
+	if configChanged {
+		err := config.WriteConfig()
+		if err != nil {
+			fmt.Printf("%s\tERROR\twrite config failed:%v\n", currentTime, err)
+			return
+		}
+		fmt.Printf("%s\tINFO\t config updated\n", currentTime)
+		configChanged = false // 已写，重置标志
+	}
+
+	// 注册数据库方言
+	switch global.GWAF_DB_DRIVER {
+	case "mysql":
+		dialect.Register(&dialect.MySQLDialect{})
+		fmt.Printf("%s\tINFO\t数据库驱动: MySQL (%s:%d)\n",
+			currentTime, global.GWAF_MYSQL_HOST, global.GWAF_MYSQL_PORT)
+	default:
+		dialect.Register(&dialect.SQLiteDialect{})
+	}
 }
 
 // UpdateIpWhitelist 更新IP白名单配置

@@ -8,12 +8,12 @@ import (
 
 type SslExpire struct {
 	baseorm.BaseOrm
-	Domain     string    `json:"domain"`      // 证书适用的域名
-	Port       int       `json:"port"`        // 端口
-	ValidTo    time.Time `json:"valid_to"`    // 证书有效期结束时间
-	VisitLog   string    `json:"visit_log"`   //访问日志
-	LastDetect time.Time `json:"last_detect"` // 最后检测时间
-	Status     string    `json:"status"`      //状态
+	Domain     string    `gorm:"size:255" json:"domain"`    // 证书适用的域名
+	Port       int       `json:"port"`                      // 端口
+	ValidTo    time.Time `json:"valid_to"`                  // 证书有效期结束时间
+	VisitLog   string    `gorm:"size:500" json:"visit_log"` //访问日志
+	LastDetect time.Time `json:"last_detect"`               // 最后检测时间
+	Status     string    `gorm:"size:50" json:"status"`     //状态
 }
 
 // ExpirationMessage 获取到期提示信息

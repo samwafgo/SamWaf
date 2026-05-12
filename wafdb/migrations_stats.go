@@ -74,6 +74,27 @@ func RunStatsDBMigrations(db *gorm.DB) error {
 				)
 			},
 		},
+		// 迁移1b: 同步 MySQL stats 各表结构（补全缺失列 + 修复 longtext → varchar，支持建索引）
+		{
+			ID: "202511110001b_fix_mysql_varchar",
+			Migrate: func(tx *gorm.DB) error {
+				if tx.Dialector.Name() != "mysql" {
+					return nil
+				}
+				zlog.Info("迁移 202511110001b: 同步 stats 各表结构")
+				if err := tx.AutoMigrate(
+					&model.StatsDay{},
+					&model.StatsIPDay{},
+					&model.StatsIPCityDay{},
+					&model.IPTag{},
+				); err != nil {
+					return fmt.Errorf("同步 stats 表结构失败: %w", err)
+				}
+				zlog.Info("迁移 202511110001b: stats 表结构同步完成")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error { return nil },
+		},
 		// 迁移2: 创建索引（幂等操作）
 		{
 			ID: "202511110002_create_indexes",
@@ -102,12 +123,18 @@ func RunStatsDBMigrations(db *gorm.DB) error {
 					return fmt.Errorf("创建站点统计表失败: %w", err)
 				}
 				zlog.Info("迁移 202603100001: 创建站点统计索引")
-				sqls := []string{
-					"CREATE INDEX IF NOT EXISTS idx_stats_site_days_lookup ON stats_site_days (host_code, day)",
-					"CREATE INDEX IF NOT EXISTS idx_stats_site_hours_lookup ON stats_site_hours (host_code, hour_time)",
+				siteIdxs := []struct{ name, table, sql string }{
+					{
+						"idx_stats_site_days_lookup", "stats_site_days",
+						"CREATE INDEX IF NOT EXISTS idx_stats_site_days_lookup ON stats_site_days (host_code, day)",
+					},
+					{
+						"idx_stats_site_hours_lookup", "stats_site_hours",
+						"CREATE INDEX IF NOT EXISTS idx_stats_site_hours_lookup ON stats_site_hours (host_code, hour_time)",
+					},
 				}
-				for _, s := range sqls {
-					if err := tx.Exec(s).Error; err != nil {
+				for _, idx := range siteIdxs {
+					if err := safeCreateIndex(tx, idx.table, idx.name, idx.sql); err != nil {
 						return fmt.Errorf("创建站点统计索引失败: %w", err)
 					}
 				}
@@ -134,19 +161,20 @@ func RunStatsDBMigrations(db *gorm.DB) error {
 				})
 
 				indexes := []struct {
-					name string
-					sql  string
+					name  string
+					table string
+					sql   string
 				}{
-					{"idx_stats_ip_days_day", "CREATE INDEX IF NOT EXISTS idx_stats_ip_days_day ON stats_ip_days(day)"},
-					{"idx_stats_ip_city_days_day", "CREATE INDEX IF NOT EXISTS idx_stats_ip_city_days_day ON stats_ip_city_days(day)"},
-					{"idx_ip_tags_create_time", "CREATE INDEX IF NOT EXISTS idx_ip_tags_create_time ON ip_tags(create_time)"},
-					{"idx_ip_tags_update_time", "CREATE INDEX IF NOT EXISTS idx_ip_tags_update_time ON ip_tags(update_time)"},
+					{"idx_stats_ip_days_day", "stats_ip_days", "CREATE INDEX IF NOT EXISTS idx_stats_ip_days_day ON stats_ip_days(day)"},
+					{"idx_stats_ip_city_days_day", "stats_ip_city_days", "CREATE INDEX IF NOT EXISTS idx_stats_ip_city_days_day ON stats_ip_city_days(day)"},
+					{"idx_ip_tags_create_time", "ip_tags", "CREATE INDEX IF NOT EXISTS idx_ip_tags_create_time ON ip_tags(create_time)"},
+					{"idx_ip_tags_update_time", "ip_tags", "CREATE INDEX IF NOT EXISTS idx_ip_tags_update_time ON ip_tags(update_time)"},
 				}
 
 				for _, idx := range indexes {
 					zlog.Info("创建索引中...", "index", idx.name)
 					start := time.Now()
-					if err := ddlDB.Exec(idx.sql).Error; err != nil {
+					if err := safeCreateIndex(ddlDB, idx.table, idx.name, idx.sql); err != nil {
 						return fmt.Errorf("创建清理索引 %s 失败: %w", idx.name, err)
 					}
 					zlog.Info("索引创建完成", "index", idx.name, "耗时", time.Since(start).String())
@@ -218,20 +246,6 @@ func checkStatsIndexesExist(db *gorm.DB) bool {
 	return true
 }
 
-// checkIndexExists 检查指定表的索引是否存在（SQLite）
-func checkIndexExists(db *gorm.DB, tableName, indexName string) bool {
-	var count int64
-	// SQLite 查询索引的方法
-	err := db.Raw("SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name=? AND tbl_name=?",
-		indexName, tableName).Scan(&count).Error
-
-	if err != nil {
-		zlog.Error("检查索引失败", "error", err, "table", tableName, "index", indexName)
-		return false
-	}
-	return count > 0
-}
-
 // createStatsIndexes 创建所有stats索引（幂等操作）
 func createStatsIndexes(tx *gorm.DB) error {
 	zlog.Info("开始创建stats索引（可能需要几分钟）...")
@@ -243,28 +257,34 @@ func createStatsIndexes(tx *gorm.DB) error {
 	}
 
 	indexes := []struct {
-		Name string
-		SQL  string
+		Table string
+		Name  string
+		SQL   string
 	}{
 		{
-			Name: "idx_stats_days_lookup",
-			SQL:  "CREATE INDEX IF NOT EXISTS idx_stats_days_lookup ON stats_days (tenant_id, user_code, host_code, type, day)",
+			Table: "stats_days",
+			Name:  "idx_stats_days_lookup",
+			SQL:   "CREATE INDEX IF NOT EXISTS idx_stats_days_lookup ON stats_days (tenant_id, user_code, host_code, type, day)",
 		},
 		{
-			Name: "idx_stats_ip_days_lookup",
-			SQL:  "CREATE INDEX IF NOT EXISTS idx_stats_ip_days_lookup ON stats_ip_days (tenant_id, user_code, host_code, ip, type, day)",
+			Table: "stats_ip_days",
+			Name:  "idx_stats_ip_days_lookup",
+			SQL:   "CREATE INDEX IF NOT EXISTS idx_stats_ip_days_lookup ON stats_ip_days (tenant_id, user_code, host_code, ip, type, day)",
 		},
 		{
-			Name: "idx_stats_ip_city_days_lookup",
-			SQL:  "CREATE INDEX IF NOT EXISTS idx_stats_ip_city_days_lookup ON stats_ip_city_days (tenant_id, user_code, host_code, country, province, city, type, day)",
+			Table: "stats_ip_city_days",
+			Name:  "idx_stats_ip_city_days_lookup",
+			SQL:   "CREATE INDEX IF NOT EXISTS idx_stats_ip_city_days_lookup ON stats_ip_city_days (tenant_id, user_code, host_code, country, province, city, type, day)",
 		},
 		{
-			Name: "uni_iptags_full",
-			SQL:  "CREATE UNIQUE INDEX IF NOT EXISTS uni_iptags_full ON ip_tags (user_code, tenant_id, ip, ip_tag)",
+			Table: "ip_tags",
+			Name:  "uni_iptags_full",
+			SQL:   "CREATE UNIQUE INDEX IF NOT EXISTS uni_iptags_full ON ip_tags (user_code, tenant_id, ip, ip_tag)",
 		},
 		{
-			Name: "idx_iptag_ip",
-			SQL:  "CREATE INDEX IF NOT EXISTS idx_iptag_ip ON ip_tags (user_code, tenant_id, ip)",
+			Table: "ip_tags",
+			Name:  "idx_iptag_ip",
+			SQL:   "CREATE INDEX IF NOT EXISTS idx_iptag_ip ON ip_tags (user_code, tenant_id, ip)",
 		},
 	}
 
@@ -272,8 +292,7 @@ func createStatsIndexes(tx *gorm.DB) error {
 		zlog.Info("开始创建索引", "index", idx.Name, "sql", idx.SQL)
 		indexStartTime := time.Now()
 
-		if err := tx.Exec(idx.SQL).Error; err != nil {
-			// 记录详细的错误信息
+		if err := safeCreateIndex(tx, idx.Table, idx.Name, idx.SQL); err != nil {
 			errMsg := fmt.Sprintf("创建索引失败 %s: %v (错误类型: %T)", idx.Name, err, err)
 			zlog.Error("索引创建失败详情", "index", idx.Name, "error", err.Error(), "sql", idx.SQL)
 			return fmt.Errorf("%s", errMsg)
@@ -300,7 +319,7 @@ func cleanupDuplicateIPTagsInStats(tx *gorm.DB) error {
 			FROM ip_tags
 			GROUP BY user_code, tenant_id, ip, ip_tag
 			HAVING cnt > 1
-		)
+		) AS t
 	`).Scan(&duplicateCount).Error
 
 	if err != nil {
@@ -336,19 +355,19 @@ func cleanupDuplicateIPTagsInStats(tx *gorm.DB) error {
 func dropStatsIndexes(tx *gorm.DB) error {
 	zlog.Info("开始删除stats索引")
 
-	indexes := []string{
-		"idx_stats_days_lookup",
-		"idx_stats_ip_days_lookup",
-		"idx_stats_ip_city_days_lookup",
-		"uni_iptags_full",
-		"idx_iptag_ip",
+	indexes := []struct{ table, name string }{
+		{"stats_days", "idx_stats_days_lookup"},
+		{"stats_ip_days", "idx_stats_ip_days_lookup"},
+		{"stats_ip_city_days", "idx_stats_ip_city_days_lookup"},
+		{"ip_tags", "uni_iptags_full"},
+		{"ip_tags", "idx_iptag_ip"},
 	}
 
-	for _, indexName := range indexes {
-		if err := tx.Exec(fmt.Sprintf("DROP INDEX IF EXISTS %s", indexName)).Error; err != nil {
-			zlog.Warn("删除索引失败（可能不存在）", "index", indexName, "error", err)
+	for _, idx := range indexes {
+		if err := safeDropIndex(tx, idx.table, idx.name); err != nil {
+			zlog.Warn("删除索引失败（可能不存在）", "index", idx.name, "error", err)
 		} else {
-			zlog.Info("索引删除成功", "index", indexName)
+			zlog.Info("索引删除成功", "index", idx.name)
 		}
 	}
 

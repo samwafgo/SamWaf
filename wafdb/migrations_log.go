@@ -71,6 +71,48 @@ func RunLogDBMigrations(db *gorm.DB) error {
 				)
 			},
 		},
+		// 迁移1b: 同步 MySQL web_logs 表结构（补全缺失列 + 修复 longtext → varchar，支持建索引）
+		{
+			ID: "202511140001b_fix_mysql_varchar",
+			Migrate: func(tx *gorm.DB) error {
+				if tx.Dialector.Name() != "mysql" {
+					return nil
+				}
+				zlog.Info("迁移 202511140001b: 同步 web_logs 表结构")
+				if err := tx.AutoMigrate(&innerbean.WebLog{}); err != nil {
+					return fmt.Errorf("同步 web_logs 表结构失败: %w", err)
+				}
+				zlog.Info("迁移 202511140001b: web_logs 表结构同步完成")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error { return nil },
+		},
+		// 迁移1c: 确保 guest_identification 列存在（兼容旧表列名拼写错误 guest_id_entification）
+		{
+			ID: "202511140001c_fix_guest_identification_col",
+			Migrate: func(tx *gorm.DB) error {
+				if tx.Dialector.Name() != "mysql" {
+					return nil
+				}
+				// 检查目标列是否已存在
+				var newColCount int64
+				tx.Raw("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'web_logs' AND column_name = 'guest_identification'").Scan(&newColCount)
+				if newColCount > 0 {
+					zlog.Info("迁移 202511140001c: guest_identification 列已存在，跳过")
+					return nil
+				}
+				// 检查旧拼写错误列 guest_id_entification 是否存在
+				var oldColCount int64
+				tx.Raw("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'web_logs' AND column_name = 'guest_id_entification'").Scan(&oldColCount)
+				if oldColCount > 0 {
+					zlog.Info("迁移 202511140001c: 将 guest_id_entification 重命名为 guest_identification（保留数据）")
+					return tx.Exec("ALTER TABLE `web_logs` CHANGE COLUMN `guest_id_entification` `guest_identification` VARCHAR(191) NOT NULL DEFAULT ''").Error
+				}
+				zlog.Info("迁移 202511140001c: 添加 guest_identification 列")
+				return tx.Exec("ALTER TABLE `web_logs` ADD COLUMN `guest_identification` VARCHAR(191) NOT NULL DEFAULT ''").Error
+			},
+			Rollback: func(tx *gorm.DB) error { return nil },
+		},
 		// 迁移2: 创建索引（幂等操作）
 		{
 			ID: "202511140002_create_log_indexes",
@@ -278,7 +320,7 @@ func createLogIndexes(tx *gorm.DB) error {
 		},
 		{
 			Name: "idx_web_guest_id_entification",
-			SQL:  "CREATE INDEX IF NOT EXISTS idx_web_guest_id_entification ON web_logs (guest_id_entification, day, is_bot, host_code)",
+			SQL:  "CREATE INDEX IF NOT EXISTS idx_web_guest_id_entification ON web_logs (guest_identification, day, is_bot, host_code)",
 		},
 	}
 
@@ -286,8 +328,7 @@ func createLogIndexes(tx *gorm.DB) error {
 		zlog.Info("开始创建索引", "index", idx.Name, "sql", idx.SQL)
 		indexStartTime := time.Now()
 
-		if err := tx.Exec(idx.SQL).Error; err != nil {
-			// 记录详细的错误信息
+		if err := safeCreateIndex(tx, "web_logs", idx.Name, idx.SQL); err != nil {
 			errMsg := fmt.Sprintf("创建索引失败 %s: %v (错误类型: %T)", idx.Name, err, err)
 			zlog.Error("索引创建失败详情", "index", idx.Name, "error", err.Error(), "sql", idx.SQL)
 			return fmt.Errorf("%s", errMsg)
@@ -317,7 +358,7 @@ func dropLogIndexes(tx *gorm.DB) error {
 	}
 
 	for _, indexName := range indexes {
-		if err := tx.Exec(fmt.Sprintf("DROP INDEX IF EXISTS %s", indexName)).Error; err != nil {
+		if err := safeDropIndex(tx, "web_logs", indexName); err != nil {
 			zlog.Warn("删除索引失败（可能不存在）", "index", indexName, "error", err)
 		} else {
 			zlog.Info("索引删除成功", "index", indexName)

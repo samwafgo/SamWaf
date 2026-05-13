@@ -927,6 +927,20 @@ func main() {
 			fmt.Println("\n💻 SQL 执行工具")
 			fmt.Println("可以在指定数据库上执行 SQL 语句\n")
 			wafdb.ExecuteSQLCommand("")
+		case "migratedb": // 离线迁移：SQLite → MySQL
+			opts := wafdb.MigrateOptions{}
+			for _, arg := range os.Args[2:] {
+				switch arg {
+				case "--dry-run":
+					opts.DryRun = true
+				case "--force":
+					opts.Force = true
+				}
+			}
+			if err := wafdb.RunMigrateDB(opts); err != nil {
+				fmt.Println("迁移失败:", err)
+				os.Exit(1)
+			}
 		case "rollback": //版本回退
 			fmt.Println("================================================")
 			fmt.Println("         SamWaf 版本回退工具")
@@ -1007,6 +1021,9 @@ func main() {
 			fmt.Println("  resetotp  - 重置安全码")
 			fmt.Println("  repairdb  - 修复损坏的数据库")
 			fmt.Println("  execsql   - 执行SQL语句（支持SELECT/UPDATE/DELETE等）")
+			fmt.Println("  migratedb - 离线迁移数据库（SQLite → MySQL，需先在 config.yml 设 driver: mysql）")
+			fmt.Println("              --dry-run  只做预估，不写入数据")
+			fmt.Println("              --force    目标表已有数据时强制覆盖")
 			fmt.Println("  rollback  - 回退到历史版本 (--list 列出, --version=v1.x.x 指定版本)")
 			fmt.Println("")
 		}

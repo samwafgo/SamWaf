@@ -8,10 +8,10 @@ IP Tag 信息
 */
 type IPTag struct {
 	baseorm.BaseOrm
-	IP      string `json:"ip"` //ip
-	IPTag   string `json:"ip_tag"`
-	Cnt     int64  `json:"cnt"`     //触发次数
-	Remarks string `json:"remarks"` //备注
+	IP      string `gorm:"size:64" json:"ip"` //ip
+	IPTag   string `gorm:"size:255" json:"ip_tag"`
+	Cnt     int64  `json:"cnt"`                     //触发次数
+	Remarks string `gorm:"size:500" json:"remarks"` //备注
 }
 type AttackIPTag struct {
 	TenantID   string `json:"tenant_id"`

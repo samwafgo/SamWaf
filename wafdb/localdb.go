@@ -31,6 +31,9 @@ import (
 )
 
 func InitCoreDb(currentDir string) (bool, error) {
+	if dialect.Get().Name() == "mysql" {
+		return InitCoreDbMySQL()
+	}
 	if currentDir == "" {
 		currentDir = utils.GetCurrentDir()
 	}
@@ -120,6 +123,9 @@ func InitCoreDb(currentDir string) (bool, error) {
 }
 
 func InitLogDb(currentDir string) (bool, error) {
+	if dialect.Get().Name() == "mysql" {
+		return InitLogDbMySQL()
+	}
 	if currentDir == "" {
 		currentDir = utils.GetCurrentDir()
 	}
@@ -201,6 +207,10 @@ func InitLogDb(currentDir string) (bool, error) {
 
 // 手工切换日志数据源
 func InitManaulLogDb(currentDir string, custFileName string) {
+	if dialect.Get().Name() != "sqlite" {
+		// MySQL 模式下所有日志写入同一个库，无需手动切换分库
+		return
+	}
 	if currentDir == "" {
 		currentDir = utils.GetCurrentDir()
 	}
@@ -248,6 +258,9 @@ func InitManaulLogDb(currentDir string, custFileName string) {
 }
 
 func InitStatsDb(currentDir string) (bool, error) {
+	if dialect.Get().Name() == "mysql" {
+		return InitStatsDbMySQL()
+	}
 	if currentDir == "" {
 		currentDir = utils.GetCurrentDir()
 	}

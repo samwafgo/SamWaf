@@ -186,6 +186,22 @@ var (
 	GWAF_PWD_STATDB = "3Y)(27EtO^tK8Bj~STAT" //加密
 	GWAF_PWD_LOGDB  = "3Y)(27EtO^tK8Bj~LOG"  //加密
 
+	// Database driver: "sqlite" | "mysql" | "sqlserver" (default: sqlite)
+	GWAF_DB_DRIVER string = "sqlite"
+
+	// MySQL connection config (populated from conf/config.yml database.mysql.*)
+	GWAF_MYSQL_HOST                      string = "127.0.0.1"
+	GWAF_MYSQL_PORT                      int    = 3306
+	GWAF_MYSQL_USER                      string = "samwaf"
+	GWAF_MYSQL_PASSWORD                  string = ""
+	GWAF_MYSQL_CHARSET                   string = "utf8mb4"
+	GWAF_MYSQL_CORE_DB                   string = "samwaf_core"
+	GWAF_MYSQL_LOG_DB                    string = "samwaf_log"
+	GWAF_MYSQL_STATS_DB                  string = "samwaf_stats"
+	GWAF_MYSQL_MAX_OPEN_CONNS            int    = 50
+	GWAF_MYSQL_MAX_IDLE_CONNS            int    = 10
+	GWAF_MYSQL_CONN_MAX_LIFETIME_MINUTES int    = 60
+
 	//默认创建的账户和密码
 	GWAF_DEFAULT_ACCOUNT      string = "admin"         //默认创建的账户
 	GWAF_DEFAULT_ACCOUNT_PWD  string = "admin868"      //默认创建的密码

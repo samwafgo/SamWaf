@@ -10,7 +10,7 @@ import (
 */
 type DelayMsg struct {
 	baseorm.BaseOrm
-	DelayType    string `json:"delay_type"`    //操作类型
-	DelayTile    string `json:"delay_title"`   //操作标题
-	DelayContent string `json:"delay_content"` //操作内容
+	DelayType    string `gorm:"size:50" json:"delay_type"`      //操作类型
+	DelayTile    string `gorm:"size:255" json:"delay_title"`    //操作标题
+	DelayContent string `gorm:"type:text" json:"delay_content"` //操作内容
 }

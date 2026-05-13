@@ -10,12 +10,12 @@ import (
 */
 type SystemConfig struct {
 	baseorm.BaseOrm
-	IsSystem  string `json:"is_system"`  //是否是系统值
-	ItemClass string `json:"item_class"` //所属分类
-	Item      string `json:"item"`
-	Value     string `json:"value"`
-	ItemType  string `json:"item_type"` //配置类型 普通字符串，可选项
-	Options   string `json:"options"`   //如果ItemType == 可选项 这个地方有数据
-	HashInfo  string `json:"hash_info"`
-	Remarks   string `json:"remarks"` //备注
+	IsSystem  string `gorm:"size:10" json:"is_system"`   //是否是系统值
+	ItemClass string `gorm:"size:100" json:"item_class"` //所属分类
+	Item      string `gorm:"size:255" json:"item"`
+	Value     string `gorm:"type:text" json:"value"`
+	ItemType  string `gorm:"size:50" json:"item_type"` //配置类型 普通字符串，可选项
+	Options   string `gorm:"type:text" json:"options"` //如果ItemType == 可选项 这个地方有数据
+	HashInfo  string `gorm:"size:255" json:"hash_info"`
+	Remarks   string `gorm:"size:500" json:"remarks"` //备注
 }

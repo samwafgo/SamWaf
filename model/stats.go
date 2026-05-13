@@ -22,11 +22,11 @@ type StatsTotal struct {
 */
 type StatsDay struct {
 	baseorm.BaseOrm
-	HostCode string `json:"host_code"` //网站唯一码（主要键）
-	Day      int    `json:"day"`       //年月日（主要键）
-	Host     string `json:"host"`      //域名
-	Type     string `json:"type"`      //类型 放行,阻止
-	Count    int    `json:"count"`     //数量
+	HostCode string `gorm:"size:64" json:"host_code"` //网站唯一码（主要键）
+	Day      int    `json:"day"`                      //年月日（主要键）
+	Host     string `gorm:"size:255" json:"host"`     //域名
+	Type     string `gorm:"size:32" json:"type"`      //类型 放行,阻止
+	Count    int    `json:"count"`                    //数量
 }
 
 /*
@@ -35,12 +35,12 @@ type StatsDay struct {
 */
 type StatsIPDay struct {
 	baseorm.BaseOrm
-	HostCode string `json:"host_code"` //网站唯一码（主要键）
-	Day      int    `json:"day"`       //年月日（主要键）
-	Host     string `json:"host"`      //域名
-	IP       string `json:"ip"`        //ip
-	Type     string `json:"type"`      //类型 放行,阻止
-	Count    int    `json:"count"`     //数量
+	HostCode string `gorm:"size:64" json:"host_code"` //网站唯一码（主要键）
+	Day      int    `json:"day"`                      //年月日（主要键）
+	Host     string `gorm:"size:255" json:"host"`     //域名
+	IP       string `gorm:"size:64" json:"ip"`        //ip
+	Type     string `gorm:"size:32" json:"type"`      //类型 放行,阻止
+	Count    int    `json:"count"`                    //数量
 }
 
 /*
@@ -49,14 +49,14 @@ type StatsIPDay struct {
 */
 type StatsIPCityDay struct {
 	baseorm.BaseOrm
-	HostCode string `json:"host_code"` //网站唯一码（主要键）
-	Day      int    `json:"day"`       //年月日（主要键）
-	Host     string `json:"host"`      //域名
-	Country  string `json:"country"`   //国家
-	Province string `json:"province"`  //省份
-	City     string `json:"city"`      //城市
-	Type     string `json:"type"`      //类型 放行,阻止
-	Count    int    `json:"count"`     //数量
+	HostCode string `gorm:"size:64" json:"host_code"` //网站唯一码（主要键）
+	Day      int    `json:"day"`                      //年月日（主要键）
+	Host     string `gorm:"size:255" json:"host"`     //域名
+	Country  string `gorm:"size:100" json:"country"`  //国家
+	Province string `gorm:"size:100" json:"province"` //省份
+	City     string `gorm:"size:100" json:"city"`     //城市
+	Type     string `gorm:"size:32" json:"type"`      //类型 放行,阻止
+	Count    int    `json:"count"`                    //数量
 }
 
 /*
@@ -95,15 +95,15 @@ type StatsIPCountMore struct {
 */
 type StatsSiteDay struct {
 	baseorm.BaseOrm
-	HostCode       string `json:"host_code"`        //网站唯一码（主要键）
-	Day            int    `json:"day"`              //年月日（主要键）如 20260310
-	Host           string `json:"host"`             //域名
-	TotalCount     int64  `json:"total_count"`      //总请求数(PV)
-	AttackCount    int64  `json:"attack_count"`     //攻击拦截数
-	NormalCount    int64  `json:"normal_count"`     //正常放行数
-	TrafficIn      int64  `json:"traffic_in"`       //入站流量(bytes)
-	TrafficOut     int64  `json:"traffic_out"`      //出站流量(bytes)
-	TotalTimeSpent int64  `json:"total_time_spent"` //总响应时间(ms)，用于计算平均值
+	HostCode       string `gorm:"size:64" json:"host_code"` //网站唯一码（主要键）
+	Day            int    `json:"day"`                      //年月日（主要键）如 20260310
+	Host           string `gorm:"size:255" json:"host"`     //域名
+	TotalCount     int64  `json:"total_count"`              //总请求数(PV)
+	AttackCount    int64  `json:"attack_count"`             //攻击拦截数
+	NormalCount    int64  `json:"normal_count"`             //正常放行数
+	TrafficIn      int64  `json:"traffic_in"`               //入站流量(bytes)
+	TrafficOut     int64  `json:"traffic_out"`              //出站流量(bytes)
+	TotalTimeSpent int64  `json:"total_time_spent"`         //总响应时间(ms)，用于计算平均值
 }
 
 /*
@@ -112,15 +112,15 @@ type StatsSiteDay struct {
 */
 type StatsSiteHour struct {
 	baseorm.BaseOrm
-	HostCode       string `json:"host_code"`        //网站唯一码（主要键）
-	HourTime       int64  `json:"hour_time"`        //整点unix时间戳(秒)（主要键）
-	Host           string `json:"host"`             //域名
-	TotalCount     int64  `json:"total_count"`      //总请求数
-	AttackCount    int64  `json:"attack_count"`     //攻击拦截数
-	NormalCount    int64  `json:"normal_count"`     //正常放行数
-	TrafficIn      int64  `json:"traffic_in"`       //入站流量(bytes)
-	TrafficOut     int64  `json:"traffic_out"`      //出站流量(bytes)
-	TotalTimeSpent int64  `json:"total_time_spent"` //总响应时间(ms)
+	HostCode       string `gorm:"size:64" json:"host_code"` //网站唯一码（主要键）
+	HourTime       int64  `json:"hour_time"`                //整点unix时间戳(秒)（主要键）
+	Host           string `gorm:"size:255" json:"host"`     //域名
+	TotalCount     int64  `json:"total_count"`              //总请求数
+	AttackCount    int64  `json:"attack_count"`             //攻击拦截数
+	NormalCount    int64  `json:"normal_count"`             //正常放行数
+	TrafficIn      int64  `json:"traffic_in"`               //入站流量(bytes)
+	TrafficOut     int64  `json:"traffic_out"`              //出站流量(bytes)
+	TotalTimeSpent int64  `json:"total_time_spent"`         //总响应时间(ms)
 }
 
 /*

@@ -286,8 +286,7 @@ func createLogIndexes(tx *gorm.DB) error {
 		zlog.Info("开始创建索引", "index", idx.Name, "sql", idx.SQL)
 		indexStartTime := time.Now()
 
-		if err := tx.Exec(idx.SQL).Error; err != nil {
-			// 记录详细的错误信息
+		if err := safeCreateIndex(tx, "web_logs", idx.Name, idx.SQL); err != nil {
 			errMsg := fmt.Sprintf("创建索引失败 %s: %v (错误类型: %T)", idx.Name, err, err)
 			zlog.Error("索引创建失败详情", "index", idx.Name, "error", err.Error(), "sql", idx.SQL)
 			return fmt.Errorf("%s", errMsg)
@@ -317,7 +316,7 @@ func dropLogIndexes(tx *gorm.DB) error {
 	}
 
 	for _, indexName := range indexes {
-		if err := tx.Exec(fmt.Sprintf("DROP INDEX IF EXISTS %s", indexName)).Error; err != nil {
+		if err := safeDropIndex(tx, "web_logs", indexName); err != nil {
 			zlog.Warn("删除索引失败（可能不存在）", "index", indexName, "error", err)
 		} else {
 			zlog.Info("索引删除成功", "index", indexName)

@@ -7,48 +7,48 @@ import (
 
 type Hosts struct {
 	baseorm.BaseOrm
-	Code                      string `json:"code"`                         //唯一码
-	Host                      string `json:"host"`                         //域名
-	Port                      int    `json:"port"`                         //端口
-	Ssl                       int    `json:"ssl"`                          //是否是ssl
-	GUARD_STATUS              int    `json:"guard_status"`                 //防御状态 1 是开启防御 0 是防御关闭
-	REMOTE_SYSTEM             string `json:"remote_system"`                //是宝塔 phpstudy等
-	REMOTE_APP                string `json:"remote_app"`                   //是什么类型的应用
-	Remote_host               string `json:"remote_host"`                  //远端域名
-	Remote_port               int    `json:"remote_port"`                  //远端端口
-	Remote_ip                 string `json:"remote_ip"`                    //远端指定IP
-	Certfile                  string `json:"certfile"`                     //证书文件
-	Keyfile                   string `json:"keyfile"`                      //密钥文件
-	REMARKS                   string `json:"remarks"`                      //备注
-	GLOBAL_HOST               int    `json:"global_host"`                  //默认全局 1 全局 0非全局
-	DEFENSE_JSON              string `json:"defense_json"`                 //自身防御 json
-	START_STATUS              int    `json:"start_status"`                 //启动状态 如果是0 启动  ; 如果是1 不启动
-	EXCLUDE_URL_LOG           string `json:"exclude_url_log"`              //排除的url开头的数据 换行隔开
-	IsEnableLoadBalance       int    `json:"is_enable_load_balance"`       //是否激活负载  1 激活  非1 没有激活
-	LoadBalanceStage          int    `json:"load_balance_stage"`           //负载策略
-	UnrestrictedPort          int    `json:"unrestricted_port"`            //不限来源匹配端口 0 限制 1，不限制
-	BindSslId                 string `json:"bind_ssl_id"`                  //绑定SSL的ID
-	AutoJumpHTTPS             int    `json:"auto_jump_https"`              //是否自动跳转https  0 不自动 1 强制80跳转https
-	BindMoreHost              string `json:"bind_more_host"`               //绑定多域名
-	IsTransBackDomain         int    `json:"is_trans_back_domain"`         //是否传递后端域名到后端服务器侧
-	BindMorePort              string `json:"bind_more_port"`               //是否绑定多个端口
-	IsEnableHttpAuthBase      int    `json:"is_enable_http_auth_base"`     //是否 HTTPAuthBase  1 激活  非1 没有激活
-	HttpAuthBaseType          string `json:"http_auth_base_type"`          //认证类型 authorization(默认Basic Auth) custom(自定义页面)
-	HttpAuthPathPrefix        string `json:"http_auth_path_prefix"`        //HTTP认证路径前缀，用于隐藏系统特征，默认为随机生成
-	ResponseTimeOut           int    `json:"response_time_out"`            //响应超时时间 默认60秒,为0则无限等待
-	HealthyJSON               string `json:"healthy_json"`                 //后端健康度检测 json
-	InsecureSkipVerify        int    `json:"insecure_skip_verify"`         //是否开启后端https证书有效性验证 默认 0 是校验 1 是不校验
-	CaptchaJSON               string `json:"captcha_json"`                 //验证码配置 json
-	AntiLeechJSON             string `json:"anti_leech_json"`              //防盗链配置 json
-	CacheJSON                 string `json:"cache_json"`                   //缓存配置 json
-	StaticSiteJSON            string `json:"static_site_json"`             //静态站点配置 json
-	TransportJSON             string `json:"transport_json"`               //传输配置 json
-	DefaultEncoding           string `json:"default_encoding"`             //默认编码 utf-8 或者 gbk  auto字符串自动选择
-	LogOnlyMode               int    `json:"log_only_mode"`                //仅记录模式 1开启 0关闭
-	CustomHeadersJSON         string `json:"custom_headers_json"`          //自定义头信息配置 json
-	CustomResponseHeadersJSON string `json:"custom_response_headers_json"` //自定义响应头信息配置 json
-	ResponseCompressJSON      string `json:"response_compress_json"`       //响应压缩配置 json（Gzip/Brotli/Zstd）
-	IPMode                    string `json:"ip_mode"`                      //IP提取模式: "nic" 网卡模式 或 "proxy" 代理模式
+	Code                      string `gorm:"size:64" json:"code"`                           //唯一码
+	Host                      string `gorm:"size:255" json:"host"`                          //域名
+	Port                      int    `json:"port"`                                          //端口
+	Ssl                       int    `json:"ssl"`                                           //是否是ssl
+	GUARD_STATUS              int    `json:"guard_status"`                                  //防御状态 1 是开启防御 0 是防御关闭
+	REMOTE_SYSTEM             string `gorm:"size:50" json:"remote_system"`                  //是宝塔 phpstudy等
+	REMOTE_APP                string `gorm:"size:100" json:"remote_app"`                    //是什么类型的应用
+	Remote_host               string `gorm:"size:255" json:"remote_host"`                   //远端域名
+	Remote_port               int    `json:"remote_port"`                                   //远端端口
+	Remote_ip                 string `gorm:"size:64" json:"remote_ip"`                      //远端指定IP
+	Certfile                  string `gorm:"type:text" json:"certfile"`                     //证书文件
+	Keyfile                   string `gorm:"type:text" json:"keyfile"`                      //密钥文件
+	REMARKS                   string `gorm:"size:500" json:"remarks"`                       //备注
+	GLOBAL_HOST               int    `json:"global_host"`                                   //默认全局 1 全局 0非全局
+	DEFENSE_JSON              string `gorm:"type:text" json:"defense_json"`                 //自身防御 json
+	START_STATUS              int    `json:"start_status"`                                  //启动状态 如果是0 启动  ; 如果是1 不启动
+	EXCLUDE_URL_LOG           string `gorm:"type:text" json:"exclude_url_log"`              //排除的url开头的数据 换行隔开
+	IsEnableLoadBalance       int    `json:"is_enable_load_balance"`                        //是否激活负载  1 激活  非1 没有激活
+	LoadBalanceStage          int    `json:"load_balance_stage"`                            //负载策略
+	UnrestrictedPort          int    `json:"unrestricted_port"`                             //不限来源匹配端口 0 限制 1，不限制
+	BindSslId                 string `gorm:"size:64" json:"bind_ssl_id"`                    //绑定SSL的ID
+	AutoJumpHTTPS             int    `json:"auto_jump_https"`                               //是否自动跳转https  0 不自动 1 强制80跳转https
+	BindMoreHost              string `gorm:"type:text" json:"bind_more_host"`               //绑定多域名
+	IsTransBackDomain         int    `json:"is_trans_back_domain"`                          //是否传递后端域名到后端服务器侧
+	BindMorePort              string `gorm:"size:255" json:"bind_more_port"`                //是否绑定多个端口
+	IsEnableHttpAuthBase      int    `json:"is_enable_http_auth_base"`                      //是否 HTTPAuthBase  1 激活  非1 没有激活
+	HttpAuthBaseType          string `gorm:"size:50" json:"http_auth_base_type"`            //认证类型 authorization(默认Basic Auth) custom(自定义页面)
+	HttpAuthPathPrefix        string `gorm:"size:255" json:"http_auth_path_prefix"`         //HTTP认证路径前缀，用于隐藏系统特征，默认为随机生成
+	ResponseTimeOut           int    `json:"response_time_out"`                             //响应超时时间 默认60秒,为0则无限等待
+	HealthyJSON               string `gorm:"type:text" json:"healthy_json"`                 //后端健康度检测 json
+	InsecureSkipVerify        int    `json:"insecure_skip_verify"`                          //是否开启后端https证书有效性验证 默认 0 是校验 1 是不校验
+	CaptchaJSON               string `gorm:"type:text" json:"captcha_json"`                 //验证码配置 json
+	AntiLeechJSON             string `gorm:"type:text" json:"anti_leech_json"`              //防盗链配置 json
+	CacheJSON                 string `gorm:"type:text" json:"cache_json"`                   //缓存配置 json
+	StaticSiteJSON            string `gorm:"type:text" json:"static_site_json"`             //静态站点配置 json
+	TransportJSON             string `gorm:"type:text" json:"transport_json"`               //传输配置 json
+	DefaultEncoding           string `gorm:"size:20" json:"default_encoding"`               //默认编码 utf-8 或者 gbk  auto字符串自动选择
+	LogOnlyMode               int    `json:"log_only_mode"`                                 //仅记录模式 1开启 0关闭
+	CustomHeadersJSON         string `gorm:"type:text" json:"custom_headers_json"`          //自定义头信息配置 json
+	CustomResponseHeadersJSON string `gorm:"type:text" json:"custom_response_headers_json"` //自定义响应头信息配置 json
+	ResponseCompressJSON      string `gorm:"type:text" json:"response_compress_json"`       //响应压缩配置 json（Gzip/Brotli/Zstd）
+	IPMode                    string `gorm:"size:20" json:"ip_mode"`                        //IP提取模式: "nic" 网卡模式 或 "proxy" 代理模式
 }
 
 type HostsDefense struct {

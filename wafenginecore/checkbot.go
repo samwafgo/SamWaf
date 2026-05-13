@@ -35,7 +35,9 @@ func (waf *WafEngine) CheckBot(r *http.Request, weblogbean *innerbean.WebLog, fo
 	if !isBotCacheExist {
 		botResult = wafbot.DetermineNormalSearch(weblogbean.USER_AGENT, weblogbean.SRC_IP)
 	} else {
-		botResult = global.GCACHE_WAFCACHE.Get(enums.CACHE_DNS_BOT_IP + weblogbean.SRC_IP).(wafbot.BotResult)
+		if err := global.GCACHE_WAFCACHE.GetAs(enums.CACHE_DNS_BOT_IP+weblogbean.SRC_IP, &botResult); err != nil {
+			botResult = wafbot.DetermineNormalSearch(weblogbean.USER_AGENT, weblogbean.SRC_IP)
+		}
 	}
 	if botResult.IsBot == true {
 		weblogbean.IsBot = 1

@@ -118,8 +118,15 @@ var (
 
 	GWAF_SHUTDOWN_SIGNAL bool = false // 系统关闭信号
 	/*****CACHE相关*********/
-	GCACHE_WAFCACHE      *cache.WafCache      //cache
-	GCACHE_WECHAT_ACCESS string          = "" //微信访问密钥
+	GCACHE_WAFCACHE      cache.CacheStore      //cache
+	GCACHE_WECHAT_ACCESS string           = "" //微信访问密钥
+
+	// Cache后端配置
+	GCACHE_TYPE           string = "memory" // 缓存类型: memory（默认）| redis
+	GCACHE_REDIS_HOST     string = "127.0.0.1"
+	GCACHE_REDIS_PORT     int    = 6379
+	GCACHE_REDIS_PASSWORD string = ""
+	GCACHE_REDIS_DB       int    = 0
 
 	/*********HTTP相关**************/
 	GWAF_HTTP_SENSITIVE_REPLACE_STRING = "**" //HTTP 敏感内容替换成

@@ -2,6 +2,7 @@ package cache
 
 import (
 	"SamWaf/common/zlog"
+	"encoding/json"
 	"errors"
 	"strings"
 	"sync"
@@ -61,6 +62,18 @@ func (wafCache *WafCache) SetWithTTlRenewTime(key string, value interface{}, ttl
 		ttl:        ttl,
 	}
 }
+func (wafCache *WafCache) GetAs(key string, out interface{}) error {
+	val := wafCache.Get(key)
+	if val == nil {
+		return errors.New("数据不存在")
+	}
+	b, err := json.Marshal(val)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(b, out)
+}
+
 func (wafCache *WafCache) GetBytes(key string) ([]byte, error) {
 	key1Value := wafCache.Get(key)
 	if str, ok := key1Value.([]byte); ok {

@@ -260,7 +260,12 @@ func (m *wafSystenService) run() {
 	//TODO 准备释放最新spider bot
 
 	//初始化cache
-	global.GCACHE_WAFCACHE = cache.InitWafCache()
+	global.GCACHE_WAFCACHE = cache.NewCacheStore(global.GCACHE_TYPE, &cache.RedisCacheConfig{
+		Host:     global.GCACHE_REDIS_HOST,
+		Port:     global.GCACHE_REDIS_PORT,
+		Password: global.GCACHE_REDIS_PASSWORD,
+		DB:       global.GCACHE_REDIS_DB,
+	})
 	//初始化验证码服务
 	wafcaptcha.InitCaptchaService(global.GCACHE_WAFCACHE)
 	//初始化锁写不锁度

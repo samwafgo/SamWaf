@@ -672,10 +672,8 @@ func (waf *WafEngine) handleHttpAuthValidate(hostSafe *wafenginmodel.HostSafe, w
 		failCountKey := "httpauth_fail:" + clientIP
 		failCount := 0
 
-		if val := global.GCACHE_WAFCACHE.Get(failCountKey); val != nil {
-			if count, ok := val.(int); ok {
-				failCount = count
-			}
+		if count, err := global.GCACHE_WAFCACHE.GetInt(failCountKey); err == nil {
+			failCount = count
 		}
 
 		failCount++

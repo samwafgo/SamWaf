@@ -79,7 +79,12 @@ func Auth() gin.HandlerFunc {
 				c.Abort()
 				return
 			} else {
-				tokenInfo := global.GCACHE_WAFCACHE.Get(enums.CACHE_TOKEN + tokenStr).(model.TokenInfo)
+				var tokenInfo model.TokenInfo
+				if err := global.GCACHE_WAFCACHE.GetAs(enums.CACHE_TOKEN+tokenStr, &tokenInfo); err != nil {
+					response.AuthFailWithMessage("令牌解析失败", c)
+					c.Abort()
+					return
+				}
 
 				// IP检查逻辑
 				currentIP := utils.GetManageClientIP(c)

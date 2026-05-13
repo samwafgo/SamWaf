@@ -39,7 +39,7 @@ var (
 
 // CaptchaService 验证码服务结构体
 type CaptchaService struct {
-	cache *cache.WafCache
+	cache cache.CacheStore
 	//text
 	textCapt      click.Captcha
 	lightTextCapt click.Captcha
@@ -48,7 +48,7 @@ type CaptchaService struct {
 }
 
 // InitCaptchaService 初始化验证码服务，传入缓存引用
-func InitCaptchaService(cache *cache.WafCache) {
+func InitCaptchaService(cache cache.CacheStore) {
 	once.Do(func() {
 		captchaService = &CaptchaService{
 			cache: cache,

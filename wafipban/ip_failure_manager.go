@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-func InitIPBanManager(wafCache *cache.WafCache) {
+func InitIPBanManager(wafCache cache.CacheStore) {
 	// 初始化IP失败管理器单例，使用传入的cache
 	ipFailureManagerOnce.Do(func() {
 		ipFailureManagerInstance = &IPFailureManager{
@@ -50,7 +50,7 @@ type IPFailureRecord struct {
 
 // IPFailureManager IP失败管理器
 type IPFailureManager struct {
-	cache     *cache.WafCache
+	cache     cache.CacheStore
 	mu        sync.RWMutex
 	statusRe  *regexp.Regexp // 状态码正则表达式
 	statusMap map[int]bool   // 状态码快速查找map

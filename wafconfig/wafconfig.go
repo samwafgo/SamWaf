@@ -202,6 +202,26 @@ func LoadAndInitConfig() {
 		fmt.Printf("%s\tINFO\t应急恢复路径已生成: %s\n", currentTime, global.GWAF_SECURITY_EMERGENCY_PATH)
 	}
 
+	// Cache后端配置
+	if config.IsSet("cache.type") {
+		global.GCACHE_TYPE = config.GetString("cache.type")
+	} else {
+		config.Set("cache.type", global.GCACHE_TYPE)
+		configChanged = true
+	}
+	if config.IsSet("cache.redis.host") {
+		global.GCACHE_REDIS_HOST = config.GetString("cache.redis.host")
+	}
+	if config.IsSet("cache.redis.port") {
+		global.GCACHE_REDIS_PORT = config.GetInt("cache.redis.port")
+	}
+	if config.IsSet("cache.redis.password") {
+		global.GCACHE_REDIS_PASSWORD = config.GetString("cache.redis.password")
+	}
+	if config.IsSet("cache.redis.db") {
+		global.GCACHE_REDIS_DB = config.GetInt("cache.redis.db")
+	}
+
 	// 只有在配置发生变化时才写入文件
 	if configChanged {
 		err := config.WriteConfig()

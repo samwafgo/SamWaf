@@ -111,6 +111,102 @@ func (waf *WafEngine) ProxyHTTP(w http.ResponseWriter, r *http.Request, host str
 	}
 }
 
+// ProxyHTTPWithPathRule 根据路径规则将请求代理到指定后端
+func (waf *WafEngine) ProxyHTTPWithPathRule(w http.ResponseWriter, r *http.Request, host string, rule *model.HostPathRule, clientIP string, ctx context.Context, weblog *innerbean.WebLog, hostTarget *wafenginmodel.HostSafe) {
+	ctx = context.WithValue(ctx, "original_accept_encoding", r.Header.Get("Accept-Encoding"))
+
+	// 构建后端 URL
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	targetStr := scheme + "://" + rule.RemoteHost
+	if rule.RemotePort > 0 {
+		targetStr += ":" + strconv.Itoa(rule.RemotePort)
+	}
+	remoteUrl, err := url.Parse(targetStr)
+	if err != nil {
+		http.Error(w, "Bad Gateway", http.StatusBadGateway)
+		return
+	}
+
+	// 若需要剥离前缀，克隆请求并修改 URL
+	if rule.StripPrefix == 1 && strings.HasPrefix(r.URL.Path, rule.Path) {
+		newR := r.Clone(ctx)
+		stripped := strings.TrimPrefix(r.URL.Path, rule.Path)
+		if !strings.HasPrefix(stripped, "/") {
+			stripped = "/" + stripped
+		}
+		newR.URL.Path = stripped
+		if r.URL.RawPath != "" {
+			rawStripped := strings.TrimPrefix(r.URL.RawPath, rule.Path)
+			if !strings.HasPrefix(rawStripped, "/") {
+				rawStripped = "/" + rawStripped
+			}
+			newR.URL.RawPath = rawStripped
+		}
+		r = newR
+	}
+
+	transport := waf.createPathRuleTransport(r, rule, hostTarget)
+	customHeaders := map[string]string{}
+	if r.TLS != nil {
+		customHeaders["X-FORWARDED-PROTO"] = "https"
+	}
+	customConfig := map[string]string{}
+	customConfig["IsTransBackDomain"] = strconv.Itoa(hostTarget.Host.IsTransBackDomain)
+
+	proxy := wafproxy.NewSingleHostReverseProxyCustomHeader(remoteUrl, customHeaders, customConfig)
+	proxy.Transport = transport
+	proxy.ModifyResponse = waf.modifyResponse()
+	proxy.ErrorHandler = waf.errorResponse()
+
+	if wafCtx, ok := ctx.Value("waf_context").(innerbean.WafHttpContextData); ok && wafCtx.Weblog != nil {
+		forwardStart := time.Now().UnixNano() / 1e6
+		defer func() {
+			wafCtx.Weblog.ForwardCost = time.Now().UnixNano()/1e6 - forwardStart
+			wafCtx.Weblog.IsBalance = 0
+		}()
+	}
+
+	proxy.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// createPathRuleTransport 为路径规则代理创建 Transport
+func (waf *WafEngine) createPathRuleTransport(r *http.Request, rule *model.HostPathRule, hostTarget *wafenginmodel.HostSafe) *http.Transport {
+	dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
+		dialer := net.Dialer{
+			Timeout:   time.Duration(global.GCONFIG_RECORD_CONNECT_TIME_OUT) * time.Second,
+			KeepAlive: time.Duration(global.GCONFIG_RECORD_KEEPALIVE_TIME_OUT) * time.Second,
+		}
+		if rule.RemoteIP != "" {
+			conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(rule.RemoteIP, strconv.Itoa(rule.RemotePort)))
+			if err == nil {
+				return conn, nil
+			}
+		}
+		return dialer.DialContext(ctx, network, addr)
+	}
+
+	var transport *http.Transport
+	if r.TLS != nil {
+		transport = &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: hostTarget.Host.InsecureSkipVerify == 1,
+				GetCertificate:     waf.GetCertificateFunc,
+			},
+			DialContext: dialContext,
+		}
+	} else {
+		transport = &http.Transport{
+			DialContext: dialContext,
+		}
+	}
+
+	transport.ResponseHeaderTimeout = time.Duration(hostTarget.Host.ResponseTimeOut) * time.Second
+	return transport
+}
+
 func (waf *WafEngine) createTransport(r *http.Request, host string, isEnableLoadBalance int, loadBalance model.LoadBalance, hostTarget *wafenginmodel.HostSafe) (*http.Transport, map[string]string) {
 	customHeaders := map[string]string{}
 	var transport *http.Transport

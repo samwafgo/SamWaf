@@ -16,4 +16,5 @@ const (
 	ChanTypeHttpauth
 	ChanTypeBlockingPage
 	ChanTypeCacheRule
+	ChanTypeHostPathRule
 )

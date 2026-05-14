@@ -864,6 +864,22 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return tx.Migrator().DropTable(&model.DataRetentionPolicy{})
 			},
 		},
+		// 迁移: 创建路径路由规则表
+		{
+			ID: "202605130001_add_host_path_rules_table",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202605130001: 创建 host_path_rules 表")
+				if err := tx.AutoMigrate(&model.HostPathRule{}); err != nil {
+					return fmt.Errorf("创建 host_path_rules 表失败: %w", err)
+				}
+				zlog.Info("host_path_rules 表创建成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202605130001: 删除 host_path_rules 表")
+				return tx.Migrator().DropTable(&model.HostPathRule{})
+			},
+		},
 		// 迁移21: 为 anti_ccs 表添加 skip_global_cc 字段（局部CC命中后跳过全局CC检测）
 		{
 			ID: "202604170001_add_anticc_skip_global_cc",
@@ -891,6 +907,29 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				zlog.Info("回滚 202604170001: 删除 anti_ccs 表的 skip_global_cc 字段")
 				if tx.Migrator().HasColumn(&model.AntiCC{}, "skip_global_cc") {
 					return tx.Migrator().DropColumn(&model.AntiCC{}, "skip_global_cc")
+				}
+				return nil
+			},
+		},
+		// 迁移22: 为 host_path_rules 表添加 spa_fallback 字段
+		{
+			ID: "202605140001_add_host_path_rules_spa_fallback",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202605140001: 为 host_path_rules 表添加 spa_fallback 字段")
+				if tx.Migrator().HasColumn(&model.HostPathRule{}, "spa_fallback") {
+					zlog.Info("spa_fallback 字段已存在，跳过添加")
+					return nil
+				}
+				if err := tx.Migrator().AddColumn(&model.HostPathRule{}, "spa_fallback"); err != nil {
+					return fmt.Errorf("添加 spa_fallback 字段失败: %w", err)
+				}
+				zlog.Info("spa_fallback 字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202605140001: 删除 host_path_rules 表的 spa_fallback 字段")
+				if tx.Migrator().HasColumn(&model.HostPathRule{}, "spa_fallback") {
+					return tx.Migrator().DropColumn(&model.HostPathRule{}, "spa_fallback")
 				}
 				return nil
 			},

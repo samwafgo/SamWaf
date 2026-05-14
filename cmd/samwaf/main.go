@@ -641,6 +641,12 @@ func (m *wafSystenService) run() {
 					zlog.Debug("远程配置", zap.Any("配置缓存规则", msg.Content.([]model.CacheRule)))
 					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Unlock()
 					break
+				case enums.ChanTypeHostPathRule:
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Lock()
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].PathRules = msg.Content.([]model.HostPathRule)
+					zlog.Debug("远程配置", zap.Any("配置路径路由规则", msg.Content.([]model.HostPathRule)))
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostTarget[globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.HostCode[msg.HostCode]].Mux.Unlock()
+					break
 				}
 
 				//end switch

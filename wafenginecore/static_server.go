@@ -7,7 +7,6 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/wafenginmodel"
 	"bytes"
-	"go.uber.org/zap"
 	"net/http"
 	"os"
 	"path"
@@ -16,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 // staticRespRecorder 用于捕获 http.ServeFile 的响应，以便在写出前应用压缩。
@@ -86,7 +87,7 @@ func getDefaultSensitiveExtensionsString() string {
 
 // getDefaultAllowedExtensionsString 获取默认允许的文件扩展名字符串
 func getDefaultAllowedExtensionsString() string {
-	return ".html,.htm,.css,.js,.json,.png,.jpg,.jpeg,.gif,.svg,.ico,.webp,.pdf,.txt,.md,.xml,.woff,.woff2,.ttf,.eot,.mp4,.webm,.ogg,.mp3,.wav,.zip,.tar,.gz,.rar"
+	return ".html,.htm,.css,.js,.mjs,.cjs,.json,.map,.png,.jpg,.jpeg,.gif,.svg,.ico,.webp,.avif,.pdf,.txt,.md,.xml,.woff,.woff2,.ttf,.eot,.otf,.mp4,.webm,.ogg,.mp3,.wav,.zip,.tar,.gz,.rar"
 }
 
 // getDefaultSensitivePatternsString 获取默认敏感文件名模式字符串
@@ -228,12 +229,28 @@ func (waf *WafEngine) serveStaticFile(w http.ResponseWriter, r *http.Request, co
 		return true
 	}
 
+	// spaFallback 内联函数：回退到 index.html（SPA history 模式）
+	spaFallback := func() bool {
+		if config.SpaFallback != 1 {
+			return false
+		}
+		indexPath := filepath.Join(config.StaticSitePath, "index.html")
+		if idxInfo, idxErr := os.Stat(indexPath); idxErr == nil && !idxInfo.IsDir() {
+			waf.setSecurityHeaders(w, config)
+			http.ServeFile(w, r, indexPath)
+			return true
+		}
+		return false
+	}
+
 	// 检查文件是否存在和权限
 	fileInfo, err := os.Stat(absFullPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			waf.logSecurityEvent("文件未找到", originalPath, r.RemoteAddr, "", weblog)
-			// 记录404但不详细记录路径信息，防止信息泄露
+			// SPA 回退：文件不存在时回退到 index.html（适用于 Vue/React Router history 模式）
+			if spaFallback() {
+				return true
+			}
 			zlog.Info("文件未找到", zap.String("remote_addr", r.RemoteAddr))
 			w.WriteHeader(http.StatusNotFound)
 			w.Write([]byte("404 Not Found"))
@@ -249,16 +266,30 @@ func (waf *WafEngine) serveStaticFile(w http.ResponseWriter, r *http.Request, co
 		return true
 	}
 
-	// 不允许访问目录
+	// 目录：尝试 index.html，SPA fallback，最后 403
 	if fileInfo.IsDir() {
+		// 先尝试目录下的 index.html
+		indexInDir := filepath.Join(absFullPath, "index.html")
+		if idxInfo, idxErr := os.Stat(indexInDir); idxErr == nil && !idxInfo.IsDir() {
+			waf.setSecurityHeaders(w, config)
+			http.ServeFile(w, r, indexInDir)
+			return true
+		}
+		// SPA fallback
+		if spaFallback() {
+			return true
+		}
 		waf.logSecurityEvent("尝试访问目录", originalPath, r.RemoteAddr, "", weblog)
 		w.WriteHeader(http.StatusForbidden)
 		w.Write([]byte("403 Forbidden: Directory access denied"))
 		return true
 	}
 
-	// 检查文件类型（基于扩展名）
+	// 检查文件类型（基于扩展名）；无扩展名的路径在 SPA 模式下 fallback 到 index.html
 	if !waf.isAllowedFileType(absFullPath, config) {
+		if spaFallback() {
+			return true
+		}
 		waf.logSecurityEvent("不允许的文件类型", originalPath, r.RemoteAddr, "", weblog)
 		w.WriteHeader(http.StatusForbidden)
 		w.Write([]byte("403 Forbidden: File type not allowed"))
@@ -441,15 +472,8 @@ func (waf *WafEngine) isAllowedFileType(filePath string, config model.StaticSite
 	return false
 }
 
-// defaultSecurityHeaders 内置默认安全响应头（顺序固定，方便查找）
-var defaultSecurityHeaders = []struct{ name, value string }{
-	{"X-Content-Type-Options", "nosniff"},
-	{"X-Frame-Options", "DENY"},
-	{"X-XSS-Protection", "1; mode=block"},
-	{"Referrer-Policy", "strict-origin-when-cross-origin"},
-	{"Content-Security-Policy", "default-src 'self'"},
-	{"Cache-Control", "public, max-age=3600"},
-}
+// defaultSecurityHeaders 内置默认安全响应头（挪到前端配置）
+var defaultSecurityHeaders = []struct{ name, value string }{}
 
 // setSecurityHeaders 设置安全响应头。
 // 若 config.SecurityHeaders 为空，则全部使用默认值；

@@ -170,6 +170,7 @@ type StaticSiteConfig struct {
 	// 安全响应头列表，数组为空则全部使用系统默认值；
 	// 某项 header_value 为空则该项也使用系统默认值
 	SecurityHeaders []StaticSecurityHeader `json:"security_headers"`
+	SpaFallback     int                    `json:"-"` // 运行时标志：由路径规则注入，不写入 host JSON
 }
 
 // ResponseCompressConfig 反代响应压缩（类似 nginx gzip / brotli / zstd）

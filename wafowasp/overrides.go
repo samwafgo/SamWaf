@@ -140,13 +140,20 @@ type RuleOverrideEntry struct {
 
 // TuningConfig 全局调优参数。
 type TuningConfig struct {
-	BlockingParanoia     int    `json:"blocking_paranoia_level"`  // 1..4
-	DetectionParanoia    int    `json:"detection_paranoia_level"` // >= blocking
-	InboundThreshold     int    `json:"inbound_anomaly_score_threshold"`
-	OutboundThreshold    int    `json:"outbound_anomaly_score_threshold"`
-	RuleEngine           string `json:"rule_engine"`                 // On / DetectionOnly / Off
-	EarlyBlocking        int    `json:"early_blocking"`              // 0/1
-	EnforceBodyProcessor int    `json:"enforce_bodyproc_urlencoded"` // 0/1
+	BlockingParanoia         int    `json:"blocking_paranoia_level"`  // 1..4
+	DetectionParanoia        int    `json:"detection_paranoia_level"` // >= blocking
+	InboundThreshold         int    `json:"inbound_anomaly_score_threshold"`
+	OutboundThreshold        int    `json:"outbound_anomaly_score_threshold"`
+	RuleEngine               string `json:"rule_engine"`                  // On / DetectionOnly / Off
+	EarlyBlocking            int    `json:"early_blocking"`               // 0/1
+	EnforceBodyProcessor     int    `json:"enforce_bodyproc_urlencoded"`  // 0/1
+	RequestBodyLimit         int    `json:"request_body_limit"`           // 0=不覆盖，>0 字节数（对应 SecRequestBodyLimit）
+	RequestBodyInMemoryLimit int    `json:"request_body_in_memory_limit"` // 0=不覆盖，>0 字节数（对应 SecRequestBodyInMemoryLimit）
+	// BodyInspectLimit 送入 Coraza 规则检测的最大字节数（纯 Go 层截断，不写入 coraza.conf）。
+	// 0 = 无限制（默认，向后兼容）；>0 = 最多检测 N 字节。
+	// r.Body 始终完整还原供下游代理，截断仅影响 Coraza 规则匹配。
+	// 推荐值：524288（512 KB）可大幅减少大 base64 body 的正则回溯超时。
+	BodyInspectLimit int `json:"body_inspect_limit"`
 	// CustomVars 用户自定义 CRS 事务变量（如 tx.allowed_methods）。
 	// key 不含 tx. 前缀（如 "allowed_methods"），value 为字符串值。
 	// 写入 00-tuning.conf 时以 SecAction setvar:'tx.KEY=VALUE' 形式追加。
@@ -835,6 +842,15 @@ func writeTuningConfFile(path string, t TuningConfig) error {
 	}
 	if t.EnforceBodyProcessor == 1 {
 		writeSetvar(950006, "Enforce Body Processor URLENCODED", "enforce_bodyproc_urlencoded", 1)
+	}
+
+	// SecRequestBodyLimit / SecRequestBodyInMemoryLimit 是 Coraza 引擎指令，不能用 setvar。
+	// 0 = 不写出，保留 coraza.conf 中的默认值（13 MB / 128 KB）。
+	if t.RequestBodyLimit > 0 {
+		sb.WriteString(fmt.Sprintf("# Request body size limit (bytes)\nSecRequestBodyLimit %d\n\n", t.RequestBodyLimit))
+	}
+	if t.RequestBodyInMemoryLimit > 0 {
+		sb.WriteString(fmt.Sprintf("# Request body in-memory limit (bytes)\nSecRequestBodyInMemoryLimit %d\n\n", t.RequestBodyInMemoryLimit))
 	}
 
 	// 用户自定义 CRS 事务变量（tx.allowed_methods 等）

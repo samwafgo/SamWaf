@@ -607,13 +607,16 @@ func (w *WafOwaspApi) TuningSetApi(c *gin.Context) {
 		return ""
 	}
 	req := wafowasp.TuningConfig{
-		BlockingParanoia:     pickInt("blocking_paranoia_level", "blocking_paranoia"),
-		DetectionParanoia:    pickInt("detection_paranoia_level", "detection_paranoia"),
-		InboundThreshold:     pickInt("inbound_anomaly_score_threshold", "inbound_threshold"),
-		OutboundThreshold:    pickInt("outbound_anomaly_score_threshold", "outbound_threshold"),
-		RuleEngine:           pickStr("rule_engine"),
-		EarlyBlocking:        pickInt("early_blocking"),
-		EnforceBodyProcessor: pickInt("enforce_bodyproc_urlencoded", "enforce_body_processor"),
+		BlockingParanoia:         pickInt("blocking_paranoia_level", "blocking_paranoia"),
+		DetectionParanoia:        pickInt("detection_paranoia_level", "detection_paranoia"),
+		InboundThreshold:         pickInt("inbound_anomaly_score_threshold", "inbound_threshold"),
+		OutboundThreshold:        pickInt("outbound_anomaly_score_threshold", "outbound_threshold"),
+		RuleEngine:               pickStr("rule_engine"),
+		EarlyBlocking:            pickInt("early_blocking"),
+		EnforceBodyProcessor:     pickInt("enforce_bodyproc_urlencoded", "enforce_body_processor"),
+		RequestBodyLimit:         pickInt("request_body_limit"),
+		RequestBodyInMemoryLimit: pickInt("request_body_in_memory_limit"),
+		BodyInspectLimit:         pickInt("body_inspect_limit"),
 	}
 	if req.BlockingParanoia < 1 || req.BlockingParanoia > 4 {
 		response.FailWithMessage("blocking_paranoia_level 必须在 1..4", c)
@@ -635,6 +638,23 @@ func (w *WafOwaspApi) TuningSetApi(c *gin.Context) {
 		req.RuleEngine = "On"
 	default:
 		response.FailWithMessage("rule_engine 取值应为 On/DetectionOnly/Off", c)
+		return
+	}
+	if req.RequestBodyLimit < 0 {
+		response.FailWithMessage("request_body_limit 不能为负数", c)
+		return
+	}
+	if req.RequestBodyInMemoryLimit < 0 {
+		response.FailWithMessage("request_body_in_memory_limit 不能为负数", c)
+		return
+	}
+	if req.RequestBodyLimit > 0 && req.RequestBodyInMemoryLimit > 0 &&
+		req.RequestBodyInMemoryLimit > req.RequestBodyLimit {
+		response.FailWithMessage("request_body_in_memory_limit 不能大于 request_body_limit", c)
+		return
+	}
+	if req.BodyInspectLimit < 0 {
+		response.FailWithMessage("body_inspect_limit 不能为负数", c)
 		return
 	}
 

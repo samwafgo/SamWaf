@@ -43,6 +43,7 @@ func NewOwaspManager(currentDir string) *OwaspManager {
 	// 热路径据此决定 DetectionOnly 下是否记 INFO 日志
 	if t, err := m.overrides.GetTuning(); err == nil {
 		SetEngineMode(t.RuleEngine)
+		SetBodyInspectLimit(t.BodyInspectLimit) // 从磁盘恢复检测字节上限
 	}
 	return m
 }
@@ -76,6 +77,7 @@ func (m *OwaspManager) ApplyTuning(t TuningConfig) error {
 	}
 	// 同步引擎模式，供热路径判定"DetectionOnly 本该拦截"时记 INFO 日志
 	SetEngineMode(t.RuleEngine)
+	SetBodyInspectLimit(t.BodyInspectLimit) // 运行时热更新检测字节上限
 	return nil
 }
 

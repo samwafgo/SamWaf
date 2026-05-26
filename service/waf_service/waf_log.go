@@ -11,11 +11,65 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
+
+	"gorm.io/gorm/schema"
 )
 
 type WafLogService struct{}
 
 var WafLogServiceApp = new(WafLogService)
+
+// listExcludeColumns 列表查询排除的列：大文本字段和原始 blob 字段
+var listExcludeColumns = map[string]bool{
+	"body": true, "res_body": true, "post_form": true,
+	"src_byte_body": true, "src_byte_res_body": true, "src_url": true,
+}
+
+// detailExcludeColumns 详情查询排除的列：仅排除原始 blob 字段，保留文本 body 类字段
+var detailExcludeColumns = map[string]bool{
+	"src_byte_body": true, "src_byte_res_body": true, "src_url": true,
+}
+
+var (
+	webLogListSelectOnce    sync.Once
+	webLogDetailSelectOnce  sync.Once
+	webLogListSelectCache   string
+	webLogDetailSelectCache string
+)
+
+// getWebLogListSelect 动态从 WebLog 结构体反射出列名并排除大字段，结果缓存复用。
+// 新增字段会自动纳入，旧版本数据库缺列也不影响（GORM 会忽略不存在的列）。
+func getWebLogListSelect() string {
+	webLogListSelectOnce.Do(func() {
+		webLogListSelectCache = buildSelectExcluding(&innerbean.WebLog{}, listExcludeColumns)
+	})
+	return webLogListSelectCache
+}
+
+// getWebLogDetailSelect 详情查询字段，包含文本 body 类字段，排除 blob。
+func getWebLogDetailSelect() string {
+	webLogDetailSelectOnce.Do(func() {
+		webLogDetailSelectCache = buildSelectExcluding(&innerbean.WebLog{}, detailExcludeColumns)
+	})
+	return webLogDetailSelectCache
+}
+
+// buildSelectExcluding 通过 GORM schema 解析模型字段，返回排除指定列后的 SELECT 子句。
+func buildSelectExcluding(model interface{}, excludeDBNames map[string]bool) string {
+	s, err := schema.Parse(model, &sync.Map{}, schema.NamingStrategy{})
+	if err != nil {
+		return "*"
+	}
+	cols := make([]string, 0, len(s.Fields))
+	for _, field := range s.Fields {
+		if field.DBName == "" || excludeDBNames[field.DBName] {
+			continue
+		}
+		cols = append(cols, field.DBName)
+	}
+	return strings.Join(cols, ", ")
+}
 
 func (receiver *WafLogService) AddApi(log innerbean.WebLog) error {
 	global.GWAF_LOCAL_LOG_DB.Create(log)
@@ -27,10 +81,10 @@ func (receiver *WafLogService) ModifyApi(log innerbean.WebLog) error {
 func (receiver *WafLogService) GetDetailApi(req request.WafAttackLogDetailReq) (innerbean.WebLog, error) {
 	var weblog innerbean.WebLog
 	if len(req.CurrrentDbName) == 0 || req.CurrrentDbName == "local_log.db" {
-		global.GWAF_LOCAL_LOG_DB.Where("REQ_UUID=?", req.REQ_UUID).Find(&weblog)
+		global.GWAF_LOCAL_LOG_DB.Select(getWebLogDetailSelect()).Where("REQ_UUID=?", req.REQ_UUID).Find(&weblog)
 	} else {
 		wafdb.InitManaulLogDb("", req.CurrrentDbName)
-		global.GDATA_CURRENT_LOG_DB_MAP[req.CurrrentDbName].Where("REQ_UUID=?", req.REQ_UUID).Find(&weblog)
+		global.GDATA_CURRENT_LOG_DB_MAP[req.CurrrentDbName].Select(getWebLogDetailSelect()).Where("REQ_UUID=?", req.REQ_UUID).Find(&weblog)
 	}
 
 	return weblog, nil
@@ -186,11 +240,11 @@ func (receiver *WafLogService) GetListApi(req request.WafAttackLogSearch) ([]inn
 		return nil, 0, errors.New("输入排序字段不合法")
 	}
 	if len(req.CurrrentDbName) == 0 || req.CurrrentDbName == "local_log.db" {
-		global.GWAF_LOCAL_LOG_DB.Table(forceIndex).Limit(req.PageSize).Where(whereField, whereValues...).Offset(req.PageSize * (req.PageIndex - 1)).Order(orderInfo).Find(&weblogs)
+		global.GWAF_LOCAL_LOG_DB.Select(getWebLogListSelect()).Table(forceIndex).Limit(req.PageSize).Where(whereField, whereValues...).Offset(req.PageSize * (req.PageIndex - 1)).Order(orderInfo).Find(&weblogs)
 		global.GWAF_LOCAL_LOG_DB.Table(forceIndex).Where(whereField, whereValues...).Count(&total)
 	} else {
 		wafdb.InitManaulLogDb("", req.CurrrentDbName)
-		global.GDATA_CURRENT_LOG_DB_MAP[req.CurrrentDbName].Table(forceIndex).Limit(req.PageSize).Where(whereField, whereValues...).Offset(req.PageSize * (req.PageIndex - 1)).Order(orderInfo).Find(&weblogs)
+		global.GDATA_CURRENT_LOG_DB_MAP[req.CurrrentDbName].Select(getWebLogListSelect()).Table(forceIndex).Limit(req.PageSize).Where(whereField, whereValues...).Offset(req.PageSize * (req.PageIndex - 1)).Order(orderInfo).Find(&weblogs)
 		global.GDATA_CURRENT_LOG_DB_MAP[req.CurrrentDbName].Table(forceIndex).Where(whereField, whereValues...).Count(&total)
 
 	}

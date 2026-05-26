@@ -24,7 +24,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gin-contrib/gzip"
 	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
 )
@@ -251,7 +250,6 @@ func (web *WafWebManager) StartLocalServer() error {
 	}
 	r := gin.Default()
 	r.Use(web.cors()) //解决跨域
-	r.Use(gzip.Gzip(gzip.DefaultCompression))
 	web.initRouter(r)
 
 	web.R = r

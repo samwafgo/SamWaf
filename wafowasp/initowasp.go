@@ -65,6 +65,25 @@ func GetEngineMode() string {
 	return "On"
 }
 
+// bodyInspectLimit 限制送入 Coraza Phase 2 检测的请求体字节数。
+// 0 = 无限制（默认，向后兼容）；>0 = 最多检测 N 字节。
+// 超出部分不送入 Coraza，但 r.Body 仍完整还原供下游代理使用。
+// 由 TuningSetApi → ApplyTuning → SetBodyInspectLimit 同步。
+var bodyInspectLimit atomic.Int64
+
+// SetBodyInspectLimit 设置请求体检测字节上限（0 = 无限制）。
+func SetBodyInspectLimit(n int) {
+	if n < 0 {
+		n = 0
+	}
+	bodyInspectLimit.Store(int64(n))
+}
+
+// GetBodyInspectLimit 返回当前检测字节上限（0 = 无限制）。
+func GetBodyInspectLimit() int64 {
+	return bodyInspectLimit.Load()
+}
+
 // bodyBufferPool 用于回放 r.Body 时复用底层缓冲区，降低 GC 压力。
 var bodyBufferPool = sync.Pool{
 	New: func() interface{} {
@@ -357,8 +376,18 @@ func (w *WafOWASP) processRequestHeaders(tx types.Transaction, r *http.Request) 
 func (w *WafOWASP) processRequestBody(tx types.Transaction, r *http.Request, weblog *innerbean.WebLog) error {
 	// 优先使用上游已经读取好的 body，避免二次读 r.Body
 	if weblog != nil && weblog.BODY != "" {
+		limit := GetBodyInspectLimit()
+		bodyLen := int64(len(weblog.BODY))
 		// strings.NewReader 与底层字符串共享只读数据，零拷贝
-		if _, _, err := tx.ReadRequestBodyFrom(strings.NewReader(weblog.BODY)); err != nil {
+		var reader io.Reader = strings.NewReader(weblog.BODY)
+		if limit > 0 && bodyLen > limit {
+			reader = io.LimitReader(reader, limit)
+			zlog.Warn("processRequestBody: body truncated for Coraza inspection", map[string]interface{}{
+				"original_bytes": bodyLen,
+				"inspect_limit":  limit,
+			})
+		}
+		if _, _, err := tx.ReadRequestBodyFrom(reader); err != nil {
 			return fmt.Errorf("failed to feed weblog body to coraza: %v", err)
 		}
 		return nil
@@ -385,13 +414,22 @@ func (w *WafOWASP) processRequestBody(tx types.Transaction, r *http.Request, web
 	}
 
 	data := buf.Bytes()
-	// 重置 body 以便下游继续消费
+	// 重置 body 以便下游继续消费（完整副本，不受检测截断影响）
 	bodyCopy := make([]byte, len(data))
 	copy(bodyCopy, data)
 	r.Body = io.NopCloser(bytes.NewReader(bodyCopy))
 
-	if len(bodyCopy) > 0 {
-		if _, _, err := tx.WriteRequestBody(bodyCopy); err != nil {
+	// 仅截断送入 Coraza 的部分，r.Body 已还原为完整数据
+	inspectData := bodyCopy
+	if limit := GetBodyInspectLimit(); limit > 0 && int64(len(bodyCopy)) > limit {
+		inspectData = bodyCopy[:limit]
+		zlog.Warn("processRequestBody: body truncated for Coraza inspection", map[string]interface{}{
+			"original_bytes": len(bodyCopy),
+			"inspect_limit":  limit,
+		})
+	}
+	if len(inspectData) > 0 {
+		if _, _, err := tx.WriteRequestBody(inspectData); err != nil {
 			return fmt.Errorf("failed to write request body: %v", err)
 		}
 	}

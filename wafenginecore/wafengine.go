@@ -313,7 +313,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var bodyByte []byte
 
 		// 拷贝一份request的Body ,控制不记录大文件的情况
-		if r.Body != nil && r.Body != http.NoBody && (contentLength < (global.GCONFIG_RECORD_MAX_BODY_LENGTH) || cacheConfig.IsEnableCache == 1) {
+		if r.Body != nil && r.Body != http.NoBody && (contentLength > 0) && (contentLength < (global.GCONFIG_RECORD_MAX_BODY_LENGTH) || cacheConfig.IsEnableCache == 1) {
 			// 检查请求是否包含Content-Encoding
 			if r.Header.Get("Content-Encoding") != "" {
 				// 处理压缩的请求体

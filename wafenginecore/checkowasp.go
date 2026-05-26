@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 )
 
 // CheckOwasp OWASP CRS 检测。
@@ -45,7 +46,23 @@ func (waf *WafEngine) CheckOwasp(r *http.Request, weblogbean *innerbean.WebLog, 
 		return result
 	}
 
+	owaspStart := time.Now()
 	isInteeruption, interruption, err := inst.ProcessRequest(r, weblogbean)
+	if elapsed := time.Since(owaspStart); elapsed > 10*time.Second {
+		hint := ""
+		if wafowasp.GetBodyInspectLimit() == 0 {
+			hint = "可在 OWASP 调参中设置 body_inspect_limit（如 524288=512KB）以避免大 body 的正则回溯超时"
+		}
+		zlog.Warn("CheckOwasp slow", map[string]interface{}{
+			"elapsed_ms":         elapsed.Milliseconds(),
+			"method":             r.Method,
+			"uri":                r.URL.RequestURI(),
+			"host":               r.Host,
+			"src_ip":             weblogbean.SRC_IP,
+			"body_inspect_limit": wafowasp.GetBodyInspectLimit(),
+			"hint":               hint,
+		})
+	}
 	if err != nil {
 		// Coraza 处理异常：记录错误但不影响请求（fail-open），避免把引擎故障误判为攻击
 		zlog.Error("CheckOwasp ProcessRequest err", map[string]interface{}{

@@ -98,12 +98,12 @@ func (h *securityPathHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 func (web *WafWebManager) initRouter(r *gin.Engine) {
 
 	PublicRouterGroup := r.Group("")
-	PublicRouterGroup.Use(middleware.SecApi(), middleware.IPWhitelist(), middleware.ReplayProtect())
+	PublicRouterGroup.Use(middleware.SecApi(), middleware.IPWhitelist(), middleware.DomainWhitelist(), middleware.ReplayProtect())
 	router.PublicApiGroupApp.InitLoginRouter(PublicRouterGroup)
 	router.PublicApiGroupApp.InitCenterRouter(PublicRouterGroup) //注册中心接收接口
 
 	RouterGroup := r.Group("")
-	RouterGroup.Use(middleware.Auth(), middleware.ReplayProtect(), middleware.OpenApiLogMiddleware(), middleware.CenterApi(), middleware.SecApi(), middleware.GinGlobalExceptionMiddleWare(), middleware.IPWhitelist()) //TODO 中心管控 特定
+	RouterGroup.Use(middleware.Auth(), middleware.ReplayProtect(), middleware.OpenApiLogMiddleware(), middleware.CenterApi(), middleware.SecApi(), middleware.GinGlobalExceptionMiddleWare(), middleware.IPWhitelist(), middleware.DomainWhitelist()) //TODO 中心管控 特定
 	{
 		router.ApiGroupApp.InitHostRouter(RouterGroup)
 		router.ApiGroupApp.InitLogRouter(RouterGroup)

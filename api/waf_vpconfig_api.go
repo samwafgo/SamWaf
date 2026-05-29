@@ -440,6 +440,66 @@ func (w *WafVpConfigApi) UpdateNoticeTitleApi(c *gin.Context) {
 	response.OkWithDetailed(resp, "更新通知标题成功", c)
 }
 
+// GetDomainWhitelistApi 获取管理端域名白名单
+// @Summary      获取管理端域名白名单
+// @Description  获取当前管理端允许访问的域名白名单配置
+// @Tags         管理端配置
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  response.Response  "获取域名白名单成功"
+// @Security     ApiKeyAuth
+// @Router       /vipconfig/getDomainWhitelist [get]
+func (w *WafVpConfigApi) GetDomainWhitelistApi(c *gin.Context) {
+	resp := response2.WafVpConfigDomainWhitelistGetResp{
+		DomainWhitelist: global.GWAF_DOMAIN_WHITELIST,
+	}
+	response.OkWithDetailed(resp, "获取域名白名单成功", c)
+}
+
+// UpdateDomainWhitelistApi 更新管理端域名白名单
+// @Summary      更新管理端域名白名单
+// @Description  更新管理端允许访问的域名白名单（多个域名用逗号分隔，为空表示不限制）
+// @Tags         管理端配置
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafVpConfigDomainWhitelistUpdateReq  true  "域名白名单配置"
+// @Success      200   {object}  response.Response  "更新域名白名单成功"
+// @Security     ApiKeyAuth
+// @Router       /vipconfig/updateDomainWhitelist [post]
+func (w *WafVpConfigApi) UpdateDomainWhitelistApi(c *gin.Context) {
+	var req request.WafVpConfigDomainWhitelistUpdateReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage("解析请求失败", c)
+		return
+	}
+
+	// 若白名单非空，当前访问域名必须在列表中，防止把自己锁在外面
+	if strings.TrimSpace(req.DomainWhitelist) != "" {
+		host := c.Request.Host
+		hostname, _, err := net.SplitHostPort(host)
+		if err != nil {
+			hostname = host
+		}
+		selfIncluded := false
+		for _, d := range strings.Split(req.DomainWhitelist, ",") {
+			if strings.TrimSpace(d) == hostname {
+				selfIncluded = true
+				break
+			}
+		}
+		if !selfIncluded {
+			response.FailWithMessage(fmt.Sprintf("当前访问域名(%s)不在新白名单中，保存后将无法访问管理端，请先将当前域名加入白名单", hostname), c)
+			return
+		}
+	}
+
+	if err := wafconfig.UpdateDomainWhitelist(req.DomainWhitelist); err != nil {
+		response.FailWithMessage("更新域名白名单失败: "+err.Error(), c)
+	} else {
+		response.OkWithMessage("更新域名白名单成功", c)
+	}
+}
+
 // RestartManagerApi 重启管理端
 // @Summary      重启管理端
 // @Description  触发管理端1秒后重启，请等待5-10秒后重新访问

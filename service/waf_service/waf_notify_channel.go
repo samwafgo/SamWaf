@@ -132,6 +132,9 @@ func (receiver *WafNotifyChannelService) TestChannelApi(req request.WafNotifyCha
 	}
 
 	title := "SamWAF 测试通知"
+	if global.GWAF_NOTICE_TITLE != "" {
+		title = "[" + global.GWAF_NOTICE_TITLE + "] " + title
+	}
 	content := "这是一条测试消息，发送时间：" + time.Now().Format("2006-01-02 15:04:05")
 
 	switch channel.Type {

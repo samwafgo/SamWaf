@@ -260,12 +260,19 @@ func (m *wafSystenService) run() {
 	//TODO 准备释放最新spider bot
 
 	//初始化cache
-	global.GCACHE_WAFCACHE = cache.NewCacheStore(global.GCACHE_TYPE, &cache.RedisCacheConfig{
-		Host:     global.GCACHE_REDIS_HOST,
-		Port:     global.GCACHE_REDIS_PORT,
-		Password: global.GCACHE_REDIS_PASSWORD,
-		DB:       global.GCACHE_REDIS_DB,
-	})
+	{
+		cacheStore, err := cache.NewCacheStore(global.GCACHE_TYPE, &cache.RedisCacheConfig{
+			Host:     global.GCACHE_REDIS_HOST,
+			Port:     global.GCACHE_REDIS_PORT,
+			Password: global.GCACHE_REDIS_PASSWORD,
+			DB:       global.GCACHE_REDIS_DB,
+		})
+		if err != nil {
+			zlog.Error("初始化缓存失败，程序退出，请检查conf/config.yml缓存配置是否正确", "error", err)
+			os.Exit(1)
+		}
+		global.GCACHE_WAFCACHE = cacheStore
+	}
 	//初始化验证码服务
 	wafcaptcha.InitCaptchaService(global.GCACHE_WAFCACHE)
 	//初始化锁写不锁度
@@ -334,9 +341,18 @@ func (m *wafSystenService) run() {
 	}
 
 	//初始化本地数据库
-	wafdb.InitCoreDb("")
-	wafdb.InitLogDb("")
-	wafdb.InitStatsDb("")
+	if _, err := wafdb.InitCoreDb(""); err != nil {
+		zlog.Error("初始化核心数据库失败，程序退出，请检查conf/config.yml数据库配置是否正确", "error", err)
+		os.Exit(1)
+	}
+	if _, err := wafdb.InitLogDb(""); err != nil {
+		zlog.Error("初始化日志数据库失败，程序退出，请检查conf/config.yml数据库配置是否正确", "error", err)
+		os.Exit(1)
+	}
+	if _, err := wafdb.InitStatsDb(""); err != nil {
+		zlog.Error("初始化统计数据库失败，程序退出，请检查conf/config.yml数据库配置是否正确", "error", err)
+		os.Exit(1)
+	}
 
 	//初始化插件系统（从配置文件加载）
 	if err := plugin.InitPluginSystem(); err != nil {

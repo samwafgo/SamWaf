@@ -77,6 +77,7 @@ var (
 
 	//管理端访问控制
 	GWAF_IP_WHITELIST            string = "0.0.0.0/0,::/0" //IP白名单 后台默认放行所有
+	GWAF_DOMAIN_WHITELIST        string = ""               //域名白名单，为空时不限制，多个用逗号分隔
 	GWAF_SSL_ENABLE              bool   = false            //是否启用SSL证书
 	GWAF_SECURITY_ENTRY_ENABLE   bool   = false            //是否启用安全路径入口
 	GWAF_SECURITY_ENTRY_PATH     string = ""               //安全路径（18位随机码）

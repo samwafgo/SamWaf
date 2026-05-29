@@ -25,3 +25,8 @@ type WafVpConfigSecurityEntryGetResp struct {
 type WafVpConfigNoticeTitleGetResp struct {
 	NoticeTitle string `json:"notice_title"` // 通知消息标题前缀
 }
+
+// WafVpConfigDomainWhitelistGetResp 域名白名单获取响应
+type WafVpConfigDomainWhitelistGetResp struct {
+	DomainWhitelist string `json:"domain_whitelist"`
+}

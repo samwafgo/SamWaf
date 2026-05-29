@@ -155,6 +155,14 @@ func LoadAndInitConfig() {
 		configChanged = true
 	}
 
+	//配置和提取域名白名单
+	if config.IsSet("security.domain_whitelist") {
+		global.GWAF_DOMAIN_WHITELIST = config.GetString("security.domain_whitelist")
+	} else {
+		config.Set("security.domain_whitelist", global.GWAF_DOMAIN_WHITELIST)
+		configChanged = true
+	}
+
 	//配置和提取SSL启用状态
 	if config.IsSet("security.ssl_enable") {
 		global.GWAF_SSL_ENABLE = config.GetBool("security.ssl_enable")
@@ -352,6 +360,48 @@ func UpdateIpWhitelist(ipWhitelist string) error {
 
 	fmt.Printf("%s\tINFO\tIP whitelist config updated\n", currentTime)
 
+	return nil
+}
+
+// UpdateDomainWhitelist 更新域名白名单配置
+func UpdateDomainWhitelist(domainWhitelist string) error {
+	currentTime := time.Now().Format("2006-01-02 15:04:05.000")
+
+	configDir := utils.GetCurrentDir() + "/conf/"
+	if _, err := os.Stat(configDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(configDir, os.ModePerm); err != nil {
+			fmt.Printf("%s\tERROR\t创建config目录失败:%v\n", currentTime, err)
+			return err
+		}
+	}
+
+	config := viper.New()
+	config.AddConfigPath(configDir)
+	config.SetConfigName("config")
+	config.SetConfigType("yml")
+
+	if err := config.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			fmt.Printf("%s\tWARN\t找不到配置文件..\n", currentTime)
+			config.Set("local_port", global.GWAF_LOCAL_SERVER_PORT)
+			if err = config.SafeWriteConfig(); err != nil {
+				return err
+			}
+		} else {
+			fmt.Printf("%s\tERROR\t配置文件出错..\n", currentTime)
+			return err
+		}
+	}
+
+	config.Set("security.domain_whitelist", domainWhitelist)
+	global.GWAF_DOMAIN_WHITELIST = domainWhitelist
+
+	if err := config.WriteConfig(); err != nil {
+		fmt.Printf("%s\tERROR\twrite config failed:%v\n", currentTime, err)
+		return err
+	}
+
+	fmt.Printf("%s\tINFO\tDomain whitelist config updated\n", currentTime)
 	return nil
 }
 

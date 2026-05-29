@@ -26,3 +26,8 @@ type WafVpConfigSecurityEntryUpdateReq struct {
 type WafVpConfigNoticeTitleUpdateReq struct {
 	NoticeTitle string `json:"notice_title"` // 通知消息标题前缀，用于区分多实例
 }
+
+// WafVpConfigDomainWhitelistUpdateReq 域名白名单更新请求
+type WafVpConfigDomainWhitelistUpdateReq struct {
+	DomainWhitelist string `json:"domain_whitelist"` // 多个域名用逗号分隔，为空表示不限制
+}

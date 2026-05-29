@@ -143,7 +143,7 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 	zlog.Debug("主机host" + inHost.Code + " 版本" + strconv.Itoa(vcnt))
 	var ruleconfigs []model.Rules
 	if vcnt > 0 {
-		global.GWAF_LOCAL_DB.Where("host_code = ?and rule_status<>999", inHost.Code).Find(&ruleconfigs)
+		global.GWAF_LOCAL_DB.Where("host_code = ? and rule_status<>999", inHost.Code).Find(&ruleconfigs)
 		ruleHelper.LoadRules(ruleconfigs)
 	}
 	//查询ip限流(应该针对一个网址只有一个)

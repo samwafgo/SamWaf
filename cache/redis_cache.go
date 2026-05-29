@@ -17,17 +17,29 @@ type RedisCache struct {
 	ctx    context.Context
 }
 
-// NewRedisCache 创建Redis缓存实例
-func NewRedisCache(cfg *RedisCacheConfig) *RedisCache {
+// NewRedisCache 创建Redis缓存实例，连接失败时返回 error
+func NewRedisCache(cfg *RedisCacheConfig) (*RedisCache, error) {
 	client := redis.NewClient(&redis.Options{
-		Addr:     fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
-		Password: cfg.Password,
-		DB:       cfg.DB,
+		Addr:         fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
+		Password:     cfg.Password,
+		DB:           cfg.DB,
+		DialTimeout:  5 * time.Second,
+		ReadTimeout:  3 * time.Second,
+		WriteTimeout: 3 * time.Second,
+		MaxRetries:   3, // 断连后自动重试3次（go-redis 默认行为，此处显式声明）
+		PoolSize:     10,
+		MinIdleConns: 2,
 	})
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := client.Ping(ctx).Err(); err != nil {
+		_ = client.Close()
+		return nil, fmt.Errorf("Redis连接失败 %s:%d : %w", cfg.Host, cfg.Port, err)
+	}
 	return &RedisCache{
 		client: client,
 		ctx:    context.Background(),
-	}
+	}, nil
 }
 
 func (r *RedisCache) encode(value interface{}) (string, error) {

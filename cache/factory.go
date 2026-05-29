@@ -10,9 +10,14 @@ type RedisCacheConfig struct {
 
 // NewCacheStore 根据cacheType创建缓存实例
 // cacheType: "memory"（默认）| "redis"
-func NewCacheStore(cacheType string, redisCfg *RedisCacheConfig) CacheStore {
+// 当 cacheType 为 "redis" 但 Redis 不可达时返回 error
+func NewCacheStore(cacheType string, redisCfg *RedisCacheConfig) (CacheStore, error) {
 	if cacheType == "redis" && redisCfg != nil {
-		return NewRedisCache(redisCfg)
+		rc, err := NewRedisCache(redisCfg)
+		if err != nil {
+			return nil, err
+		}
+		return rc, nil
 	}
-	return InitWafCache()
+	return InitWafCache(), nil
 }

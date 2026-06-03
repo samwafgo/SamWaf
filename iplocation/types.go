@@ -32,6 +32,7 @@ type DBSource string
 const (
 	SourceIp2Region DBSource = "ip2region"
 	SourceGeoLite2  DBSource = "geolite2"
+	SourceIpdb      DBSource = "ipdb"
 )
 
 // DBStatus 数据库状态信息

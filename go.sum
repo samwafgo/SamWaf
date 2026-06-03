@@ -234,6 +234,8 @@ github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.180 h1:uia+R3K1izQRGpxTV+bS4q3
 github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.180/go.mod h1:M+yna96Fx9o5GbIUnF3OvVvQGjgfVSyeJbV9Yb1z/wI=
 github.com/hyperjumptech/grule-rule-engine v1.15.0 h1:HqCjhZK+YsNC6udTR6/O90xRwxcefTwStheATUjYK34=
 github.com/hyperjumptech/grule-rule-engine v1.15.0/go.mod h1:K8HweZ21+ccFgIfXxyJbAuUZU2OAIapCWhZv1a7GP/8=
+github.com/ipipdotnet/ipdb-go v1.3.3 h1:GLSAW9ypLUd6EF9QNK2Uhxew9Jzs4XMJ9gOZEFnJm7U=
+github.com/ipipdotnet/ipdb-go v1.3.3/go.mod h1:yZ+8puwe3R37a/3qRftXo40nZVQbxYDLqls9o5foexs=
 github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 h1:BQSFePA1RWJOlocH6Fxy8MmwDt+yVQYULKfN0RoTN8A=
 github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99/go.mod h1:1lJo3i6rXxKeerYnT8Nvf0QmHCRC1n8sfWVwXF2Frvo=
 github.com/jcchavezs/mergefs v0.1.0 h1:7oteO7Ocl/fnfFMkoVLJxTveCjrsd//UB0j89xmnpec=

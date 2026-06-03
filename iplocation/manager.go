@@ -3,9 +3,11 @@ package iplocation
 import (
 	"fmt"
 	"net"
+	"os"
 	"sync"
 	"time"
 
+	"github.com/ipipdotnet/ipdb-go"
 	"github.com/lionsoul2014/ip2region/binding/golang/xdb"
 	"github.com/oschwald/geoip2-golang"
 )
@@ -31,6 +33,12 @@ type Manager struct {
 	v6LoadTime   time.Time
 	v6FileSize   int64
 	v6CreateTime time.Time // 文件创建时间
+
+	// ipdb 后端（IPv4+IPv6 共用同一个文件）
+	ipdbReader     *ipdb.City
+	ipdbLoadTime   time.Time
+	ipdbFileSize   int64
+	ipdbCreateTime time.Time
 }
 
 // NewManager 创建新的 IP 地理位置查询管理器
@@ -86,6 +94,12 @@ func (m *Manager) lookupV4(ipStr string) *IPLocationResult {
 			countryName = record.Country.Names["en"]
 		}
 		return &IPLocationResult{Country: countryName}
+	} else if m.v4Source == SourceIpdb && m.ipdbReader != nil {
+		info, err := m.ipdbReader.FindMap(ipStr, "CN")
+		if err != nil {
+			return &IPLocationResult{Country: "查询失败"}
+		}
+		return parseIpdbMap(info)
 	}
 
 	return &IPLocationResult{Country: "未配置"}
@@ -116,6 +130,12 @@ func (m *Manager) lookupV6(ipStr string) *IPLocationResult {
 			countryName = "内网"
 		}
 		return &IPLocationResult{Country: countryName}
+	} else if m.v6Source == SourceIpdb && m.ipdbReader != nil {
+		info, err := m.ipdbReader.FindMap(ipStr, "CN")
+		if err != nil {
+			return &IPLocationResult{Country: "查询失败"}
+		}
+		return parseIpdbMap(info)
 	}
 
 	return &IPLocationResult{Country: "未配置"}
@@ -227,6 +247,31 @@ func (m *Manager) LoadV6GeoLite2(data []byte) error {
 	return nil
 }
 
+// LoadIpdb 加载 ipdb 数据库（ipdb 支持 IPv4+IPv6，共用同一文件）
+func (m *Manager) LoadIpdb(filePath string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	reader, err := ipdb.NewCity(filePath)
+	if err != nil {
+		return fmt.Errorf("创建 ipdb reader 失败: %w", err)
+	}
+	m.ipdbReader = reader
+	m.ipdbLoadTime = time.Now()
+	if fi, err2 := os.Stat(filePath); err2 == nil {
+		m.ipdbFileSize = fi.Size()
+		m.ipdbCreateTime = fi.ModTime()
+	}
+	return nil
+}
+
+// IsIpdbLoaded 返回 ipdb reader 是否已加载
+func (m *Manager) IsIpdbLoaded() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.ipdbReader != nil
+}
+
 // ReloadV4 热加载 IPv4 数据库
 func (m *Manager) ReloadV4(data []byte, source DBSource, format DBFormat) error {
 	if source == SourceIp2Region {
@@ -261,17 +306,39 @@ func (m *Manager) GetStatus() *DBStatus {
 		IPv6FileSize: m.v6FileSize,
 	}
 
-	if !m.v4LoadTime.IsZero() {
-		status.IPv4LoadTime = m.v4LoadTime.Format("2006-01-02 15:04:05")
+	// ipdb 来源使用 ipdb 的文件元数据覆盖对应槽位
+	if m.v4Source == SourceIpdb {
+		status.IPv4FileSize = m.ipdbFileSize
+		if !m.ipdbLoadTime.IsZero() {
+			status.IPv4LoadTime = m.ipdbLoadTime.Format("2006-01-02 15:04:05")
+		}
+		if !m.ipdbCreateTime.IsZero() {
+			status.IPv4CreateTime = m.ipdbCreateTime.Format("2006-01-02 15:04:05")
+		}
+	} else {
+		if !m.v4LoadTime.IsZero() {
+			status.IPv4LoadTime = m.v4LoadTime.Format("2006-01-02 15:04:05")
+		}
+		if !m.v4CreateTime.IsZero() {
+			status.IPv4CreateTime = m.v4CreateTime.Format("2006-01-02 15:04:05")
+		}
 	}
-	if !m.v6LoadTime.IsZero() {
-		status.IPv6LoadTime = m.v6LoadTime.Format("2006-01-02 15:04:05")
-	}
-	if !m.v4CreateTime.IsZero() {
-		status.IPv4CreateTime = m.v4CreateTime.Format("2006-01-02 15:04:05")
-	}
-	if !m.v6CreateTime.IsZero() {
-		status.IPv6CreateTime = m.v6CreateTime.Format("2006-01-02 15:04:05")
+
+	if m.v6Source == SourceIpdb {
+		status.IPv6FileSize = m.ipdbFileSize
+		if !m.ipdbLoadTime.IsZero() {
+			status.IPv6LoadTime = m.ipdbLoadTime.Format("2006-01-02 15:04:05")
+		}
+		if !m.ipdbCreateTime.IsZero() {
+			status.IPv6CreateTime = m.ipdbCreateTime.Format("2006-01-02 15:04:05")
+		}
+	} else {
+		if !m.v6LoadTime.IsZero() {
+			status.IPv6LoadTime = m.v6LoadTime.Format("2006-01-02 15:04:05")
+		}
+		if !m.v6CreateTime.IsZero() {
+			status.IPv6CreateTime = m.v6CreateTime.Format("2006-01-02 15:04:05")
+		}
 	}
 
 	return status
@@ -298,6 +365,20 @@ func (m *Manager) Close() {
 		m.v6GeoReader.Close()
 		m.v6GeoReader = nil
 	}
+	// ipdb.City 无 Close 方法，置 nil 由 GC 回收
+	m.ipdbReader = nil
+}
+
+// parseIpdbMap 将 ipdb FindMap 返回的字段映射转换为统一结果结构
+func parseIpdbMap(info map[string]string) *IPLocationResult {
+	get := func(k string) string { return info[k] }
+	return &IPLocationResult{
+		Country:  get("country_name"),
+		Province: get("region_name"),
+		City:     get("city_name"),
+		ISP:      get("isp_domain"),
+		Region:   get("continent_code"),
+	}
 }
 
 // SetV4Source 设置 IPv4 数据源
@@ -312,6 +393,14 @@ func (m *Manager) SetV6Source(source DBSource) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.v6Source = source
+}
+
+// SetBothSourceIpdb 将 IPv4 和 IPv6 数据源同时设置为 ipdb
+func (m *Manager) SetBothSourceIpdb() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.v4Source = SourceIpdb
+	m.v6Source = SourceIpdb
 }
 
 // SetV4Format 设置 IPv4 数据格式

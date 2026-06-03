@@ -187,6 +187,17 @@ func (m *wafSystenService) run() {
 			log.Fatalf("Failed to load IPv4 GeoLite2 database: %v", err)
 		}
 		zlog.Info("IPv4 GeoLite2 database loaded successfully")
+	} else if global.GCONFIG_IP_V4_SOURCE == "ipdb" {
+		ipdbPath := filepath.Join(utils.GetCurrentDir(), "data", "iplocation.ipdb")
+		if _, err := os.Stat(ipdbPath); err == nil {
+			if err2 := global.GIPLOCATION_MANAGER.LoadIpdb(ipdbPath); err2 != nil {
+				zlog.Warn("Failed to load ipdb database (v4): ", err2)
+			} else {
+				zlog.Info("ipdb database loaded successfully (v4 source)")
+			}
+		} else {
+			zlog.Warn("ipdb database file not found, please upload iplocation.ipdb")
+		}
 	}
 
 	// 加载 IPv6 数据库
@@ -231,6 +242,22 @@ func (m *wafSystenService) run() {
 			log.Fatalf("Failed to load IPv6 GeoLite2 database: %v", err)
 		}
 		zlog.Info("IPv6 GeoLite2 database loaded successfully")
+	} else if global.GCONFIG_IP_V6_SOURCE == "ipdb" {
+		// 如果 v4 已经加载了 ipdb，跳过重复加载
+		if !global.GIPLOCATION_MANAGER.IsIpdbLoaded() {
+			ipdbPath := filepath.Join(utils.GetCurrentDir(), "data", "iplocation.ipdb")
+			if _, err := os.Stat(ipdbPath); err == nil {
+				if err2 := global.GIPLOCATION_MANAGER.LoadIpdb(ipdbPath); err2 != nil {
+					zlog.Warn("Failed to load ipdb database (v6): ", err2)
+				} else {
+					zlog.Info("ipdb database loaded successfully (v6 source)")
+				}
+			} else {
+				zlog.Warn("ipdb database file not found, please upload iplocation.ipdb")
+			}
+		} else {
+			zlog.Info("ipdb database already loaded (shared with v4)")
+		}
 	}
 	global.GWAF_DLP_CONFIG = ldpConfig
 	global.GWAF_REG_PUBLIC_KEY = publicKey

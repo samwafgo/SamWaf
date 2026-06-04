@@ -181,11 +181,15 @@ jobs:
         with:
           go-version: '1.21.4'
 
-      - name: Install musl ARM64 cross-compiler
+      - name: Install Zig (ARM64 musl cross-compiler)
         run: |
-          wget -q https://musl.cc/aarch64-linux-musl-cross.tgz -O /tmp/aarch64-linux-musl-cross.tgz
-          sudo tar -xzf /tmp/aarch64-linux-musl-cross.tgz -C /usr/local
-          echo "/usr/local/aarch64-linux-musl-cross/bin" >> $GITHUB_PATH
+          ZIG_VERSION="0.16.0"
+          wget -q "https://ziglang.org/download/${ZIG_VERSION}/zig-x86_64-linux-${ZIG_VERSION}.tar.xz" -O /tmp/zig.tar.xz
+          sudo tar -xJf /tmp/zig.tar.xz -C /usr/local
+          sudo ln -sf /usr/local/zig-x86_64-linux-${ZIG_VERSION}/zig /usr/local/bin/zig
+          printf '#!/bin/sh\nexec zig cc -target aarch64-linux-musl "$@"\n' | sudo tee /usr/local/bin/aarch64-linux-musl-gcc > /dev/null
+          printf '#!/bin/sh\nexec zig c++ -target aarch64-linux-musl "$@"\n' | sudo tee /usr/local/bin/aarch64-linux-musl-g++ > /dev/null
+          sudo chmod +x /usr/local/bin/aarch64-linux-musl-gcc /usr/local/bin/aarch64-linux-musl-g++
 
       - name: Download SamWafWeb
         run: |

@@ -155,6 +155,7 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitWafDataRetentionRouter(RouterGroup)
 		router.ApiGroupApp.InitWafOwaspRouter(RouterGroup)
 		router.ApiGroupApp.InitWafHostPathRuleRouter(RouterGroup)
+		router.ApiGroupApp.InitWafAppRouter(RouterGroup)
 	}
 
 	// 仅允许后台 Token 登录访问，拒绝 API Key 访问（安全敏感接口）

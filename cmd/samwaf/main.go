@@ -14,6 +14,7 @@ import (
 	"SamWaf/model/wafenginmodel"
 	"SamWaf/plugin"
 	"SamWaf/utils"
+	"SamWaf/wafappengine"
 	"SamWaf/wafconfig"
 	"SamWaf/wafdb"
 	"SamWaf/wafenginecore"
@@ -439,6 +440,9 @@ func (m *wafSystenService) run() {
 	//启动隧道
 	globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE = waftunnelengine.NewWafTunnelEngine()
 	globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE.StartTunnel()
+	//启动应用管理引擎
+	globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE = wafappengine.NewWafAppEngine()
+	globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE.StartApps()
 	//启动管理界面
 	webmanager = &wafmangeweb.WafWebManager{LogName: "WebManager"}
 	go func() {
@@ -734,6 +738,41 @@ func (m *wafSystenService) run() {
 					globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE.RemoveTunnel(tunnelDelete)
 					break
 				}
+			} else if common.Type == enums.ChanComTypeApp {
+				// 应用管理类型
+				if globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE != nil {
+					switch common.OpType {
+					case enums.OP_TYPE_NEW:
+						// 新增：如果 AutoStart=1，则启动
+						appNew := common.Content.(model.WafApp)
+						if appNew.AutoStart == 1 && appNew.StartStatus == 1 {
+							if err := globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE.StartApp(appNew.Code); err != nil {
+								zlog.Error("自动启动应用失败", "code", appNew.Code, "error", err.Error())
+							}
+						}
+					case enums.OP_TYPE_UPDATE:
+						appNew := common.Content.(model.WafApp)
+						globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE.LoadApp(appNew)
+					case enums.OP_TYPE_DELETE:
+						appDel := common.OldContent.(model.WafApp)
+						globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE.RemoveApp(appDel.Code)
+					case enums.OP_TYPE_APP_START:
+						code := common.Content.(string)
+						if err := globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE.StartApp(code); err != nil {
+							zlog.Error("启动应用失败", "code", code, "error", err.Error())
+						}
+					case enums.OP_TYPE_APP_STOP:
+						code := common.Content.(string)
+						if err := globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE.StopApp(code); err != nil {
+							zlog.Error("停止应用失败", "code", code, "error", err.Error())
+						}
+					case enums.OP_TYPE_APP_RESTART:
+						code := common.Content.(string)
+						if err := globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE.RestartApp(code); err != nil {
+							zlog.Error("重启应用失败", "code", code, "error", err.Error())
+						}
+					}
+				}
 			}
 		case engineStatus := <-global.GWAF_CHAN_ENGINE:
 			if engineStatus == 1 {
@@ -854,6 +893,14 @@ func (m *wafSystenService) stopSamWaf() {
 		zlog.Info("Shutdown SamWaf Tunnel Engine finished")
 	} else {
 		zlog.Warn("Tunnel Engine is nil, skipping shutdown")
+	}
+
+	zlog.Info("Shutdown SamWaf App Engine...")
+	if globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE != nil {
+		globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE.StopApps()
+		zlog.Info("Shutdown SamWaf App Engine finished")
+	} else {
+		zlog.Warn("App Engine is nil, skipping shutdown")
 	}
 
 	zlog.Info("Shutdown SamWaf Queue Processors...")

@@ -957,6 +957,22 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移24: 创建应用管理表
+		{
+			ID: "202606080002_add_waf_apps_table",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202606080002: 创建 waf_apps 表")
+				if err := tx.AutoMigrate(&model.WafApp{}); err != nil {
+					return fmt.Errorf("创建 waf_apps 表失败: %w", err)
+				}
+				zlog.Info("waf_apps 表创建成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202606080002: 删除 waf_apps 表")
+				return tx.Migrator().DropTable(&model.WafApp{})
+			},
+		},
 	})
 
 	// 执行迁移

@@ -204,6 +204,11 @@ func (w *WafHostAPi) GetAllListApi(c *gin.Context) {
 		// 构建括号内的内容
 		var bracketContent []string
 
+		// 如果有昵称，优先显示昵称
+		if wafHosts[i].Nickname != "" {
+			bracketContent = append(bracketContent, wafHosts[i].Nickname)
+		}
+
 		// 如果是SSL，添加SSL标识
 		if wafHosts[i].Ssl == 1 {
 			bracketContent = append(bracketContent, "SSL")

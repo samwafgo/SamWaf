@@ -934,6 +934,29 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移23: 为 hosts 表添加 nickname 字段（网站昵称）
+		{
+			ID: "202606080001_add_hosts_nickname",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202606080001: 为 hosts 表添加 nickname 字段")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "nickname") {
+					zlog.Info("nickname 字段已存在，跳过添加")
+					return nil
+				}
+				if err := tx.Migrator().AddColumn(&model.Hosts{}, "nickname"); err != nil {
+					return fmt.Errorf("添加 nickname 字段失败: %w", err)
+				}
+				zlog.Info("nickname 字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202606080001: 删除 hosts 表的 nickname 字段")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "nickname") {
+					return tx.Migrator().DropColumn(&model.Hosts{}, "nickname")
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

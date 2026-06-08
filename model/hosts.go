@@ -19,6 +19,7 @@ type Hosts struct {
 	Remote_ip                 string `gorm:"size:64" json:"remote_ip"`                      //远端指定IP
 	Certfile                  string `gorm:"type:text" json:"certfile"`                     //证书文件
 	Keyfile                   string `gorm:"type:text" json:"keyfile"`                      //密钥文件
+	Nickname                  string `gorm:"size:200" json:"nickname"`                      //网站昵称
 	REMARKS                   string `gorm:"size:500" json:"remarks"`                       //备注
 	GLOBAL_HOST               int    `json:"global_host"`                                   //默认全局 1 全局 0非全局
 	DEFENSE_JSON              string `gorm:"type:text" json:"defense_json"`                 //自身防御 json

@@ -2,7 +2,7 @@ package validfield
 
 // IsValidHostFilterField 检测host字段是否合法
 func IsValidHostFilterField(field string) bool {
-	var allowedFilterFields = []string{"host", "port", "remote_ip", "remote_port", "remarks"}
+	var allowedFilterFields = []string{"host", "port", "remote_ip", "remote_port", "remarks", "nickname"}
 
 	for _, allowedField := range allowedFilterFields {
 		if field == allowedField {

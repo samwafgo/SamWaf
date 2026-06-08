@@ -12,6 +12,7 @@ type WafHostAddReq struct {
 	Remote_host               string `json:"remote_host"`                  //远端域名
 	Remote_ip                 string `json:"remote_ip"`                    //远端指定IP
 	Remote_port               int    `json:"remote_port"`                  //远端端口
+	Nickname                  string `json:"nickname"`                     //网站昵称
 	REMARKS                   string `json:"remarks"`                      //备注
 	Certfile                  string `json:"certfile"`                     // 证书文件
 	Keyfile                   string `json:"keyfile"`                      // 密钥文件
@@ -55,6 +56,7 @@ type WafHostDetailReq struct {
 
 type WafHostEditReq struct {
 	CODE                      string `json:"code"`
+	Nickname                  string `json:"nickname"`                     //网站昵称
 	Host                      string `json:"host"`                         //域名
 	Port                      int    `json:"port"`                         //端口
 	Ssl                       int    `json:"ssl"`                          //是否是ssl

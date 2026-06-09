@@ -122,6 +122,38 @@ func LoadAndInitConfig() {
 		global.GWAF_CAN_EXPORT_DOWNLOAD_LOG = config.GetBool("export_download")
 	}
 
+	// 应用管理功能开关（默认关闭）
+	if config.IsSet("application_manage") == false {
+		config.Set("application_manage", global.GWAF_CAN_APP_MANAGE)
+		configChanged = true
+	} else {
+		global.GWAF_CAN_APP_MANAGE = config.GetBool("application_manage")
+	}
+
+	// 应用允许工作目录（逗号分隔，默认 data/applications）
+	if config.IsSet("application_allow_dirs") == false {
+		config.Set("application_allow_dirs", global.GWAF_APP_ALLOW_DIRS)
+		configChanged = true
+	} else {
+		global.GWAF_APP_ALLOW_DIRS = config.GetString("application_allow_dirs")
+	}
+
+	// 应用操作密码（高危操作二次确认）：启用时若为空则自动生成并落盘
+	if config.IsSet("application_op_password") == false || config.GetString("application_op_password") == "" {
+		if global.GWAF_CAN_APP_MANAGE {
+			newOpPwd := generateSecurityEntryPath()
+			config.Set("application_op_password", newOpPwd)
+			global.GWAF_APP_OP_PASSWORD = newOpPwd
+			configChanged = true
+			fmt.Printf("%s\tINFO\t==========================================\n", currentTime)
+			fmt.Printf("%s\tINFO\t应用管理操作密码（首次自动生成）: %s\n", currentTime, newOpPwd)
+			fmt.Printf("%s\tINFO\t请妥善保管；忘记可清空 conf/config.yml 中 application_op_password 字段后重启重新生成\n", currentTime)
+			fmt.Printf("%s\tINFO\t==========================================\n", currentTime)
+		}
+	} else {
+		global.GWAF_APP_OP_PASSWORD = config.GetString("application_op_password")
+	}
+
 	if config.IsSet("zlog.outputformat") {
 		global.GWAF_LOG_OUTPUT_FORMAT = config.GetString("zlog.outputformat")
 	} else {

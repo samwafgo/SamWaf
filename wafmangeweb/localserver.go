@@ -155,7 +155,6 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitWafDataRetentionRouter(RouterGroup)
 		router.ApiGroupApp.InitWafOwaspRouter(RouterGroup)
 		router.ApiGroupApp.InitWafHostPathRuleRouter(RouterGroup)
-		router.ApiGroupApp.InitWafAppRouter(RouterGroup)
 	}
 
 	// 仅允许后台 Token 登录访问，拒绝 API Key 访问（安全敏感接口）
@@ -172,6 +171,8 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitWafOtpRouter(TokenOnlyRouterGroup)
 		// SQL 查询：直接执行数据库查询，极度敏感
 		router.ApiGroupApp.InitSqlQueryRouter(TokenOnlyRouterGroup)
+		// 应用管理：可执行任意命令，拒绝 API Key，功能默认关闭
+		router.ApiGroupApp.InitWafAppRouter(TokenOnlyRouterGroup)
 	}
 
 	// 保存 gin.Engine 引用供 API 文档生成使用
@@ -228,7 +229,7 @@ func (web *WafWebManager) cors() gin.HandlerFunc {
 			// 将该域添加到allow-origin中
 			c.Header("Access-Control-Allow-Origin", origin) //
 			c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, UPDATE")
-			c.Header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization,X-Token,Remote-Waf-User-Id,OPEN-X-Token,X-Login-Type,X-Mobile-Token,X-API-Key,X-Request-Time,X-Request-Id")
+			c.Header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization,X-Token,Remote-Waf-User-Id,OPEN-X-Token,X-Login-Type,X-Mobile-Token,X-API-Key,X-Request-Time,X-Request-Id,X-APP-OP-PASSWORD")
 			c.Header("Access-Control-Expose-Headers", "Content-Length, Access-Control-Allow-Origin, Access-Control-Allow-Headers, Cache-Control, Content-Language, Content-Type")
 			//允许客户端传递校验信息比如 cookie
 			c.Header("Access-Control-Allow-Credentials", "true")

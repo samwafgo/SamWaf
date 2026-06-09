@@ -84,18 +84,21 @@ var (
 	GWAF_SECURITY_EMERGENCY_PATH string = ""               //应急恢复路径（随机生成，首次启动自动写入 conf/config.yml）
 
 	//zlog 日志相关信息
-	GWAF_LOG_OUTPUT_FORMAT       string              = "console"  //zlog输出格式 控制台格式console,json格式
-	GWAF_LOG_DEBUG_ENABLE        bool                = false      //是否开启debug日志，默认关闭
-	GWAF_LOG_DEBUG_DB_ENABLE     bool                = false      //是否开启数据库日志，默认关闭
-	GWAF_RELEASE                 string              = "false"    // 当前是否为发行版
-	GWAF_RELEASE_VERSION_NAME    string              = "20241028" // 发行版的版本号名称
-	GWAF_RELEASE_VERSION         string              = "v1.0.0"   // 发行版的版本号
-	GWAF_LAST_UPDATE_TIME        time.Time                        // 上次时间
-	GWAF_NOTICE_ENABLE           bool                = false      // 是否开启通知
-	GWAF_NOTICE_TITLE            string                           // 通知消息标题前缀（用于区分多实例，默认使用 custom_server_name）
-	GWAF_CAN_EXPORT_DOWNLOAD_LOG bool                = false      //是否可以导出下载日志
-	GWAF_DLP                     dlpheader.EngineAPI              // 脱敏引擎
-	GWAF_DLP_CONFIG              string                           // 脱敏引擎配置数据
+	GWAF_LOG_OUTPUT_FORMAT       string              = "console"           //zlog输出格式 控制台格式console,json格式
+	GWAF_LOG_DEBUG_ENABLE        bool                = false               //是否开启debug日志，默认关闭
+	GWAF_LOG_DEBUG_DB_ENABLE     bool                = false               //是否开启数据库日志，默认关闭
+	GWAF_RELEASE                 string              = "false"             // 当前是否为发行版
+	GWAF_RELEASE_VERSION_NAME    string              = "20241028"          // 发行版的版本号名称
+	GWAF_RELEASE_VERSION         string              = "v1.0.0"            // 发行版的版本号
+	GWAF_LAST_UPDATE_TIME        time.Time                                 // 上次时间
+	GWAF_NOTICE_ENABLE           bool                = false               // 是否开启通知
+	GWAF_NOTICE_TITLE            string                                    // 通知消息标题前缀（用于区分多实例，默认使用 custom_server_name）
+	GWAF_CAN_EXPORT_DOWNLOAD_LOG bool                = false               //是否可以导出下载日志
+	GWAF_CAN_APP_MANAGE          bool                = false               //是否启用应用管理功能（默认关闭，需服务端配置才能开启）
+	GWAF_APP_ALLOW_DIRS          string              = "data/applications" //应用允许的工作目录（逗号分隔多路径）
+	GWAF_APP_OP_PASSWORD         string                                    //应用操作密码（高危操作二次确认，自动生成存 config.yml）
+	GWAF_DLP                     dlpheader.EngineAPI                       // 脱敏引擎
+	GWAF_DLP_CONFIG              string                                    // 脱敏引擎配置数据
 
 	GWAF_OWASP         *wafowasp.WafOWASP     //owasp引擎（兼容保留：由 GWAF_OWASP_MANAGER.Current() 更新；请勿直接赋值新实例，否则热重载会失效）
 	GWAF_OWASP_MANAGER *wafowasp.OwaspManager //owasp 管理器（支持热重载）

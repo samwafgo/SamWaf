@@ -185,10 +185,11 @@ func (w *WafAppApi) DelApi(c *gin.Context) {
 		return
 	}
 	app := wafAppService.GetDetailApi(request.WafAppDetailReq{Id: req.Id})
-	if err := wafAppService.DelApi(req); err != nil {
-		response.FailWithMessage("删除失败", c)
+	if app == nil || app.Id == "" {
+		response.FailWithMessage("应用不存在", c)
 		return
 	}
+	// 不在此处删除 DB 记录，由 channel handler 在进程停止后删除，保证顺序正确
 	global.GWAF_CHAN_COMMON_MSG <- spec.ChanCommon{
 		Type:       enums.ChanComTypeApp,
 		OpType:     enums.OP_TYPE_DELETE,

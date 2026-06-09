@@ -755,7 +755,9 @@ func (m *wafSystenService) run() {
 						globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE.LoadApp(appNew)
 					case enums.OP_TYPE_DELETE:
 						appDel := common.OldContent.(model.WafApp)
+						// 先停止进程（能读到 DB 中的 StopMode/StopCmd/StopTimeout 配置），再删 DB 记录
 						globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE.RemoveApp(appDel.Code)
+						global.GWAF_LOCAL_DB.Where("id = ?", appDel.Id).Delete(&model.WafApp{})
 					case enums.OP_TYPE_APP_START:
 						code := common.Content.(string)
 						if err := globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE.StartApp(code); err != nil {

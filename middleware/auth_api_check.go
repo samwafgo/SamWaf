@@ -157,6 +157,10 @@ func Auth() gin.HandlerFunc {
 						return
 					}
 				}
+
+				// 将登录账号写入 context，供下游（变更记录、安全审计）取用
+				c.Set("loginAccount", tokenInfo.LoginAccount)
+				c.Set("loginIP", currentIP)
 			}
 		}
 

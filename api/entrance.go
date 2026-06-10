@@ -132,4 +132,5 @@ var (
 	wafDataRetentionService = waf_service.WafDataRetentionServiceApp
 	wafHostPathRuleService  = waf_service.WafHostPathRuleServiceApp
 	wafAppService           = waf_service.WafAppServiceApp
+	wafAppChangeLogService  = waf_service.WafAppChangeLogServiceApp
 )

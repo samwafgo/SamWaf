@@ -125,13 +125,27 @@ func (e *WafAppEngine) startProcess(app model.WafApp, rt *wafappmodel.AppRuntime
 	}
 	cmd.Dir = appDir
 
+	// 纵深防御：拦截黑名单环境变量（即使 service 层已校验，防止 DB 直接写入绕过）
+	engineEnvBlacklist := map[string]struct{}{
+		"LD_PRELOAD": {}, "LD_LIBRARY_PATH": {}, "LD_AUDIT": {},
+		"DYLD_INSERT_LIBRARIES": {}, "DYLD_LIBRARY_PATH": {}, "LD_PRELOAD_ONCE": {},
+	}
 	envs := append(os.Environ(), "")
 	if app.Env != "" {
 		for _, pair := range strings.Split(app.Env, ",") {
 			pair = strings.TrimSpace(pair)
-			if pair != "" {
-				envs = append(envs, pair)
+			if pair == "" {
+				continue
 			}
+			eqIdx := strings.IndexByte(pair, '=')
+			if eqIdx > 0 {
+				key := strings.ToUpper(pair[:eqIdx])
+				if _, blocked := engineEnvBlacklist[key]; blocked {
+					zlog.Warn("引擎屏蔽黑名单环境变量", "key", pair[:eqIdx], "app", app.Code)
+					continue
+				}
+			}
+			envs = append(envs, pair)
 		}
 	}
 	cmd.Env = envs

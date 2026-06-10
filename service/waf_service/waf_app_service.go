@@ -16,6 +16,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -23,12 +24,85 @@ type WafAppService struct{}
 
 var WafAppServiceApp = new(WafAppService)
 
+// envBlacklist 禁止用户注入的环境变量键（可劫持进程/动态链接库行为）
+var envBlacklist = map[string]struct{}{
+	"LD_PRELOAD":            {},
+	"LD_LIBRARY_PATH":       {},
+	"LD_AUDIT":              {},
+	"DYLD_INSERT_LIBRARIES": {},
+	"DYLD_LIBRARY_PATH":     {},
+	"LD_PRELOAD_ONCE":       {},
+}
+
+// parseAllowedDirs 解析逗号分隔的允许目录列表
+func parseAllowedDirs(dirStr string) []string {
+	var result []string
+	for _, p := range strings.Split(dirStr, ",") {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	if len(result) == 0 {
+		result = []string{"data/applications"}
+	}
+	return result
+}
+
+// resolveSafeAppDir 将用户提供的 appDir 解析并校验必须落在允许目录之一下
+func resolveSafeAppDir(code, appDir string) (string, error) {
+	allowedDirs := parseAllowedDirs(global.GWAF_APP_ALLOW_DIRS)
+	if appDir == "" {
+		return filepath.Join(allowedDirs[0], code), nil
+	}
+	absPath, err := filepath.Abs(filepath.Clean(appDir))
+	if err != nil {
+		return "", fmt.Errorf("无法解析应用目录路径: %w", err)
+	}
+	for _, allowed := range allowedDirs {
+		allowedAbs, err2 := filepath.Abs(filepath.Clean(allowed))
+		if err2 != nil {
+			continue
+		}
+		rel, err3 := filepath.Rel(allowedAbs, absPath)
+		if err3 == nil && !strings.HasPrefix(rel, "..") && !filepath.IsAbs(rel) {
+			return absPath, nil
+		}
+	}
+	return "", fmt.Errorf("应用目录必须在允许范围内（%s）", global.GWAF_APP_ALLOW_DIRS)
+}
+
+// validateEnv 校验用户提供的环境变量格式并拦截黑名单键
+func validateEnv(env string) error {
+	if env == "" {
+		return nil
+	}
+	for _, part := range strings.Split(env, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		eqIdx := strings.IndexByte(part, '=')
+		if eqIdx <= 0 {
+			return fmt.Errorf("环境变量格式错误（需为 KEY=VALUE）: %s", part)
+		}
+		key := strings.ToUpper(part[:eqIdx])
+		if _, blocked := envBlacklist[key]; blocked {
+			return fmt.Errorf("不允许设置环境变量 %s（存在安全风险）", part[:eqIdx])
+		}
+	}
+	return nil
+}
+
 func (s *WafAppService) AddApi(req request.WafAppAddReq) (*model.WafApp, error) {
 	if req.Name == "" {
 		return nil, errors.New("应用名称不能为空")
 	}
 	if req.StartCmd == "" {
 		return nil, errors.New("启动命令不能为空")
+	}
+	if err := validateEnv(req.Env); err != nil {
+		return nil, err
 	}
 
 	bean := &model.WafApp{
@@ -70,9 +144,12 @@ func (s *WafAppService) AddApi(req request.WafAppAddReq) (*model.WafApp, error) 
 	if bean.LogMaxLines == 0 {
 		bean.LogMaxLines = 1000
 	}
-	if bean.AppDir == "" {
-		bean.AppDir = "data/applications/" + bean.Code
+
+	safeDir, err := resolveSafeAppDir(bean.Code, bean.AppDir)
+	if err != nil {
+		return nil, err
 	}
+	bean.AppDir = safeDir
 
 	if err := os.MkdirAll(bean.AppDir, 0755); err != nil {
 		zlog.Warn("创建应用目录失败", "dir", bean.AppDir, "err", err.Error())
@@ -96,10 +173,22 @@ func (s *WafAppService) ModifyApi(req request.WafAppEditReq) error {
 	if total > 0 {
 		return errors.New("应用名称已存在")
 	}
+	if err := validateEnv(req.Env); err != nil {
+		return err
+	}
+
+	var existing model.WafApp
+	if err := global.GWAF_LOCAL_DB.Where("id = ?", req.Id).First(&existing).Error; err != nil {
+		return errors.New("应用不存在")
+	}
+	safeDir, err := resolveSafeAppDir(existing.Code, req.AppDir)
+	if err != nil {
+		return err
+	}
 
 	updates := map[string]interface{}{
 		"name":              req.Name,
-		"app_dir":           req.AppDir,
+		"app_dir":           safeDir,
 		"start_cmd":         req.StartCmd,
 		"env":               req.Env,
 		"auto_start":        req.AutoStart,
@@ -155,9 +244,9 @@ func (s *WafAppService) UploadFile(code string, filename string, src io.Reader, 
 	if err := global.GWAF_LOCAL_DB.Where("code = ?", code).First(&app).Error; err != nil {
 		return fmt.Errorf("应用不存在: %s", code)
 	}
-	appDir := app.AppDir
-	if appDir == "" {
-		appDir = "data/applications/" + code
+	appDir, err := resolveSafeAppDir(app.Code, app.AppDir)
+	if err != nil {
+		return err
 	}
 	if err := os.MkdirAll(appDir, 0755); err != nil {
 		return err
@@ -199,9 +288,9 @@ func (s *WafAppService) UpgradeApp(code string, filename string, src io.Reader, 
 	if err := global.GWAF_LOCAL_DB.Where("code = ?", code).First(&app).Error; err != nil {
 		return fmt.Errorf("应用不存在: %s", code)
 	}
-	appDir := app.AppDir
-	if appDir == "" {
-		appDir = "data/applications/" + code
+	appDir, err := resolveSafeAppDir(app.Code, app.AppDir)
+	if err != nil {
+		return err
 	}
 	safeFilename := filepath.Base(filename)
 	destPath := filepath.Join(appDir, safeFilename)
@@ -229,9 +318,9 @@ func (s *WafAppService) RollbackApp(code string, backupFilename string) error {
 	if err := global.GWAF_LOCAL_DB.Where("code = ?", code).First(&app).Error; err != nil {
 		return fmt.Errorf("应用不存在: %s", code)
 	}
-	appDir := app.AppDir
-	if appDir == "" {
-		appDir = "data/applications/" + code
+	appDir, err := resolveSafeAppDir(app.Code, app.AppDir)
+	if err != nil {
+		return err
 	}
 	safeBackup := filepath.Base(backupFilename)
 	backupPath := filepath.Join(appDir, "backup", safeBackup)
@@ -256,9 +345,9 @@ func (s *WafAppService) ListBackups(code string) ([]wafappmodel.BackupInfo, erro
 	if err := global.GWAF_LOCAL_DB.Where("code = ?", code).First(&app).Error; err != nil {
 		return nil, fmt.Errorf("应用不存在: %s", code)
 	}
-	appDir := app.AppDir
-	if appDir == "" {
-		appDir = "data/applications/" + code
+	appDir, err := resolveSafeAppDir(app.Code, app.AppDir)
+	if err != nil {
+		return nil, err
 	}
 	backupDir := filepath.Join(appDir, "backup")
 	entries, err := os.ReadDir(backupDir)
@@ -304,6 +393,5 @@ func copyFile(src, dst string) error {
 }
 
 func equalIgnoreCase(a, b string) bool {
-	return len(a) == len(b) && (a == b ||
-		len(a) > 0 && string([]byte(a)) == string([]byte(b)))
+	return strings.EqualFold(a, b)
 }

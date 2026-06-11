@@ -166,6 +166,69 @@ jobs:
           name: SamWaf64-${{ github.sha }}
           path: ./SamWaf64.exe
           retention-days: 3
+
+  # Linux ARM64 构建验证
+  build-linux-arm64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21.4'
+
+      - name: Install Zig (ARM64 musl cross-compiler)
+        run: |
+          ZIG_VERSION="0.16.0"
+          wget -q "https://ziglang.org/download/${ZIG_VERSION}/zig-x86_64-linux-${ZIG_VERSION}.tar.xz" -O /tmp/zig.tar.xz
+          sudo tar -xJf /tmp/zig.tar.xz -C /usr/local
+          sudo ln -sf /usr/local/zig-x86_64-linux-${ZIG_VERSION}/zig /usr/local/bin/zig
+          printf '#!/bin/sh\nexec zig cc -target aarch64-linux-musl "$@"\n' | sudo tee /usr/local/bin/aarch64-linux-musl-gcc > /dev/null
+          printf '#!/bin/sh\nexec zig c++ -target aarch64-linux-musl "$@"\n' | sudo tee /usr/local/bin/aarch64-linux-musl-g++ > /dev/null
+          sudo chmod +x /usr/local/bin/aarch64-linux-musl-gcc /usr/local/bin/aarch64-linux-musl-g++
+
+      - name: Download SamWafWeb
+        run: |
+          curl -L https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
+          tar -zxvf dist.tar.gz
+          rm -rf public/dist
+          mv -f dist public
+          rm -rf dist.tar.gz
+
+      - name: Go mod tidy
+        run: go mod tidy
+
+      - name: Build Linux ARM64 binary
+        env:
+          GOOS: linux
+          GOARCH: arm64
+          CGO_ENABLED: 1
+          CC: aarch64-linux-musl-gcc
+          CXX: aarch64-linux-musl-g++
+          CGO_CFLAGS: -Wno-unused-variable -fno-sanitize=all -D_LARGEFILE64_SOURCE
+        run: |
+          BUILDTIME=$(date +'%Y%m%d')
+          go build \
+            -ldflags="-X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=false -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=v1.0.0-beta.1 -s -w -extldflags '-static'" \
+            -o ./SamWafLinuxArm64 ./cmd/samwaf/main.go
+
+      - name: Check ARM64 binary
+        run: |
+          echo "ARM64 binary built successfully:"
+          ls -lh SamWafLinuxArm64
+          file SamWafLinuxArm64
+
+      - name: Upload ARM64 binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: SamWafLinuxArm64-${{ github.sha }}
+          path: ./SamWafLinuxArm64
+          retention-days: 3
+
   # # 代码质量检查
   # code-quality:
   #   runs-on: ubuntu-latest

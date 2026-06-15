@@ -61,6 +61,7 @@ type HostsDefense struct {
 	DEFENSE_SENSITIVE     int `json:"sensitive"` //敏感词检测
 	DEFENSE_DIR_TRAVERSAL int `json:"traversal"` //目录穿越检测
 	DEFENSE_OWASP_SET     int `json:"owaspset"`  //OWASP集检测
+	DEFENSE_AI            int `json:"ai"`        //AI智能检测（默认关闭，需先上传模型包并开启全局AI开关）
 }
 
 // HealthyConfig 健康度检测
@@ -307,6 +308,7 @@ func ParseHostsDefense(defenseJSON string) HostsDefense {
 	defense.DEFENSE_SENSITIVE = 1
 	defense.DEFENSE_DIR_TRAVERSAL = 1
 	defense.DEFENSE_OWASP_SET = 0
+	defense.DEFENSE_AI = 0
 
 	// 如果JSON不为空，则解析覆盖默认值
 	if defenseJSON != "" {

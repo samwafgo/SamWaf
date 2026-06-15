@@ -7,6 +7,7 @@ import (
 	"SamWaf/iplocation"
 	"SamWaf/model"
 	"SamWaf/model/spec"
+	"SamWaf/wafai"
 	"SamWaf/wafnotify"
 	"SamWaf/wafowasp"
 	"SamWaf/wafsnowflake"
@@ -99,6 +100,7 @@ var (
 	GWAF_APP_OP_PASSWORD         string                                    //应用操作密码（高危操作二次确认，自动生成存 config.yml）
 	GWAF_DLP                     dlpheader.EngineAPI                       // 脱敏引擎
 	GWAF_DLP_CONFIG              string                                    // 脱敏引擎配置数据
+	GWAF_AI_DETECTOR             *wafai.Detector                           // AI智能检测器（持有当前模型，失败安全）
 
 	GWAF_OWASP         *wafowasp.WafOWASP     //owasp引擎（兼容保留：由 GWAF_OWASP_MANAGER.Current() 更新；请勿直接赋值新实例，否则热重载会失效）
 	GWAF_OWASP_MANAGER *wafowasp.OwaspManager //owasp 管理器（支持热重载）

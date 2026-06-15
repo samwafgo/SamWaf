@@ -989,6 +989,54 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return tx.Migrator().DropTable(&model.WafAppChangeLog{})
 			},
 		},
+		{
+			ID: "202606120003_add_waf_log_label_marks_table",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202606120003: 创建 waf_log_label_marks 表（AI训练标签人工修正）")
+				if err := tx.AutoMigrate(&model.WafLogLabelMark{}); err != nil {
+					return fmt.Errorf("创建 waf_log_label_marks 表失败: %w", err)
+				}
+				zlog.Info("waf_log_label_marks 表创建成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202606120003: 删除 waf_log_label_marks 表")
+				return tx.Migrator().DropTable(&model.WafLogLabelMark{})
+			},
+		},
+		{
+			ID: "202606120004_add_label_mark_attack_type",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202606120004: 为 waf_log_label_marks 添加 attack_type 字段")
+				if tx.Migrator().HasColumn(&model.WafLogLabelMark{}, "attack_type") {
+					return nil
+				}
+				if err := tx.Migrator().AddColumn(&model.WafLogLabelMark{}, "AttackType"); err != nil {
+					return fmt.Errorf("添加 attack_type 字段失败: %w", err)
+				}
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				if tx.Migrator().HasColumn(&model.WafLogLabelMark{}, "attack_type") {
+					return tx.Migrator().DropColumn(&model.WafLogLabelMark{}, "AttackType")
+				}
+				return nil
+			},
+		},
+		{
+			ID: "202606120005_add_label_mark_snapshot_fields",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202606120005: 为 waf_log_label_marks 添加请求快照字段")
+				// AutoMigrate 仅新增缺失列，幂等安全
+				if err := tx.AutoMigrate(&model.WafLogLabelMark{}); err != nil {
+					return fmt.Errorf("同步 waf_log_label_marks 快照字段失败: %w", err)
+				}
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

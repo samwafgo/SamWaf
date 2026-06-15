@@ -14,6 +14,7 @@ import (
 	"SamWaf/model/wafenginmodel"
 	"SamWaf/plugin"
 	"SamWaf/utils"
+	"SamWaf/wafai"
 	"SamWaf/wafappengine"
 	"SamWaf/wafconfig"
 	"SamWaf/wafdb"
@@ -262,6 +263,18 @@ func (m *wafSystenService) run() {
 	}
 	global.GWAF_DLP_CONFIG = ldpConfig
 	global.GWAF_REG_PUBLIC_KEY = publicKey
+
+	//初始化AI智能检测器，若存在已上传的模型包则加载（失败安全，不影响启动）
+	global.GWAF_AI_DETECTOR = wafai.NewDetector()
+	aiModelPath := filepath.Join(utils.GetCurrentDir(), "data", "ai_model", "current.swai")
+	if _, err := os.Stat(aiModelPath); err == nil {
+		if manifest, err := global.GWAF_AI_DETECTOR.LoadFromFile(aiModelPath); err != nil {
+			zlog.Warn("AI模型加载失败，AI检测将不可用: ", err.Error())
+		} else {
+			zlog.Info(fmt.Sprintf("AI模型加载成功: version=%s feature=%s type=%s",
+				manifest.ModelVersion, manifest.FeatureVersion, manifest.ModelType))
+		}
+	}
 
 	//owasp资源 释放
 	err = wafinit.CheckAndReleaseDataset(owaspAssets, utils.GetCurrentDir()+"/data/owasp", "owasp")

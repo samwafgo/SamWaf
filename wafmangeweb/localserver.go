@@ -173,6 +173,8 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitSqlQueryRouter(TokenOnlyRouterGroup)
 		// 应用管理：可执行任意命令，拒绝 API Key，功能默认关闭
 		router.ApiGroupApp.InitWafAppRouter(TokenOnlyRouterGroup)
+		// AI模型管理与训练数据导出：模型会被引擎加载、数据出库，拒绝 API Key
+		router.ApiGroupApp.InitWafAIRouter(TokenOnlyRouterGroup)
 	}
 
 	// 保存 gin.Engine 引用供 API 文档生成使用

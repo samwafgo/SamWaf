@@ -89,6 +89,11 @@ func inferAttackType(ruleTitle string) string {
 		return "owasp_attack"
 	}
 
+	// AI 智能检测：Title 格式为 "AI检测:score=x.xx"，需在 SQL/RCE 等关键词匹配之前优先处理
+	if strings.HasPrefix(ruleTitle, "ai检测") {
+		return "ai_attack"
+	}
+
 	// CC攻击
 	if strings.Contains(ruleTitle, "cc") || strings.Contains(ruleTitle, "频次") || strings.Contains(ruleTitle, "rate limit") {
 		return "cc_attack"
@@ -555,6 +560,12 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				//规则判断
 				if handleBlock(waf.CheckRule) {
 					return
+				}
+				//AI智能检测（全局开关开启且站点开启，规则抓确定的，AI 抓漏网的）
+				if global.GCONFIG_AI_ENABLE == 1 && hostDefense.DEFENSE_AI == 1 {
+					if handleBlock(waf.CheckAI) {
+						return
+					}
 				}
 				//检测敏感词
 				if hostDefense.DEFENSE_SENSITIVE == 1 {

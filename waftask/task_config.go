@@ -77,6 +77,9 @@ func setConfigIntValue(name string, value int64, change int) {
 	case "enable_owasp":
 		global.GCONFIG_RECORD_ENABLE_OWASP = value
 		break
+	case "ai_enable":
+		global.GCONFIG_AI_ENABLE = value
+		break
 	case "owasp_block_threshold":
 		if value <= 0 {
 			value = 7
@@ -227,6 +230,15 @@ func setConfigStringValue(name string, value string, change int) {
 		}
 		// 同步到 wafowasp 热路径，使 DetectionOnly "本该拦截" 的 INFO 日志能按当前模式生效
 		wafowasp.SetEngineMode(global.GCONFIG_OWASP_MODE)
+		break
+	case "ai_mode":
+		switch value {
+		case "observe", "block":
+			global.GCONFIG_AI_MODE = value
+		default:
+			zlog.Warn("invalid ai_mode value, fallback to observe", value)
+			global.GCONFIG_AI_MODE = "observe"
+		}
 		break
 	case "kafka_url":
 		global.GCONFIG_RECORD_KAFKA_URL = value
@@ -394,6 +406,8 @@ func TaskLoadSetting(initLoad bool) {
 	updateConfigIntItem(initLoad, "system", "login_max_error_time", global.GCONFIG_RECORD_LOGIN_MAX_ERROR_TIME, "登录周期里错误最大次数 请大于0 ", "int", "", configMap)
 	updateConfigIntItem(initLoad, "system", "login_limit_mintutes", global.GCONFIG_RECORD_LOGIN_LIMIT_MINTUTES, "登录错误记录周期 单位分钟数，默认1分钟", "int", "", configMap)
 	updateConfigIntItem(initLoad, "system", "enable_owasp", global.GCONFIG_RECORD_ENABLE_OWASP, "启动OWASP数据检测（1启动 0关闭）", "int", "", configMap)
+	updateConfigIntItem(initLoad, "system", "ai_enable", global.GCONFIG_AI_ENABLE, "启动AI智能检测总开关（1启动 0关闭，需先在AI模型管理上传模型包并在站点开启）", "int", "", configMap)
+	updateConfigStringItem(initLoad, "system", "ai_mode", global.GCONFIG_AI_MODE, "AI检测工作模式：observe(仅记录/观察) block(达拦截阈值则拦截)", "options", "observe|仅记录,block|拦截", configMap)
 
 	updateConfigIntItem(initLoad, "ssl", "enable_http_80", global.GCONFIG_RECORD_ENABLE_HTTP_80, "启动80端口服务（为自动申请证书使用 HTTP文件验证类型需要，DNS验证不需要）", "int", "", configMap)
 	updateConfigIntItem(initLoad, "ssl", "sslorder_expire_day", global.GCONFIG_RECORD_SSLOrder_EXPIRE_DAY, "自动续期检测小于多少天开始发起自动申请 默认30天", "int", "", configMap)

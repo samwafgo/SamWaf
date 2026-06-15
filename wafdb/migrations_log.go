@@ -188,6 +188,46 @@ func RunLogDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移6: 为 web_logs 表添加 ai_score 字段（AI智能检测得分，支持集中查看观察/拦截）
+		{
+			ID: "202606120001_add_web_logs_ai_score",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202606120001: 为 web_logs 表添加 ai_score 字段")
+
+				if tx.Migrator().HasColumn(&innerbean.WebLog{}, "ai_score") {
+					zlog.Info("ai_score 字段已存在，跳过添加")
+					return nil
+				}
+
+				if err := tx.Migrator().AddColumn(&innerbean.WebLog{}, "AI_SCORE"); err != nil {
+					return fmt.Errorf("添加 ai_score 字段失败: %w", err)
+				}
+
+				zlog.Info("ai_score 字段添加成功（用于记录AI检测得分，支持观察/拦截集中查看）")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202606120001: 删除 web_logs 表的 ai_score 字段")
+				if tx.Migrator().HasColumn(&innerbean.WebLog{}, "ai_score") {
+					return tx.Migrator().DropColumn(&innerbean.WebLog{}, "AI_SCORE")
+				}
+				return nil
+			},
+		},
+		// 迁移7: 为 web_logs 表的 ai_score 建索引（AI看板按 ai_score>0 过滤，命中是极小子集，
+		// 走索引可避免全表扫描；复合 day 兼顾按天范围过滤与趋势排序）
+		{
+			ID: "202606120002_add_web_logs_ai_score_index",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202606120002: 为 web_logs.ai_score 创建索引")
+				return safeCreateIndex(tx, "web_logs", "idx_web_logs_ai_score_day",
+					"CREATE INDEX IF NOT EXISTS idx_web_logs_ai_score_day ON web_logs (ai_score, day)")
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202606120002: 删除 web_logs.ai_score 索引")
+				return safeDropIndex(tx, "web_logs", "idx_web_logs_ai_score_day")
+			},
+		},
 	})
 
 	// 执行迁移

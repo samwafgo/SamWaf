@@ -153,10 +153,11 @@ func (receiver *WafRuleService) GetListApi(wafRuleSearchReq request.WafRuleSearc
 func (receiver *WafRuleService) GetListByHostCodeApi(wafRuleSearchReq request.WafRuleSearchReq) ([]model.Rules, int64, error) {
 	var total int64 = 0
 	var rules []model.Rules
+	// tenant/user 由 before_query 自动追加，这里只传 host_code（占位符与参数数须一致，避免参数顺移）
 	global.GWAF_LOCAL_DB.Where("host_code = ? and rule_status <> 999 ",
-		global.GWAF_TENANT_ID, global.GWAF_USER_CODE, wafRuleSearchReq.HostCode).Limit(wafRuleSearchReq.PageSize).Offset(wafRuleSearchReq.PageSize * (wafRuleSearchReq.PageIndex - 1)).Find(&rules)
+		wafRuleSearchReq.HostCode).Limit(wafRuleSearchReq.PageSize).Offset(wafRuleSearchReq.PageSize * (wafRuleSearchReq.PageIndex - 1)).Find(&rules)
 	global.GWAF_LOCAL_DB.Where("host_code = ? and rule_status <> 999",
-		global.GWAF_TENANT_ID, global.GWAF_USER_CODE, wafRuleSearchReq.HostCode).Model(&model.Rules{}).Count(&total)
+		wafRuleSearchReq.HostCode).Model(&model.Rules{}).Count(&total)
 
 	return rules, total, nil
 }

@@ -34,7 +34,47 @@ func (d *MySQLDialect) FormatTimeWithOffset(colExpr string, offsetMin int) strin
 }
 
 func (d *MySQLDialect) RenameTable(db *gorm.DB, src, dst string) error {
-	return db.Exec(fmt.Sprintf("RENAME TABLE `%s` TO `%s`", src, dst)).Error
+	return db.Exec(fmt.Sprintf("RENAME TABLE %s TO %s", mysqlQuote(src), mysqlQuote(dst))).Error
+}
+
+// ShardSwapTable archives liveTable to archiveTable and leaves an empty liveTable.
+// It first creates an empty clone of the live table (structure + all indexes via
+// CREATE TABLE ... LIKE), then atomically swaps the two names in a single
+// RENAME TABLE statement so there is no window where the live table is missing
+// (avoids losing concurrent log inserts).
+func (d *MySQLDialect) ShardSwapTable(db *gorm.DB, liveTable, archiveTable string) error {
+	tmpTable := liveTable + "_shardtmp"
+
+	// Clean up any leftover temp table from a previously failed attempt.
+	if err := db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", mysqlQuote(tmpTable))).Error; err != nil {
+		return fmt.Errorf("mysql: 清理临时分表 %s 失败: %w", tmpTable, err)
+	}
+	// Create an empty clone with identical structure and indexes.
+	if err := db.Exec(fmt.Sprintf("CREATE TABLE %s LIKE %s", mysqlQuote(tmpTable), mysqlQuote(liveTable))).Error; err != nil {
+		return fmt.Errorf("mysql: 创建临时分表 %s 失败: %w", tmpTable, err)
+	}
+	// Atomic swap: live → archive, tmp → live (single statement).
+	swapSQL := fmt.Sprintf("RENAME TABLE %s TO %s, %s TO %s",
+		mysqlQuote(liveTable), mysqlQuote(archiveTable),
+		mysqlQuote(tmpTable), mysqlQuote(liveTable))
+	if err := db.Exec(swapSQL).Error; err != nil {
+		// Best-effort cleanup so a retry can succeed.
+		db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", mysqlQuote(tmpTable)))
+		return fmt.Errorf("mysql: 原子换表失败 (%s→%s): %w", liveTable, archiveTable, err)
+	}
+	return nil
+}
+
+// TableSizeMB returns (DATA_LENGTH + INDEX_LENGTH) of the table in MB.
+func (d *MySQLDialect) TableSizeMB(db *gorm.DB, table string) (int64, error) {
+	var sizeMB int64
+	err := db.Raw(
+		"SELECT COALESCE((DATA_LENGTH + INDEX_LENGTH), 0) DIV (1024*1024) "+
+			"FROM information_schema.TABLES "+
+			"WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?",
+		table,
+	).Scan(&sizeMB).Error
+	return sizeMB, err
 }
 
 func (d *MySQLDialect) ListTables(db *gorm.DB) ([]string, error) {

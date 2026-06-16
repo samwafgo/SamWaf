@@ -171,8 +171,22 @@ func (w *WafSysInfoApi) CheckVersionApi(c *gin.Context) {
 // SystemParamsApi 返回认证后才能获取的系统参数（可扩展）
 // GET /api/v1/sysinfo/systemparams
 func (w *WafSysInfoApi) SystemParamsApi(c *gin.Context) {
+	// 当前数据库（sqlite|mysql），mysql 额外给出连接目标（不含密码）
+	database := gin.H{"driver": global.GWAF_DB_DRIVER}
+	if global.GWAF_DB_DRIVER == "mysql" {
+		database["host"] = global.GWAF_MYSQL_HOST
+		database["port"] = global.GWAF_MYSQL_PORT
+	}
+	// 当前缓存（memory|redis），redis 额外给出连接目标（不含密码）
+	cache := gin.H{"type": global.GCACHE_TYPE}
+	if global.GCACHE_TYPE == "redis" {
+		cache["host"] = global.GCACHE_REDIS_HOST
+		cache["port"] = global.GCACHE_REDIS_PORT
+	}
 	response.OkWithDetailed(gin.H{
 		"emergency_path": "/" + global.GWAF_SECURITY_EMERGENCY_PATH,
+		"database":       database,
+		"cache":          cache,
 	}, "获取成功", c)
 }
 

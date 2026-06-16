@@ -13,6 +13,7 @@ type AllShareDbRep struct {
 	EndTime   customtype.JsonTime `json:"end_time"`   //结束时间
 	FileName  string              `json:"file_name"`  //文件名
 	Cnt       int64               `json:"cnt"`        //当前数量
+	IsCurrent bool                `json:"is_current"` //是否为当前(实时)分片：前端据此设默认选中项
 }
 
 // AllDomainRep 域名信息

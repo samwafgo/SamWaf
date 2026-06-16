@@ -126,19 +126,24 @@ func (receiver *WafLogService) GetAttackIpListApi(req request.WafAttackIpTagSear
 func (receiver *WafLogService) GetAllAttackIPTagListApi() ([]model.AllIPTag, error) {
 	var results []model.AllIPTag
 
-	// 基础查询部分
-	query := ` 
-SELECT  
+	// 字符串拼接方言差异：SQLite 用 ||，MySQL 用 CONCAT（MySQL 下 || 是逻辑或、双引号是字符串字面量）
+	labelExpr := "ip_tag || ' (' || sum(cnt) || ')'"
+	if dialect.Get().Name() == "mysql" {
+		labelExpr = "CONCAT(ip_tag, ' (', sum(cnt), ')')"
+	}
+	// 基础查询部分（表名不加引号，sqlite/mysql 通用）
+	query := fmt.Sprintf(`
+SELECT
     ip_tag as value,
-	ip_tag || ' (' || sum(cnt) || ')' as label
+    %s as label
     FROM
-    "ip_tags"
-WHERE ip_tag<>'正常'    and 	  tenant_id=? and user_code=? 
-	GROUP BY 
-    tenant_id, 
-    ip_tag 
-order by  sum(cnt) desc 
-`
+    ip_tags
+WHERE ip_tag<>'正常' and tenant_id=? and user_code=?
+	GROUP BY
+    tenant_id,
+    ip_tag
+order by  sum(cnt) desc
+`, labelExpr)
 
 	// 构建查询参数
 	params := []interface{}{global.GWAF_TENANT_ID, global.GWAF_USER_CODE}

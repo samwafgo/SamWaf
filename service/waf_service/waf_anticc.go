@@ -46,13 +46,13 @@ func (receiver *WafAntiCCService) AddApi(req request.WafAntiCCAddReq) error {
 }
 
 func (receiver *WafAntiCCService) CheckIsExistApi(req request.WafAntiCCAddReq) error {
-	return global.GWAF_LOCAL_DB.First(&model.AntiCC{}, "host_code = ?", req.HostCode,
-		req.Url).Error
+	// 仅按 host_code 判断是否已存在（与 AddApi 一致）；tenant/user 由 before_query 自动追加。
+	// 注意：占位符数必须与参数数一致，多传参数会整体顺移导致 "expected N arguments, got N+1"。
+	return global.GWAF_LOCAL_DB.First(&model.AntiCC{}, "host_code = ?", req.HostCode).Error
 }
 func (receiver *WafAntiCCService) ModifyApi(req request.WafAntiCCEditReq) error {
 	var ipWhite model.AntiCC
-	global.GWAF_LOCAL_DB.Where("host_code = ? ", req.HostCode,
-		req.Url).Find(&ipWhite)
+	global.GWAF_LOCAL_DB.Where("host_code = ?", req.HostCode).Find(&ipWhite)
 	if ipWhite.Id != "" && ipWhite.Url != req.Url {
 		return errors.New("当前网站已经存在")
 	}

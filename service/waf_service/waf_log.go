@@ -244,8 +244,9 @@ func (receiver *WafLogService) GetListApi(req request.WafAttackLogSearch) ([]inn
 func (receiver *WafLogService) GetListByHostCodeApi(log request.WafAttackLogSearch) ([]innerbean.WebLog, int64, error) {
 	var total int64 = 0
 	var weblogs []innerbean.WebLog
-	global.GWAF_LOCAL_LOG_DB.Where("host_code = ? ", global.GWAF_TENANT_ID, global.GWAF_USER_CODE, log.HostCode).Limit(log.PageSize).Offset(log.PageSize * (log.PageIndex - 1)).Order("create_time desc").Find(&weblogs)
-	global.GWAF_LOCAL_LOG_DB.Where("host_code = ? ", global.GWAF_TENANT_ID, global.GWAF_USER_CODE, log.HostCode).Model(&innerbean.WebLog{}).Count(&total)
+	// tenant/user 由 before_query 自动追加，这里只传 host_code（占位符与参数数须一致，避免参数顺移）
+	global.GWAF_LOCAL_LOG_DB.Where("host_code = ?", log.HostCode).Limit(log.PageSize).Offset(log.PageSize * (log.PageIndex - 1)).Order("create_time desc").Find(&weblogs)
+	global.GWAF_LOCAL_LOG_DB.Where("host_code = ?", log.HostCode).Model(&innerbean.WebLog{}).Count(&total)
 	return weblogs, total, nil
 }
 func (receiver *WafLogService) DeleteHistory(day string) {

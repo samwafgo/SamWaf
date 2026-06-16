@@ -50,23 +50,41 @@ func TaskShareDbInfo() {
 		shardingReason = fmt.Sprintf("记录数量(%d)超过限制(%d)", total, global.GDATA_SHARE_DB_SIZE)
 	}
 
-	// 检查文件大小是否超过限制
-	fileInfo, err := os.Stat(dbFilePath)
-	if err == nil {
-		fileSizeMB := fileInfo.Size() / (1024 * 1024) // 转换为MB
-		if fileSizeMB > global.GDATA_SHARE_DB_FILE_SIZE {
-			needSharding = true
-			shardingReason = fmt.Sprintf("文件大小(%dMB)超过限制(%dMB)", fileSizeMB, global.GDATA_SHARE_DB_FILE_SIZE)
+	// 检查大小是否超过限制：SQLite 用 .db 文件大小，MySQL 用 web_logs 表(数据+索引)大小
+	if dialect.Get().IsFileBased() {
+		fileInfo, err := os.Stat(dbFilePath)
+		if err == nil {
+			fileSizeMB := fileInfo.Size() / (1024 * 1024) // 转换为MB
+			if fileSizeMB > global.GDATA_SHARE_DB_FILE_SIZE {
+				needSharding = true
+				shardingReason = fmt.Sprintf("文件大小(%dMB)超过限制(%dMB)", fileSizeMB, global.GDATA_SHARE_DB_FILE_SIZE)
+			}
+		} else {
+			zlog.Error(innerLogName, "获取数据库文件大小失败:", err)
 		}
 	} else {
-		zlog.Error(innerLogName, "获取数据库文件大小失败:", err)
+		tableSizeMB, err := dialect.Get().TableSizeMB(global.GWAF_LOCAL_LOG_DB, "web_logs")
+		if err == nil {
+			if tableSizeMB > global.GDATA_SHARE_DB_FILE_SIZE {
+				needSharding = true
+				shardingReason = fmt.Sprintf("表大小(%dMB)超过限制(%dMB)", tableSizeMB, global.GDATA_SHARE_DB_FILE_SIZE)
+			}
+		} else {
+			zlog.Error(innerLogName, "获取web_logs表大小失败:", err)
+		}
 	}
 
 	if needSharding {
 		global.GDATA_CURRENT_CHANGE = true
 		zlog.Info(innerLogName, "开始分库，原因:", shardingReason)
 
-		newDBFilename := fmt.Sprintf("local_log_%v.db", time.Now().Format("20060102150405"))
+		ts := time.Now().Format("20060102150405")
+		newDBFilename := fmt.Sprintf("local_log_%v.db", ts)
+		// 归档标识：SQLite 为新文件名(.db)，MySQL 为归档表名(web_logs_<ts>)
+		archiveName := newDBFilename
+		if !dialect.Get().IsFileBased() {
+			archiveName = fmt.Sprintf("web_logs_%v", ts)
+		}
 
 		var lastedDb model.ShareDb
 		err := global.GWAF_LOCAL_DB.Limit(1).Order("create_time desc").Find(&lastedDb).Error
@@ -85,7 +103,7 @@ func TaskShareDbInfo() {
 			DbLogicType: "log",
 			StartTime:   startTime,
 			EndTime:     customtype.JsonTime(time.Now()),
-			FileName:    newDBFilename,
+			FileName:    archiveName,
 			Cnt:         total,
 		}
 
@@ -127,8 +145,17 @@ func TaskShareDbInfo() {
 			global.GWAF_LOCAL_LOG_DB = nil
 			wafdb.InitLogDb("")
 		} else {
-			// MySQL / SQL Server：RENAME TABLE + AutoMigrate 重建空表（Milestone 2 实现）
-			zlog.Warn(innerLogName, "当前数据库驱动暂不支持自动分库，跳过:", dialect.Get().Name())
+			// MySQL：CREATE TABLE LIKE + 单语句原子 RENAME 换表。
+			// 把 web_logs 归档为 archiveName 并重建同结构空表，换表期间无写入空窗，
+			// 同一连接、表已重建为空，无需像 SQLite 那样置 nil 重连。
+			// 注意：归档表(web_logs_<ts>)不再被 gormigrate 跟踪，今后给 web_logs 加列时
+			// 需同步 ALTER 历史分表，否则读旧分片可能缺列（见 ResolveLogDB 注释）。
+			if err := dialect.Get().ShardSwapTable(global.GWAF_LOCAL_LOG_DB, "web_logs", archiveName); err != nil {
+				zlog.Error(innerLogName, "分表失败:", err)
+			} else {
+				global.GWAF_LOCAL_DB.Create(sharDbBean)
+				zlog.Info(innerLogName, "分表完成，归档表:", archiveName)
+			}
 		}
 		global.GDATA_CURRENT_CHANGE = false
 		zlog.Info(innerLogName, "切库完成...")

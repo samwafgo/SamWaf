@@ -36,6 +36,18 @@ func (d *SQLiteDialect) RenameTable(db *gorm.DB, src, dst string) error {
 	return db.Exec(fmt.Sprintf("ALTER TABLE %s RENAME TO %s", sqliteQuote(src), sqliteQuote(dst))).Error
 }
 
+// ShardSwapTable is not used for SQLite: sharding is done by renaming the whole
+// .db file at the OS level (see waftask.TaskShareDbInfo). Returns an error to
+// guard against accidental use.
+func (d *SQLiteDialect) ShardSwapTable(db *gorm.DB, liveTable, archiveTable string) error {
+	return fmt.Errorf("ShardSwapTable 不适用于 SQLite（按文件改名分库），当前驱动: sqlite")
+}
+
+// TableSizeMB returns 0 for SQLite; the caller uses the .db file size instead.
+func (d *SQLiteDialect) TableSizeMB(db *gorm.DB, table string) (int64, error) {
+	return 0, nil
+}
+
 func (d *SQLiteDialect) ListTables(db *gorm.DB) ([]string, error) {
 	rows, err := db.Raw(
 		"SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",

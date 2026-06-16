@@ -3,9 +3,11 @@ package request
 import "SamWaf/model/common/request"
 
 type WafAttackLogDetailReq struct {
-	CurrrentDbName string `json:"current_db_name"`
-	REQ_UUID       string `json:"req_uuid"`
-	OutputFormat   string `json:"output_format"` //输出格式 raw,curl
+	// detail/httpcopymask 为 GET 请求，需 form tag 才能从 query 绑定；
+	// 前端发送的 query 键为 current_db_name / REQ_UUID / output_format
+	CurrrentDbName string `json:"current_db_name" form:"current_db_name"`
+	REQ_UUID       string `json:"req_uuid" form:"REQ_UUID"`
+	OutputFormat   string `json:"output_format" form:"output_format"` //输出格式 raw,curl
 }
 
 type WafAttackLogDoExport struct {

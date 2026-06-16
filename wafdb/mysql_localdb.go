@@ -269,10 +269,11 @@ func InitLogDbMySQL() (bool, error) {
 
 	pathLogSql(db)
 
-	// Ensure a ShareDb entry exists for the MySQL log database.
-	var total int64
-	global.GWAF_LOCAL_DB.Model(&model.ShareDb{}).Count(&total)
-	if total == 0 {
+	// 确保存在一条 live 分片记录(web_logs)。幂等：仅当该记录不存在时创建。
+	// 不能用 share_dbs 总数判断——从 SQLite 迁移过来时表里已有 .db 历史分片，总数!=0 会导致 live 记录缺失。
+	var liveCount int64
+	global.GWAF_LOCAL_DB.Model(&model.ShareDb{}).Where("file_name = ?", "web_logs").Count(&liveCount)
+	if liveCount == 0 {
 		var logTotal int64
 		global.GWAF_LOCAL_LOG_DB.Model(&innerbean.WebLog{}).Count(&logTotal)
 
@@ -287,8 +288,10 @@ func InitLogDbMySQL() (bool, error) {
 			DbLogicType: "log",
 			StartTime:   customtype.JsonTime(time.Now()),
 			EndTime:     customtype.JsonTime(time.Now()),
-			FileName:    dbName, // MySQL DB name (no .db extension)
-			Cnt:         logTotal,
+			// live 分片标识用 web_logs 表名（与 ResolveLogDB 的 live 判定一致）；
+			// 历史分片由分表任务写入 web_logs_<ts> 表名。不能用库名，否则读取会误入历史分支。
+			FileName: "web_logs",
+			Cnt:      logTotal,
 		}
 		global.GWAF_LOCAL_DB.Create(sharDbBean)
 	}

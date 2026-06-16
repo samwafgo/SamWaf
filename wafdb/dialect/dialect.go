@@ -96,6 +96,19 @@ type DBDialect interface {
 	// for server databases (MySQL: RENAME TABLE; MSSQL: sp_rename).
 	RenameTable(db *gorm.DB, src, dst string) error
 
+	// ShardSwapTable atomically archives liveTable to archiveTable and leaves an
+	// empty liveTable in place (same structure + indexes), used for log table
+	// sharding on server databases.
+	//   MySQL: CREATE TABLE <live>_tmp LIKE <live>; RENAME TABLE <live> TO <archive>, <live>_tmp TO <live>
+	// File-based databases (SQLite) shard via OS-level file rename instead and
+	// return an error here ("not supported").
+	ShardSwapTable(db *gorm.DB, liveTable, archiveTable string) error
+
+	// TableSizeMB returns the on-disk size (data + index) of a table in MB,
+	// used by the sharding task to detect the size threshold on server databases.
+	// File-based databases (SQLite) return 0 (the caller uses the file size instead).
+	TableSizeMB(db *gorm.DB, table string) (int64, error)
+
 	// ListTables returns all user-defined table names in the current schema.
 	ListTables(db *gorm.DB) ([]string, error)
 

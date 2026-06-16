@@ -9,6 +9,7 @@ import (
 	response2 "SamWaf/model/response"
 	"SamWaf/utils"
 	"SamWaf/wafdb"
+	"SamWaf/wafdb/dialect"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -88,6 +89,12 @@ func (w *WafLogAPi) GetListApi(c *gin.Context) {
 	}
 }
 func (w *WafLogAPi) ExportDBApi(c *gin.Context) {
+	// 该导出走 BackupDatabase 备份 .db 文件，仅文件型数据库(SQLite)支持；
+	// MySQL 等无日志文件，直接屏蔽，避免进入后台 goroutine 后才失败。
+	if !dialect.Get().SupportsBackup() {
+		response.FailWithMessage("当前数据库不支持日志文件导出（仅 SQLite 支持）", c)
+		return
+	}
 	if global.GWAF_CAN_EXPORT_DOWNLOAD_LOG == false {
 		// 使用操作结果消息格式
 		serverName := global.GWAF_CUSTOM_SERVER_NAME
@@ -208,6 +215,7 @@ func (w *WafLogAPi) GetListByHostCodeApi(c *gin.Context) {
 
 func (w *WafLogAPi) GetAllShareDbApi(c *gin.Context) {
 	wafShareList, _ := wafShareDbService.GetAllShareDbApi()
+	liveName := wafdb.LiveLogName()                                     // 当前驱动的实时分片标识，用于标记默认选中项
 	allShareDbRep := make([]response2.AllShareDbRep, len(wafShareList)) // 创建数组
 	for i, _ := range wafShareList {
 
@@ -216,6 +224,7 @@ func (w *WafLogAPi) GetAllShareDbApi(c *gin.Context) {
 			EndTime:   wafShareList[i].EndTime,
 			FileName:  wafShareList[i].FileName,
 			Cnt:       wafShareList[i].Cnt,
+			IsCurrent: wafShareList[i].FileName == liveName,
 		}
 
 	}

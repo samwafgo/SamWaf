@@ -122,6 +122,26 @@ func LoadAndInitConfig() {
 		global.GWAF_CAN_EXPORT_DOWNLOAD_LOG = config.GetBool("export_download")
 	}
 
+	// 优雅升级/停止时连接排空超时（秒）。Supervisor 与 Worker 均在启动时从 config.yml 读取，
+	// 超时仍未排空的连接将被强制关闭。<=0 时回退到默认 30s。
+	if config.IsSet("drain_time_out") {
+		if v := config.GetInt64("drain_time_out"); v > 0 {
+			global.GCONFIG_RECORD_DRAIN_TIMEOUT = v
+		}
+	} else {
+		config.Set("drain_time_out", global.GCONFIG_RECORD_DRAIN_TIMEOUT)
+		configChanged = true
+	}
+
+	// 调试响应头开关：开启后在响应头加 X-SamWaf-Worker 标记处理进程，便于验证升级时新旧 Worker 交替。
+	// Supervisor 与 Worker 均在启动时从 config.yml 读取（服务模式下环境变量不会从交互式 shell 传入，故改用配置项）。
+	if config.IsSet("debug_worker_header") {
+		global.GWAF_DEBUG_WORKER_HEADER = config.GetBool("debug_worker_header")
+	} else {
+		config.Set("debug_worker_header", global.GWAF_DEBUG_WORKER_HEADER)
+		configChanged = true
+	}
+
 	// 应用管理功能开关（默认关闭）
 	if config.IsSet("application_manage") == false {
 		config.Set("application_manage", global.GWAF_CAN_APP_MANAGE)

@@ -53,7 +53,8 @@ func InitCoreDb(currentDir string) (bool, error) {
 			zlog.Debug("本地主数据库文件不存在，将创建新数据库")
 		}
 		// 检查文件是否存在
-		if _, err := os.Stat(path); !os.IsNotExist(err) {
+		// 升级接管(takeover)启动时旧 Worker 仍在写该库，跳过整库文件备份，避免拷贝到不一致的 WAL 状态
+		if _, err := os.Stat(path); !os.IsNotExist(err) && !global.GWAF_RUNTIME_IS_TAKEOVER {
 			// 文件存在的逻辑，使用工具函数进行备份
 			backupDir := currentDir + "/data/backups"
 			_, err := utils.BackupFile(path, backupDir, "local_backup", 10)
@@ -70,6 +71,8 @@ func InitCoreDb(currentDir string) (bool, error) {
 		}
 		// 启用 WAL 模式
 		_ = db.Exec("PRAGMA journal_mode=WAL;")
+		// 升级重叠期可能新旧 Worker 并存写库，busy_timeout 让写操作在锁竞争时重试等待，避免立即报 database is locked
+		_ = db.Exec("PRAGMA busy_timeout=5000;")
 
 		// 创建自定义日志记录器
 		gormLogger := NewGormZLogger()
@@ -147,6 +150,8 @@ func InitLogDb(currentDir string) (bool, error) {
 		}
 		// 启用 WAL 模式
 		_ = db.Exec("PRAGMA journal_mode=WAL;")
+		// 升级重叠期可能新旧 Worker 并存写库，busy_timeout 让写操作在锁竞争时重试等待，避免立即报 database is locked
+		_ = db.Exec("PRAGMA busy_timeout=5000;")
 		// 创建自定义日志记录器
 		gormLogger := NewGormZLogger()
 		if global.GWAF_LOG_DEBUG_DB_ENABLE == true {
@@ -225,6 +230,8 @@ func InitManaulLogDb(currentDir string, custFileName string) {
 		}
 		// 启用 WAL 模式
 		_ = db.Exec("PRAGMA journal_mode=WAL;")
+		// 升级重叠期可能新旧 Worker 并存写库，busy_timeout 让写操作在锁竞争时重试等待，避免立即报 database is locked
+		_ = db.Exec("PRAGMA busy_timeout=5000;")
 		// 创建自定义日志记录器
 		gormLogger := NewGormZLogger()
 		if global.GWAF_LOG_DEBUG_DB_ENABLE == true {
@@ -280,6 +287,8 @@ func InitStatsDb(currentDir string) (bool, error) {
 		}
 		// 启用 WAL 模式
 		_ = db.Exec("PRAGMA journal_mode=WAL;")
+		// 升级重叠期可能新旧 Worker 并存写库，busy_timeout 让写操作在锁竞争时重试等待，避免立即报 database is locked
+		_ = db.Exec("PRAGMA busy_timeout=5000;")
 		// 创建自定义日志记录器
 		gormLogger := NewGormZLogger()
 		if global.GWAF_LOG_DEBUG_DB_ENABLE == true {

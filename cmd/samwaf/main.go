@@ -13,6 +13,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/wafenginmodel"
 	"SamWaf/plugin"
+	"SamWaf/supervisor"
 	"SamWaf/utils"
 	"SamWaf/wafai"
 	"SamWaf/wafappengine"
@@ -22,6 +23,7 @@ import (
 	"SamWaf/wafenginecore/wafcaptcha"
 	"SamWaf/wafinit"
 	"SamWaf/wafipban"
+	"SamWaf/wafipc"
 	"SamWaf/wafmangeweb"
 	"SamWaf/wafnotify"
 	"SamWaf/wafowasp"
@@ -102,8 +104,7 @@ func (m *wafSystenService) Start(s service.Service) error {
 // Stop 是服务停止时调用的方法
 func (m *wafSystenService) Stop(s service.Service) error {
 	zlog.Info("服务形式的 -----stop")
-	wafsafeclear.SafeClear()
-	m.stopSamWaf()
+	m.Graceful()
 	return nil
 }
 
@@ -126,25 +127,19 @@ func NeverExit(name string, f func()) {
 // run 是服务的主要逻辑
 func (m *wafSystenService) run() {
 
-	// 先尝试监听端口，检查是否被占用
-	listener, err := net.Listen("tcp", ":"+strconv.Itoa(global.GWAF_LOCAL_SERVER_PORT))
-	defer func() {
-		if listener != nil {
-			err := listener.Close()
-			if err != nil {
-				return
-			}
+	// 先尝试监听端口，检查是否被占用。
+	// 升级接管(takeover)模式下旧 Worker 仍持有管理端口 :26666，新 Worker 预期与其并存，故跳过该探测。
+	if !global.GWAF_RUNTIME_IS_TAKEOVER {
+		listener, err := net.Listen("tcp", ":"+strconv.Itoa(global.GWAF_LOCAL_SERVER_PORT))
+		if err != nil {
+			errMsg := fmt.Sprintf("管理界面端口 %d 已被占用，请检查并修改配置(conf/config.yml local_port字段)或关闭占用该端口的程序: %s",
+				global.GWAF_LOCAL_SERVER_PORT, err.Error())
+			zlog.Error(errMsg)
+			panic(errMsg)
 		}
-	}()
-	if err != nil {
-		errMsg := fmt.Sprintf("管理界面端口 %d 已被占用，请检查并修改配置(conf/config.yml local_port字段)或关闭占用该端口的程序: %s",
-			global.GWAF_LOCAL_SERVER_PORT, err.Error())
-		zlog.Error(errMsg)
-		panic(errMsg)
-		return
-	}
-	if listener != nil {
-		listener.Close()
+		if listener != nil {
+			listener.Close()
+		}
 	}
 	// 获取当前执行文件的路径
 	executablePath, err := os.Executable()
@@ -452,10 +447,16 @@ func (m *wafSystenService) run() {
 
 	//启动隧道
 	globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE = waftunnelengine.NewWafTunnelEngine()
-	globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE.StartTunnel()
 	//启动应用管理引擎
 	globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE = wafappengine.NewWafAppEngine()
-	globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE.StartApps()
+	// 隧道/应用是独占型单例(独占端口/外部进程)，不能与旧 Worker 并存。
+	// takeover 升级模式下延迟到旧 Worker 退出后由 Supervisor 的 ACTIVATE 触发接管（见 activateSingletons）。
+	if !global.GWAF_RUNTIME_IS_TAKEOVER {
+		globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE.StartTunnel()
+		globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE.StartApps()
+	} else {
+		zlog.Info("[Worker] takeover 模式：暂不启动隧道/应用，等待旧 Worker 退出后由 Supervisor 的 ACTIVATE 接管")
+	}
 	//启动管理界面
 	webmanager = &wafmangeweb.WafWebManager{LogName: "WebManager"}
 	go func() {
@@ -503,7 +504,10 @@ func (m *wafSystenService) run() {
 		globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler.ScheduleTask(task.TaskUnit, task.TaskValue, task.TaskAt, task.TaskMethod, task.TaskDaysOfTheWeek)
 	}
 	//结束 需要添加到任务注册器里面的
-	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler.Start()
+	// cron 任务调度同样是单例（避免新旧 Worker 重复执行定时任务）；takeover 模式延迟到 ACTIVATE 再启动。
+	if !global.GWAF_RUNTIME_IS_TAKEOVER {
+		globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler.Start()
+	}
 
 	//脱敏处理初始化
 	global.GWAF_DLP, _ = dlp.NewEngine("wafDlp")
@@ -812,6 +816,15 @@ func (m *wafSystenService) run() {
 			break
 		case update := <-global.GWAF_CHAN_UPDATE:
 			if update == 1 {
+				// 优雅升级：二进制已被 selfupdate 替换到磁盘。
+				// 在 Supervisor 模式下，请求 Supervisor 编排滚动升级（起新 Worker→就绪→本 Worker 排空退出），
+				// 本进程不自行退出，等待 Supervisor 下发 DRAIN，从而实现业务零中断。
+				if gWorkerCtrl != nil {
+					zlog.Info("[Worker] 二进制已就绪，请求 Supervisor 发起滚动升级（业务不中断）")
+					gWorkerCtrl.RequestUpgrade()
+					break
+				}
+				// 兜底：非 Supervisor 托管的独立运行模式，沿用原“停止→拉起新进程→退出”的硬重启。
 				global.GWAF_RUNTIME_SERVER_TYPE = !service.Interactive()
 				//需要重新启动
 				if global.GWAF_RUNTIME_SERVER_TYPE == true {
@@ -958,9 +971,41 @@ func (m *wafSystenService) stopSamWaf() {
 
 }
 
-// 优雅升级
+// supervisorService 是被服务管理器(kardianos)托管的“监护进程”程序。
+// 它常驻、永不为升级而退出，负责拉起/监护/滚动升级 Worker 子进程。
+type supervisorService struct {
+	sup *supervisor.Supervisor
+}
+
+func (s *supervisorService) Start(svc service.Service) error {
+	zlog.Info("[Supervisor] 服务启动")
+	go func() {
+		if err := s.sup.Run(); err != nil {
+			zlog.Error("[Supervisor] 运行失败: " + err.Error())
+		}
+	}()
+	return nil
+}
+
+func (s *supervisorService) Stop(svc service.Service) error {
+	zlog.Info("[Supervisor] 服务停止")
+	s.sup.Shutdown()
+	return nil
+}
+
+// gracefulOnce 保证优雅停止只执行一次，无论由服务 Stop()、系统信号，
+// 还是后续 Supervisor 的 DRAIN 指令触发。
+var gracefulOnce sync.Once
+
+// Graceful 优雅停止的统一入口：先排空业务连接(StopAllProxyServer 已支持 Shutdown 排空)，
+// 回收各引擎/队列/任务资源，最后关闭数据库连接。供信号、服务 Stop 和升级 DRAIN 复用。
 func (m *wafSystenService) Graceful() {
-	//https://github.com/pengge/uranus/blob/main/main.go 预备参考
+	gracefulOnce.Do(func() {
+		zlog.Info("[Graceful] 开始优雅停止：排空业务连接并回收资源 ...")
+		m.stopSamWaf()           // 内部 CloseWaf→StopAllProxyServer 已优雅排空在途连接
+		wafsafeclear.SafeClear() // 最后关闭数据库连接
+		zlog.Info("[Graceful] 优雅停止完成")
+	})
 }
 
 // @title           SamWaf Open API
@@ -986,8 +1031,40 @@ func main() {
 	}
 	pid := os.Getpid()
 	zlog.Debug("SamWaf Current PID:" + strconv.Itoa(pid))
-	//获取外网IP
-	global.GWAF_RUNTIME_IP = utils.GetExternalIp()
+
+	// 调试标识：响应头标记处理进程，便于验证升级时新旧 Worker 交替。
+	// 主开关在 config.yml 的 debug_worker_header（已由上方 LoadAndInitConfig 读入，Supervisor/Worker 均生效，
+	// 服务模式下务必用配置项——SCM/systemd 不会传入交互式 shell 的环境变量）。
+	// 环境变量 SAMWAF_WORKER_HEADER=1 仅作前台调试的临时叠加开关（只会打开、不会关闭配置已开的开关）。
+	global.GWAF_WORKER_TAG = "pid=" + strconv.Itoa(pid) + " born=" + time.Now().Format("15:04:05")
+	if os.Getenv("SAMWAF_WORKER_HEADER") == "1" {
+		global.GWAF_DEBUG_WORKER_HEADER = true
+	}
+
+	// 角色分流：带 --worker 的进程由 Supervisor 拉起，直接运行业务引擎 + 控制通道客户端。
+	if workerRole, ctrlAddr, ctrlToken, takeover := parseWorkerRole(); workerRole {
+		global.GWAF_RUNTIME_IS_TAKEOVER = takeover
+		//获取外网IP
+		global.GWAF_RUNTIME_IP = utils.GetExternalIp()
+		wp := &wafSystenService{}
+		if ctrlAddr != "" {
+			startWorkerControl(ctrlAddr, ctrlToken, wp)
+		}
+		// Worker 自身的信号处理：收到中断/终止(如前台 Ctrl+C、systemd SIGTERM)时优雅排空再退出。
+		// 与 Supervisor 下发的 DRAIN/SHUTDOWN 经 gracefulOnce 去重，只执行一次。
+		go func() {
+			sc := make(chan os.Signal, 1)
+			signal.Notify(sc, os.Interrupt, syscall.SIGTERM)
+			s := <-sc
+			zlog.Info("[Worker] 收到系统信号优雅停止: " + s.String())
+			wp.Graceful()
+			os.Exit(0)
+		}()
+		zlog.Info("以 Worker 角色启动 (takeover=" + strconv.FormatBool(takeover) + ")")
+		wp.run() // 阻塞运行引擎事件循环
+		return
+	}
+	// ===== 以下为 Supervisor 角色（默认，被服务管理器托管，常驻不为升级退出）=====
 
 	option := service.KeyValue{}
 	//windows
@@ -1007,15 +1084,28 @@ func main() {
 		Description: "SamWaf is a Web Application Firewall (WAF) By SamWaf.com",
 		Option:      option,
 	}
-	prg := &wafSystenService{}
+	exePath, _ := os.Executable()
+	dataDir := filepath.Join(utils.GetCurrentDir(), "data")
+	sup := supervisor.New(supervisor.Options{
+		ExePath:      exePath,
+		DataDir:      dataDir,
+		DrainTimeout: int(global.GCONFIG_RECORD_DRAIN_TIMEOUT),
+	})
+	prg := &supervisorService{sup: sup}
 	s, err := service.New(prg, svcConfig)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// 设置服务控制信号处理程序
+	// 设置服务控制信号处理程序：收到中断/终止信号时，令 Supervisor 通知各 Worker 优雅退出再停止。
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, os.Kill, syscall.SIGTERM)
+	go func() {
+		sig := <-sigChan
+		zlog.Info("收到系统信号，Supervisor 开始优雅停止: " + sig.String())
+		sup.Shutdown()
+		os.Exit(0)
+	}()
 
 	if len(os.Args) > 1 {
 		command := os.Args[1]
@@ -1028,6 +1118,12 @@ func main() {
 			}
 			fmt.Printf("Samwaf has successfully executed the '%s' command.\n", command)
 			break
+		case "rolling-restart": // 零停机滚动重启：通知运行中的 Supervisor 换 Worker（业务不中断），亦用于测试升级编排
+			if err := supervisor.TriggerUpgrade(dataDir); err != nil {
+				fmt.Println("滚动重启触发失败:", err)
+				os.Exit(1)
+			}
+			fmt.Println("已触发零停机滚动重启，请观察日志：新 Worker 就绪后旧 Worker 将优雅排空退出。")
 		case "resetpwd": //重制密码
 			wafdb.InitCoreDb("")
 			wafdb.ResetAdminPwd()
@@ -1132,6 +1228,7 @@ func main() {
 			fmt.Println("  start     - 启动服务")
 			fmt.Println("  stop      - 停止服务")
 			fmt.Println("  restart   - 重启服务")
+			fmt.Println("  rolling-restart - 零停机滚动重启(换 Worker，业务不中断)")
 			fmt.Println("  uninstall - 卸载服务")
 			fmt.Println("  resetpwd  - 重置管理员密码")
 			fmt.Println("  resetotp  - 重置安全码")
@@ -1159,4 +1256,193 @@ func main() {
 		log.Fatal(err)
 	}
 
+}
+
+// ===== 优雅升级 Worker 侧控制通道客户端（与 Supervisor 通信） =====
+
+// parseWorkerRole 解析进程角色与控制参数。
+// 由 Supervisor 拉起的 Worker 会带 --worker --ctrl-addr=127.0.0.1:port --token=xxx [--takeover]。
+func parseWorkerRole() (worker bool, ctrlAddr, token string, takeover bool) {
+	for _, a := range os.Args[1:] {
+		switch {
+		case a == "--worker":
+			worker = true
+		case a == "--takeover":
+			takeover = true
+		case strings.HasPrefix(a, "--ctrl-addr="):
+			ctrlAddr = strings.TrimPrefix(a, "--ctrl-addr=")
+		case strings.HasPrefix(a, "--token="):
+			token = strings.TrimPrefix(a, "--token=")
+		}
+	}
+	return
+}
+
+// workerCtrl 是 Worker 侧的控制通道客户端：连接 Supervisor、上报 HELLO/READY/HEARTBEAT、
+// 响应 DRAIN/SHUTDOWN/PING；断线自动重连（支撑 Supervisor 自升级后的“再认领”）。
+type workerCtrl struct {
+	addr  string
+	token string
+	prg   *wafSystenService
+
+	mu   sync.Mutex
+	conn *wafipc.Conn
+	down bool
+}
+
+// gWorkerCtrl 当前进程的 Worker 控制客户端（仅 worker 角色下非 nil）。
+var gWorkerCtrl *workerCtrl
+
+// activateOnce 保证独占单例(应用/隧道/cron)只被接管启动一次。
+var activateOnce sync.Once
+
+// activateSingletons 启动独占型单例：隧道、应用、cron 任务调度。
+// takeover 升级模式下由 Supervisor 在旧 Worker 退出后经 ACTIVATE 触发（此时旧 Worker 已释放这些资源，避免端口/进程冲突）；
+// 非 takeover（首次启动/自愈重拉）则在 run() 内联启动，不经过这里。
+func activateSingletons() {
+	activateOnce.Do(func() {
+		zlog.Info("[Worker] 接管独占单例：启动隧道 / 应用 / 任务调度")
+		if globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE != nil {
+			globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE.StartTunnel()
+		}
+		if globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE != nil {
+			globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE.StartApps()
+		}
+		if globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler != nil {
+			globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler.Start()
+		}
+	})
+}
+
+// startWorkerControl 启动 Worker 控制通道客户端（后台重连循环）。
+func startWorkerControl(addr, token string, prg *wafSystenService) {
+	gWorkerCtrl = &workerCtrl{addr: addr, token: token, prg: prg}
+	go gWorkerCtrl.loop()
+}
+
+func (wc *workerCtrl) loop() {
+	for {
+		if wc.isDown() {
+			return
+		}
+		conn, err := wafipc.Dial(wc.addr)
+		if err != nil {
+			time.Sleep(2 * time.Second)
+			continue
+		}
+		wc.setConn(conn)
+		wc.send(wafipc.Message{
+			Type:     wafipc.MsgHello,
+			PID:      os.Getpid(),
+			Version:  global.GWAF_RELEASE_VERSION,
+			ProtoVer: wafipc.ProtoVersion,
+			Token:    wc.token,
+		})
+		wc.serve(conn) // 阻塞直到连接出错
+		conn.Close()
+		wc.setConn(nil)
+		if wc.isDown() {
+			return
+		}
+		time.Sleep(2 * time.Second) // 重连
+	}
+}
+
+func (wc *workerCtrl) serve(conn *wafipc.Conn) {
+	stop := make(chan struct{})
+	defer close(stop)
+
+	// 就绪上报：等引擎端口起来后发 READY
+	go func() {
+		for i := 0; i < 600; i++ { // 最多约 60s 等引擎对象建立
+			if globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE != nil {
+				break
+			}
+			select {
+			case <-stop:
+				return
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+		if globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE != nil {
+			_ = globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.WaitProxyReady(60 * time.Second)
+		}
+		wc.send(wafipc.Message{Type: wafipc.MsgReady, PID: os.Getpid()})
+	}()
+
+	// 心跳：上报当前连接数
+	go func() {
+		t := time.NewTicker(3 * time.Second)
+		defer t.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-t.C:
+				var conns int64
+				if globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE != nil {
+					conns = globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.TotalConns()
+				}
+				wc.send(wafipc.Message{Type: wafipc.MsgHeartbeat, PID: os.Getpid(), Active: conns})
+			}
+		}
+	}()
+
+	// 命令读取
+	for {
+		m, err := conn.Recv()
+		if err != nil {
+			return
+		}
+		switch m.Type {
+		case wafipc.MsgDrain, wafipc.MsgShutdown:
+			zlog.Info("[Worker] 收到 " + m.Type + " 指令，开始优雅排空退出")
+			go wc.gracefulExit()
+			return
+		case wafipc.MsgActivate:
+			zlog.Info("[Worker] 收到 ACTIVATE 指令，接管独占单例(应用/隧道/任务调度)")
+			go activateSingletons()
+		case wafipc.MsgPing:
+			wc.send(wafipc.Message{Type: wafipc.MsgPong, PID: os.Getpid()})
+		}
+	}
+}
+
+func (wc *workerCtrl) gracefulExit() {
+	wc.markDown()
+	wc.prg.Graceful()
+	wc.send(wafipc.Message{Type: wafipc.MsgGone, PID: os.Getpid()})
+	time.Sleep(200 * time.Millisecond)
+	os.Exit(0)
+}
+
+// RequestUpgrade 通知 Supervisor 发起滚动升级（二进制已被 selfupdate 替换到磁盘）。
+func (wc *workerCtrl) RequestUpgrade() {
+	wc.send(wafipc.Message{Type: wafipc.MsgRequestUpgrade, PID: os.Getpid()})
+}
+
+func (wc *workerCtrl) send(m wafipc.Message) {
+	wc.mu.Lock()
+	defer wc.mu.Unlock()
+	if wc.conn != nil {
+		_ = wc.conn.Send(m)
+	}
+}
+
+func (wc *workerCtrl) setConn(c *wafipc.Conn) {
+	wc.mu.Lock()
+	wc.conn = c
+	wc.mu.Unlock()
+}
+
+func (wc *workerCtrl) isDown() bool {
+	wc.mu.Lock()
+	defer wc.mu.Unlock()
+	return wc.down
+}
+
+func (wc *workerCtrl) markDown() {
+	wc.mu.Lock()
+	wc.down = true
+	wc.mu.Unlock()
 }

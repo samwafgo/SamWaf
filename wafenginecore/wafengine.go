@@ -17,6 +17,7 @@ import (
 	"SamWaf/wafenginecore/wafhttpcore"
 	"SamWaf/wafenginecore/wafhttpserver"
 	"SamWaf/wafenginecore/wafwebcache"
+	"SamWaf/wafnet"
 	"SamWaf/wafproxy"
 	"SamWaf/webplugin"
 	"bytes"
@@ -35,6 +36,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pires/go-proxyproto"
@@ -170,6 +172,12 @@ func inferAttackType(ruleTitle string) string {
 func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	innerLogName := "WafEngine ServeHTTP"
 	global.IncrementQPS() // 使用统一的QPS增量函数
+
+	// 调试：标记响应由哪个 Worker 进程处理（SAMWAF_WORKER_HEADER=1 开启），用于验证升级时新旧 Worker 交替。
+	// 在最前面设置，反向代理会追加上游响应头而不清除此处已设置的值。
+	if global.GWAF_DEBUG_WORKER_HEADER {
+		w.Header().Set("X-SamWaf-Worker", global.GWAF_WORKER_TAG)
+	}
 
 	port := ""
 	host := r.Host
@@ -1643,10 +1651,17 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 
 				serclone, _ := waf.ServerOnline.Get(innruntime.Port)
 				serclone.Svr = svr
+				serclone.Conns = attachConnCounter(svr)
 				serclone.Status = 0
 				waf.ServerOnline.Set(innruntime.Port, serclone)
 				zlog.Info("启动HTTPS重定向服务器" + strconv.Itoa(innruntime.Port))
-				err := redirectServer.ListenAndServeTLS("", "")
+				// 端口复用监听，使升级重叠期新旧 Worker 同端口并存
+				rln, rerr := wafnet.ReusePortTCPListen(svr.Addr)
+				if rerr != nil {
+					zlog.Error("https redirect listen fail", rerr.Error())
+					return
+				}
+				err := redirectServer.ServeTLSWithListener(rln, "", "")
 				if err == http.ErrServerClosed {
 					zlog.Error("[HTTPServer] https redirect server has been close, cause:[%v]", err)
 				}
@@ -1662,6 +1677,7 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 				}
 				serclone, _ := waf.ServerOnline.Get(innruntime.Port)
 				serclone.Svr = svr
+				serclone.Conns = attachConnCounter(svr)
 				serclone.Status = 0
 				waf.ServerOnline.Set(innruntime.Port, serclone)
 				zlog.Info("启动HTTPS 服务器" + strconv.Itoa(innruntime.Port))
@@ -1689,7 +1705,13 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 						zlog.Info("启动HTTPS 3 服务器" + strconv.Itoa(innruntime.Port))
 						serclone.H3 = h3
 						waf.ServerOnline.Set(innruntime.Port, serclone)
-						err := h3.ListenAndServe()
+						// 用端口复用的 UDP PacketConn 启动 HTTP/3，使升级重叠期新旧 Worker 同端口并存
+						pconn, perr := wafnet.ReusePortPacketConn(h3.Addr)
+						if perr != nil {
+							zlog.Error("http3 listen packet fail", perr.Error())
+							return
+						}
+						err := h3.Serve(pconn)
 						if err == http.ErrServerClosed {
 							zlog.Error("[HTTP3Server] https server has been close, cause:[%v]", err)
 						} else {
@@ -1709,7 +1731,7 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 					}()
 				}
 
-				ln, err := net.Listen("tcp", svr.Addr)
+				ln, err := wafnet.ReusePortTCPListen(svr.Addr)
 				if err != nil {
 					zlog.Error("https listen fail", err.Error())
 					return
@@ -1751,12 +1773,13 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 			}
 			serclone, _ := waf.ServerOnline.Get(innruntime.Port)
 			serclone.Svr = svr
+			serclone.Conns = attachConnCounter(svr)
 			serclone.Status = 0
 
 			waf.ServerOnline.Set(innruntime.Port, serclone)
 
 			zlog.Info("启动HTTP 服务器" + strconv.Itoa(innruntime.Port))
-			ln, err := net.Listen("tcp", svr.Addr)
+			ln, err := wafnet.ReusePortTCPListen(svr.Addr)
 			if err != nil {
 				zlog.Error("http listen fail", err.Error())
 				return
@@ -1792,21 +1815,123 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 
 // 关闭所有代理服务
 func (waf *WafEngine) StopAllProxyServer() {
+	// 并发对所有端口优雅排空，避免 N 个端口串行叠加 N×超时；
+	// 各端口独立 Shutdown(ctx)，全部返回即所有在途连接处理完毕。
+	timeout := time.Duration(global.GCONFIG_RECORD_DRAIN_TIMEOUT) * time.Second
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+	var wg sync.WaitGroup
 	waf.ServerOnline.Range(func(port int, v innerbean.ServerRunTime) bool {
-		waf.StopProxyServer(v)
+		wg.Add(1)
+		go func(v innerbean.ServerRunTime) {
+			defer wg.Done()
+			waf.gracefulStopServer(v, timeout)
+		}(v)
 		return true
 	})
+	wg.Wait()
 }
 
-// 关闭指定代理服务
+// 关闭指定代理服务（保持兼容：默认按配置的排空超时优雅关闭）
 func (waf *WafEngine) StopProxyServer(v innerbean.ServerRunTime) {
+	timeout := time.Duration(global.GCONFIG_RECORD_DRAIN_TIMEOUT) * time.Second
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+	waf.gracefulStopServer(v, timeout)
+}
+
+// gracefulStopServer 优雅关闭单个端口的 HTTP/HTTPS/HTTP3 服务：
+// 先停止接收新连接并等待在途请求处理完(Shutdown)，超时仍未排空则强制 Close。
+func (waf *WafEngine) gracefulStopServer(v innerbean.ServerRunTime, timeout time.Duration) {
 	if v.Svr != nil {
-		v.Svr.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		remain := int64(0)
+		if v.Conns != nil {
+			remain = atomic.LoadInt64(v.Conns)
+		}
+		if err := v.Svr.Shutdown(ctx); err != nil {
+			// 超时(或出错)：记录剩余连接数后强制关闭，不让停止流程卡死
+			if v.Conns != nil {
+				remain = atomic.LoadInt64(v.Conns)
+			}
+			zlog.Warn("[GracefulStop] 端口 " + strconv.Itoa(v.Port) + " 排空超时，强制关闭剩余连接数=" + strconv.FormatInt(remain, 10) + " err=" + err.Error())
+			_ = v.Svr.Close()
+		} else {
+			zlog.Info("[GracefulStop] 端口 " + strconv.Itoa(v.Port) + " 已优雅排空 (起始连接数=" + strconv.FormatInt(remain, 10) + ")")
+		}
+		cancel()
 	}
 	if v.H3 != nil {
-		v.H3.Close()
+		hctx, hcancel := context.WithTimeout(context.Background(), timeout)
+		if err := v.H3.Shutdown(hctx); err != nil {
+			_ = v.H3.Close()
+		}
+		hcancel()
 	}
 }
+
+// attachConnCounter 给 http.Server 挂上连接计数回调，返回原子计数指针。
+// 计数口径：StateNew +1 ；StateClosed / StateHijacked -1（每条连接 New 与终态各触发一次，无泄漏）。
+func attachConnCounter(svr *http.Server) *int64 {
+	counter := new(int64)
+	svr.ConnState = func(_ net.Conn, state http.ConnState) {
+		switch state {
+		case http.StateNew:
+			atomic.AddInt64(counter, 1)
+		case http.StateClosed, http.StateHijacked:
+			atomic.AddInt64(counter, -1)
+		}
+	}
+	return counter
+}
+
+// WaitProxyReady 对所有已上线代理端口做就绪自检：逐个 Dial 127.0.0.1:port，
+// 全部可连才返回 nil；任一端口在 timeout 内不可连则返回错误。
+// 用于升级接管(takeover)时，新 Worker 在向 Supervisor 上报 READY 前确认端口已真正接管成功，
+// 覆盖任意数量的自定义端口。
+func (waf *WafEngine) WaitProxyReady(timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	ports := make([]int, 0)
+	waf.ServerOnline.Range(func(port int, v innerbean.ServerRunTime) bool {
+		if v.Port > 0 {
+			ports = append(ports, v.Port)
+		}
+		return true
+	})
+	for _, port := range ports {
+		addr := "127.0.0.1:" + strconv.Itoa(port)
+		ok := false
+		for time.Now().Before(deadline) {
+			conn, err := net.DialTimeout("tcp", addr, 1*time.Second)
+			if err == nil {
+				_ = conn.Close()
+				ok = true
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		if !ok {
+			return fmt.Errorf("端口 %d 就绪自检失败(在 %s 内未能建立连接)", port, timeout)
+		}
+	}
+	zlog.Info("[ReadyCheck] 所有代理端口就绪自检通过，端口数=" + strconv.Itoa(len(ports)))
+	return nil
+}
+
+// TotalConns 汇总所有在线端口当前打开的连接数（用于升级时向 Supervisor 上报心跳/排空进度）。
+func (waf *WafEngine) TotalConns() int64 {
+	var total int64
+	waf.ServerOnline.Range(func(port int, v innerbean.ServerRunTime) bool {
+		if v.Conns != nil {
+			total += atomic.LoadInt64(v.Conns)
+		}
+		return true
+	})
+	return total
+}
+
 func (waf *WafEngine) ClearCcWindows() {
 	// 清理所有主机的IP限流器记录
 	for _, hostSafe := range waf.HostTarget {

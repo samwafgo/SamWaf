@@ -32,6 +32,12 @@ var (
 	GWAF_RUNTIME_IP          string = "127.0.0.1" //本机当前外网IP
 	GWAF_RUNTIME_AREA        string = ""          //本机当前所在区域
 	GWAF_RUNTIME_SERVER_TYPE bool   = false       //当前是是否以服务形式启动
+	GWAF_RUNTIME_IS_TAKEOVER bool   = false       //当前 Worker 是否以升级接管(takeover)方式启动：与旧 Worker 并存，需跳过整库备份等仅首启动作
+
+	// 调试：在响应头 X-SamWaf-Worker 标记处理请求的 Worker 进程，用于验证升级时新旧 Worker 交替。
+	// 仅当环境变量 SAMWAF_WORKER_HEADER=1 时开启（默认关闭，避免对外暴露 PID）。
+	GWAF_DEBUG_WORKER_HEADER bool   = false
+	GWAF_WORKER_TAG          string = "" //当前进程标识(pid+启动时间)
 
 	GWAF_RUNTIME_NEW_VERSION      string = ""      //最新版本号
 	GWAF_RUNTIME_NEW_VERSION_DESC string = ""      //最新版本描述

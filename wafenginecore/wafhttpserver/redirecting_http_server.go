@@ -25,6 +25,12 @@ func (s *RedirectingHTTPSServer) ListenAndServeTLS(certFile, keyFile string) err
 		return err
 	}
 
+	return s.ServeTLSWithListener(listener, certFile, keyFile)
+}
+
+// ServeTLSWithListener 在外部提供的 listener 上启动 TLS 服务（用于端口复用监听等场景）。
+// 由调用方负责创建底层 listener（如端口复用监听），本方法负责包装 proxyproto 与 80→443 重定向逻辑。
+func (s *RedirectingHTTPSServer) ServeTLSWithListener(listener net.Listener, certFile, keyFile string) error {
 	if global.GCONFIG_ENABLE_PROXY_PROTOCOL == 1 {
 		listener = &proxyproto.Listener{Listener: listener}
 	}

@@ -9,6 +9,7 @@ import (
 	"SamWaf/service/waf_service"
 	"SamWaf/utils"
 	"SamWaf/wafmangeweb/static"
+	"SamWaf/wafnet"
 	"context"
 	"crypto/tls"
 	_ "embed"
@@ -290,7 +291,7 @@ func (web *WafWebManager) StartLocalServer() error {
 			zlog.Warn(web.LogName, "SSL证书文件不存在，降级使用 HTTP: ", certPath)
 			// 降级到 HTTP
 			zlog.Info(web.LogName, "启动 HTTP 管理端（降级模式）, port:", global.GWAF_LOCAL_SERVER_PORT)
-			if err := web.HttpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			if err := web.listenAndServeHTTPReuse(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				errMsg := fmt.Sprintf("启动管理界面失败: %s", err.Error())
 				zlog.Error(web.LogName, errMsg)
 				return err
@@ -302,7 +303,7 @@ func (web *WafWebManager) StartLocalServer() error {
 			zlog.Warn(web.LogName, "SSL私钥文件不存在，降级使用 HTTP: ", keyPath)
 			// 降级到 HTTP
 			zlog.Info(web.LogName, "启动 HTTP 管理端（降级模式）, port:", global.GWAF_LOCAL_SERVER_PORT)
-			if err := web.HttpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			if err := web.listenAndServeHTTPReuse(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				errMsg := fmt.Sprintf("启动管理界面失败: %s", err.Error())
 				zlog.Error(web.LogName, errMsg)
 				return err
@@ -316,7 +317,7 @@ func (web *WafWebManager) StartLocalServer() error {
 			zlog.Warn(web.LogName, "SSL证书加载失败，降级使用 HTTP: ", err.Error())
 			// 降级到 HTTP
 			zlog.Info(web.LogName, "启动 HTTP 管理端（降级模式）, port:", global.GWAF_LOCAL_SERVER_PORT)
-			if err := web.HttpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			if err := web.listenAndServeHTTPReuse(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				errMsg := fmt.Sprintf("启动管理界面失败: %s", err.Error())
 				zlog.Error(web.LogName, errMsg)
 				return err
@@ -334,7 +335,7 @@ func (web *WafWebManager) StartLocalServer() error {
 	} else {
 		// 使用 HTTP 启动服务
 		zlog.Info(web.LogName, "启动 HTTP 管理端, port:", global.GWAF_LOCAL_SERVER_PORT)
-		if err := web.HttpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := web.listenAndServeHTTPReuse(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errMsg := fmt.Sprintf("启动管理界面失败: %s", err.Error())
 			zlog.Error(web.LogName, errMsg)
 			return err
@@ -351,8 +352,8 @@ func (web *WafWebManager) listenAndServeHybrid(cert tls.Certificate) error {
 		addr = ":http"
 	}
 
-	// 创建基础监听器
-	ln, err := net.Listen("tcp", addr)
+	// 创建基础监听器（端口复用，支持升级重叠期新旧 Worker 同端口）
+	ln, err := wafnet.ReusePortTCPListen(addr)
 	if err != nil {
 		return err
 	}
@@ -365,6 +366,20 @@ func (web *WafWebManager) listenAndServeHybrid(cert tls.Certificate) error {
 
 	// 使用混合监听器启动服务
 	return web.HttpServer.Serve(hybridListener)
+}
+
+// listenAndServeHTTPReuse 用端口复用监听启动 HTTP 管理端，
+// 使升级重叠期新旧 Worker 可同时绑定管理端口 :26666（旧 Worker 退出后由新 Worker 承接）。
+func (web *WafWebManager) listenAndServeHTTPReuse() error {
+	addr := web.HttpServer.Addr
+	if addr == "" {
+		addr = ":http"
+	}
+	ln, err := wafnet.ReusePortTCPListen(addr)
+	if err != nil {
+		return err
+	}
+	return web.HttpServer.Serve(ln)
 }
 
 // hybridListener 混合监听器，可以同时处理 HTTPS 和 HTTP 连接

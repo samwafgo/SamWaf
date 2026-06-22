@@ -22,6 +22,12 @@ var logger *zap.Logger
 // baseCores 保存 InitZLog 创建的基础 cores，供 AddCore 重建时使用
 var baseCores []zapcore.Core
 
+// FileName 是落盘日志文件名（位于 logs/ 目录下），默认 "log.log"。
+// 多进程场景（Supervisor + Worker 同一二进制两个进程）必须用不同文件名，
+// 否则 lumberjack 滚动时 rename 会因文件被另一进程占用而失败（Windows 上尤甚）。
+// 调用 InitZLog 之前按角色设置（如 Supervisor 设为 "supervisor.log"）。
+var FileName = "log.log"
+
 // InitZLog 初始化zlog
 func InitZLog(debugEnable bool, outputFormat string) {
 	encoderConfig := zap.NewProductionEncoderConfig()
@@ -95,7 +101,7 @@ func getFileLogWriter() (writeSyncer zapcore.WriteSyncer) {
 		logDir = os.TempDir()
 	}
 
-	logFile := filepath.Join(logDir, "log.log")
+	logFile := filepath.Join(logDir, FileName)
 	fmt.Printf("Samwaf Log Path: %s\n", logFile)
 
 	// 使用 lumberjack 实现 log rotate

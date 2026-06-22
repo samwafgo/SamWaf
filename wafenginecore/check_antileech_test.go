@@ -17,9 +17,8 @@ func TestCheckAntiLeech(t *testing.T) {
 	zlog.InitZLog(global.GWAF_LOG_DEBUG_ENABLE, "json")
 
 	// 初始化 WAF 引擎
-	waf := &WafEngine{
-		HostTarget: make(map[string]*wafenginmodel.HostSafe),
-	}
+	waf := &WafEngine{}
+	waf.InitRouting()
 
 	// 构造防盗链配置JSON
 	antiLeechConfig := model.AntiLeechConfig{

@@ -43,15 +43,15 @@ func (waf *WafEngine) CheckAllowURL(r *http.Request, weblogbean *innerbean.WebLo
 	}
 
 	//url白名单策略（全局）
-	if waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].Host.GUARD_STATUS == 1 && waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlWhiteLists != nil {
-		for i := 0; i < len(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlWhiteLists); i++ {
+	if waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].Host.GUARD_STATUS == 1 && waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlWhiteLists != nil {
+		for i := 0; i < len(waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlWhiteLists); i++ {
 			// 将全局规则URL也转为小写
-			lowerGlobalRuleURL := strings.ToLower(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlWhiteLists[i].Url)
+			lowerGlobalRuleURL := strings.ToLower(waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlWhiteLists[i].Url)
 
-			if (waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlWhiteLists[i].CompareType == "等于" && lowerGlobalRuleURL == lowerURL) ||
-				(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlWhiteLists[i].CompareType == "前缀匹配" && strings.HasPrefix(lowerURL, lowerGlobalRuleURL)) ||
-				(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlWhiteLists[i].CompareType == "后缀匹配" && strings.HasSuffix(lowerURL, lowerGlobalRuleURL)) ||
-				(waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlWhiteLists[i].CompareType == "包含匹配" && strings.Contains(lowerURL, lowerGlobalRuleURL)) {
+			if (waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlWhiteLists[i].CompareType == "等于" && lowerGlobalRuleURL == lowerURL) ||
+				(waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlWhiteLists[i].CompareType == "前缀匹配" && strings.HasPrefix(lowerURL, lowerGlobalRuleURL)) ||
+				(waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlWhiteLists[i].CompareType == "后缀匹配" && strings.HasSuffix(lowerURL, lowerGlobalRuleURL)) ||
+				(waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlWhiteLists[i].CompareType == "包含匹配" && strings.Contains(lowerURL, lowerGlobalRuleURL)) {
 				result.JumpGuardResult = true
 				break
 			}

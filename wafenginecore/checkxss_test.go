@@ -13,11 +13,10 @@ import (
 
 func newTestWafForXSS() (*WafEngine, *wafenginmodel.HostSafe) {
 	zlog.InitZLog(global.GWAF_LOG_DEBUG_ENABLE, "json")
-	waf := &WafEngine{
-		HostTarget: make(map[string]*wafenginmodel.HostSafe),
-	}
+	waf := &WafEngine{}
+	waf.InitRouting()
 	global.GWAF_GLOBAL_HOST_NAME = "全局网站"
-	waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME] = &wafenginmodel.HostSafe{
+	waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME] = &wafenginmodel.HostSafe{
 		Host: model.Hosts{GUARD_STATUS: 1},
 	}
 	hostSafe := &wafenginmodel.HostSafe{
@@ -28,7 +27,7 @@ func newTestWafForXSS() (*WafEngine, *wafenginmodel.HostSafe) {
 
 func TestCheckXss(t *testing.T) {
 	waf, hostSafe := newTestWafForXSS()
-	globalHost := waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME]
+	globalHost := waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME]
 
 	tests := []struct {
 		name        string

@@ -12,15 +12,13 @@ import (
 
 // newTestWafEngine 创建不依赖 DB 的最小 WafEngine，供单元测试使用
 func newTestWafEngine() *WafEngine {
-	return &WafEngine{
-		HostTarget:           make(map[string]*wafenginmodel.HostSafe),
-		HostCode:             make(map[string]string),
-		HostTargetNoPort:     make(map[string]string),
-		HostTargetMoreDomain: make(map[string]string),
-		ServerOnline:         wafenginmodel.NewSafeServerMap(),
-		TransportPool:        make(map[string]*http.Transport),
-		AllCertificate:       AllCertificate{Map: make(map[string]*tls.Certificate)},
+	waf := &WafEngine{
+		ServerOnline:   wafenginmodel.NewSafeServerMap(),
+		TransportPool:  make(map[string]*http.Transport),
+		AllCertificate: AllCertificate{Map: make(map[string]*tls.Certificate)},
 	}
+	waf.InitRouting() // 初始化 RCU 路由快照；单测中后续经 rt() 读写同一张表
+	return waf
 }
 
 // simulateLoadHostMaps 模拟 LoadHost 中纯 map 赋值的部分（不含 DB 查询）
@@ -39,13 +37,13 @@ func simulateLoadHostMaps(waf *WafEngine, inHost model.Hosts) {
 	}
 
 	// 主端口注册
-	waf.HostTarget[inHost.Host+":"+strconv.Itoa(inHost.Port)] = hostsafe
+	waf.rt().HostTarget[inHost.Host+":"+strconv.Itoa(inHost.Port)] = hostsafe
 	// Fix2: HostCode 只指向主端口，不在副端口循环内覆盖
-	waf.HostCode[inHost.Code] = inHost.Host + ":" + strconv.Itoa(inHost.Port)
+	waf.rt().HostCode[inHost.Code] = inHost.Host + ":" + strconv.Itoa(inHost.Port)
 
 	// 副端口注册（只注册 HostTarget，不改 HostCode）
 	for _, port := range extraPorts {
-		waf.HostTarget[inHost.Host+":"+strconv.Itoa(port)] = hostsafe
+		waf.rt().HostTarget[inHost.Host+":"+strconv.Itoa(port)] = hostsafe
 	}
 
 	// Fix1: BindMoreHost 对每个端口（主 + 副）都注册 HostTargetMoreDomain
@@ -55,9 +53,9 @@ func simulateLoadHostMaps(waf *WafEngine, inHost model.Hosts) {
 			if line == "" {
 				continue
 			}
-			waf.HostTargetMoreDomain[line+":"+strconv.Itoa(inHost.Port)] = inHost.Code
+			waf.rt().HostTargetMoreDomain[line+":"+strconv.Itoa(inHost.Port)] = inHost.Code
 			for _, ep := range extraPorts {
-				waf.HostTargetMoreDomain[line+":"+strconv.Itoa(ep)] = inHost.Code
+				waf.rt().HostTargetMoreDomain[line+":"+strconv.Itoa(ep)] = inHost.Code
 			}
 		}
 	}
@@ -84,7 +82,7 @@ func TestHostTargetMoreDomain_AllPortCombinations(t *testing.T) {
 	// 主域名 × 所有端口 应在 HostTarget
 	for _, port := range []int{80, 8080, 9090} {
 		key := "main.example.com:" + strconv.Itoa(port)
-		if waf.HostTarget[key] == nil {
+		if waf.rt().HostTarget[key] == nil {
 			t.Errorf("HostTarget 缺少条目 %s（主域名×端口组合未注册）", key)
 		}
 	}
@@ -93,7 +91,7 @@ func TestHostTargetMoreDomain_AllPortCombinations(t *testing.T) {
 	for _, domain := range []string{"sub1.example.com", "sub2.example.com"} {
 		for _, port := range []int{80, 8080, 9090} {
 			key := domain + ":" + strconv.Itoa(port)
-			if waf.HostTargetMoreDomain[key] == "" {
+			if waf.rt().HostTargetMoreDomain[key] == "" {
 				t.Errorf("HostTargetMoreDomain 缺少条目 %s（副域名×副端口未注册）", key)
 			}
 		}
@@ -116,7 +114,7 @@ func TestHostTargetMoreDomain_SinglePort(t *testing.T) {
 
 	for _, domain := range []string{"www.example.com", "alias.example.com"} {
 		key := domain + ":443"
-		if waf.HostTargetMoreDomain[key] == "" {
+		if waf.rt().HostTargetMoreDomain[key] == "" {
 			t.Errorf("HostTargetMoreDomain 缺少条目 %s", key)
 		}
 	}
@@ -137,7 +135,7 @@ func TestHostTargetMoreDomain_EmptyLines(t *testing.T) {
 	simulateLoadHostMaps(waf, inHost)
 
 	// 空行不应产生空键
-	for key := range waf.HostTargetMoreDomain {
+	for key := range waf.rt().HostTargetMoreDomain {
 		if strings.HasPrefix(key, ":") || strings.Contains(key, "  :") {
 			t.Errorf("HostTargetMoreDomain 包含由空行产生的错误键 %q", key)
 		}
@@ -146,7 +144,7 @@ func TestHostTargetMoreDomain_EmptyLines(t *testing.T) {
 	// 有效域名应正常注册
 	for _, port := range []int{80, 8080} {
 		key := "sub.example.com:" + strconv.Itoa(port)
-		if waf.HostTargetMoreDomain[key] == "" {
+		if waf.rt().HostTargetMoreDomain[key] == "" {
 			t.Errorf("HostTargetMoreDomain 缺少有效条目 %s", key)
 		}
 	}
@@ -182,14 +180,14 @@ func TestHostCode_AlwaysPointsToMainPort(t *testing.T) {
 			simulateLoadHostMaps(waf, inHost)
 
 			want := tc.host + ":" + strconv.Itoa(tc.mainPort)
-			got := waf.HostCode["code_"+tc.host]
+			got := waf.rt().HostCode["code_"+tc.host]
 			if got != want {
 				t.Errorf("HostCode[%s] = %q，期望 %q（副端口不应覆盖主端口）",
 					"code_"+tc.host, got, want)
 			}
 
 			// 验证 HostTarget 通过 HostCode 能正确找回 hostsafe
-			if waf.HostTarget[got] == nil {
+			if waf.rt().HostTarget[got] == nil {
 				t.Errorf("HostTarget[%s] 为 nil，HostCode 指向了无效 key", got)
 			}
 		})
@@ -209,7 +207,7 @@ func TestHostCode_SinglePort(t *testing.T) {
 	simulateLoadHostMaps(waf, inHost)
 
 	want := "single.example.com:443"
-	got := waf.HostCode["site_single"]
+	got := waf.rt().HostCode["site_single"]
 	if got != want {
 		t.Errorf("HostCode[site_single] = %q，期望 %q", got, want)
 	}
@@ -236,7 +234,7 @@ func TestRemoveHost_CleansAllBindMorePortEntries(t *testing.T) {
 	// 删除前确认所有端口已注册
 	for _, port := range []int{80, 8080, 9090} {
 		key := "clean.example.com:" + strconv.Itoa(port)
-		if waf.HostTarget[key] == nil {
+		if waf.rt().HostTarget[key] == nil {
 			t.Fatalf("测试前提不满足：HostTarget 缺少 %s", key)
 		}
 	}
@@ -246,14 +244,14 @@ func TestRemoveHost_CleansAllBindMorePortEntries(t *testing.T) {
 	// 删除后所有端口条目应消失
 	for _, port := range []int{80, 8080, 9090} {
 		key := "clean.example.com:" + strconv.Itoa(port)
-		if waf.HostTarget[key] != nil {
+		if waf.rt().HostTarget[key] != nil {
 			t.Errorf("RemoveHost 后 HostTarget 仍有残留条目 %s", key)
 		}
 	}
 
 	// HostCode 也应消失
-	if waf.HostCode["site_clean"] != "" {
-		t.Errorf("RemoveHost 后 HostCode[site_clean] 仍有值 %q", waf.HostCode["site_clean"])
+	if waf.rt().HostCode["site_clean"] != "" {
+		t.Errorf("RemoveHost 后 HostCode[site_clean] 仍有值 %q", waf.rt().HostCode["site_clean"])
 	}
 }
 
@@ -276,7 +274,7 @@ func TestRemoveHost_CleansMoreDomainEntries(t *testing.T) {
 	for _, domain := range []string{"sub1.example.com", "sub2.example.com"} {
 		for _, port := range []int{80, 8080} {
 			key := domain + ":" + strconv.Itoa(port)
-			if waf.HostTargetMoreDomain[key] == "" {
+			if waf.rt().HostTargetMoreDomain[key] == "" {
 				t.Fatalf("测试前提不满足：HostTargetMoreDomain 缺少 %s", key)
 			}
 		}
@@ -285,7 +283,7 @@ func TestRemoveHost_CleansMoreDomainEntries(t *testing.T) {
 	waf.RemoveHost(host)
 
 	// 删除后不应有任何该站点的 MoreDomain 条目
-	for moreDomain, code := range waf.HostTargetMoreDomain {
+	for moreDomain, code := range waf.rt().HostTargetMoreDomain {
 		if code == "site_more" {
 			t.Errorf("RemoveHost 后 HostTargetMoreDomain 中仍有 %s -> site_more", moreDomain)
 		}
@@ -298,9 +296,9 @@ func TestRemoveHost_AutoJumpHTTPS(t *testing.T) {
 	waf := newTestWafEngine()
 
 	hostsafe := &wafenginmodel.HostSafe{Host: model.Hosts{Code: "site_ssl"}}
-	waf.HostTarget["ssl.example.com:443"] = hostsafe
-	waf.HostTarget["ssl.example.com:80"] = hostsafe // AutoJumpHTTPS 注册的
-	waf.HostCode["site_ssl"] = "ssl.example.com:443"
+	waf.rt().HostTarget["ssl.example.com:443"] = hostsafe
+	waf.rt().HostTarget["ssl.example.com:80"] = hostsafe // AutoJumpHTTPS 注册的
+	waf.rt().HostCode["site_ssl"] = "ssl.example.com:443"
 
 	host := model.Hosts{
 		Code:          "site_ssl",
@@ -310,10 +308,10 @@ func TestRemoveHost_AutoJumpHTTPS(t *testing.T) {
 	}
 	waf.RemoveHost(host)
 
-	if waf.HostTarget["ssl.example.com:443"] != nil {
+	if waf.rt().HostTarget["ssl.example.com:443"] != nil {
 		t.Error("RemoveHost 后 ssl.example.com:443 应被清除")
 	}
-	if waf.HostTarget["ssl.example.com:80"] != nil {
+	if waf.rt().HostTarget["ssl.example.com:80"] != nil {
 		t.Error("RemoveHost 后 AutoJumpHTTPS 的 :80 条目未清除")
 	}
 }
@@ -351,9 +349,9 @@ func TestIssue1_SubDomainExtraPortRouting(t *testing.T) {
 		t.Run(c.desc, func(t *testing.T) {
 			// 模拟 ServeHTTP 路由查找顺序
 			gotCode := ""
-			if target, ok := waf.HostTarget[c.requestHost]; ok {
+			if target, ok := waf.rt().HostTarget[c.requestHost]; ok {
 				gotCode = target.Host.Code
-			} else if code, ok := waf.HostTargetMoreDomain[c.requestHost]; ok {
+			} else if code, ok := waf.rt().HostTargetMoreDomain[c.requestHost]; ok {
 				gotCode = code
 			}
 
@@ -390,14 +388,14 @@ func TestIssue2_DeleteSiteNotAffectOtherSiteExtraPort(t *testing.T) {
 	waf.RemoveHost(hostB)
 
 	// 站点 A 的主端口和副端口应仍然存在
-	if waf.HostTarget["siteA.com:80"] == nil {
+	if waf.rt().HostTarget["siteA.com:80"] == nil {
 		t.Error("删除站点 B 后，站点 A 主端口 :80 不应受影响")
 	}
-	if waf.HostTarget["siteA.com:8080"] == nil {
+	if waf.rt().HostTarget["siteA.com:8080"] == nil {
 		t.Error("删除站点 B 后，站点 A 副端口 :8080 不应受影响")
 	}
-	if waf.HostCode["A"] != "siteA.com:80" {
-		t.Errorf("删除站点 B 后，站点 A 的 HostCode 应为 siteA.com:80，实际 %q", waf.HostCode["A"])
+	if waf.rt().HostCode["A"] != "siteA.com:80" {
+		t.Errorf("删除站点 B 后，站点 A 的 HostCode 应为 siteA.com:80，实际 %q", waf.rt().HostCode["A"])
 	}
 }
 
@@ -433,13 +431,13 @@ func TestIssue2_CreateNewThenDeleteNotBreakExistingExtraPort(t *testing.T) {
 		"example.com:8443",
 	}
 	for _, key := range expectedKeys {
-		if waf.HostTarget[key] == nil {
+		if waf.rt().HostTarget[key] == nil {
 			t.Errorf("删除站点 B 后，站点 A 的 HostTarget[%s] 被错误清除", key)
 		}
 	}
 
 	// 站点 B 的条目应已清除
-	if waf.HostTarget["newsite.com:7070"] != nil {
+	if waf.rt().HostTarget["newsite.com:7070"] != nil {
 		t.Error("站点 B 的条目应被 RemoveHost 清除")
 	}
 }
@@ -471,7 +469,7 @@ func TestBindMorePortChange_OldPortCleaned(t *testing.T) {
 
 	// 确认旧状态
 	for _, port := range []int{80, 8080, 9090} {
-		if waf.HostTarget["x.example.com:"+strconv.Itoa(port)] == nil {
+		if waf.rt().HostTarget["x.example.com:"+strconv.Itoa(port)] == nil {
 			t.Fatalf("测试前提不满足：HostTarget 缺少 x.example.com:%d", port)
 		}
 	}
@@ -492,15 +490,15 @@ func TestBindMorePortChange_OldPortCleaned(t *testing.T) {
 	simulateLoadHostMaps(waf, newHost)
 
 	// 新端口 7070 应存在
-	if waf.HostTarget["x.example.com:7070"] == nil {
+	if waf.rt().HostTarget["x.example.com:7070"] == nil {
 		t.Error("新副端口 7070 应已注册到 HostTarget")
 	}
 	// 保留的端口 8080 应存在
-	if waf.HostTarget["x.example.com:8080"] == nil {
+	if waf.rt().HostTarget["x.example.com:8080"] == nil {
 		t.Error("副端口 8080 应仍然注册")
 	}
 	// 旧端口 9090 应被清除（Bug A+B 修复后）
-	if waf.HostTarget["x.example.com:9090"] != nil {
+	if waf.rt().HostTarget["x.example.com:9090"] != nil {
 		t.Error("旧副端口 9090 应在 RemoveHost(hostsOld) 后被清除（Bug A+B 未修复时会残留）")
 	}
 }
@@ -521,7 +519,7 @@ func TestBindMorePortChange_WithOldDataVsNewData(t *testing.T) {
 		simulateLoadHostMaps(waf, newHost)
 
 		// 9090 应被清除，但传新数据时实际没清
-		if waf.HostTarget["h.com:9090"] != nil {
+		if waf.rt().HostTarget["h.com:9090"] != nil {
 			t.Log("符合预期（Bug B 存在时）：传新数据，旧端口 9090 残留 —— 这正是 Bug B 的表现")
 		} else {
 			t.Log("旧端口 9090 被清除（不受 Bug B 影响的情况）")
@@ -538,11 +536,11 @@ func TestBindMorePortChange_WithOldDataVsNewData(t *testing.T) {
 		simulateLoadHostMaps(waf, newHost)
 
 		// 9090 必须被清除
-		if waf.HostTarget["h.com:9090"] != nil {
+		if waf.rt().HostTarget["h.com:9090"] != nil {
 			t.Error("传旧数据后旧端口 9090 仍残留，Fix 未生效")
 		}
 		// 7070 必须存在
-		if waf.HostTarget["h.com:7070"] == nil {
+		if waf.rt().HostTarget["h.com:7070"] == nil {
 			t.Error("新端口 7070 未注册")
 		}
 	})

@@ -18,13 +18,12 @@ func TestCheckDenyURL(t *testing.T) {
 	//初始化日志
 	zlog.InitZLog(global.GWAF_LOG_DEBUG_ENABLE, "json")
 	// 初始化 WAF 引擎
-	waf := &WafEngine{
-		HostTarget: make(map[string]*wafenginmodel.HostSafe),
-	}
+	waf := &WafEngine{}
+	waf.InitRouting()
 
 	// 设置全局主机
 	global.GWAF_GLOBAL_HOST_NAME = "全局网站"
-	waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME] = &wafenginmodel.HostSafe{
+	waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME] = &wafenginmodel.HostSafe{
 		Host: model.Hosts{
 			GUARD_STATUS: 1, // 启用防护
 		},
@@ -180,7 +179,7 @@ func TestCheckDenyURL(t *testing.T) {
 					},
 					// 不设置任何URL黑名单
 				}
-				result = waf.CheckDenyURL(req, weblog, formValues, emptyLocalHost, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME])
+				result = waf.CheckDenyURL(req, weblog, formValues, emptyLocalHost, waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME])
 			} else {
 				// 测试本地规则 - 使用禁用的全局主机配置，确保只测试本地规则
 				disabledGlobalHost := &wafenginmodel.HostSafe{
@@ -212,7 +211,7 @@ func TestCheckDenyURL(t *testing.T) {
 		}
 
 		// 调用测试函数
-		result := waf.CheckDenyURL(req, weblog, nil, localHost, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME])
+		result := waf.CheckDenyURL(req, weblog, nil, localHost, waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME])
 
 		// 验证结果 - 应该匹配本地规则（因为本地规则优先）
 		if !result.IsBlock {

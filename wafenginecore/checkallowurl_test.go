@@ -18,13 +18,12 @@ func TestCheckAllowURL(t *testing.T) {
 	//初始化日志
 	zlog.InitZLog(global.GWAF_LOG_DEBUG_ENABLE, "json")
 	// 初始化 WAF 引擎
-	waf := &WafEngine{
-		HostTarget: make(map[string]*wafenginmodel.HostSafe),
-	}
+	waf := &WafEngine{}
+	waf.InitRouting()
 
 	// 设置全局主机
 	global.GWAF_GLOBAL_HOST_NAME = "全局网站"
-	waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME] = &wafenginmodel.HostSafe{
+	waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME] = &wafenginmodel.HostSafe{
 		Host: model.Hosts{
 			GUARD_STATUS: 1, // 启用防护
 		},
@@ -169,7 +168,7 @@ func TestCheckAllowURL(t *testing.T) {
 					},
 					// 不设置任何URL白名单
 				}
-				result = waf.CheckAllowURL(req, &weblog, formValues, emptyLocalHost, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME])
+				result = waf.CheckAllowURL(req, &weblog, formValues, emptyLocalHost, waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME])
 			} else {
 				// 测试本地规则 - 使用禁用的全局主机配置，确保只测试本地规则
 				disabledGlobalHost := &wafenginmodel.HostSafe{
@@ -197,7 +196,7 @@ func TestCheckAllowURL(t *testing.T) {
 		}
 
 		// 调用测试函数
-		result := waf.CheckAllowURL(req, &weblog, nil, localHost, waf.HostTarget[global.GWAF_GLOBAL_HOST_NAME])
+		result := waf.CheckAllowURL(req, &weblog, nil, localHost, waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME])
 
 		// 验证结果 - 应该匹配本地规则或全局规则，导致跳过防护
 		if !result.JumpGuardResult {

@@ -1027,7 +1027,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 				weblogfrist.ACTION = "放行"
 				weblogfrist.STATUS = resp.Status
 				weblogfrist.STATUS_CODE = resp.StatusCode
-				weblogfrist.RES_CONTENT_LENGTH = resp.ContentLength
+				weblogfrist.RES_CONTENT_LENGTH = sanitizeContentLength(resp.ContentLength)
 
 				resHeader := joinHeader(resp.Header)
 				weblogfrist.ResHeader = resHeader
@@ -1075,7 +1075,8 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 			weblogfrist.ACTION = "放行"
 			weblogfrist.STATUS = resp.Status
 			weblogfrist.STATUS_CODE = resp.StatusCode
-			weblogfrist.RES_CONTENT_LENGTH = resp.ContentLength
+			// 上游 chunked 传输时 resp.ContentLength 为 -1，先按 0 计；非静态资源后续会用真实落盘字节数回填
+			weblogfrist.RES_CONTENT_LENGTH = sanitizeContentLength(resp.ContentLength)
 
 			//返回内容的类型
 			respContentType := strings.ToLower(resp.Header.Get("Content-Type"))
@@ -1235,6 +1236,8 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 					resp.Body = io.NopCloser(bytes.NewBuffer(finalCompressBytes))
 					resp.ContentLength = int64(len(finalCompressBytes))
 					resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(finalCompressBytes)), 10))
+					// body 已被完整读取并重写，用真实字节数回填出站流量，修正 chunked 场景下的 -1
+					weblogfrist.RES_CONTENT_LENGTH = int64(len(finalCompressBytes))
 
 				} else {
 					resp.Body = io.NopCloser(bytes.NewBuffer(orgContentBytes))
@@ -1452,6 +1455,15 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 
 		return nil
 	}
+}
+
+// sanitizeContentLength 规整 http 报文的 ContentLength：
+// Go 在分块传输(chunked)等长度未知场景下会返回 -1，直接用于流量累加会导致出现负数，这里统一按 0 处理。
+func sanitizeContentLength(n int64) int64 {
+	if n < 0 {
+		return 0
+	}
+	return n
 }
 
 func joinHeader(h http.Header) string {

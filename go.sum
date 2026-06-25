@@ -354,6 +354,7 @@ github.com/samwafgo/cap_go_server v1.0.0 h1:1LnITCKtYaw0X3KM4FGT9mh+3RDsyMGHefwX
 github.com/samwafgo/cap_go_server v1.0.0/go.mod h1:PbMuR/mvf5D2vqj6nZDIFuBhYWCQCq4VnKPQstZS2gc=
 github.com/samwafgo/go-wxsqlite3 v1.0.1 h1:Jv3IH1zmp2kyFWFRzz6eZGXSWWCGESPneCAgeYqZAlk=
 github.com/samwafgo/go-wxsqlite3 v1.0.1/go.mod h1:Q72tT7m3Twc1yNqJHmwl3nKR26mgFlguzSnxSAFiLJU=
+github.com/samwafgo/go-wxsqlite3 v1.0.2/go.mod h1:Q72tT7m3Twc1yNqJHmwl3nKR26mgFlguzSnxSAFiLJU=
 github.com/samwafgo/sqlitedriver v1.0.2 h1:QGQrK+r9z9izEpPAW5MSjhK3vg5H45STLVrAiFT0QJU=
 github.com/samwafgo/sqlitedriver v1.0.2/go.mod h1:OtH66Yn4WxfnFA+1VhT2iMYdbKJQgZDExqsDy/1Nz5w=
 github.com/sergi/go-diff v1.1.0 h1:we8PVUC3FE2uYfodKH/nBHMSetSfHDR6scGdBi+erh0=

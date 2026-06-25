@@ -32,7 +32,7 @@ require (
 	github.com/quic-go/quic-go v0.57.0
 	github.com/samwafgo/ahocorasick v1.0.0
 	github.com/samwafgo/cap_go_server v1.0.0
-	github.com/samwafgo/go-wxsqlite3 v1.0.1
+	github.com/samwafgo/go-wxsqlite3 v1.0.2
 	github.com/samwafgo/sqlitedriver v1.0.2
 	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/shirou/gopsutil/v3 v3.24.5

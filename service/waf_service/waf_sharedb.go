@@ -16,6 +16,11 @@ func (receiver *WafShareDbService) AddApi(shareDb model.ShareDb) error {
 	return nil
 }
 
+// DeleteById 删除一条分库归档记录（按主键 Id）。归档物理文件由调用方负责删除。
+func (receiver *WafShareDbService) DeleteById(id string) error {
+	return global.GWAF_LOCAL_DB.Where("id = ?", id).Delete(&model.ShareDb{}).Error
+}
+
 func (receiver *WafShareDbService) GetListApi(req request.WafShareDbReq) ([]model.ShareDb, int64, error) {
 	var list []model.ShareDb
 	var total int64 = 0

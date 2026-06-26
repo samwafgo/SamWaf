@@ -30,6 +30,28 @@ import (
 	"gorm.io/gorm"
 )
 
+// applyPerfPragmas 统一设置 SQLite 性能/可靠性 pragma。
+// relaxedSync=true 使用 synchronous=NORMAL（WAL 下安全，仅在 checkpoint 时 fsync，大幅减少磁盘同步、
+// 提升高频写入吞吐），适用于日志/统计库（可容忍断电丢失最后若干条未 checkpoint 记录）；
+// 核心库传 false 保持默认 FULL 以保证可靠性。
+func applyPerfPragmas(db *gorm.DB, relaxedSync bool) {
+	// 启用 WAL 模式（读写并发）
+	_ = db.Exec("PRAGMA journal_mode=WAL;")
+	// 升级重叠期可能新旧 Worker 并存写库，busy_timeout 让写操作在锁竞争时重试等待，避免立即报 database is locked
+	_ = db.Exec("PRAGMA busy_timeout=5000;")
+	if relaxedSync {
+		_ = db.Exec("PRAGMA synchronous=NORMAL;")
+	}
+	// 64MB page cache，减少磁盘随机读
+	_ = db.Exec("PRAGMA cache_size=-65536;")
+	// 排序/临时表走内存，加速 ORDER BY / 临时表
+	_ = db.Exec("PRAGMA temp_store=MEMORY;")
+	// 注意：本项目所有库均带 _db_key 加密，禁止开启 PRAGMA mmap_size。
+	// mmap 直接读裸文件、绕过加密 codec，会导致读出密文(integrity_check 报 SQLITE_CORRUPT、Count 归零)。
+	// 每累计约 1000 页触发自动 checkpoint，配合主动 checkpoint 控制 WAL 增长
+	_ = db.Exec("PRAGMA wal_autocheckpoint=1000;")
+}
+
 func InitCoreDb(currentDir string) (bool, error) {
 	if dialect.Get().Name() == "mysql" {
 		return InitCoreDbMySQL()
@@ -69,10 +91,8 @@ func InitCoreDb(currentDir string) (bool, error) {
 		if err != nil {
 			panic("failed to connect database")
 		}
-		// 启用 WAL 模式
-		_ = db.Exec("PRAGMA journal_mode=WAL;")
-		// 升级重叠期可能新旧 Worker 并存写库，busy_timeout 让写操作在锁竞争时重试等待，避免立即报 database is locked
-		_ = db.Exec("PRAGMA busy_timeout=5000;")
+		// 核心库保持 synchronous=FULL 保证可靠性，其余性能 pragma 统一设置
+		applyPerfPragmas(db, false)
 
 		// 创建自定义日志记录器
 		gormLogger := NewGormZLogger()
@@ -148,10 +168,8 @@ func InitLogDb(currentDir string) (bool, error) {
 		if err != nil {
 			panic("failed to connect database")
 		}
-		// 启用 WAL 模式
-		_ = db.Exec("PRAGMA journal_mode=WAL;")
-		// 升级重叠期可能新旧 Worker 并存写库，busy_timeout 让写操作在锁竞争时重试等待，避免立即报 database is locked
-		_ = db.Exec("PRAGMA busy_timeout=5000;")
+		// 日志/统计库使用 synchronous=NORMAL 提升高频写入吞吐，其余性能 pragma 统一设置
+		applyPerfPragmas(db, true)
 		// 创建自定义日志记录器
 		gormLogger := NewGormZLogger()
 		if global.GWAF_LOG_DEBUG_DB_ENABLE == true {
@@ -228,10 +246,8 @@ func InitManaulLogDb(currentDir string, custFileName string) {
 		if err != nil {
 			panic("failed to connect database")
 		}
-		// 启用 WAL 模式
-		_ = db.Exec("PRAGMA journal_mode=WAL;")
-		// 升级重叠期可能新旧 Worker 并存写库，busy_timeout 让写操作在锁竞争时重试等待，避免立即报 database is locked
-		_ = db.Exec("PRAGMA busy_timeout=5000;")
+		// 日志/统计库使用 synchronous=NORMAL 提升高频写入吞吐，其余性能 pragma 统一设置
+		applyPerfPragmas(db, true)
 		// 创建自定义日志记录器
 		gormLogger := NewGormZLogger()
 		if global.GWAF_LOG_DEBUG_DB_ENABLE == true {
@@ -264,6 +280,24 @@ func InitManaulLogDb(currentDir string, custFileName string) {
 	}
 }
 
+// CloseManualLogDb 关闭并移除一个按需打开的归档日志分片连接（若存在），
+// 供归档清理删除文件前调用，避免删正在被打开查询的 .db 文件。
+func CloseManualLogDb(custFileName string) {
+	if global.GDATA_CURRENT_LOG_DB_MAP == nil {
+		return
+	}
+	db := global.GDATA_CURRENT_LOG_DB_MAP[custFileName]
+	if db == nil {
+		return
+	}
+	if sqlDB, err := db.DB(); err == nil {
+		if cerr := sqlDB.Close(); cerr != nil {
+			zlog.Warn("关闭归档分片连接失败", "file", custFileName, "error", cerr.Error())
+		}
+	}
+	delete(global.GDATA_CURRENT_LOG_DB_MAP, custFileName)
+}
+
 func InitStatsDb(currentDir string) (bool, error) {
 	if dialect.Get().Name() == "mysql" {
 		return InitStatsDbMySQL()
@@ -285,10 +319,8 @@ func InitStatsDb(currentDir string) (bool, error) {
 		if err != nil {
 			panic("failed to connect database")
 		}
-		// 启用 WAL 模式
-		_ = db.Exec("PRAGMA journal_mode=WAL;")
-		// 升级重叠期可能新旧 Worker 并存写库，busy_timeout 让写操作在锁竞争时重试等待，避免立即报 database is locked
-		_ = db.Exec("PRAGMA busy_timeout=5000;")
+		// 日志/统计库使用 synchronous=NORMAL 提升高频写入吞吐，其余性能 pragma 统一设置
+		applyPerfPragmas(db, true)
 		// 创建自定义日志记录器
 		gormLogger := NewGormZLogger()
 		if global.GWAF_LOG_DEBUG_DB_ENABLE == true {

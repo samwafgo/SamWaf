@@ -428,6 +428,44 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 				return tx.Where("task_method = ?", enums.TASK_STATS_DATA_CLEANUP).Delete(&model.Task{}).Error
 			},
 		},
+		// 迁移3: 新增高频分库检测任务（每5分钟按文件大小切库，兼容老用户）
+		{
+			ID: "202606260004_add_share_db_check_task",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202606260004: 新增高频分库检测任务")
+
+				var count int64
+				tx.Model(&model.Task{}).Where("task_method = ?", enums.TASK_SHARE_DB_CHECK).Count(&count)
+				if count > 0 {
+					zlog.Info("高频分库检测任务已存在，跳过", "task_method", enums.TASK_SHARE_DB_CHECK)
+					return nil
+				}
+
+				task := model.Task{
+					BaseOrm: baseorm.BaseOrm{
+						Id:          uuid.GenUUID(),
+						USER_CODE:   global.GWAF_USER_CODE,
+						Tenant_ID:   global.GWAF_TENANT_ID,
+						CREATE_TIME: customtype.JsonTime(time.Now()),
+						UPDATE_TIME: customtype.JsonTime(time.Now()),
+					},
+					TaskName:   "每5分钟按文件大小检测分库",
+					TaskUnit:   enums.TASK_MIN,
+					TaskValue:  5,
+					TaskAt:     "",
+					TaskMethod: enums.TASK_SHARE_DB_CHECK,
+				}
+				if err := tx.Create(&task).Error; err != nil {
+					return fmt.Errorf("创建高频分库检测任务失败: %w", err)
+				}
+				zlog.Info("高频分库检测任务创建成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202606260004: 删除高频分库检测任务")
+				return tx.Where("task_method = ?", enums.TASK_SHARE_DB_CHECK).Delete(&model.Task{}).Error
+			},
+		},
 	})
 
 	// 执行迁移

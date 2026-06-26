@@ -54,10 +54,15 @@ func TaskShareDbInfo() {
 	if dialect.Get().IsFileBased() {
 		fileInfo, err := os.Stat(dbFilePath)
 		if err == nil {
-			fileSizeMB := fileInfo.Size() / (1024 * 1024) // 转换为MB
+			totalBytes := fileInfo.Size()
+			// 把 -wal 大小一并计入：WAL 模式下数据可能暂存在 wal 文件，主库文件显小会导致漏判
+			if walInfo, werr := os.Stat(dbFilePath + "-wal"); werr == nil {
+				totalBytes += walInfo.Size()
+			}
+			fileSizeMB := totalBytes / (1024 * 1024) // 转换为MB
 			if fileSizeMB > global.GDATA_SHARE_DB_FILE_SIZE {
 				needSharding = true
-				shardingReason = fmt.Sprintf("文件大小(%dMB)超过限制(%dMB)", fileSizeMB, global.GDATA_SHARE_DB_FILE_SIZE)
+				shardingReason = fmt.Sprintf("文件大小(%dMB,含WAL)超过限制(%dMB)", fileSizeMB, global.GDATA_SHARE_DB_FILE_SIZE)
 			}
 		} else {
 			zlog.Error(innerLogName, "获取数据库文件大小失败:", err)
@@ -122,11 +127,17 @@ func TaskShareDbInfo() {
 					zlog.Error(innerLogName, "切换关闭时候错误", err)
 				}
 			}
+			// 等待连接彻底关闭（Count 报错即连接已关闭，可安全重命名文件）。
+			// 加最大重试上限，避免连接异常未报错时无限循环卡住切库（高频切库后该段执行更频繁）。
 			var testTotal int64
-			for {
+			for attempt := 0; attempt < 10; attempt++ {
 				testError := global.GWAF_LOCAL_LOG_DB.Model(&innerbean.WebLog{}).Count(&testTotal).Error
 				if testError != nil {
-					zlog.Error(innerLogName, "检测数据", testError)
+					zlog.Debug(innerLogName, "连接已关闭，可切库", testError)
+					break
+				}
+				if attempt == 9 {
+					zlog.Warn(innerLogName, "等待日志库连接关闭超时，强制继续切库")
 					break
 				}
 				time.Sleep(1 * time.Second)

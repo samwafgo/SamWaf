@@ -406,6 +406,20 @@ func (m *wafSystenService) run() {
 
 	//初始化一次系统参数信息
 	waftask.TaskLoadSetting(true)
+
+	// IP 数据库：配置已从 DB 读出，按持久化的数据源权威重载一次
+	// （启动早期 manager 用的是默认源，此处才是真正生效的加载点，解决重启后 ipdb 回退到 ip2region 的问题）
+	if global.GIPLOCATION_MANAGER != nil {
+		ipDataDir := filepath.Join(utils.GetCurrentDir(), "data")
+		if err := global.GIPLOCATION_MANAGER.ReloadFromConfig(
+			ipDataDir,
+			global.GCONFIG_IP_V4_SOURCE, global.GCONFIG_IP_V6_SOURCE,
+			global.GCONFIG_IP_V4_FORMAT, global.GCONFIG_IP_V6_FORMAT,
+		); err != nil {
+			zlog.Warn("IP 数据库按配置重载失败: ", err)
+		}
+	}
+
 	// 初始化任务日志管理器（需在 TaskLoadSetting 后执行，以获取正确的 retainDays 配置）
 	taskLogDir := filepath.Join(utils.GetCurrentDir(), "logs", "task")
 	tasklog.InitGlobalTaskLogManager(taskLogDir, int(global.GCONFIG_TASK_LOG_RETAIN_DAYS))

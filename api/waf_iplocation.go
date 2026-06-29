@@ -94,73 +94,18 @@ func sourceFileExists(ipType, source, dataDir string) bool {
 }
 
 // reloadManagerByCurrentConfig 根据 global 中当前的 source/format 重新加载 manager
-// 所有 source 切换、配置变更、手动 reload 都应通过此函数集中处理
+// 所有 source 切换、配置变更、手动 reload 都应通过此函数集中处理。
+// 实际加载逻辑收敛在 iplocation.Manager.ReloadFromConfig，与启动后置加载共用同一份实现。
 func reloadManagerByCurrentConfig() error {
 	if global.GIPLOCATION_MANAGER == nil {
 		return nil
 	}
 	dataDir := filepath.Join(utils.GetCurrentDir(), "data")
-
-	// ipdb 双栈共用，优先处理
-	if global.GCONFIG_IP_V4_SOURCE == "ipdb" || global.GCONFIG_IP_V6_SOURCE == "ipdb" {
-		ipdbPath := filepath.Join(dataDir, "iplocation.ipdb")
-		if _, err := os.Stat(ipdbPath); err == nil {
-			if err = global.GIPLOCATION_MANAGER.LoadIpdb(ipdbPath); err != nil {
-				return fmt.Errorf("重新加载 ipdb 数据库失败: %w", err)
-			}
-			global.GIPLOCATION_MANAGER.SetBothSourceIpdb()
-		}
-	}
-
-	// IPv4（非 ipdb 来源）
-	switch global.GCONFIG_IP_V4_SOURCE {
-	case "ip2region":
-		ipv4Path := filepath.Join(dataDir, "ip2region.xdb")
-		if _, err := os.Stat(ipv4Path); err == nil {
-			data, err := ioutil.ReadFile(ipv4Path)
-			if err == nil {
-				if err = global.GIPLOCATION_MANAGER.LoadV4Ip2Region(data, iplocation.DBFormat(global.GCONFIG_IP_V4_FORMAT)); err != nil {
-					return fmt.Errorf("重新加载 IPv4 数据库失败: %w", err)
-				}
-			}
-		}
-	case "geolite2":
-		ipv4Path := filepath.Join(dataDir, "GeoLite2-Country.mmdb")
-		if _, err := os.Stat(ipv4Path); err == nil {
-			data, err := ioutil.ReadFile(ipv4Path)
-			if err == nil {
-				if err = global.GIPLOCATION_MANAGER.LoadV4GeoLite2(data); err != nil {
-					return fmt.Errorf("重新加载 IPv4 数据库失败: %w", err)
-				}
-			}
-		}
-	}
-
-	// IPv6（非 ipdb 来源）
-	switch global.GCONFIG_IP_V6_SOURCE {
-	case "ip2region":
-		ipv6Path := filepath.Join(dataDir, "ip2region_v6.xdb")
-		if _, err := os.Stat(ipv6Path); err == nil {
-			data, err := ioutil.ReadFile(ipv6Path)
-			if err == nil {
-				if err = global.GIPLOCATION_MANAGER.LoadV6Ip2Region(data, iplocation.DBFormat(global.GCONFIG_IP_V6_FORMAT)); err != nil {
-					return fmt.Errorf("重新加载 IPv6 数据库失败: %w", err)
-				}
-			}
-		}
-	case "geolite2":
-		ipv6Path := filepath.Join(dataDir, "GeoLite2-Country.mmdb")
-		if _, err := os.Stat(ipv6Path); err == nil {
-			data, err := ioutil.ReadFile(ipv6Path)
-			if err == nil {
-				if err = global.GIPLOCATION_MANAGER.LoadV6GeoLite2(data); err != nil {
-					return fmt.Errorf("重新加载 IPv6 数据库失败: %w", err)
-				}
-			}
-		}
-	}
-
-	return nil
+	return global.GIPLOCATION_MANAGER.ReloadFromConfig(
+		dataDir,
+		global.GCONFIG_IP_V4_SOURCE, global.GCONFIG_IP_V6_SOURCE,
+		global.GCONFIG_IP_V4_FORMAT, global.GCONFIG_IP_V6_FORMAT,
+	)
 }
 
 // ---- API Handlers ----

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -401,6 +402,73 @@ func (m *Manager) SetBothSourceIpdb() {
 	defer m.mu.Unlock()
 	m.v4Source = SourceIpdb
 	m.v6Source = SourceIpdb
+}
+
+// ReloadFromConfig 依据传入的 source/format 配置，从 dataDir 下的文件权威重载所有后端。
+// 这是 manager 数据源加载的唯一入口：启动后置加载、API 保存、手动 reload 都走这里。
+// format 仅对 ip2region 源有意义，geolite2/ipdb 忽略 format。
+// 文件不存在的项跳过（无 embedded 兜底，保留调用前已加载的默认后端）。
+func (m *Manager) ReloadFromConfig(dataDir, v4Source, v6Source, v4Format, v6Format string) error {
+	// ipdb 双栈共用，优先处理
+	if v4Source == string(SourceIpdb) || v6Source == string(SourceIpdb) {
+		ipdbPath := filepath.Join(dataDir, "iplocation.ipdb")
+		if _, err := os.Stat(ipdbPath); err == nil {
+			if err = m.LoadIpdb(ipdbPath); err != nil {
+				return fmt.Errorf("重新加载 ipdb 数据库失败: %w", err)
+			}
+			m.SetBothSourceIpdb()
+		}
+	}
+
+	// IPv4（非 ipdb 来源）
+	switch v4Source {
+	case string(SourceIp2Region):
+		ipv4Path := filepath.Join(dataDir, "ip2region.xdb")
+		if _, err := os.Stat(ipv4Path); err == nil {
+			data, err := os.ReadFile(ipv4Path)
+			if err == nil {
+				if err = m.LoadV4Ip2Region(data, DBFormat(v4Format)); err != nil {
+					return fmt.Errorf("重新加载 IPv4 数据库失败: %w", err)
+				}
+			}
+		}
+	case string(SourceGeoLite2):
+		ipv4Path := filepath.Join(dataDir, "GeoLite2-Country.mmdb")
+		if _, err := os.Stat(ipv4Path); err == nil {
+			data, err := os.ReadFile(ipv4Path)
+			if err == nil {
+				if err = m.LoadV4GeoLite2(data); err != nil {
+					return fmt.Errorf("重新加载 IPv4 数据库失败: %w", err)
+				}
+			}
+		}
+	}
+
+	// IPv6（非 ipdb 来源）
+	switch v6Source {
+	case string(SourceIp2Region):
+		ipv6Path := filepath.Join(dataDir, "ip2region_v6.xdb")
+		if _, err := os.Stat(ipv6Path); err == nil {
+			data, err := os.ReadFile(ipv6Path)
+			if err == nil {
+				if err = m.LoadV6Ip2Region(data, DBFormat(v6Format)); err != nil {
+					return fmt.Errorf("重新加载 IPv6 数据库失败: %w", err)
+				}
+			}
+		}
+	case string(SourceGeoLite2):
+		ipv6Path := filepath.Join(dataDir, "GeoLite2-Country.mmdb")
+		if _, err := os.Stat(ipv6Path); err == nil {
+			data, err := os.ReadFile(ipv6Path)
+			if err == nil {
+				if err = m.LoadV6GeoLite2(data); err != nil {
+					return fmt.Errorf("重新加载 IPv6 数据库失败: %w", err)
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 // SetV4Format 设置 IPv4 数据格式

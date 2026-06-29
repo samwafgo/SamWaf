@@ -31,8 +31,16 @@ type WafAccountEditReq struct {
 	Id            string `json:"id"`
 	LoginAccount  string `json:"login_account" form:"login_account"`   //登录账号（TODO 账号是否能随便改）
 	LoginPassword string `json:"login_password" form:"login_password"` //密码md5加密
+	Role          string `json:"role" form:"role"`                     //帐号角色（留空则不修改）
 	Status        int    `json:"status" form:"status"  `               //状态
 	Remarks       string `json:"remarks" form:"remarks"  `             //备注
+}
+
+// WafAccountChangeMyPwdReq 当前登录账号自助改密（用于首次登录/到期强制改密）
+type WafAccountChangeMyPwdReq struct {
+	OldPassword  string `json:"old_password" form:"old_password"`   //旧密码
+	NewPassword  string `json:"new_password" form:"new_password"`   //新密码
+	NewPassword2 string `json:"new_password2" form:"new_password2"` //确认新密码
 }
 
 type WafAccountResetOTPReq struct {

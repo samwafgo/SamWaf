@@ -19,6 +19,7 @@ const (
 	SUCCESS           = 0
 	INPUT_SECRET_CODE = -2
 	NEED_BIND_2FA     = -3
+	FORBIDDEN         = -403
 	AUTHFAIL          = -999
 )
 
@@ -71,6 +72,11 @@ func FailWithDetailed(data interface{}, message string, c *gin.Context) {
 }
 func AuthFailWithMessage(message string, c *gin.Context) {
 	Result(AUTHFAIL, map[string]interface{}{}, message, c)
+}
+
+// ForbiddenWithMessage 已认证但无权限（角色不满足），不触发重新登录
+func ForbiddenWithMessage(message string, c *gin.Context) {
+	Result(FORBIDDEN, map[string]interface{}{}, message, c)
 }
 func SecretCodeFailWithMessage(message string, c *gin.Context) {
 	Result(INPUT_SECRET_CODE, map[string]interface{}{}, message, c)

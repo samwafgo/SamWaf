@@ -1037,6 +1037,27 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		{
+			ID: "202606290001_add_rbac_and_password_policy",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202606290001: RBAC 角色 + 口令策略字段，新增密码历史表")
+				// AutoMigrate 仅新增缺失列/表，幂等安全
+				if err := tx.AutoMigrate(&model.Account{}); err != nil {
+					return fmt.Errorf("同步 account 字段失败: %w", err)
+				}
+				if err := tx.AutoMigrate(&model.TokenInfo{}); err != nil {
+					return fmt.Errorf("同步 token_info 字段失败: %w", err)
+				}
+				if err := tx.AutoMigrate(&model.AccountPwdHistory{}); err != nil {
+					return fmt.Errorf("创建 account_pwd_histories 表失败: %w", err)
+				}
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202606290001: 删除 account_pwd_histories 表")
+				return tx.Migrator().DropTable(&model.AccountPwdHistory{})
+			},
+		},
 	})
 
 	// 执行迁移

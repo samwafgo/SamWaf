@@ -33,13 +33,7 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 		}
 		accountCount, _ := wafAccountService.GetAccountCountApi()
 		if accountCount == 0 {
-			wafAccountService.AddApi(request.WafAccountAddReq{
-				LoginAccount:  global.GWAF_DEFAULT_ACCOUNT,
-				LoginPassword: global.GWAF_DEFAULT_ACCOUNT_PWD,
-				Role:          "superAdmin",
-				Status:        0,
-				Remarks:       "密码生成",
-			})
+			wafAccountService.InitDefaultAccount()
 		}
 		bean := wafAccountService.GetInfoByLoginApi(req)
 		if bean.Id != "" {
@@ -140,7 +134,7 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 
 			//记录状态
 			accessToken := utils.Md5String(uuid.GenUUID())
-			tokenInfo := wafTokenInfoService.AddApiWithFingerprintAndType(bean.LoginAccount, accessToken, utils.GetManageClientIP(c), deviceFingerprint, loginType)
+			tokenInfo := wafTokenInfoService.AddApiWithFingerprintAndType(bean.LoginAccount, accessToken, utils.GetManageClientIP(c), deviceFingerprint, loginType, bean.Role)
 
 			//令牌记录到cache里
 			global.GCACHE_WAFCACHE.SetWithTTl(enums.CACHE_TOKEN+accessToken, *tokenInfo, time.Duration(global.GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES)*time.Minute)
@@ -179,8 +173,21 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 			}
 			global.GQEQUE_LOG_DB.Enqueue(&wafSysLog)
 
+			// 口令强制改密判定：首次登录/被重置(NeedChangePassword) 或 口令已过有效期
+			needChangePwd := false
+			changePwdReason := ""
+			if bean.NeedChangePassword == 1 {
+				needChangePwd = true
+				changePwdReason = "首次登录或密码已被重置，请立即修改密码"
+			} else if utils.IsPasswordExpired(bean.PwdUpdateTime, int(global.GCONFIG_PWD_EXPIRE_DAYS), time.Now()) {
+				needChangePwd = true
+				changePwdReason = "密码已超过有效期，请修改密码"
+			}
+
 			response.OkWithDetailed(response2.LoginRep{
-				AccessToken: tokenInfo.AccessToken,
+				AccessToken:          tokenInfo.AccessToken,
+				NeedChangePassword:   needChangePwd,
+				ChangePasswordReason: changePwdReason,
 			}, "登录成功", c)
 
 			return

@@ -161,6 +161,8 @@ func Auth() gin.HandlerFunc {
 				// 将登录账号写入 context，供下游（变更记录、安全审计）取用
 				c.Set("loginAccount", tokenInfo.LoginAccount)
 				c.Set("loginIP", currentIP)
+				// 写入角色，供 RBAC 鉴权中间件判定（空角色兜底为超级管理员，向后兼容）
+				c.Set("userRole", enums.NormalizeRole(tokenInfo.Role))
 			}
 		}
 

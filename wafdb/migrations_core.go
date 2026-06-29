@@ -1058,6 +1058,42 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return tx.Migrator().DropTable(&model.AccountPwdHistory{})
 			},
 		},
+		// 迁移: 为 ssl_configs 表添加 auto_load_path 字段（证书夹路径自动加载开关，默认开启）
+		{
+			ID: "202606290002_add_ssl_config_auto_load_path",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202606290002: 为 ssl_configs 表添加 auto_load_path 字段")
+
+				// 检查字段是否已存在
+				if tx.Migrator().HasColumn(&model.SslConfig{}, "auto_load_path") {
+					zlog.Info("auto_load_path 字段已存在，执行默认值回填")
+					if err := tx.Model(&model.SslConfig{}).Where("auto_load_path IS NULL").Update("auto_load_path", 1).Error; err != nil {
+						zlog.Warn("回填 auto_load_path 默认值失败", "error", err.Error())
+					}
+					return nil
+				}
+
+				// 添加字段（gorm default:1，存量数据列默认值为1）
+				if err := tx.Migrator().AddColumn(&model.SslConfig{}, "auto_load_path"); err != nil {
+					return fmt.Errorf("添加 auto_load_path 字段失败: %w", err)
+				}
+
+				// 历史数据回填默认值 1（保持原有路径自动加载行为不变）
+				if err := tx.Model(&model.SslConfig{}).Where("auto_load_path IS NULL").Update("auto_load_path", 1).Error; err != nil {
+					zlog.Warn("设置 auto_load_path 默认值失败", "error", err.Error())
+				}
+
+				zlog.Info("auto_load_path 字段添加成功（默认开启，行为兼容）")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202606290002: 删除 ssl_configs 表的 auto_load_path 字段")
+				if tx.Migrator().HasColumn(&model.SslConfig{}, "auto_load_path") {
+					return tx.Migrator().DropColumn(&model.SslConfig{}, "auto_load_path")
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

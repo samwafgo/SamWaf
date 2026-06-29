@@ -8,6 +8,7 @@ import (
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	"SamWaf/model/spec"
+	"SamWaf/service/waf_service"
 	"errors"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -148,6 +149,8 @@ func (s *WafSslConfigApi) ModifySslConfigApi(c *gin.Context) {
 // NotifySslUpdate 通知到SSL引擎使其配置实时生效
 func (s *WafSslConfigApi) NotifySslUpdate(oldConfig model.SslConfig, newConfig model.SslConfig) {
 	innerLogName := "NotifySslUpdate"
+	//若管理端证书绑定了该证书夹条目，顺带刷新管理端证书
+	waf_service.RefreshManagerCertBySslConfig(newConfig.Id, newConfig.CertContent, newConfig.KeyContent)
 	for _, hosts := range wafHostService.GetHostBySSLConfigId(oldConfig.Id) {
 		//1.更新主机信息 2.发送主机通知
 		err := wafHostService.UpdateSSLInfo(newConfig.CertContent, newConfig.KeyContent, hosts.Code)

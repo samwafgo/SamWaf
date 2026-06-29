@@ -97,6 +97,27 @@ func (h *securityPathHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	_, _ = w.Write([]byte("403 Forbidden"))
 }
 
+// hybridConnContextKey 用于在请求 context 中存取本次连接对应的 *hybridConn
+type hybridConnContextKey struct{}
+
+// httpsRedirectHandler 最外层包装：当开启「仅允许HTTPS」且本次请求是纯 HTTP 连接时，
+// 返回 301 跳转到 https。仅在混合监听器（已加载有效证书）模式下生效；
+// 纯 HTTP 降级模式取不到 *hybridConn，不跳转，避免把用户锁死。
+type httpsRedirectHandler struct {
+	inner http.Handler
+}
+
+func (h *httpsRedirectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if global.GWAF_SSL_FORCE_HTTPS {
+		if hc, ok := r.Context().Value(hybridConnContextKey{}).(*hybridConn); ok && hc != nil && !hc.isTLS {
+			target := "https://" + r.Host + r.RequestURI
+			http.Redirect(w, r, target, http.StatusMovedPermanently)
+			return
+		}
+	}
+	h.inner.ServeHTTP(w, r)
+}
+
 func (web *WafWebManager) initRouter(r *gin.Engine) {
 
 	PublicRouterGroup := r.Group("")
@@ -292,7 +313,20 @@ func (web *WafWebManager) StartLocalServer() error {
 
 	web.HttpServer = &http.Server{
 		Addr:    ":" + strconv.Itoa(global.GWAF_LOCAL_SERVER_PORT),
-		Handler: handler,
+		Handler: &httpsRedirectHandler{inner: handler},
+		// 把混合连接指针放入请求 context，供 httpsRedirectHandler 判断本次请求是 HTTP 还是 HTTPS。
+		// 纯 HTTP 降级监听器产生的不是 *hybridConn，取不到 → 天然不强制跳转，避免无证书时把用户锁死。
+		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+			if hc, ok := c.(*hybridConn); ok {
+				return context.WithValue(ctx, hybridConnContextKey{}, hc)
+			}
+			return ctx
+		},
+	}
+
+	// 开启了仅HTTPS但未启用SSL/无证书时，提示该开关不会生效（不强制，避免锁死）
+	if global.GWAF_SSL_FORCE_HTTPS && !global.GWAF_SSL_ENABLE {
+		zlog.Warn(web.LogName, "已开启「仅允许HTTPS」但未启用SSL，将照常以HTTP提供服务（开关不生效）")
 	}
 	err := waf_service.WafTokenInfoServiceApp.ReloadAllValidTokensToCache()
 	if err != nil {

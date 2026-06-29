@@ -24,4 +24,8 @@ func (receiver *WafVpConfigRouter) InitWafVpConfigRouter(group *gin.RouterGroup)
 	router.POST("/api/v1/vipconfig/updateNoticeTitle", wafVpConfigApi.UpdateNoticeTitleApi)
 	router.GET("/api/v1/vipconfig/getDomainWhitelist", wafVpConfigApi.GetDomainWhitelistApi)
 	router.POST("/api/v1/vipconfig/updateDomainWhitelist", wafVpConfigApi.UpdateDomainWhitelistApi)
+	router.GET("/api/v1/vipconfig/getSslForceHttps", wafVpConfigApi.GetSslForceHttpsApi)
+	router.POST("/api/v1/vipconfig/updateSslForceHttps", wafVpConfigApi.UpdateSslForceHttpsApi)
+	router.GET("/api/v1/vipconfig/getSslBindCert", wafVpConfigApi.GetSslBindCertApi)
+	router.POST("/api/v1/vipconfig/updateSslBindCert", wafVpConfigApi.UpdateSslBindCertApi)
 }

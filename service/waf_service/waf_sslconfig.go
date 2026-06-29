@@ -86,6 +86,12 @@ func (receiver *WafSslConfigService) AddApi(req request.SslConfigAddReq) error {
 		CertPath:    req.CertPath,
 		KeyPath:     req.KeyPath,
 	}
+	//路径自动加载开关：未提供时默认开启(1)
+	if req.AutoLoadPath != nil {
+		bean.AutoLoadPath = *req.AutoLoadPath
+	} else {
+		bean.AutoLoadPath = 1
+	}
 	if bean.CertPath == "" {
 		bean.CertPath = filepath.Join(utils.GetCurrentDir(), "ssl", bean.Id, "domain.crt")
 	}
@@ -199,6 +205,10 @@ func (receiver *WafSslConfigService) ModifyApi(req request.SslConfigEditReq) err
 		"CertPath":    req.CertPath,
 		"KeyPath":     req.KeyPath,
 	}
+	//仅当请求提供了路径自动加载开关时才更新该列，避免旧前端不传该字段导致被误置0
+	if req.AutoLoadPath != nil {
+		beanMap["AutoLoadPath"] = *req.AutoLoadPath
+	}
 	err = global.GWAF_LOCAL_DB.Model(model.SslConfig{}).Where("id = ?", req.Id).Updates(beanMap).Error
 
 	return err
@@ -212,17 +222,18 @@ func (receiver *WafSslConfigService) ModifyInner(config model.SslConfig) error {
 		config.KeyPath = filepath.Join(utils.GetCurrentDir(), "ssl", config.Id, "domain.key")
 	}
 	beanMap := map[string]interface{}{
-		"CertContent": config.CertContent,
-		"KeyContent":  config.KeyContent,
-		"SerialNo":    config.SerialNo,
-		"Subject":     config.Subject,
-		"Issuer":      config.Issuer,
-		"ValidFrom":   config.ValidFrom,
-		"ValidTo":     config.ValidTo,
-		"Domains":     config.Domains,
-		"UPDATE_TIME": customtype.JsonTime(time.Now()),
-		"CertPath":    config.CertPath,
-		"KeyPath":     config.KeyPath,
+		"CertContent":  config.CertContent,
+		"KeyContent":   config.KeyContent,
+		"SerialNo":     config.SerialNo,
+		"Subject":      config.Subject,
+		"Issuer":       config.Issuer,
+		"ValidFrom":    config.ValidFrom,
+		"ValidTo":      config.ValidTo,
+		"Domains":      config.Domains,
+		"UPDATE_TIME":  customtype.JsonTime(time.Now()),
+		"CertPath":     config.CertPath,
+		"KeyPath":      config.KeyPath,
+		"AutoLoadPath": config.AutoLoadPath,
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.SslConfig{}).Where("id = ?", config.Id).Updates(beanMap).Error
 	return err

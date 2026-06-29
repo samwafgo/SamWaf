@@ -292,6 +292,8 @@ func (waf *WafEngine) processSSL(updateSSLOrder model.SslOrder, bean model.SslOr
 	//如果绑定为空 ，或者绑定的数据没有对应的数据就生产一个新的到证书夹里面
 	if hostBean.BindSslId == "" || oldSslConfig.SerialNo == "" {
 		zlog.Info(fmt.Sprintf("%s 当前主机未配置证书新增一个证书文件夹", bean.ApplyDomain))
+		//该证书夹由 SamWaf 自动申请管理，关闭路径自动加载，避免凌晨3点被本地旧文件覆盖
+		newSslConfig.AutoLoadPath = 0
 		//添加到证书夹内
 		wafSslConfigService.CreateInner(newSslConfig)
 		//1.更新主机信息 2.发送主机通知
@@ -315,8 +317,13 @@ func (waf *WafEngine) processSSL(updateSSLOrder model.SslOrder, bean model.SslOr
 			//备份原来的配置
 			wafSslConfigService.CreateNewIdInner(oldSslConfig)
 			newSslConfig.Id = oldSslConfig.Id
+			//该证书夹由 SamWaf 自动申请管理，关闭路径自动加载，避免凌晨3点被本地旧文件覆盖
+			newSslConfig.AutoLoadPath = 0
 			//把最新的配置上去
 			wafSslConfigService.ModifyInner(newSslConfig)
+
+			//若管理端证书绑定了该证书夹条目，顺带刷新管理端证书
+			waf_service.RefreshManagerCertBySslConfig(newSslConfig.Id, newSslConfig.CertContent, newSslConfig.KeyContent)
 
 			//获取所有绑定了相同证书夹的主机
 			relatedHosts := wafHostService.GetHostBySSLConfigId(newSslConfig.Id)

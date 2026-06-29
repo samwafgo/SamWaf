@@ -223,6 +223,22 @@ func LoadAndInitConfig() {
 		configChanged = true
 	}
 
+	//配置和提取管理端仅允许HTTPS开关
+	if config.IsSet("security.ssl_force_https") {
+		global.GWAF_SSL_FORCE_HTTPS = config.GetBool("security.ssl_force_https")
+	} else {
+		config.Set("security.ssl_force_https", global.GWAF_SSL_FORCE_HTTPS)
+		configChanged = true
+	}
+
+	//配置和提取管理端证书绑定的证书夹ID
+	if config.IsSet("security.ssl_bind_cert_id") {
+		global.GWAF_SSL_BIND_CERT_ID = config.GetString("security.ssl_bind_cert_id")
+	} else {
+		config.Set("security.ssl_bind_cert_id", global.GWAF_SSL_BIND_CERT_ID)
+		configChanged = true
+	}
+
 	//配置和提取安全路径入口开关
 	if config.IsSet("security.entry_enable") {
 		global.GWAF_SECURITY_ENTRY_ENABLE = config.GetBool("security.entry_enable")
@@ -506,6 +522,94 @@ func UpdateSslEnable(sslEnable bool) error {
 
 	fmt.Printf("%s\tINFO\tSSL enable config updated\n", currentTime)
 
+	return nil
+}
+
+// UpdateSslForceHttps 更新管理端仅允许HTTPS开关（需重启管理端生效）
+func UpdateSslForceHttps(forceHttps bool) error {
+	currentTime := time.Now().Format("2006-01-02 15:04:05.000")
+
+	configDir := utils.GetCurrentDir() + "/conf/"
+	if _, err := os.Stat(configDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(configDir, os.ModePerm); err != nil {
+			fmt.Printf("%s\tERROR\t创建config目录失败:%v\n", currentTime, err)
+			return err
+		}
+	}
+
+	config := viper.New()
+	config.AddConfigPath(configDir)
+	config.SetConfigName("config")
+	config.SetConfigType("yml")
+
+	if err := config.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			fmt.Printf("%s\tWARN\t找不到配置文件..\n", currentTime)
+			config.Set("local_port", global.GWAF_LOCAL_SERVER_PORT)
+			err = config.SafeWriteConfig()
+			if err != nil {
+				return err
+			}
+		} else {
+			fmt.Printf("%s\tERROR\t配置文件出错..\n", currentTime)
+			return err
+		}
+	}
+
+	config.Set("security.ssl_force_https", forceHttps)
+	global.GWAF_SSL_FORCE_HTTPS = forceHttps
+
+	err := config.WriteConfig()
+	if err != nil {
+		fmt.Printf("%s\tERROR\twrite config failed:%v\n", currentTime, err)
+		return err
+	}
+
+	fmt.Printf("%s\tINFO\tSSL force https config updated\n", currentTime)
+	return nil
+}
+
+// UpdateSslBindCertId 更新管理端证书绑定的证书夹ID（空字符串表示解绑）
+func UpdateSslBindCertId(bindCertId string) error {
+	currentTime := time.Now().Format("2006-01-02 15:04:05.000")
+
+	configDir := utils.GetCurrentDir() + "/conf/"
+	if _, err := os.Stat(configDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(configDir, os.ModePerm); err != nil {
+			fmt.Printf("%s\tERROR\t创建config目录失败:%v\n", currentTime, err)
+			return err
+		}
+	}
+
+	config := viper.New()
+	config.AddConfigPath(configDir)
+	config.SetConfigName("config")
+	config.SetConfigType("yml")
+
+	if err := config.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			fmt.Printf("%s\tWARN\t找不到配置文件..\n", currentTime)
+			config.Set("local_port", global.GWAF_LOCAL_SERVER_PORT)
+			err = config.SafeWriteConfig()
+			if err != nil {
+				return err
+			}
+		} else {
+			fmt.Printf("%s\tERROR\t配置文件出错..\n", currentTime)
+			return err
+		}
+	}
+
+	config.Set("security.ssl_bind_cert_id", bindCertId)
+	global.GWAF_SSL_BIND_CERT_ID = bindCertId
+
+	err := config.WriteConfig()
+	if err != nil {
+		fmt.Printf("%s\tERROR\twrite config failed:%v\n", currentTime, err)
+		return err
+	}
+
+	fmt.Printf("%s\tINFO\tSSL bind cert id config updated\n", currentTime)
 	return nil
 }
 

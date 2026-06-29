@@ -165,6 +165,22 @@ func setConfigIntValue(name string, value int64, change int) {
 		global.GCONFIG_ENABLE_HTTP3 = value
 	case "record_log_desensitize":
 		global.GCONFIG_RECORD_LOG_DESENSITIZE = value
+	case "pwd_min_length":
+		global.GCONFIG_PWD_MIN_LENGTH = value
+	case "pwd_require_upper":
+		global.GCONFIG_PWD_REQUIRE_UPPER = value
+	case "pwd_require_lower":
+		global.GCONFIG_PWD_REQUIRE_LOWER = value
+	case "pwd_require_digit":
+		global.GCONFIG_PWD_REQUIRE_DIGIT = value
+	case "pwd_require_special":
+		global.GCONFIG_PWD_REQUIRE_SPECIAL = value
+	case "pwd_expire_days":
+		global.GCONFIG_PWD_EXPIRE_DAYS = value
+	case "pwd_history_count":
+		global.GCONFIG_PWD_HISTORY_COUNT = value
+	case "pwd_force_change_default":
+		global.GCONFIG_PWD_FORCE_CHANGE_DEFAULT = value
 	case "log_file_write_enable":
 		if global.GCONFIG_LOG_FILE_WRITE_ENABLE != value && global.GNOTIFY_LOG_FILE_WRITER != nil {
 			global.GNOTIFY_LOG_FILE_WRITER.ChangeEnable(value)
@@ -425,6 +441,16 @@ func TaskLoadSetting(initLoad bool) {
 	updateConfigIntItem(initLoad, "system", "record_all_src_byte_info", global.GCONFIG_RECORD_ALL_SRC_BYTE_INFO, "启动记录原始请求BODY报文（1启动 0关闭）", "int", "", configMap)
 	updateConfigIntItem(initLoad, "system", "record_log_desensitize", global.GCONFIG_RECORD_LOG_DESENSITIZE, "请求记录是否进行脱敏处理（1开启脱敏 0关闭脱敏）", "options", "0|关闭脱敏,1|开启脱敏", configMap)
 	updateConfigIntItem(initLoad, "system", "token_expire_time", global.GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES, "管理平台令牌有效期，单位分钟（默认5分钟）", "int", "", configMap)
+
+	// 口令复杂度策略
+	updateConfigIntItem(initLoad, "password", "pwd_min_length", global.GCONFIG_PWD_MIN_LENGTH, "密码最小长度（默认8）", "int", "", configMap)
+	updateConfigIntItem(initLoad, "password", "pwd_require_upper", global.GCONFIG_PWD_REQUIRE_UPPER, "是否要求包含大写字母", "options", "0|不要求,1|要求", configMap)
+	updateConfigIntItem(initLoad, "password", "pwd_require_lower", global.GCONFIG_PWD_REQUIRE_LOWER, "是否要求包含小写字母", "options", "0|不要求,1|要求", configMap)
+	updateConfigIntItem(initLoad, "password", "pwd_require_digit", global.GCONFIG_PWD_REQUIRE_DIGIT, "是否要求包含数字", "options", "0|不要求,1|要求", configMap)
+	updateConfigIntItem(initLoad, "password", "pwd_require_special", global.GCONFIG_PWD_REQUIRE_SPECIAL, "是否要求包含特殊字符", "options", "0|不要求,1|要求", configMap)
+	updateConfigIntItem(initLoad, "password", "pwd_expire_days", global.GCONFIG_PWD_EXPIRE_DAYS, "密码有效期天数（0=不限，到期登录时提示强制更换）", "int", "", configMap)
+	updateConfigIntItem(initLoad, "password", "pwd_history_count", global.GCONFIG_PWD_HISTORY_COUNT, "历史密码防重用个数（0=不启用）", "int", "", configMap)
+	updateConfigIntItem(initLoad, "password", "pwd_force_change_default", global.GCONFIG_PWD_FORCE_CHANGE_DEFAULT, "默认密码/被重置后是否强制改密", "options", "0|否,1|强制", configMap)
 	updateConfigIntItem(initLoad, "system", "spider_deny", global.GCONFIG_RECORD_SPIDER_DENY, "爬虫禁止访问开关 默认 0 只检测不阻止访问 1 检测并阻止访问）", "int", "", configMap)
 	updateConfigIntItem(initLoad, "debug", "enable_debug", global.GCONFIG_RECORD_DEBUG_ENABLE, "调试开关 默认关闭", "int", "", configMap)
 	updateConfigStringItem(initLoad, "debug", "debug_pwd", global.GCONFIG_RECORD_DEBUG_PWD, "调试密码 如果未空则不需要密码", "string", "", configMap)

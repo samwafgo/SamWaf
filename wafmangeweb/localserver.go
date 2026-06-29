@@ -3,6 +3,7 @@ package wafmangeweb
 import (
 	"SamWaf/api"
 	"SamWaf/common/zlog"
+	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/middleware"
 	"SamWaf/router"
@@ -106,29 +107,18 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 	RouterGroup := r.Group("")
 	RouterGroup.Use(middleware.Auth(), middleware.ReplayProtect(), middleware.OpenApiLogMiddleware(), middleware.CenterApi(), middleware.SecApi(), middleware.GinGlobalExceptionMiddleWare(), middleware.IPWhitelist(), middleware.DomainWhitelist()) //TODO 中心管控 特定
 	{
+		// 共享/运维类接口：任意已登录角色可访问
 		router.ApiGroupApp.InitHostRouter(RouterGroup)
 		router.ApiGroupApp.InitLogRouter(RouterGroup)
-		router.ApiGroupApp.InitRuleRouter(RouterGroup)
 		router.ApiGroupApp.InitEngineRouter(RouterGroup)
 		router.ApiGroupApp.InitStatRouter(RouterGroup)
-		router.ApiGroupApp.InitAllowIpRouter(RouterGroup)
-		router.ApiGroupApp.InitAllowUrlRouter(RouterGroup)
-		router.ApiGroupApp.InitLdpUrlRouter(RouterGroup)
-		router.ApiGroupApp.InitAntiCCRouter(RouterGroup)
-		router.ApiGroupApp.InitIPFailureRouter(RouterGroup)
-		router.ApiGroupApp.InitBlockIpRouter(RouterGroup)
-		router.ApiGroupApp.InitBlockUrlRouter(RouterGroup)
-		router.ApiGroupApp.InitAccountLogRouter(RouterGroup)
 		router.ApiGroupApp.InitLoginOutRouter(RouterGroup)
-		router.ApiGroupApp.InitSysLogRouter(RouterGroup)
 		router.ApiGroupApp.InitWebSocketRouter(RouterGroup)
 		router.ApiGroupApp.InitSysInfoRouter(RouterGroup)
-		router.ApiGroupApp.InitSystemConfigRouter(RouterGroup)
 		router.ApiGroupApp.InitWafCommonRouter(RouterGroup)
 		router.ApiGroupApp.InitOneKeyModRouter(RouterGroup)
 		router.ApiGroupApp.InitCenterRouter(RouterGroup)
 		router.ApiGroupApp.InitLicenseRouter(RouterGroup)
-		router.ApiGroupApp.InitSensitiveRouter(RouterGroup)
 		router.ApiGroupApp.InitLoadBalanceRouter(RouterGroup)
 		router.ApiGroupApp.InitSslConfigRouter(RouterGroup)
 		router.ApiGroupApp.InitBatchTaskRouter(RouterGroup)
@@ -154,13 +144,48 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitLogFileWriteRouter(RouterGroup)
 		router.ApiGroupApp.InitIPLocationRouter(RouterGroup)
 		router.ApiGroupApp.InitWafDataRetentionRouter(RouterGroup)
-		router.ApiGroupApp.InitWafOwaspRouter(RouterGroup)
 		router.ApiGroupApp.InitWafHostPathRuleRouter(RouterGroup)
+
+		// 自助改密：任意已登录角色均可修改本人密码（含首次登录/到期强制改密场景），不受角色域限制
+		RouterGroup.POST("/api/v1/account/changemypwd", api.APIGroupAPP.WafAccountApi.ChangeMyPasswordApi)
+
+		// === 安全管理员域：WAF 防护策略/规则（三权分立强制点）===
+		securityAdminGroup := RouterGroup.Group("")
+		securityAdminGroup.Use(middleware.RequireRole(enums.ROLE_SECURITY_ADMIN))
+		{
+			router.ApiGroupApp.InitRuleRouter(securityAdminGroup)
+			router.ApiGroupApp.InitAllowIpRouter(securityAdminGroup)
+			router.ApiGroupApp.InitAllowUrlRouter(securityAdminGroup)
+			router.ApiGroupApp.InitLdpUrlRouter(securityAdminGroup)
+			router.ApiGroupApp.InitAntiCCRouter(securityAdminGroup)
+			router.ApiGroupApp.InitIPFailureRouter(securityAdminGroup)
+			router.ApiGroupApp.InitBlockIpRouter(securityAdminGroup)
+			router.ApiGroupApp.InitBlockUrlRouter(securityAdminGroup)
+			router.ApiGroupApp.InitSensitiveRouter(securityAdminGroup)
+			router.ApiGroupApp.InitWafOwaspRouter(securityAdminGroup)
+		}
+
+		// === 审计管理员域：操作/账号审计日志（只读，独立审计其余两员）===
+		auditAdminGroup := RouterGroup.Group("")
+		auditAdminGroup.Use(middleware.RequireRole(enums.ROLE_AUDIT_ADMIN))
+		{
+			router.ApiGroupApp.InitSysLogRouter(auditAdminGroup)
+			router.ApiGroupApp.InitAccountLogRouter(auditAdminGroup)
+		}
+
+		// === 系统管理员域：系统配置 ===
+		systemConfigGroup := RouterGroup.Group("")
+		systemConfigGroup.Use(middleware.RequireRole(enums.ROLE_SYSTEM_ADMIN))
+		{
+			router.ApiGroupApp.InitSystemConfigRouter(systemConfigGroup)
+		}
 	}
 
 	// 仅允许后台 Token 登录访问，拒绝 API Key 访问（安全敏感接口）
+	// 整组归属「系统管理员域」：账户管理/OTP/开放平台Key/SQL查询/应用管理/AI模型均为系统级敏感操作
+	// superAdmin 兜底放行；空角色(历史账号)经 NormalizeRole 视为 superAdmin，向后兼容
 	TokenOnlyRouterGroup := r.Group("")
-	TokenOnlyRouterGroup.Use(middleware.TokenOnlyAuth(), middleware.ReplayProtect(), middleware.CenterApi(), middleware.SecApi(), middleware.GinGlobalExceptionMiddleWare(), middleware.IPWhitelist())
+	TokenOnlyRouterGroup.Use(middleware.TokenOnlyAuth(), middleware.RequireRole(enums.ROLE_SYSTEM_ADMIN), middleware.ReplayProtect(), middleware.CenterApi(), middleware.SecApi(), middleware.GinGlobalExceptionMiddleWare(), middleware.IPWhitelist())
 	{
 		// 开放平台管理接口
 		router.ApiGroupApp.InitOPlatformKeyRouter(TokenOnlyRouterGroup)

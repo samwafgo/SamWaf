@@ -1,6 +1,7 @@
 package api
 
 import (
+	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/model/common/response"
@@ -14,19 +15,33 @@ import (
 type WafAccountApi struct {
 }
 
+// currentRole 从上下文取当前登录角色（经鉴权中间件归一化）
+func currentRole(c *gin.Context) string {
+	if v, ok := c.Get("userRole"); ok {
+		if r, ok := v.(string); ok {
+			return enums.NormalizeRole(r)
+		}
+	}
+	return enums.ROLE_SUPER_ADMIN
+}
+
 // AddApi 新增账号
 func (w *WafAccountApi) AddApi(c *gin.Context) {
 	var req request.WafAccountAddReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		// 防提权：仅超级管理员可创建超级管理员
+		if req.Role == enums.ROLE_SUPER_ADMIN && currentRole(c) != enums.ROLE_SUPER_ADMIN {
+			response.ForbiddenWithMessage("仅超级管理员可创建超级管理员账号", c)
+			return
+		}
 		err = wafAccountService.CheckIsExistApi(req)
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 			err = wafAccountService.AddApi(req)
 			if err == nil {
 				response.OkWithMessage("添加成功", c)
 			} else {
-
-				response.FailWithMessage("添加失败", c)
+				response.FailWithMessage(err.Error(), c)
 			}
 			return
 		} else {
@@ -92,9 +107,14 @@ func (w *WafAccountApi) ModifyAccountApi(c *gin.Context) {
 	var req request.WafAccountEditReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		// 防提权：仅超级管理员可将账号提升为超级管理员
+		if req.Role == enums.ROLE_SUPER_ADMIN && currentRole(c) != enums.ROLE_SUPER_ADMIN {
+			response.ForbiddenWithMessage("仅超级管理员可指派超级管理员角色", c)
+			return
+		}
 		err = wafAccountService.ModifyApi(req)
 		if err != nil {
-			response.FailWithMessage("编辑发生错误", c)
+			response.FailWithMessage(err.Error(), c)
 		} else {
 			response.OkWithMessage("编辑成功", c)
 		}
@@ -102,6 +122,33 @@ func (w *WafAccountApi) ModifyAccountApi(c *gin.Context) {
 	} else {
 		response.FailWithMessage("解析失败", c)
 	}
+}
+
+// ChangeMyPasswordApi 当前登录账号自助改密（用于首次登录/口令到期强制改密）
+func (w *WafAccountApi) ChangeMyPasswordApi(c *gin.Context) {
+	var req request.WafAccountChangeMyPwdReq
+	err := c.ShouldBindJSON(&req)
+	if err != nil {
+		response.FailWithMessage("解析失败", c)
+		return
+	}
+	if req.NewPassword != req.NewPassword2 {
+		response.FailWithMessage("两次输入的新密码不同", c)
+		return
+	}
+	loginAccount := ""
+	if v, ok := c.Get("loginAccount"); ok {
+		loginAccount, _ = v.(string)
+	}
+	if loginAccount == "" {
+		response.FailWithMessage("登录状态异常，请重新登录", c)
+		return
+	}
+	if err = wafAccountService.ChangeMyPasswordApi(loginAccount, req.OldPassword, req.NewPassword); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	response.OkWithMessage("修改密码成功", c)
 }
 
 func (w *WafAccountApi) ResetAccountPwdApi(c *gin.Context) {

@@ -55,6 +55,16 @@ var (
 	GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES     int64 = 5  //令牌有效期 单位分钟
 	GCONFIG_RECORD_ANNOUNCEMENT_EXPIRE_HOURS int64 = 24 //公告有效期 单位小时
 
+	// 口令复杂度策略（国标 GB/T 32917 §7 自身安全：身份鉴别/口令复杂度）
+	GCONFIG_PWD_MIN_LENGTH           int64 = 8 //密码最小长度
+	GCONFIG_PWD_REQUIRE_UPPER        int64 = 0 //是否要求大写字母 1要求 0不要求
+	GCONFIG_PWD_REQUIRE_LOWER        int64 = 0 //是否要求小写字母 1要求 0不要求
+	GCONFIG_PWD_REQUIRE_DIGIT        int64 = 1 //是否要求数字 1要求 0不要求
+	GCONFIG_PWD_REQUIRE_SPECIAL      int64 = 0 //是否要求特殊字符 1要求 0不要求
+	GCONFIG_PWD_EXPIRE_DAYS          int64 = 0 //密码有效期天数（0=不限，到期登录时提示强制更换）
+	GCONFIG_PWD_HISTORY_COUNT        int64 = 0 //历史密码防重用个数（0=不启用）
+	GCONFIG_PWD_FORCE_CHANGE_DEFAULT int64 = 1 //默认密码/被重置后是否强制改密 1强制 0否
+
 	GCONFIG_RECORD_DNS_BOT_EXPIRE_HOURS    int64  = 24     //DNS bot有效期 单位小时 默认1天
 	GCONFIG_RECORD_DNS_NORMAL_EXPIRE_HOURS int64  = 7 * 24 //DNS 正常有效期 单位小时 默认7天
 	GCONFIG_RECORD_SPIDER_DENY             int64  = 0      //爬虫禁止访问开关 默认 0 只检测不阻止访问 1 检测并阻止访问

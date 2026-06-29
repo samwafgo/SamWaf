@@ -58,7 +58,7 @@ func (receiver *WafTokenInfoService) AddApiWithFingerprint(loginAccount string, 
 }
 
 // AddApiWithFingerprintAndType 添加带指纹和登录类型的token信息
-func (receiver *WafTokenInfoService) AddApiWithFingerprintAndType(loginAccount string, AccessToken string, LoginIp string, deviceFingerprint string, loginType string) *model.TokenInfo {
+func (receiver *WafTokenInfoService) AddApiWithFingerprintAndType(loginAccount string, AccessToken string, LoginIp string, deviceFingerprint string, loginType string, role string) *model.TokenInfo {
 
 	var bean = &model.TokenInfo{
 		BaseOrm: baseorm.BaseOrm{
@@ -73,6 +73,7 @@ func (receiver *WafTokenInfoService) AddApiWithFingerprintAndType(loginAccount s
 		LoginIp:           LoginIp,
 		DeviceFingerprint: deviceFingerprint,
 		LoginType:         loginType,
+		Role:              enums.NormalizeRole(role),
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
 	mod := receiver.GetInfoByLoginAccountAndType(loginAccount, loginType)

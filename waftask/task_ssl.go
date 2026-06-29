@@ -42,17 +42,47 @@ func SSLReload() {
 			zlog.Info(innerLogName, "没有ssl证书")
 			return
 		}
+		zlog.Info(innerLogName, fmt.Sprintf("共 %d 个证书夹条目待检查路径自动加载", len(sslConfigReps)))
 		for _, rep := range sslConfigReps {
-			err, updateSslConfig, backSslConfig := rep.CheckKeyAndCertFileLoad()
-			if err != nil {
-				zlog.Error(innerLogName, "ssl config:", err.Error())
+			//该证书夹条目已关闭路径自动加载（例如由 SamWaf 自动申请管理），跳过，避免覆盖
+			if rep.AutoLoadPath == 0 {
+				zlog.Info(innerLogName, fmt.Sprintf("证书夹[%s] 已关闭路径自动加载，跳过", rep.Domains))
 				continue
 			}
+			zlog.Info(innerLogName, fmt.Sprintf("证书夹[%s] 开始检查路径加载: crt路径=%s key路径=%s", rep.Domains, rep.CertPath, rep.KeyPath))
+
+			err, updateSslConfig, backSslConfig, diag := rep.CheckKeyAndCertFileLoad()
+
+			//文件状态（存在性 + 最后修改时间），便于排查“磁盘文件到底改没改”
+			zlog.Info(innerLogName, fmt.Sprintf("证书夹[%s] 文件状态: crt存在=%v(修改时间=%s) key存在=%v(修改时间=%s)",
+				rep.Domains, diag.CertExists, fmtTime(diag.CertModTime), diag.KeyExists, fmtTime(diag.KeyModTime)))
+
+			if err != nil {
+				//未更新：根据原因给出合适的日志级别（正常跳过=Info，数据问题=Warn）
+				msg := fmt.Sprintf("证书夹[%s] 未更新: %s | 现有序列号=%s 现有到期=%s | 文件序列号=%s 文件到期=%s",
+					rep.Domains, err.Error(), nonEmpty(diag.OldSerial), fmtTime(diag.OldValidTo), nonEmpty(diag.NewSerial), fmtTime(diag.NewValidTo))
+				switch diag.SkipLevel {
+				case "info":
+					zlog.Info(innerLogName, msg)
+				case "error":
+					zlog.Error(innerLogName, msg)
+				default:
+					zlog.Warn(innerLogName, msg)
+				}
+				continue
+			}
+
+			zlog.Info(innerLogName, fmt.Sprintf("证书夹[%s] 检测到新证书，准备更新: 序列号 %s -> %s, 到期时间 %s -> %s",
+				rep.Domains, nonEmpty(diag.OldSerial), nonEmpty(diag.NewSerial), fmtTime(diag.OldValidTo), fmtTime(diag.NewValidTo)))
+
 			wafSslConfigService.CreateNewIdInner(backSslConfig)
 			err = wafSslConfigService.ModifyInner(updateSslConfig)
 			if err != nil {
 				zlog.Error(innerLogName, "ssl modify inner config:", err.Error())
 			}
+			//若管理端证书绑定了该证书夹条目，顺带刷新管理端证书
+			waf_service.RefreshManagerCertBySslConfig(updateSslConfig.Id, updateSslConfig.CertContent, updateSslConfig.KeyContent)
+			hostCount := 0
 			for _, hosts := range wafHostService.GetHostBySSLConfigId(updateSslConfig.Id) {
 				//1.更新主机信息 2.发送主机通知
 				err = wafHostService.UpdateSSLInfo(updateSslConfig.CertContent, updateSslConfig.KeyContent, hosts.Code)
@@ -69,13 +99,31 @@ func SSLReload() {
 					OldContent: hosts,
 				}
 				global.GWAF_CHAN_MSG <- chanInfo
+				hostCount++
 			}
-			zlog.Info(innerLogName, "ssl证书已处理完", rep.CertPath, rep.KeyPath)
+			zlog.Info(innerLogName, fmt.Sprintf("证书夹[%s] 处理完成，重新加载 %d 个关联主机 (crt=%s key=%s)",
+				rep.Domains, hostCount, rep.CertPath, rep.KeyPath))
 
 		}
 	} else {
 		zlog.Info(innerLogName, "自动加载ssl开关:关闭")
 	}
+}
+
+// fmtTime 格式化时间用于日志，零值显示为 "-"
+func fmtTime(t time.Time) string {
+	if t.IsZero() {
+		return "-"
+	}
+	return t.Format("2006-01-02 15:04:05")
+}
+
+// nonEmpty 空字符串显示为 "-"，便于日志阅读
+func nonEmpty(s string) string {
+	if s == "" {
+		return "-"
+	}
+	return s
 }
 
 // SSLOrderReload SSL证书自动续期 远程申请

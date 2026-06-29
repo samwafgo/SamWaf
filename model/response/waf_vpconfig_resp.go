@@ -15,6 +15,18 @@ type WafVpConfigSslStatusGetResp struct {
 	KeyContent   string `json:"key_content"`    // 私钥内容
 }
 
+// WafVpConfigSslForceHttpsGetResp 管理端仅允许HTTPS开关获取响应
+type WafVpConfigSslForceHttpsGetResp struct {
+	ForceHttps bool `json:"force_https"` // 是否仅允许HTTPS访问
+}
+
+// WafVpConfigSslBindCertGetResp 管理端证书绑定证书夹获取响应
+type WafVpConfigSslBindCertGetResp struct {
+	SslConfigId string `json:"ssl_config_id"` // 当前绑定的证书夹ID，空表示未绑定
+	Domains     string `json:"domains"`       // 绑定证书夹适用的域名/IP（摘要）
+	ValidTo     string `json:"valid_to"`      // 绑定证书夹到期时间（摘要）
+}
+
 // WafVpConfigSecurityEntryGetResp 安全路径入口获取响应
 type WafVpConfigSecurityEntryGetResp struct {
 	EntryEnable bool   `json:"entry_enable"` // 是否启用安全路径

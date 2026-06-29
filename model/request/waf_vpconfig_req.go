@@ -16,6 +16,16 @@ type WafVpConfigSslUploadReq struct {
 	KeyContent  string `json:"key_content"`  // 私钥内容
 }
 
+// WafVpConfigSslForceHttpsUpdateReq 管理端仅允许HTTPS开关更新请求
+type WafVpConfigSslForceHttpsUpdateReq struct {
+	ForceHttps bool `json:"force_https"` // 是否仅允许HTTPS访问（开启后纯HTTP请求301跳转到HTTPS）
+}
+
+// WafVpConfigSslBindCertUpdateReq 管理端证书绑定证书夹更新请求
+type WafVpConfigSslBindCertUpdateReq struct {
+	SslConfigId string `json:"ssl_config_id"` // 绑定的证书夹(SslConfig)ID，为空表示解绑
+}
+
 // WafVpConfigSecurityEntryUpdateReq 安全路径入口更新请求
 type WafVpConfigSecurityEntryUpdateReq struct {
 	EntryEnable bool   `json:"entry_enable"` // 是否启用安全路径

@@ -5,6 +5,7 @@ import (
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	response2 "SamWaf/model/response"
+	"SamWaf/service/waf_service"
 	"SamWaf/utils"
 	"SamWaf/wafconfig"
 	"crypto/tls"
@@ -526,4 +527,118 @@ func (w *WafVpConfigApi) RestartManagerApi(c *gin.Context) {
 			}
 		}
 	}()
+}
+
+// GetSslForceHttpsApi 获取管理端仅允许HTTPS开关
+// @Summary      获取管理端仅允许HTTPS开关
+// @Description  获取管理端是否仅允许HTTPS访问
+// @Tags         管理端配置
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /vipconfig/getSslForceHttps [get]
+func (w *WafVpConfigApi) GetSslForceHttpsApi(c *gin.Context) {
+	resp := response2.WafVpConfigSslForceHttpsGetResp{
+		ForceHttps: global.GWAF_SSL_FORCE_HTTPS,
+	}
+	response.OkWithDetailed(resp, "获取成功", c)
+}
+
+// UpdateSslForceHttpsApi 更新管理端仅允许HTTPS开关
+// @Summary      更新管理端仅允许HTTPS开关
+// @Description  开启后管理端纯HTTP请求将301跳转到HTTPS（仅在已启用SSL且证书有效时生效），需重启管理端生效
+// @Tags         管理端配置
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafVpConfigSslForceHttpsUpdateReq  true  "仅HTTPS配置"
+// @Success      200   {object}  response.Response  "更新成功"
+// @Security     ApiKeyAuth
+// @Router       /vipconfig/updateSslForceHttps [post]
+func (w *WafVpConfigApi) UpdateSslForceHttpsApi(c *gin.Context) {
+	var req request.WafVpConfigSslForceHttpsUpdateReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage("解析请求失败", c)
+		return
+	}
+	if err := wafconfig.UpdateSslForceHttps(req.ForceHttps); err != nil {
+		response.FailWithMessage("更新仅HTTPS开关失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("更新成功，需要重启管理端生效", c)
+}
+
+// GetSslBindCertApi 获取管理端证书绑定的证书夹
+// @Summary      获取管理端证书绑定的证书夹
+// @Description  获取管理端证书当前绑定的证书夹ID及其摘要信息
+// @Tags         管理端配置
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /vipconfig/getSslBindCert [get]
+func (w *WafVpConfigApi) GetSslBindCertApi(c *gin.Context) {
+	resp := response2.WafVpConfigSslBindCertGetResp{
+		SslConfigId: global.GWAF_SSL_BIND_CERT_ID,
+	}
+	if global.GWAF_SSL_BIND_CERT_ID != "" {
+		bean := wafSslConfigService.GetDetailInner(global.GWAF_SSL_BIND_CERT_ID)
+		if bean.Id != "" {
+			resp.Domains = bean.Domains
+			resp.ValidTo = bean.ValidTo.Format("2006-01-02 15:04:05")
+		}
+	}
+	response.OkWithDetailed(resp, "获取成功", c)
+}
+
+// UpdateSslBindCertApi 绑定/解绑管理端证书到证书夹
+// @Summary      绑定/解绑管理端证书到证书夹
+// @Description  把管理端证书绑定到指定证书夹条目；绑定后该证书夹经任一渠道更新时管理端证书会自动同步并重启。ssl_config_id 传空表示解绑（回到手动上传模式）。
+// @Tags         管理端配置
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafVpConfigSslBindCertUpdateReq  true  "绑定配置"
+// @Success      200   {object}  response.Response  "更新成功"
+// @Security     ApiKeyAuth
+// @Router       /vipconfig/updateSslBindCert [post]
+func (w *WafVpConfigApi) UpdateSslBindCertApi(c *gin.Context) {
+	var req request.WafVpConfigSslBindCertUpdateReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage("解析请求失败", c)
+		return
+	}
+
+	// 解绑：清空绑定，保留当前已落地的管理端证书文件（手动上传模式）
+	if strings.TrimSpace(req.SslConfigId) == "" {
+		if err := wafconfig.UpdateSslBindCertId(""); err != nil {
+			response.FailWithMessage("解绑失败: "+err.Error(), c)
+			return
+		}
+		response.OkWithMessage("已解绑管理端证书，回到手动上传模式", c)
+		return
+	}
+
+	// 绑定：校验证书夹内容可用
+	bean := wafSslConfigService.GetDetailInner(req.SslConfigId)
+	if bean.Id == "" {
+		response.FailWithMessage("指定的证书夹不存在", c)
+		return
+	}
+	if bean.CertContent == "" || bean.KeyContent == "" {
+		response.FailWithMessage("该证书夹证书或私钥内容为空，无法绑定", c)
+		return
+	}
+	if err := validateCertificate(bean.CertContent, bean.KeyContent); err != nil {
+		response.FailWithMessage("证书校验失败: "+err.Error(), c)
+		return
+	}
+
+	// 先持久化绑定关系（设置全局变量），再复用刷新钩子立即落地并触发重启
+	if err := wafconfig.UpdateSslBindCertId(req.SslConfigId); err != nil {
+		response.FailWithMessage("保存绑定关系失败: "+err.Error(), c)
+		return
+	}
+	waf_service.RefreshManagerCertBySslConfig(bean.Id, bean.CertContent, bean.KeyContent)
+
+	response.OkWithMessage("绑定成功，管理端证书将更新并自动重启，请稍候5-10秒后重新访问", c)
 }

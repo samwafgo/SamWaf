@@ -49,6 +49,7 @@ type Hosts struct {
 	CustomHeadersJSON         string `gorm:"type:text" json:"custom_headers_json"`          //自定义头信息配置 json
 	CustomResponseHeadersJSON string `gorm:"type:text" json:"custom_response_headers_json"` //自定义响应头信息配置 json
 	ResponseCompressJSON      string `gorm:"type:text" json:"response_compress_json"`       //响应压缩配置 json（Gzip/Brotli/Zstd）
+	CookieSecurityJSON        string `gorm:"type:text" json:"cookie_security_json"`         //Cookie安全保护配置 json（HttpOnly/Secure/SameSite）
 	IPMode                    string `gorm:"size:20" json:"ip_mode"`                        //IP提取模式: "nic" 网卡模式 或 "proxy" 代理模式
 }
 
@@ -185,6 +186,33 @@ type ResponseCompressConfig struct {
 	ExcludeExtensions        string `json:"exclude_extensions"`          // 分号或换行分隔后缀
 	ExcludePaths             string `json:"exclude_paths"`               // 换行或分号，URL 前缀匹配
 	CompressWhenStaticAssist int    `json:"compress_when_static_assist"` // 1 时对静态协助响应也读体压缩
+}
+
+// CookieSecurityConfig Cookie 安全保护（应答方向给后端下发的 Set-Cookie 补齐安全属性）
+// 设计原则：缺失才补——仅在对应属性缺失时追加，绝不覆盖应用已设的值，保留原 cookie 全部内容。
+type CookieSecurityConfig struct {
+	IsEnable       int    `json:"is_enable"`       // 1 开启 0 关闭（默认0，老站点不受影响）
+	HttpOnly       int    `json:"http_only"`       // 1 缺失时补 HttpOnly / 0 不动（默认1）
+	Secure         int    `json:"secure"`          // 0 不动 / 1 强制补 / 2 仅 HTTPS 自动补（默认2）
+	SameSite       string `json:"same_site"`       // "" 不动 / Lax / Strict / None（默认Lax）
+	ExcludeCookies string `json:"exclude_cookies"` // 排除的 cookie 名，逗号分隔（如三方/SSO cookie 原样放过）
+}
+
+// ParseCookieSecurityConfig 解析 Cookie 安全保护配置；空 JSON 给安全默认值（但默认关闭）
+func ParseCookieSecurityConfig(jsonStr string) CookieSecurityConfig {
+	c := CookieSecurityConfig{
+		IsEnable: 0,
+		HttpOnly: 1,
+		Secure:   2,
+		SameSite: "Lax",
+	}
+	if jsonStr == "" {
+		return c
+	}
+	if err := json.Unmarshal([]byte(jsonStr), &c); err != nil {
+		return CookieSecurityConfig{IsEnable: 0, HttpOnly: 1, Secure: 2, SameSite: "Lax"}
+	}
+	return c
 }
 
 // TransportConfig 传输配置

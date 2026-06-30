@@ -103,6 +103,11 @@ func inferAttackType(ruleTitle string) string {
 		return "sql_injection"
 	}
 
+	// CSRF跨站请求伪造（必须先于 XSS 判断，因 XSS 分支会匹配"跨站"）
+	if strings.Contains(ruleTitle, "csrf") || strings.Contains(ruleTitle, "跨站请求") {
+		return "csrf_attack"
+	}
+
 	// XSS攻击
 	if strings.Contains(ruleTitle, "xss") || strings.Contains(ruleTitle, "跨站") {
 		return "xss_attack"
@@ -587,6 +592,11 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 				// 添加防盗链检查
 				if handleBlock(waf.CheckAntiLeech) {
+					return
+				}
+
+				// CSRF 跨站请求伪造防护
+				if handleBlock(waf.CheckCsrf) {
 					return
 				}
 

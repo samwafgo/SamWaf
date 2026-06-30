@@ -50,6 +50,7 @@ type Hosts struct {
 	CustomResponseHeadersJSON string `gorm:"type:text" json:"custom_response_headers_json"` //自定义响应头信息配置 json
 	ResponseCompressJSON      string `gorm:"type:text" json:"response_compress_json"`       //响应压缩配置 json（Gzip/Brotli/Zstd）
 	CookieSecurityJSON        string `gorm:"type:text" json:"cookie_security_json"`         //Cookie安全保护配置 json（HttpOnly/Secure/SameSite）
+	CsrfJSON                  string `gorm:"type:text" json:"csrf_json"`                    //CSRF防护配置 json（Origin/Referer 强校验）
 	IPMode                    string `gorm:"size:20" json:"ip_mode"`                        //IP提取模式: "nic" 网卡模式 或 "proxy" 代理模式
 }
 
@@ -211,6 +212,34 @@ func ParseCookieSecurityConfig(jsonStr string) CookieSecurityConfig {
 	}
 	if err := json.Unmarshal([]byte(jsonStr), &c); err != nil {
 		return CookieSecurityConfig{IsEnable: 0, HttpOnly: 1, Secure: 2, SameSite: "Lax"}
+	}
+	return c
+}
+
+// CsrfConfig CSRF 跨站请求伪造防护配置（Origin/Referer 强校验）
+type CsrfConfig struct {
+	IsEnable       int    `json:"is_enable"`       // 1 开启 0 关闭（默认0，老站点不受影响）
+	ProtectMethods string `json:"protect_methods"` // 需保护的方法，逗号分隔（默认 "POST,PUT,DELETE,PATCH"；GET/HEAD/OPTIONS 等安全方法不校验）
+	AllowedOrigins string `json:"allowed_origins"` // 额外允许的来源(host 或 scheme://host)，换行分隔；本站域名 + BindMoreHost 自动允许
+	AllowEmptyRef  int    `json:"allow_empty_ref"` // 无 Origin 且无 Referer 时：1 放行(默认) / 0 拦截
+	ExcludePaths   string `json:"exclude_paths"`   // 排除的路径前缀，换行分隔（webhook/回调/Token鉴权API）
+}
+
+// ParseCsrfConfig 解析 CSRF 防护配置；空 JSON 给安全默认值（但默认关闭）
+func ParseCsrfConfig(jsonStr string) CsrfConfig {
+	c := CsrfConfig{
+		IsEnable:       0,
+		ProtectMethods: "POST,PUT,DELETE,PATCH",
+		AllowEmptyRef:  1,
+	}
+	if jsonStr == "" {
+		return c
+	}
+	if err := json.Unmarshal([]byte(jsonStr), &c); err != nil {
+		return CsrfConfig{IsEnable: 0, ProtectMethods: "POST,PUT,DELETE,PATCH", AllowEmptyRef: 1}
+	}
+	if c.ProtectMethods == "" {
+		c.ProtectMethods = "POST,PUT,DELETE,PATCH"
 	}
 	return c
 }

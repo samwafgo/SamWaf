@@ -1018,6 +1018,27 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 			}
 		}
 
+		// Cookie 安全保护：缺失才补 HttpOnly/Secure/SameSite（按站点配置）
+		if wafCtx, ok := r.Context().Value("waf_context").(innerbean.WafHttpContextData); ok {
+			host := waf.rt().HostCode[wafCtx.HostCode]
+			if hostTarget, exists := waf.rt().HostTarget[host]; exists {
+				cookieCfg := model.ParseCookieSecurityConfig(hostTarget.Host.CookieSecurityJSON)
+				if cookieCfg.IsEnable == 1 {
+					if lines := resp.Header.Values("Set-Cookie"); len(lines) > 0 {
+						isHTTPS := r.TLS != nil
+						secured := make([]string, 0, len(lines))
+						for _, l := range lines {
+							secured = append(secured, secureSetCookie(l, isHTTPS, cookieCfg))
+						}
+						resp.Header.Del("Set-Cookie")
+						for _, l := range secured {
+							resp.Header.Add("Set-Cookie", l)
+						}
+					}
+				}
+			}
+		}
+
 		// 检查是否为WebSocket协议切换
 		if resp.StatusCode == http.StatusSwitchingProtocols {
 

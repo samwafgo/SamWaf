@@ -1038,6 +1038,32 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 			},
 		},
 		{
+			ID: "202606300001_add_hosts_cookie_security_json",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202606300001: 为 hosts 表添加 cookie_security_json 字段")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "cookie_security_json") {
+					zlog.Info("cookie_security_json 字段已存在，跳过添加")
+					return nil
+				}
+				if err := tx.Migrator().AddColumn(&model.Hosts{}, "cookie_security_json"); err != nil {
+					return fmt.Errorf("添加 cookie_security_json 字段失败: %w", err)
+				}
+				defaultJSON := `{"is_enable":0,"http_only":1,"secure":2,"same_site":"Lax","exclude_cookies":""}`
+				if err := tx.Exec("UPDATE hosts SET cookie_security_json = ? WHERE cookie_security_json IS NULL OR cookie_security_json = ''", defaultJSON).Error; err != nil {
+					zlog.Warn("设置 cookie_security_json 默认值失败", "error", err.Error())
+				}
+				zlog.Info("cookie_security_json 字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202606300001: 删除 hosts 表的 cookie_security_json 字段")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "cookie_security_json") {
+					return tx.Migrator().DropColumn(&model.Hosts{}, "cookie_security_json")
+				}
+				return nil
+			},
+		},
+		{
 			ID: "202606290001_add_rbac_and_password_policy",
 			Migrate: func(tx *gorm.DB) error {
 				zlog.Info("迁移 202606290001: RBAC 角色 + 口令策略字段，新增密码历史表")

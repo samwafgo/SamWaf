@@ -66,9 +66,9 @@ builds:
     main: ./cmd/samwaf
     env:
       - CGO_ENABLED=1
-      - CC=aarch64-linux-gnu-gcc
-      - CXX=aarch64-linux-gnu-g++
-      - CGO_CFLAGS=-Wno-unused-variable
+      - CC=aarch64-linux-musl-gcc
+      - CXX=aarch64-linux-musl-g++
+      - CGO_CFLAGS=-Wno-unused-variable -fno-sanitize=all -D_LARGEFILE64_SOURCE -D_LARGEFILE64_SOURCE
     goos:
       - linux
     goarch:
@@ -124,9 +124,9 @@ builds:
     main: ./cmd/samwaf
     env:
       - CGO_ENABLED=1
-      - CC=aarch64-linux-gnu-gcc
-      - CXX=aarch64-linux-gnu-g++
-      - CGO_CFLAGS=-Wno-unused-variable
+      - CC=aarch64-linux-musl-gcc
+      - CXX=aarch64-linux-musl-g++
+      - CGO_CFLAGS=-Wno-unused-variable -fno-sanitize=all -D_LARGEFILE64_SOURCE
     goos:
       - linux
     goarch:

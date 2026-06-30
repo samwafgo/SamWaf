@@ -1064,6 +1064,32 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 			},
 		},
 		{
+			ID: "202606300002_add_hosts_csrf_json",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202606300002: 为 hosts 表添加 csrf_json 字段")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "csrf_json") {
+					zlog.Info("csrf_json 字段已存在，跳过添加")
+					return nil
+				}
+				if err := tx.Migrator().AddColumn(&model.Hosts{}, "csrf_json"); err != nil {
+					return fmt.Errorf("添加 csrf_json 字段失败: %w", err)
+				}
+				defaultJSON := `{"is_enable":0,"protect_methods":"POST,PUT,DELETE,PATCH","allowed_origins":"","allow_empty_ref":1,"exclude_paths":""}`
+				if err := tx.Exec("UPDATE hosts SET csrf_json = ? WHERE csrf_json IS NULL OR csrf_json = ''", defaultJSON).Error; err != nil {
+					zlog.Warn("设置 csrf_json 默认值失败", "error", err.Error())
+				}
+				zlog.Info("csrf_json 字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202606300002: 删除 hosts 表的 csrf_json 字段")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "csrf_json") {
+					return tx.Migrator().DropColumn(&model.Hosts{}, "csrf_json")
+				}
+				return nil
+			},
+		},
+		{
 			ID: "202606290001_add_rbac_and_password_policy",
 			Migrate: func(tx *gorm.DB) error {
 				zlog.Info("迁移 202606290001: RBAC 角色 + 口令策略字段，新增密码历史表")

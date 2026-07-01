@@ -19,6 +19,8 @@ type EmailNotifier struct {
 	ToEmails       []string
 	EnableSSL      bool
 	EnableSTARTTLS bool
+	// SkipVerify 跳过 TLS 证书校验（用于自签名证书的邮件服务器）
+	SkipVerify bool
 }
 
 // EmailConfig 邮件配置
@@ -32,6 +34,8 @@ type EmailConfig struct {
 	ToEmails       []string `json:"to_emails"`
 	EnableSSL      bool     `json:"enable_ssl"`
 	EnableSTARTTLS bool     `json:"enable_starttls"`
+	// SkipVerify 跳过 TLS 证书校验（用于自签名证书的邮件服务器）
+	SkipVerify bool `json:"skip_verify"`
 }
 
 // NewEmailNotifier 创建邮件通知器
@@ -76,6 +80,7 @@ func NewEmailNotifier(configJSON string) (*EmailNotifier, error) {
 		ToEmails:       config.ToEmails,
 		EnableSSL:      config.EnableSSL,
 		EnableSTARTTLS: config.EnableSTARTTLS,
+		SkipVerify:     config.SkipVerify,
 	}, nil
 }
 
@@ -220,7 +225,7 @@ func (e *EmailNotifier) sendWithPlain(addr string, auth smtp.Auth, message strin
 func (e *EmailNotifier) sendWithTLS(addr string, auth smtp.Auth, message string) error {
 	// 创建TLS配置
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: false,
+		InsecureSkipVerify: e.SkipVerify,
 		ServerName:         e.SMTPHost,
 	}
 
@@ -310,7 +315,7 @@ func (e *EmailNotifier) sendWithSTARTTLS(addr string, auth smtp.Auth, message st
 
 	// 创建TLS配置
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: false,
+		InsecureSkipVerify: e.SkipVerify,
 		ServerName:         e.SMTPHost,
 	}
 

@@ -9,6 +9,7 @@ import (
 	"SamWaf/model/spec"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -127,7 +128,75 @@ func (w *WafTamperRuleApi) RelearnApi(c *gin.Context) {
 			response.FailWithMessage("操作失败:"+err.Error(), c)
 		} else {
 			w.NotifyWaf(bean.HostCode)
-			response.OkWithMessage("已标记重新学习，下次访问该URL将重新捕获基线", c)
+			response.OkWithMessage("已触发重新学习，正在后端重新抓取基线（无后端的站点将在下次访问时重学）", c)
+		}
+	} else {
+		response.FailWithMessage("解析失败", c)
+	}
+}
+
+// RelearnBatchApi 批量/整站重新学习基线
+func (w *WafTamperRuleApi) RelearnBatchApi(c *gin.Context) {
+	var req request.WafTamperRuleRelearnBatchReq
+	err := c.ShouldBindJSON(&req)
+	if err == nil {
+		err = wafTamperRuleService.RelearnBatchApi(req)
+		if err != nil {
+			response.FailWithMessage("操作失败:"+err.Error(), c)
+		} else {
+			w.NotifyWaf(req.HostCode)
+			response.OkWithMessage("已触发重新学习，正在后端重新抓取基线（无后端的站点将在下次访问时重学）", c)
+		}
+	} else {
+		response.FailWithMessage("解析失败", c)
+	}
+}
+
+// ExtractUrlsApi 抓取当前站点后端的一个页面，返回同站静态资源候选供批量添加
+func (w *WafTamperRuleApi) ExtractUrlsApi(c *gin.Context) {
+	var req request.WafTamperRuleExtractReq
+	err := c.ShouldBindJSON(&req)
+	if err == nil {
+		list, e := wafTamperRuleService.ExtractUrlsApi(req)
+		if e != nil {
+			response.FailWithMessage(e.Error(), c)
+		} else {
+			response.OkWithDetailed(gin.H{"list": list, "total": len(list)}, "提取成功", c)
+		}
+	} else {
+		response.FailWithMessage("解析失败", c)
+	}
+}
+
+// AddBatchApi 批量新增受保护 URL 规则
+func (w *WafTamperRuleApi) AddBatchApi(c *gin.Context) {
+	var req request.WafTamperRuleAddBatchReq
+	err := c.ShouldBindJSON(&req)
+	if err == nil {
+		added, skipped, e := wafTamperRuleService.AddBatchApi(req)
+		if e != nil {
+			response.FailWithMessage("批量添加失败:"+e.Error(), c)
+		} else {
+			w.NotifyWaf(req.HostCode)
+			response.OkWithDetailed(gin.H{"added": added, "skipped": skipped},
+				fmt.Sprintf("批量添加完成：新增 %d 条，跳过 %d 条", added, skipped), c)
+		}
+	} else {
+		response.FailWithMessage("解析失败", c)
+	}
+}
+
+// DelBatchApi 批量删除受保护 URL 规则
+func (w *WafTamperRuleApi) DelBatchApi(c *gin.Context) {
+	var req request.WafTamperRuleDelBatchReq
+	err := c.ShouldBindJSON(&req)
+	if err == nil {
+		cnt, e := wafTamperRuleService.DelBatchApi(req)
+		if e != nil {
+			response.FailWithMessage("批量删除失败:"+e.Error(), c)
+		} else {
+			w.NotifyWaf(req.HostCode)
+			response.OkWithMessage(fmt.Sprintf("已删除 %d 条", cnt), c)
 		}
 	} else {
 		response.FailWithMessage("解析失败", c)

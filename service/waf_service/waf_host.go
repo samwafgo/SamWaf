@@ -103,6 +103,7 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 		ResponseCompressJSON:      wafHostAddReq.ResponseCompressJSON,
 		CookieSecurityJSON:        wafHostAddReq.CookieSecurityJSON,
 		CsrfJSON:                  wafHostAddReq.CsrfJSON,
+		TamperJSON:                wafHostAddReq.TamperJSON,
 		IPMode:                    wafHostAddReq.IPMode,
 	}
 	global.GWAF_LOCAL_DB.Create(wafHost)
@@ -170,6 +171,7 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 		"ResponseCompressJSON":      wafHostEditReq.ResponseCompressJSON,
 		"CookieSecurityJSON":        wafHostEditReq.CookieSecurityJSON,
 		"CsrfJSON":                  wafHostEditReq.CsrfJSON,
+		"TamperJSON":                wafHostEditReq.TamperJSON,
 		"IPMode":                    wafHostEditReq.IPMode,
 	}
 	err := global.GWAF_LOCAL_DB.Debug().Model(model.Hosts{}).Where("CODE=?", wafHostEditReq.CODE).Updates(hostMap).Error

@@ -683,6 +683,11 @@ func (m *wafSystenService) run() {
 					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.UpdateHost(msg.HostCode, func(h *wafenginmodel.HostSafe) { h.CacheRule = cacheRule })
 					zlog.Debug("远程配置", zap.Any("配置缓存规则", cacheRule))
 					break
+				case enums.ChanTypeTamperRule:
+					tamperRules := msg.Content.([]model.TamperRule)
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.UpdateHost(msg.HostCode, func(h *wafenginmodel.HostSafe) { h.TamperRules = tamperRules })
+					zlog.Debug("远程配置", zap.Any("配置网页防篡改规则", tamperRules))
+					break
 				case enums.ChanTypeHostPathRule:
 					pathRules := msg.Content.([]model.HostPathRule)
 					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.UpdateHost(msg.HostCode, func(h *wafenginmodel.HostSafe) { h.PathRules = pathRules })

@@ -229,6 +229,10 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 	var cacheRuleList []model.CacheRule
 	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&cacheRuleList)
 
+	//查询网页防篡改规则（含基线正文，供响应比对/回吐）
+	var tamperRuleList []model.TamperRule
+	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&tamperRuleList)
+
 	//查询路径路由规则
 	var pathRuleList []model.HostPathRule
 	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Order("priority asc, create_time asc").Find(&pathRuleList)
@@ -263,6 +267,7 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 		HttpAuthBases:       httpAuthList,
 		BlockingPage:        blockingPageMap,
 		CacheRule:           cacheRuleList,
+		TamperRules:         tamperRuleList,
 		PathRules:           pathRuleList,
 		StaticConfig:        staticCfg,
 	}

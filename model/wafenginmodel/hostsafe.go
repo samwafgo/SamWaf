@@ -33,6 +33,7 @@ type HostSafe struct {
 	HttpAuthBases      []model.HttpAuthBase          //HTTP AUTH校验
 	BlockingPage       map[string]model.BlockingPage //自定义拦截界面
 	CacheRule          []model.CacheRule             //CacheRule
+	TamperRules        []model.TamperRule            //网页防篡改规则（含基线正文，供响应比对/回吐）
 	PathRules          []model.HostPathRule          //路径路由规则
 	StaticConfig       model.StaticSiteConfig        //解析后的静态站点安全配置，供路径规则静态服务共享
 }

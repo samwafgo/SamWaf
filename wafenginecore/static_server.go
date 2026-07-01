@@ -7,6 +7,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/wafenginmodel"
 	"bytes"
+	"mime"
 	"net/http"
 	"os"
 	"path"
@@ -296,6 +297,11 @@ func (waf *WafEngine) serveStaticFile(w http.ResponseWriter, r *http.Request, co
 		return true
 	}
 
+	// 网页防篡改：受保护静态文件的基线比对/回吐（命中 replace 则短路，不再走正常伺服）
+	if waf.checkAndServeStaticTamper(w, r, absFullPath, config, weblog, hostsafe) {
+		return true
+	}
+
 	// 记录合法的静态文件访问到日志队列
 	waf.logStaticFileAccess(r.URL.Path, r.RemoteAddr, fileInfo.Size(), weblog, hostsafe)
 
@@ -520,6 +526,84 @@ func (waf *WafEngine) setSecurityHeaders(w http.ResponseWriter, config model.Sta
 			w.Header().Set(h.HeaderName, h.HeaderValue)
 		}
 	}
+}
+
+// checkAndServeStaticTamper 静态伺服链路的网页防篡改：命中受保护规则则读盘比对基线。
+// 静态站点服务 / 路径路由静态文件走 http.ServeFile 直接落盘伺服、不过 modifyResponse，
+// 故在此单独挂钩。返回 true 表示已完整处理（已回吐正确副本并记日志），调用方应直接 return；
+// 返回 false 表示未拦截（未开启/非GET/无匹配规则/带参跳过/未学习/一致/仅告警），走正常静态伺服。
+func (waf *WafEngine) checkAndServeStaticTamper(w http.ResponseWriter, r *http.Request, absFullPath string, config model.StaticSiteConfig, weblog *innerbean.WebLog, hostsafe *wafenginmodel.HostSafe) bool {
+	cfg := model.ParseTamperConfig(hostsafe.Host.TamperJSON)
+	if cfg.IsEnable != 1 {
+		return false
+	}
+	// 只对 GET 比对（HEAD 无正文，交由正常伺服）
+	if !strings.EqualFold(r.Method, http.MethodGet) {
+		return false
+	}
+	rule := matchTamperRule(hostsafe.TamperRules, r.URL.Path)
+	if rule == nil {
+		return false
+	}
+	if rule.IgnoreQuery == 0 && r.URL.RawQuery != "" {
+		return false
+	}
+	// 静态文件即基线原文（磁盘未压缩），直接读盘做哈希基准
+	content, err := os.ReadFile(absFullPath)
+	if err != nil || len(content) == 0 {
+		return false
+	}
+
+	switch evaluateTamper(sha256Hex(content), *rule) {
+	case tamperCapture:
+		waf.captureTamperBaseline(rule, content, staticContentType(absFullPath, content), http.StatusOK, cfg)
+		return false
+	case tamperPass, tamperSkip:
+		return false
+	case tamperTampered:
+		replaced := cfg.Action != "alert"
+		// 统计 + 告警（异步，文案区分是否已替换）
+		waf.onTamperDetected(rule, weblog, replaced)
+		weblog.RULE = "网页防篡改"
+		weblog.RISK_LEVEL = 3
+		weblog.GUEST_IDENTIFICATION = "网页篡改"
+		if !replaced {
+			// 仅告警：不替换，放行原（被篡改）文件，日志由正常流程记录
+			return false
+		}
+		// replace：回吐基线正确副本并短路
+		waf.serveStaticTamperBaseline(w, r, rule, config)
+		weblog.ACTION = "阻止"
+		weblog.STATUS = "200 OK"
+		weblog.STATUS_CODE = http.StatusOK
+		weblog.RES_CONTENT_LENGTH = int64(len(rule.BaselineContent))
+		waf.enqueueTamperLog(weblog, hostsafe.Host.EXCLUDE_URL_LOG)
+		return true
+	}
+	return false
+}
+
+// serveStaticTamperBaseline 静态链路回吐基线正确副本（未压缩直出，带安全头）
+func (waf *WafEngine) serveStaticTamperBaseline(w http.ResponseWriter, r *http.Request, rule *model.TamperRule, config model.StaticSiteConfig) {
+	waf.setSecurityHeaders(w, config)
+	ct := rule.ContentType
+	if ct == "" {
+		ct = "application/octet-stream"
+	}
+	w.Header().Set("Content-Type", ct)
+	w.Header().Set("Content-Length", strconv.Itoa(len(rule.BaselineContent)))
+	w.WriteHeader(http.StatusOK)
+	if !strings.EqualFold(r.Method, http.MethodHead) {
+		w.Write(rule.BaselineContent)
+	}
+}
+
+// staticContentType 依扩展名/内容推断静态文件 Content-Type（与 http.ServeFile 行为一致）
+func staticContentType(fullPath string, content []byte) string {
+	if ct := mime.TypeByExtension(filepath.Ext(fullPath)); ct != "" {
+		return ct
+	}
+	return http.DetectContentType(content)
 }
 
 // logStaticFileAccess 记录成功的静态文件访问到传入的weblog

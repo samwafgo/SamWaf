@@ -1109,6 +1109,12 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 			// 上游 chunked 传输时 resp.ContentLength 为 -1，先按 0 计；非静态资源后续会用真实落盘字节数回填
 			weblogfrist.RES_CONTENT_LENGTH = sanitizeContentLength(resp.ContentLength)
 
+			// 网页防篡改：反代响应基线比对（命中且 replace 动作则回吐正确副本并短路）
+			if waf.checkAndHandleTamper(resp, r, host, weblogfrist) {
+				weblogfrist.BackendCheckCost = time.Now().UnixNano()/1e6 - backendCheckStart
+				return nil
+			}
+
 			//返回内容的类型
 			respContentType := strings.ToLower(resp.Header.Get("Content-Type"))
 			respContentType = strings.Replace(respContentType, "; charset=utf-8", "", -1)

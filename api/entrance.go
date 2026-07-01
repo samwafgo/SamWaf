@@ -41,6 +41,7 @@ type APIGroup struct {
 	WafPrivateInfoApi
 	WafPrivateGroupApi
 	WafCacheRuleApi
+	WafTamperRuleApi
 	WafTunnelApi
 	WafVpConfigApi
 	WafFileApi
@@ -120,6 +121,7 @@ var (
 	wafPrivateInfoService  = waf_service.WafPrivateInfoServiceApp
 	wafPrivateGroupService = waf_service.WafPrivateGroupServiceApp
 	wafCacheRuleService    = waf_service.WafCacheRuleServiceApp
+	wafTamperRuleService   = waf_service.WafTamperRuleServiceApp
 	wafTunnelService       = waf_service.WafTunnelServiceApp
 
 	wafMonitorService = waf_service.WafSystemMonitorServiceApp

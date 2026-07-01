@@ -17,4 +17,5 @@ const (
 	ChanTypeBlockingPage
 	ChanTypeCacheRule
 	ChanTypeHostPathRule
+	ChanTypeTamperRule
 )

@@ -51,6 +51,7 @@ type Hosts struct {
 	ResponseCompressJSON      string `gorm:"type:text" json:"response_compress_json"`       //响应压缩配置 json（Gzip/Brotli/Zstd）
 	CookieSecurityJSON        string `gorm:"type:text" json:"cookie_security_json"`         //Cookie安全保护配置 json（HttpOnly/Secure/SameSite）
 	CsrfJSON                  string `gorm:"type:text" json:"csrf_json"`                    //CSRF防护配置 json（Origin/Referer 强校验）
+	TamperJSON                string `gorm:"type:text" json:"tamper_json"`                  //网页防篡改配置 json（响应基线比对）
 	IPMode                    string `gorm:"size:20" json:"ip_mode"`                        //IP提取模式: "nic" 网卡模式 或 "proxy" 代理模式
 }
 
@@ -240,6 +241,35 @@ func ParseCsrfConfig(jsonStr string) CsrfConfig {
 	}
 	if c.ProtectMethods == "" {
 		c.ProtectMethods = "POST,PUT,DELETE,PATCH"
+	}
+	return c
+}
+
+// TamperConfig 网页防篡改配置（反代响应基线比对）
+type TamperConfig struct {
+	IsEnable  int    `json:"is_enable"`   // 1 开启 0 关闭（默认0，老站点不受影响）
+	Action    string `json:"action"`      // "replace"(比对+命中回吐正确副本+告警,默认) / "alert"(仅告警,仍放行后端页,监控档)
+	MaxSizeKB int    `json:"max_size_kb"` // 基线最大字节(KB)，默认1024(1MB)，超限不学习/不保护
+}
+
+// ParseTamperConfig 解析网页防篡改配置；空 JSON 给安全默认值（但默认关闭）
+func ParseTamperConfig(jsonStr string) TamperConfig {
+	c := TamperConfig{
+		IsEnable:  0,
+		Action:    "replace",
+		MaxSizeKB: 1024,
+	}
+	if jsonStr == "" {
+		return c
+	}
+	if err := json.Unmarshal([]byte(jsonStr), &c); err != nil {
+		return TamperConfig{IsEnable: 0, Action: "replace", MaxSizeKB: 1024}
+	}
+	if c.Action == "" {
+		c.Action = "replace"
+	}
+	if c.MaxSizeKB <= 0 {
+		c.MaxSizeKB = 1024
 	}
 	return c
 }

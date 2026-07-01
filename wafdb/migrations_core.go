@@ -1090,6 +1090,39 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 			},
 		},
 		{
+			ID: "202607010001_add_tamper_protection",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202607010001: 为 hosts 表添加 tamper_json 字段并新建 tamper_rule 表")
+				if !tx.Migrator().HasColumn(&model.Hosts{}, "tamper_json") {
+					if err := tx.Migrator().AddColumn(&model.Hosts{}, "tamper_json"); err != nil {
+						return fmt.Errorf("添加 tamper_json 字段失败: %w", err)
+					}
+					defaultJSON := `{"is_enable":0,"action":"replace","max_size_kb":1024}`
+					if err := tx.Exec("UPDATE hosts SET tamper_json = ? WHERE tamper_json IS NULL OR tamper_json = ''", defaultJSON).Error; err != nil {
+						zlog.Warn("设置 tamper_json 默认值失败", "error", err.Error())
+					}
+				} else {
+					zlog.Info("tamper_json 字段已存在，跳过添加")
+				}
+				// 创建/同步网页防篡改规则表（幂等）
+				if err := tx.AutoMigrate(&model.TamperRule{}); err != nil {
+					return fmt.Errorf("同步 tamper_rule 表失败: %w", err)
+				}
+				zlog.Info("网页防篡改结构迁移成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202607010001: 删除 tamper_json 字段与 tamper_rule 表")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "tamper_json") {
+					_ = tx.Migrator().DropColumn(&model.Hosts{}, "tamper_json")
+				}
+				if tx.Migrator().HasTable(&model.TamperRule{}) {
+					return tx.Migrator().DropTable(&model.TamperRule{})
+				}
+				return nil
+			},
+		},
+		{
 			ID: "202606290001_add_rbac_and_password_policy",
 			Migrate: func(tx *gorm.DB) error {
 				zlog.Info("迁移 202606290001: RBAC 角色 + 口令策略字段，新增密码历史表")

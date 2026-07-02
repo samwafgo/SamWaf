@@ -2,6 +2,7 @@ package ssl
 
 import (
 	"SamWaf/common/zlog"
+	"SamWaf/customtype"
 	"SamWaf/model"
 	"SamWaf/utils"
 	"crypto"
@@ -207,7 +208,7 @@ func RegistrationSSL(order model.SslOrder, savePath string, caServerAddress stri
 	if block != nil {
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err == nil {
-			order.ResultValidTo = cert.NotAfter
+			order.ResultValidTo = customtype.JsonTime(cert.NotAfter)
 		}
 	}
 
@@ -384,7 +385,7 @@ func ReNewSSL(order model.SslOrder, savePath string, caServerAddress string, app
 	if block != nil {
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err == nil {
-			order.ResultValidTo = cert.NotAfter
+			order.ResultValidTo = customtype.JsonTime(cert.NotAfter)
 		}
 	}
 	return order, nil

@@ -62,7 +62,7 @@ func (receiver *WafNotifySenderService) SendNotification(messageType, title, con
 
 // getChannelById 根据ID获取渠道
 func (receiver *WafNotifySenderService) getChannelById(channelId string, channel *model.NotifyChannel) error {
-	return global.GWAF_LOCAL_DB.Where("id = ? and status = ?", channelId, 1).First(channel).Error
+	return global.GWAF_LOCAL_DB.Where("id = ? and `status` = ?", channelId, 1).First(channel).Error
 }
 
 // sendToChannel 发送到具体渠道

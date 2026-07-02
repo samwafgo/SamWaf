@@ -585,7 +585,7 @@ func (w *WafVpConfigApi) GetSslBindCertApi(c *gin.Context) {
 		bean := wafSslConfigService.GetDetailInner(global.GWAF_SSL_BIND_CERT_ID)
 		if bean.Id != "" {
 			resp.Domains = bean.Domains
-			resp.ValidTo = bean.ValidTo.Format("2006-01-02 15:04:05")
+			resp.ValidTo = time.Time(bean.ValidTo).Format("2006-01-02 15:04:05")
 		}
 	}
 	response.OkWithDetailed(resp, "获取成功", c)

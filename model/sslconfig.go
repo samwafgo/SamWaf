@@ -1,6 +1,7 @@
 package model
 
 import (
+	"SamWaf/customtype"
 	"SamWaf/model/baseorm"
 	"crypto/x509"
 	"encoding/pem"
@@ -13,16 +14,16 @@ import (
 
 type SslConfig struct {
 	baseorm.BaseOrm
-	CertContent string    `gorm:"type:text" json:"cert_content"` // 证书文件内容
-	KeyContent  string    `gorm:"type:text" json:"key_content"`  // 密钥文件内容
-	SerialNo    string    `gorm:"size:255" json:"serial_no"`     // 证书序列号
-	Subject     string    `gorm:"size:500" json:"subject"`       // 证书主题
-	Issuer      string    `gorm:"size:500" json:"issuer"`        // 颁发者
-	ValidFrom   time.Time `json:"valid_from"`                    // 证书有效期开始时间
-	ValidTo     time.Time `json:"valid_to"`                      // 证书有效期结束时间
-	Domains     string    `gorm:"type:text" json:"domains"`      // 证书适用的域名
-	KeyPath     string    `gorm:"size:500" json:"key_path"`      //密钥文件位置
-	CertPath    string    `gorm:"size:500" json:"cert_path"`     //crt文件配置
+	CertContent string              `gorm:"type:text" json:"cert_content"` // 证书文件内容
+	KeyContent  string              `gorm:"type:text" json:"key_content"`  // 密钥文件内容
+	SerialNo    string              `gorm:"size:255" json:"serial_no"`     // 证书序列号
+	Subject     string              `gorm:"size:500" json:"subject"`       // 证书主题
+	Issuer      string              `gorm:"size:500" json:"issuer"`        // 颁发者
+	ValidFrom   customtype.JsonTime `json:"valid_from"`                    // 证书有效期开始时间(未解析时为NULL，避免MySQL严格模式拒绝0000-00-00)
+	ValidTo     customtype.JsonTime `json:"valid_to"`                      // 证书有效期结束时间(未解析时为NULL，避免MySQL严格模式拒绝0000-00-00)
+	Domains     string              `gorm:"type:text" json:"domains"`      // 证书适用的域名
+	KeyPath     string              `gorm:"size:500" json:"key_path"`      //密钥文件位置
+	CertPath    string              `gorm:"size:500" json:"cert_path"`     //crt文件配置
 	// 是否启用「凌晨3点从上面路径自动加载证书」：1=开启(默认) 0=关闭。
 	// 当该证书夹由 SamWaf 自动申请管理时会被自动置为0，避免两个自动渠道互相覆盖。
 	AutoLoadPath int `gorm:"default:1" json:"auto_load_path"`
@@ -31,7 +32,7 @@ type SslConfig struct {
 // ExpirationMessage 获取到期提示信息
 func (s *SslConfig) ExpirationMessage() string {
 	now := time.Now()
-	daysLeft := s.ValidTo.Sub(now).Hours() / 24
+	daysLeft := time.Time(s.ValidTo).Sub(now).Hours() / 24
 
 	if daysLeft > 0 {
 		return fmt.Sprintf("还有 %.0f 天到期", daysLeft)
@@ -64,7 +65,7 @@ func (s *SslConfig) CheckKeyAndCertFileLoad() (error, SslConfig, SslConfig, Cert
 		CertPath:   s.CertPath,
 		KeyPath:    s.KeyPath,
 		OldSerial:  s.SerialNo,
-		OldValidTo: s.ValidTo,
+		OldValidTo: time.Time(s.ValidTo),
 		SkipLevel:  "warn",
 	}
 
@@ -156,7 +157,7 @@ func (s *SslConfig) CheckKeyAndCertFileLoad() (error, SslConfig, SslConfig, Cert
 		return errors.New("路径下的文件已经过期，不加载"), SslConfig{}, SslConfig{}, diag
 	}
 	//现有证书大于路径下的也不进行更新
-	if s.ValidTo.After(validTo) {
+	if time.Time(s.ValidTo).After(validTo) {
 		// 正常情况：库内证书比路径文件更新
 		diag.SkipLevel = "info"
 		return errors.New("现有证书到期时间大于路径下的到期时间也不进行更新"), SslConfig{}, SslConfig{}, diag
@@ -171,8 +172,8 @@ func (s *SslConfig) CheckKeyAndCertFileLoad() (error, SslConfig, SslConfig, Cert
 	updateSslConfig.Subject = subject
 	updateSslConfig.Issuer = issuer
 	updateSslConfig.Domains = domains
-	updateSslConfig.ValidFrom = validFrom
-	updateSslConfig.ValidTo = validTo
+	updateSslConfig.ValidFrom = customtype.JsonTime(validFrom)
+	updateSslConfig.ValidTo = customtype.JsonTime(validTo)
 
 	return nil, updateSslConfig, backSslConfig, diag
 }
@@ -224,8 +225,8 @@ func (s *SslConfig) FillByCertAndKey(certContent, keyContent string) error {
 	s.Subject = subject
 	s.Issuer = issuer
 	s.Domains = domains
-	s.ValidFrom = validFrom
-	s.ValidTo = validTo
+	s.ValidFrom = customtype.JsonTime(validFrom)
+	s.ValidTo = customtype.JsonTime(validTo)
 	return nil
 }
 
@@ -237,7 +238,7 @@ func (s *SslConfig) CompareSSLNeedUpdate(current SslConfig, old SslConfig) bool 
 		ret = false
 	}
 	now := time.Now()
-	daysLeft := current.ValidTo.Sub(now).Hours() / 24
+	daysLeft := time.Time(current.ValidTo).Sub(now).Hours() / 24
 	//如果当前证书已经到期了 则不更新
 	if daysLeft <= 0 {
 		ret = false

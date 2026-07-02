@@ -94,7 +94,7 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 				wafSslOrderService.ModifyById(updateSSLOrder)
 
 				// 发送SSL证书申请成功的系统日志和消息通知
-				sslSuccess := fmt.Sprintf("SSL证书申请成功 - 域名: %s, 有效期至: %s", bean.ApplyDomain, updateSSLOrder.ResultValidTo.Format("2006-01-02"))
+				sslSuccess := fmt.Sprintf("SSL证书申请成功 - 域名: %s, 有效期至: %s", bean.ApplyDomain, time.Time(updateSSLOrder.ResultValidTo).Format("2006-01-02"))
 				wafSysLog := model.WafSysLog{
 					BaseOrm: baseorm.BaseOrm{
 						Id:          uuid.GenUUID(),
@@ -208,7 +208,7 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 				wafSslOrderService.ModifyById(updateSSLOrder)
 
 				// 发送SSL证书续期成功的系统日志和消息通知
-				sslSuccess := fmt.Sprintf("SSL证书续期成功 - 域名: %s, 有效期至: %s", bean.ApplyDomain, updateSSLOrder.ResultValidTo.Format("2006-01-02"))
+				sslSuccess := fmt.Sprintf("SSL证书续期成功 - 域名: %s, 有效期至: %s", bean.ApplyDomain, time.Time(updateSSLOrder.ResultValidTo).Format("2006-01-02"))
 				wafSysLog := model.WafSysLog{
 					BaseOrm: baseorm.BaseOrm{
 						Id:          uuid.GenUUID(),

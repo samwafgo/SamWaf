@@ -115,11 +115,8 @@ func (waf *WafEngine) ProxyHTTP(w http.ResponseWriter, r *http.Request, host str
 func (waf *WafEngine) ProxyHTTPWithPathRule(w http.ResponseWriter, r *http.Request, host string, rule *model.HostPathRule, clientIP string, ctx context.Context, weblog *innerbean.WebLog, hostTarget *wafenginmodel.HostSafe) {
 	ctx = context.WithValue(ctx, "original_accept_encoding", r.Header.Get("Accept-Encoding"))
 
-	// 构建后端 URL
-	scheme := "http"
-	if r.TLS != nil {
-		scheme = "https"
-	}
+	// 构建后端 URL（后端协议可显式选择，修复 #857：与客户端协议解耦）
+	scheme := resolvePathRuleScheme(r, rule)
 	targetStr := scheme + "://" + rule.RemoteHost
 	if rule.RemotePort > 0 {
 		targetStr += ":" + strconv.Itoa(rule.RemotePort)
@@ -128,6 +125,13 @@ func (waf *WafEngine) ProxyHTTPWithPathRule(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		http.Error(w, "Bad Gateway", http.StatusBadGateway)
 		return
+	}
+
+	// 请求访问记录（默认关闭）：打开后把命中该规则的转发请求记入程序日志，便于判断请求是否到达代理/后端
+	if rule.RecordAccessLog == 1 {
+		zlog.Info(fmt.Sprintf("[路径规则访问记录] 转发开始 规则=%s 客户端=%s%s 目标=%s",
+			rule.RuleName, r.Host, r.URL.RequestURI(), remoteUrl.String()),
+			weblog.REQ_UUID)
 	}
 
 	// 若需要剥离前缀，克隆请求并修改 URL
@@ -166,6 +170,13 @@ func (waf *WafEngine) ProxyHTTPWithPathRule(w http.ResponseWriter, r *http.Reque
 		defer func() {
 			wafCtx.Weblog.ForwardCost = time.Now().UnixNano()/1e6 - forwardStart
 			wafCtx.Weblog.IsBalance = 0
+			// 转发结束记录：此时 modifyResponse/errorResponse 已回填 STATUS_CODE 与 ACTION，
+			// 据此可判断请求是否真正到达后端（到达=modifyResponse填状态码；未到=errorResponse填异常分类）
+			if rule.RecordAccessLog == 1 {
+				zlog.Info(fmt.Sprintf("[路径规则访问记录] 转发结束 规则=%s 目标=%s 状态码=%d 处理结果=%s 转发耗时=%dms",
+					rule.RuleName, remoteUrl.String(), wafCtx.Weblog.STATUS_CODE, wafCtx.Weblog.ACTION, wafCtx.Weblog.ForwardCost),
+					wafCtx.Weblog.REQ_UUID)
+			}
 		}()
 	}
 
@@ -188,8 +199,10 @@ func (waf *WafEngine) createPathRuleTransport(r *http.Request, rule *model.HostP
 		return dialer.DialContext(ctx, network, addr)
 	}
 
+	// 是否以 https 连接后端由选定的后端协议决定（而非客户端 r.TLS），
+	// 这样 "HTTP 进 → HTTPS 后端" 也能正确挂载 TLS 配置并复用 InsecureSkipVerify（修复 #857）
 	var transport *http.Transport
-	if r.TLS != nil {
+	if resolvePathRuleScheme(r, rule) == "https" {
 		transport = &http.Transport{
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: hostTarget.Host.InsecureSkipVerify == 1,
@@ -203,8 +216,29 @@ func (waf *WafEngine) createPathRuleTransport(r *http.Request, rule *model.HostP
 		}
 	}
 
-	transport.ResponseHeaderTimeout = time.Duration(hostTarget.Host.ResponseTimeOut) * time.Second
+	// 响应头超时：规则可覆盖网站设置（0=继承网站，>0=用规则值；大文件/慢首字节下载可调大）。
+	// 注意：该超时只限制"等待后端响应头"，不限制响应体传输时长，故大文件下载本身不受影响。
+	respTimeout := hostTarget.Host.ResponseTimeOut
+	if rule.ResponseTimeOut > 0 {
+		respTimeout = rule.ResponseTimeOut
+	}
+	transport.ResponseHeaderTimeout = time.Duration(respTimeout) * time.Second
 	return transport
+}
+
+// resolvePathRuleScheme 计算路径规则的后端协议：显式 http/https 覆盖，否则（空/auto）跟随客户端连接协议。
+func resolvePathRuleScheme(r *http.Request, rule *model.HostPathRule) string {
+	switch strings.ToLower(rule.RemoteScheme) {
+	case "http":
+		return "http"
+	case "https":
+		return "https"
+	default: // "" / "auto" 保持原有行为
+		if r.TLS != nil {
+			return "https"
+		}
+		return "http"
+	}
 }
 
 func (waf *WafEngine) createTransport(r *http.Request, host string, isEnableLoadBalance int, loadBalance model.LoadBalance, hostTarget *wafenginmodel.HostSafe) (*http.Transport, map[string]string) {

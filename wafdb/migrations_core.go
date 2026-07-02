@@ -1179,6 +1179,32 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		{
+			ID: "202607020001_add_hosts_upload_security_json",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202607020001: 为 hosts 表添加 upload_security_json 字段")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "upload_security_json") {
+					zlog.Info("upload_security_json 字段已存在，跳过添加")
+					return nil
+				}
+				if err := tx.Migrator().AddColumn(&model.Hosts{}, "upload_security_json"); err != nil {
+					return fmt.Errorf("添加 upload_security_json 字段失败: %w", err)
+				}
+				defaultJSON := `{"is_enable":0,"check_ext":0,"ext_blacklist":"","check_content":0,"check_magic":0,"check_size":0,"max_size_kb":10240,"over_limit_action":"block","include_paths":"","exclude_paths":""}`
+				if err := tx.Exec("UPDATE hosts SET upload_security_json = ? WHERE upload_security_json IS NULL OR upload_security_json = ''", defaultJSON).Error; err != nil {
+					zlog.Warn("设置 upload_security_json 默认值失败", "error", err.Error())
+				}
+				zlog.Info("upload_security_json 字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202607020001: 删除 hosts 表的 upload_security_json 字段")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "upload_security_json") {
+					return tx.Migrator().DropColumn(&model.Hosts{}, "upload_security_json")
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

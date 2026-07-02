@@ -118,6 +118,11 @@ func inferAttackType(ruleTitle string) string {
 		return "scan_tool"
 	}
 
+	// 文件上传内容检测（含 Webshell）
+	if strings.Contains(ruleTitle, "文件上传") || strings.Contains(ruleTitle, "upload") || strings.Contains(ruleTitle, "webshell") {
+		return "upload_attack"
+	}
+
 	// RCE远程代码执行
 	if strings.Contains(ruleTitle, "rce") || strings.Contains(ruleTitle, "代码执行") || strings.Contains(ruleTitle, "命令执行") {
 		return "rce_attack"
@@ -597,6 +602,11 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 				// CSRF 跨站请求伪造防护
 				if handleBlock(waf.CheckCsrf) {
+					return
+				}
+
+				// 文件上传内容检测（multipart 上传的扩展名/Webshell/类型/大小）
+				if handleBlock(waf.CheckUpload) {
 					return
 				}
 

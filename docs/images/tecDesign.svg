@@ -1,0 +1,242 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1560" height="1220" viewBox="0 0 1560 1220" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif">
+  <rect width="1560" height="1220" fill="#ffffff"/>
+
+  <!-- 外层虚线边框 -->
+  <rect x="24" y="24" width="1512" height="1172" rx="18" fill="none" stroke="#8b97a5" stroke-width="1.6" stroke-dasharray="10 6"/>
+
+  <!-- 标题 -->
+  <text x="780" y="56" text-anchor="middle" font-size="20" font-weight="bold" fill="#253242">SamWaf 架构总览</text>
+
+  <!-- ======================= 客户端流量 ======================= -->
+  <rect x="56" y="72" width="1108" height="60" rx="10" fill="#eaf2fb" stroke="#7ba7d7" stroke-width="1.4"/>
+  <text x="72" y="107" font-size="15" font-weight="bold" fill="#2b3844">客户端</text>
+  <rect x="150" y="85" width="200" height="34" rx="6" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="250" y="107" text-anchor="middle" font-size="12.5" fill="#333f4d">浏览器 · App · API 调用方</text>
+  <text x="378" y="107" font-size="12" fill="#7a8794">协议:</text>
+  <rect x="416" y="85" width="90" height="34" rx="6" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="461" y="107" text-anchor="middle" font-size="12.5" fill="#333f4d">HTTP/1.1</text>
+  <rect x="514" y="85" width="80" height="34" rx="6" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="554" y="107" text-anchor="middle" font-size="12.5" fill="#333f4d">HTTP/2</text>
+  <rect x="602" y="85" width="125" height="34" rx="6" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="664" y="107" text-anchor="middle" font-size="12.5" fill="#333f4d">HTTP/3 · QUIC</text>
+  <rect x="735" y="85" width="100" height="34" rx="6" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="785" y="107" text-anchor="middle" font-size="12.5" fill="#333f4d">WebSocket</text>
+  <rect x="843" y="85" width="95" height="34" rx="6" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="890" y="107" text-anchor="middle" font-size="12.5" fill="#333f4d">TCP / UDP</text>
+
+  <!-- 箭头: 客户端 → 接入层 -->
+  <line x1="610" y1="140" x2="610" y2="152" stroke="#5f6b78" stroke-width="1.6"/>
+  <polygon points="605,141 615,141 610,133" fill="#5f6b78"/>
+  <polygon points="605,151 615,151 610,159" fill="#5f6b78"/>
+  <text x="630" y="151" font-size="11" fill="#7a8794">请求 ↓ · 响应 ↑</text>
+
+  <!-- ======================= 接入层 ======================= -->
+  <rect x="56" y="160" width="1108" height="120" rx="10" fill="#eaf2fb" stroke="#7ba7d7" stroke-width="1.4"/>
+  <text x="72" y="186" font-size="15" font-weight="bold" fill="#2b3844">接入层</text>
+  <text x="150" y="186" font-size="12" fill="#6b7886">多端口监听 · SNI 多证书 · IPv6</text>
+  <rect x="72" y="198" width="260" height="56" rx="8" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="202" y="221" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#2b3844">反向代理接入</text>
+  <text x="202" y="242" text-anchor="middle" font-size="11.5" fill="#6b7886">HTTP / HTTPS</text>
+  <rect x="344" y="198" width="260" height="56" rx="8" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="474" y="221" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#2b3844">静态站点伺服</text>
+  <text x="474" y="242" text-anchor="middle" font-size="11.5" fill="#6b7886">含 ACME 校验直通</text>
+  <rect x="616" y="198" width="260" height="56" rx="8" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="746" y="221" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#2b3844">路径规则</text>
+  <text x="746" y="242" text-anchor="middle" font-size="11.5" fill="#6b7886">反代 · 静态 · 重定向</text>
+  <rect x="888" y="198" width="260" height="56" rx="8" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="1018" y="221" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#2b3844">TCP/UDP 隧道</text>
+  <text x="1018" y="242" text-anchor="middle" font-size="11.5" fill="#6b7886">四层转发 · IP/时段控制</text>
+
+  <!-- 箭头: 接入层 → 检测引擎 -->
+  <line x1="610" y1="288" x2="610" y2="300" stroke="#5f6b78" stroke-width="1.6"/>
+  <polygon points="605,289 615,289 610,281" fill="#5f6b78"/>
+  <polygon points="605,299 615,299 610,307" fill="#5f6b78"/>
+
+  <!-- ======================= 检测引擎 ======================= -->
+  <rect x="56" y="308" width="1108" height="296" rx="10" fill="#fdf6ec" stroke="#dcae6b" stroke-width="1.4"/>
+  <text x="72" y="336" font-size="15" font-weight="bold" fill="#2b3844">SamWaf 检测引擎</text>
+  <text x="230" y="336" font-size="12" fill="#6b7886">（按请求处理顺序）</text>
+
+  <!-- 带①: 白名单放行 -->
+  <rect x="72" y="350" width="1076" height="46" rx="8" fill="#eaf6ee" stroke="#86bd94"/>
+  <text x="88" y="378" font-size="13" font-weight="bold" fill="#2b3844">① 白名单放行</text>
+  <rect x="232" y="356" width="115" height="34" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="289" y="378" text-anchor="middle" font-size="12.5" fill="#333f4d">IP 白名单</text>
+  <rect x="355" y="356" width="120" height="34" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="415" y="378" text-anchor="middle" font-size="12.5" fill="#333f4d">URL 白名单</text>
+  <rect x="483" y="356" width="165" height="34" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="565" y="378" text-anchor="middle" font-size="12.5" fill="#333f4d">搜索引擎爬虫验证</text>
+  <text x="664" y="378" font-size="11.5" fill="#7a8794">命中白名单直接放行，跳过后续全部检测</text>
+
+  <!-- 带②: 攻击检测 -->
+  <rect x="72" y="404" width="1076" height="130" rx="8" fill="#fdecec" stroke="#dc9090"/>
+  <text x="88" y="473" font-size="13" font-weight="bold" fill="#2b3844">② 攻击检测</text>
+  <!-- 第一行 -->
+  <rect x="232" y="412" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="304" y="433" text-anchor="middle" font-size="12.5" fill="#333f4d">IP/URL 黑名单</text>
+  <rect x="384" y="412" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="456" y="433" text-anchor="middle" font-size="12.5" fill="#333f4d">SQL 注入</text>
+  <rect x="536" y="412" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="608" y="433" text-anchor="middle" font-size="12.5" fill="#333f4d">XSS 攻击</text>
+  <rect x="688" y="412" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="760" y="433" text-anchor="middle" font-size="12.5" fill="#333f4d">RCE 命令执行</text>
+  <rect x="840" y="412" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="912" y="433" text-anchor="middle" font-size="12.5" fill="#333f4d">扫描器识别</text>
+  <rect x="992" y="412" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="1064" y="433" text-anchor="middle" font-size="12.5" fill="#333f4d">目录穿越</text>
+  <!-- 第二行 -->
+  <rect x="232" y="452" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="304" y="473" text-anchor="middle" font-size="12.5" fill="#333f4d">文件上传检测</text>
+  <rect x="384" y="452" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="456" y="473" text-anchor="middle" font-size="12.5" fill="#333f4d">CC 攻击防护</text>
+  <rect x="536" y="452" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="608" y="473" text-anchor="middle" font-size="12.5" fill="#333f4d">Bot/爬虫识别</text>
+  <rect x="688" y="452" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="760" y="473" text-anchor="middle" font-size="12.5" fill="#333f4d">防盗链</text>
+  <rect x="840" y="452" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="912" y="473" text-anchor="middle" font-size="12.5" fill="#333f4d">CSRF 防护</text>
+  <rect x="992" y="452" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="1064" y="473" text-anchor="middle" font-size="12.5" fill="#333f4d">敏感词过滤</text>
+  <!-- 第三行 -->
+  <rect x="232" y="492" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="304" y="513" text-anchor="middle" font-size="12.5" fill="#333f4d">地区封禁</text>
+  <rect x="384" y="492" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="456" y="513" text-anchor="middle" font-size="12.5" fill="#333f4d">自定义规则引擎</text>
+  <rect x="536" y="492" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="608" y="513" text-anchor="middle" font-size="12" fill="#333f4d">OWASP CRS (Coraza)</text>
+  <text x="700" y="513" font-size="11.5" fill="#7a8794">全部检测项可按站点独立开关</text>
+
+  <!-- 带③: 人机验证 -->
+  <rect x="72" y="542" width="1076" height="46" rx="8" fill="#f2edfa" stroke="#ab93cf"/>
+  <text x="88" y="570" font-size="13" font-weight="bold" fill="#2b3844">③ 人机验证</text>
+  <rect x="232" y="548" width="115" height="34" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="289" y="570" text-anchor="middle" font-size="12.5" fill="#333f4d">点选验证码</text>
+  <rect x="355" y="548" width="130" height="34" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="420" y="570" text-anchor="middle" font-size="12.5" fill="#333f4d">Cap.js · PoW</text>
+  <text x="505" y="570" font-size="11.5" fill="#7a8794">仅记录模式：命中攻击只记日志不拦截</text>
+
+  <!-- 箭头: 检测引擎 → 转发层 -->
+  <line x1="610" y1="612" x2="610" y2="624" stroke="#5f6b78" stroke-width="1.6"/>
+  <polygon points="605,613 615,613 610,605" fill="#5f6b78"/>
+  <polygon points="605,623 615,623 610,631" fill="#5f6b78"/>
+
+  <!-- ======================= 转发层 ======================= -->
+  <rect x="56" y="632" width="1108" height="62" rx="10" fill="#eaf2fb" stroke="#7ba7d7" stroke-width="1.4"/>
+  <text x="72" y="668" font-size="15" font-weight="bold" fill="#2b3844">转发层</text>
+  <rect x="160" y="646" width="310" height="34" rx="6" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="315" y="668" text-anchor="middle" font-size="12.5" fill="#333f4d">负载均衡（加权轮询 · IP Hash · 最小连接）</text>
+  <rect x="480" y="646" width="130" height="34" rx="6" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="545" y="668" text-anchor="middle" font-size="12.5" fill="#333f4d">后端健康检查</text>
+  <rect x="620" y="646" width="100" height="34" rx="6" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="670" y="668" text-anchor="middle" font-size="12.5" fill="#333f4d">网页缓存</text>
+  <rect x="730" y="646" width="150" height="34" rx="6" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="805" y="668" text-anchor="middle" font-size="12.5" fill="#333f4d">HTTP Basic Auth</text>
+  <text x="896" y="668" font-size="11.5" fill="#7a8794">异常后端自动摘除</text>
+
+  <!-- 箭头: 转发层 → 响应处理 -->
+  <line x1="610" y1="702" x2="610" y2="714" stroke="#5f6b78" stroke-width="1.6"/>
+  <polygon points="605,703 615,703 610,695" fill="#5f6b78"/>
+  <polygon points="605,713 615,713 610,721" fill="#5f6b78"/>
+
+  <!-- ======================= 响应处理 ======================= -->
+  <rect x="56" y="722" width="1108" height="62" rx="10" fill="#e9f5f2" stroke="#6fb3a1" stroke-width="1.4"/>
+  <text x="72" y="758" font-size="15" font-weight="bold" fill="#2b3844">响应处理</text>
+  <rect x="175" y="736" width="120" height="34" rx="6" fill="#ffffff" stroke="#a3cec2"/>
+  <text x="235" y="758" text-anchor="middle" font-size="12.5" fill="#333f4d">网页防篡改</text>
+  <rect x="305" y="736" width="155" height="34" rx="6" fill="#ffffff" stroke="#a3cec2"/>
+  <text x="382" y="758" text-anchor="middle" font-size="12.5" fill="#333f4d">Cookie 安全加固</text>
+  <rect x="470" y="736" width="175" height="34" rx="6" fill="#ffffff" stroke="#a3cec2"/>
+  <text x="557" y="758" text-anchor="middle" font-size="12.5" fill="#333f4d">敏感信息脱敏（DLP）</text>
+  <rect x="655" y="736" width="100" height="34" rx="6" fill="#ffffff" stroke="#a3cec2"/>
+  <text x="705" y="758" text-anchor="middle" font-size="12.5" fill="#333f4d">内容压缩</text>
+  <text x="771" y="758" font-size="11.5" fill="#7a8794">在响应返回客户端前处理</text>
+
+  <!-- 箭头: 响应处理 → 后端 -->
+  <line x1="610" y1="792" x2="610" y2="804" stroke="#5f6b78" stroke-width="1.6"/>
+  <polygon points="605,793 615,793 610,785" fill="#5f6b78"/>
+  <polygon points="605,803 615,803 610,811" fill="#5f6b78"/>
+
+  <!-- ======================= 后端服务 ======================= -->
+  <rect x="56" y="812" width="1108" height="56" rx="10" fill="#f1f3f6" stroke="#9aa6b4" stroke-width="1.4"/>
+  <text x="610" y="836" text-anchor="middle" font-size="14" font-weight="bold" fill="#2b3844">后端服务</text>
+  <text x="610" y="856" text-anchor="middle" font-size="12" fill="#6b7886">HTTP / HTTPS 上游 · 静态资源 · TCP/UDP 服务</text>
+
+  <!-- ======================= 管理端（右列） ======================= -->
+  <rect x="1196" y="72" width="304" height="796" rx="10" fill="#f4effb" stroke="#a98fd4" stroke-width="1.4"/>
+  <text x="1348" y="102" text-anchor="middle" font-size="16" font-weight="bold" fill="#2b3844">管理端</text>
+  <text x="1348" y="122" text-anchor="middle" font-size="11.5" fill="#6b7886">:26666 · Web 管理控制台</text>
+  <rect x="1216" y="140" width="264" height="42" rx="6" fill="#ffffff" stroke="#cabfe0"/>
+  <text x="1348" y="166" text-anchor="middle" font-size="12.5" fill="#333f4d">Vue 管理界面</text>
+  <rect x="1216" y="194" width="264" height="42" rx="6" fill="#ffffff" stroke="#cabfe0"/>
+  <text x="1348" y="220" text-anchor="middle" font-size="12.5" fill="#333f4d">账号 RBAC 权限</text>
+  <rect x="1216" y="248" width="264" height="42" rx="6" fill="#ffffff" stroke="#cabfe0"/>
+  <text x="1348" y="274" text-anchor="middle" font-size="12.5" fill="#333f4d">OTP 双因素认证</text>
+  <rect x="1216" y="302" width="264" height="42" rx="6" fill="#ffffff" stroke="#cabfe0"/>
+  <text x="1348" y="328" text-anchor="middle" font-size="12.5" fill="#333f4d">通讯加密 · 防重放</text>
+  <rect x="1216" y="356" width="264" height="42" rx="6" fill="#ffffff" stroke="#cabfe0"/>
+  <text x="1348" y="382" text-anchor="middle" font-size="12.5" fill="#333f4d">统计报表 · 数据分析</text>
+  <rect x="1216" y="410" width="264" height="42" rx="6" fill="#ffffff" stroke="#cabfe0"/>
+  <text x="1348" y="436" text-anchor="middle" font-size="12.5" fill="#333f4d">系统 / 主机监控</text>
+  <rect x="1216" y="464" width="264" height="42" rx="6" fill="#ffffff" stroke="#cabfe0"/>
+  <text x="1348" y="490" text-anchor="middle" font-size="12.5" fill="#333f4d">攻击 · 访问日志查询</text>
+  <rect x="1216" y="518" width="264" height="42" rx="6" fill="#ffffff" stroke="#cabfe0"/>
+  <text x="1348" y="544" text-anchor="middle" font-size="12.5" fill="#333f4d">规则 · 名单 · 策略配置</text>
+  <rect x="1216" y="572" width="264" height="42" rx="6" fill="#ffffff" stroke="#cabfe0"/>
+  <text x="1348" y="598" text-anchor="middle" font-size="12.5" fill="#333f4d">通知渠道 · 消息订阅</text>
+  <rect x="1216" y="626" width="264" height="42" rx="6" fill="#ffffff" stroke="#cabfe0"/>
+  <text x="1348" y="652" text-anchor="middle" font-size="12.5" fill="#333f4d">开放 API 平台</text>
+  <rect x="1216" y="680" width="264" height="42" rx="6" fill="#ffffff" stroke="#cabfe0"/>
+  <text x="1348" y="706" text-anchor="middle" font-size="12.5" fill="#333f4d">在线升级 · 一键操作</text>
+  <text x="1348" y="762" text-anchor="middle" font-size="10.5" fill="#7a8794">浏览器访问 http://127.0.0.1:26666</text>
+
+  <!-- 管理端 ↔ 主链路 虚线连接 -->
+  <line x1="1168" y1="470" x2="1192" y2="470" stroke="#a98fd4" stroke-width="1.4" stroke-dasharray="5 4"/>
+  <polygon points="1169,465 1169,475 1161,470" fill="#a98fd4"/>
+  <polygon points="1191,465 1191,475 1199,470" fill="#a98fd4"/>
+
+  <!-- ======================= 支撑服务 ======================= -->
+  <rect x="56" y="896" width="1444" height="196" rx="10" fill="#f5f7f3" stroke="#9db38a" stroke-width="1.4"/>
+  <text x="72" y="924" font-size="15" font-weight="bold" fill="#2b3844">支撑服务</text>
+  <!-- 第一行 -->
+  <rect x="72" y="938" width="344" height="64" rx="8" fill="#ffffff" stroke="#c2cdb8"/>
+  <text x="88" y="960" font-size="13" font-weight="bold" fill="#2b3844">数据存储</text>
+  <text x="88" y="978" font-size="11" fill="#6b7886">核心 / 日志 / 统计 三库分离 · 日志分片归档</text>
+  <text x="88" y="993" font-size="11" fill="#6b7886">SQLite（默认 · 加密）/ MySQL（可选）</text>
+  <rect x="428" y="938" width="344" height="64" rx="8" fill="#ffffff" stroke="#c2cdb8"/>
+  <text x="444" y="960" font-size="13" font-weight="bold" fill="#2b3844">数据加密</text>
+  <text x="444" y="978" font-size="11" fill="#6b7886">AES / RSA · 密钥管理</text>
+  <text x="444" y="993" font-size="11" fill="#6b7886">敏感数据加密落库</text>
+  <rect x="784" y="938" width="344" height="64" rx="8" fill="#ffffff" stroke="#c2cdb8"/>
+  <text x="800" y="960" font-size="13" font-weight="bold" fill="#2b3844">SSL 证书</text>
+  <text x="800" y="978" font-size="11" fill="#6b7886">ACME 自动申请续期 · 多 CA（EAB）</text>
+  <text x="800" y="993" font-size="11" fill="#6b7886">到期批量检测 · 证书自动加载</text>
+  <rect x="1140" y="938" width="344" height="64" rx="8" fill="#ffffff" stroke="#c2cdb8"/>
+  <text x="1156" y="960" font-size="13" font-weight="bold" fill="#2b3844">通知告警</text>
+  <text x="1156" y="978" font-size="11" fill="#6b7886">邮件 · 钉钉 · 飞书 · 企业微信 · Server酱</text>
+  <text x="1156" y="993" font-size="11" fill="#6b7886">Webhook · Kafka · RabbitMQ · 日志文件</text>
+  <!-- 第二行 -->
+  <rect x="72" y="1012" width="456" height="64" rx="8" fill="#ffffff" stroke="#c2cdb8"/>
+  <text x="88" y="1034" font-size="13" font-weight="bold" fill="#2b3844">IP 定位</text>
+  <text x="88" y="1052" font-size="11" fill="#6b7886">ip2region / GeoIP2</text>
+  <text x="88" y="1067" font-size="11" fill="#6b7886">IPv4 · IPv6 归属地 · 地区封禁数据源</text>
+  <rect x="542" y="1012" width="456" height="64" rx="8" fill="#ffffff" stroke="#c2cdb8"/>
+  <text x="558" y="1034" font-size="13" font-weight="bold" fill="#2b3844">任务调度</text>
+  <text x="558" y="1052" font-size="11" fill="#6b7886">定时任务 · 批量任务</text>
+  <text x="558" y="1067" font-size="11" fill="#6b7886">数据保留策略 · 历史数据清理</text>
+  <rect x="1012" y="1012" width="456" height="64" rx="8" fill="#ffffff" stroke="#c2cdb8"/>
+  <text x="1028" y="1034" font-size="13" font-weight="bold" fill="#2b3844">进程守护</text>
+  <text x="1028" y="1052" font-size="11" fill="#6b7886">Supervisor + Worker 双进程</text>
+  <text x="1028" y="1067" font-size="11" fill="#6b7886">零停机升级 · 崩溃自愈 · 版本回滚</text>
+
+  <!-- ======================= 运行平台 ======================= -->
+  <rect x="56" y="1120" width="1444" height="56" rx="10" fill="#f1f3f6" stroke="#9aa6b4" stroke-width="1.4"/>
+  <text x="72" y="1154" font-size="15" font-weight="bold" fill="#2b3844">运行平台</text>
+  <rect x="552" y="1131" width="120" height="34" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="612" y="1153" text-anchor="middle" font-size="12.5" fill="#333f4d">Windows x64</text>
+  <rect x="686" y="1131" width="110" height="34" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="741" y="1153" text-anchor="middle" font-size="12.5" fill="#333f4d">Linux x64</text>
+  <rect x="810" y="1131" width="90" height="34" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="855" y="1153" text-anchor="middle" font-size="12.5" fill="#333f4d">ARM64</text>
+  <rect x="914" y="1131" width="90" height="34" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="959" y="1153" text-anchor="middle" font-size="12.5" fill="#333f4d">Docker</text>
+</svg>

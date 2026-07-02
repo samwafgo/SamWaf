@@ -1,0 +1,243 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1560" height="1220" viewBox="0 0 1560 1220" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <rect width="1560" height="1220" fill="#ffffff"/>
+
+  <!-- Outer dashed frame -->
+  <rect x="24" y="24" width="1512" height="1172" rx="18" fill="none" stroke="#8b97a5" stroke-width="1.6" stroke-dasharray="10 6"/>
+
+  <!-- Title -->
+  <text x="780" y="56" text-anchor="middle" font-size="20" font-weight="bold" fill="#253242">SamWaf Architecture Overview</text>
+
+  <!-- ======================= Clients ======================= -->
+  <rect x="56" y="72" width="1108" height="60" rx="10" fill="#eaf2fb" stroke="#7ba7d7" stroke-width="1.4"/>
+  <text x="72" y="107" font-size="15" font-weight="bold" fill="#2b3844">Clients</text>
+  <rect x="150" y="85" width="200" height="34" rx="6" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="250" y="107" text-anchor="middle" font-size="12" fill="#333f4d">Browser · App · API Callers</text>
+  <text x="372" y="107" font-size="12" fill="#7a8794">Protocols:</text>
+  <rect x="440" y="85" width="90" height="34" rx="6" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="485" y="107" text-anchor="middle" font-size="12" fill="#333f4d">HTTP/1.1</text>
+  <rect x="538" y="85" width="80" height="34" rx="6" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="578" y="107" text-anchor="middle" font-size="12" fill="#333f4d">HTTP/2</text>
+  <rect x="626" y="85" width="125" height="34" rx="6" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="688" y="107" text-anchor="middle" font-size="12" fill="#333f4d">HTTP/3 · QUIC</text>
+  <rect x="759" y="85" width="100" height="34" rx="6" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="809" y="107" text-anchor="middle" font-size="12" fill="#333f4d">WebSocket</text>
+  <rect x="867" y="85" width="95" height="34" rx="6" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="914" y="107" text-anchor="middle" font-size="12" fill="#333f4d">TCP / UDP</text>
+
+  <!-- Arrow: Clients -> Access Layer -->
+  <line x1="610" y1="140" x2="610" y2="152" stroke="#5f6b78" stroke-width="1.6"/>
+  <polygon points="605,141 615,141 610,133" fill="#5f6b78"/>
+  <polygon points="605,151 615,151 610,159" fill="#5f6b78"/>
+  <text x="630" y="151" font-size="11" fill="#7a8794">Request ↓ · Response ↑</text>
+
+  <!-- ======================= Access Layer ======================= -->
+  <rect x="56" y="160" width="1108" height="120" rx="10" fill="#eaf2fb" stroke="#7ba7d7" stroke-width="1.4"/>
+  <text x="72" y="186" font-size="15" font-weight="bold" fill="#2b3844">Access Layer</text>
+  <text x="190" y="186" font-size="12" fill="#6b7886">Multi-port listening · SNI multi-certificate · IPv6</text>
+  <rect x="72" y="198" width="260" height="56" rx="8" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="202" y="221" text-anchor="middle" font-size="13" font-weight="bold" fill="#2b3844">Reverse Proxy</text>
+  <text x="202" y="242" text-anchor="middle" font-size="11.5" fill="#6b7886">HTTP / HTTPS</text>
+  <rect x="344" y="198" width="260" height="56" rx="8" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="474" y="221" text-anchor="middle" font-size="13" font-weight="bold" fill="#2b3844">Static Site Serving</text>
+  <text x="474" y="242" text-anchor="middle" font-size="11.5" fill="#6b7886">incl. ACME challenge pass-through</text>
+  <rect x="616" y="198" width="260" height="56" rx="8" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="746" y="221" text-anchor="middle" font-size="13" font-weight="bold" fill="#2b3844">Path Rules</text>
+  <text x="746" y="242" text-anchor="middle" font-size="11.5" fill="#6b7886">proxy · static · redirect</text>
+  <rect x="888" y="198" width="260" height="56" rx="8" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="1018" y="221" text-anchor="middle" font-size="13" font-weight="bold" fill="#2b3844">TCP/UDP Tunnel</text>
+  <text x="1018" y="242" text-anchor="middle" font-size="11.5" fill="#6b7886">L4 forwarding · IP/time control</text>
+
+  <!-- Arrow: Access -> Detection -->
+  <line x1="610" y1="288" x2="610" y2="300" stroke="#5f6b78" stroke-width="1.6"/>
+  <polygon points="605,289 615,289 610,281" fill="#5f6b78"/>
+  <polygon points="605,299 615,299 610,307" fill="#5f6b78"/>
+
+  <!-- ======================= Detection Engine ======================= -->
+  <rect x="56" y="308" width="1108" height="296" rx="10" fill="#fdf6ec" stroke="#dcae6b" stroke-width="1.4"/>
+  <text x="72" y="336" font-size="15" font-weight="bold" fill="#2b3844">SamWaf Detection Engine</text>
+  <text x="272" y="336" font-size="12" fill="#6b7886">(in request processing order)</text>
+
+  <!-- Band 1: Allowlist pass -->
+  <rect x="72" y="350" width="1076" height="46" rx="8" fill="#eaf6ee" stroke="#86bd94"/>
+  <text x="88" y="378" font-size="12.5" font-weight="bold" fill="#2b3844">1. Allowlist Pass</text>
+  <rect x="232" y="356" width="115" height="34" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="289" y="378" text-anchor="middle" font-size="12" fill="#333f4d">IP Allowlist</text>
+  <rect x="355" y="356" width="120" height="34" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="415" y="378" text-anchor="middle" font-size="12" fill="#333f4d">URL Allowlist</text>
+  <rect x="483" y="356" width="180" height="34" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="573" y="378" text-anchor="middle" font-size="12" fill="#333f4d">Search-Engine Bot Verify</text>
+  <text x="679" y="378" font-size="11.5" fill="#7a8794">On match: pass directly, skip all later checks</text>
+
+  <!-- Band 2: Attack detection -->
+  <rect x="72" y="404" width="1076" height="130" rx="8" fill="#fdecec" stroke="#dc9090"/>
+  <text x="88" y="473" font-size="12.5" font-weight="bold" fill="#2b3844">2. Attack</text>
+  <text x="88" y="490" font-size="12.5" font-weight="bold" fill="#2b3844">Detection</text>
+  <!-- Row 1 -->
+  <rect x="232" y="412" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="304" y="433" text-anchor="middle" font-size="12" fill="#333f4d">IP/URL Blocklist</text>
+  <rect x="384" y="412" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="456" y="433" text-anchor="middle" font-size="12" fill="#333f4d">SQL Injection</text>
+  <rect x="536" y="412" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="608" y="433" text-anchor="middle" font-size="12" fill="#333f4d">XSS</text>
+  <rect x="688" y="412" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="760" y="433" text-anchor="middle" font-size="12" fill="#333f4d">RCE</text>
+  <rect x="840" y="412" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="912" y="433" text-anchor="middle" font-size="12" fill="#333f4d">Scanner Detection</text>
+  <rect x="992" y="412" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="1064" y="433" text-anchor="middle" font-size="12" fill="#333f4d">Path Traversal</text>
+  <!-- Row 2 -->
+  <rect x="232" y="452" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="304" y="473" text-anchor="middle" font-size="12" fill="#333f4d">Upload Detection</text>
+  <rect x="384" y="452" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="456" y="473" text-anchor="middle" font-size="12" fill="#333f4d">CC Protection</text>
+  <rect x="536" y="452" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="608" y="473" text-anchor="middle" font-size="12" fill="#333f4d">Bot Detection</text>
+  <rect x="688" y="452" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="760" y="473" text-anchor="middle" font-size="12" fill="#333f4d">Anti-Leech</text>
+  <rect x="840" y="452" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="912" y="473" text-anchor="middle" font-size="12" fill="#333f4d">CSRF Protection</text>
+  <rect x="992" y="452" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="1064" y="473" text-anchor="middle" font-size="12" fill="#333f4d">Sensitive Words</text>
+  <!-- Row 3 -->
+  <rect x="232" y="492" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="304" y="513" text-anchor="middle" font-size="12" fill="#333f4d">Geo Blocking</text>
+  <rect x="384" y="492" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="456" y="513" text-anchor="middle" font-size="12" fill="#333f4d">Custom Rules</text>
+  <rect x="536" y="492" width="145" height="32" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="608" y="513" text-anchor="middle" font-size="11.5" fill="#333f4d">OWASP CRS (Coraza)</text>
+  <text x="700" y="513" font-size="11.5" fill="#7a8794">Every check can be toggled per site</text>
+
+  <!-- Band 3: Human verification -->
+  <rect x="72" y="542" width="1076" height="46" rx="8" fill="#f2edfa" stroke="#ab93cf"/>
+  <text x="88" y="570" font-size="12.5" font-weight="bold" fill="#2b3844">3. Human Verify</text>
+  <rect x="232" y="548" width="130" height="34" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="297" y="570" text-anchor="middle" font-size="12" fill="#333f4d">Click CAPTCHA</text>
+  <rect x="370" y="548" width="130" height="34" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="435" y="570" text-anchor="middle" font-size="12" fill="#333f4d">Cap.js · PoW</text>
+  <text x="520" y="570" font-size="11.5" fill="#7a8794">Log-only mode: record attacks without blocking</text>
+
+  <!-- Arrow: Detection -> Forwarding -->
+  <line x1="610" y1="612" x2="610" y2="624" stroke="#5f6b78" stroke-width="1.6"/>
+  <polygon points="605,613 615,613 610,605" fill="#5f6b78"/>
+  <polygon points="605,623 615,623 610,631" fill="#5f6b78"/>
+
+  <!-- ======================= Forwarding Layer ======================= -->
+  <rect x="56" y="632" width="1108" height="62" rx="10" fill="#eaf2fb" stroke="#7ba7d7" stroke-width="1.4"/>
+  <text x="72" y="668" font-size="15" font-weight="bold" fill="#2b3844">Forwarding</text>
+  <rect x="180" y="646" width="330" height="34" rx="6" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="345" y="668" text-anchor="middle" font-size="12" fill="#333f4d">Load Balancing (WRR · IP Hash · Least-Conn)</text>
+  <rect x="520" y="646" width="130" height="34" rx="6" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="585" y="668" text-anchor="middle" font-size="12" fill="#333f4d">Health Check</text>
+  <rect x="660" y="646" width="110" height="34" rx="6" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="715" y="668" text-anchor="middle" font-size="12" fill="#333f4d">Web Cache</text>
+  <rect x="780" y="646" width="150" height="34" rx="6" fill="#ffffff" stroke="#a9c4e4"/>
+  <text x="855" y="668" text-anchor="middle" font-size="12" fill="#333f4d">HTTP Basic Auth</text>
+  <text x="946" y="668" font-size="11.5" fill="#7a8794">Unhealthy backends removed</text>
+
+  <!-- Arrow: Forwarding -> Response -->
+  <line x1="610" y1="702" x2="610" y2="714" stroke="#5f6b78" stroke-width="1.6"/>
+  <polygon points="605,703 615,703 610,695" fill="#5f6b78"/>
+  <polygon points="605,713 615,713 610,721" fill="#5f6b78"/>
+
+  <!-- ======================= Response Processing ======================= -->
+  <rect x="56" y="722" width="1108" height="62" rx="10" fill="#e9f5f2" stroke="#6fb3a1" stroke-width="1.4"/>
+  <text x="72" y="758" font-size="15" font-weight="bold" fill="#2b3844">Response</text>
+  <rect x="175" y="736" width="120" height="34" rx="6" fill="#ffffff" stroke="#a3cec2"/>
+  <text x="235" y="758" text-anchor="middle" font-size="12" fill="#333f4d">Anti-Tamper</text>
+  <rect x="305" y="736" width="160" height="34" rx="6" fill="#ffffff" stroke="#a3cec2"/>
+  <text x="385" y="758" text-anchor="middle" font-size="12" fill="#333f4d">Cookie Hardening</text>
+  <rect x="475" y="736" width="175" height="34" rx="6" fill="#ffffff" stroke="#a3cec2"/>
+  <text x="562" y="758" text-anchor="middle" font-size="12" fill="#333f4d">Data Masking (DLP)</text>
+  <rect x="660" y="736" width="120" height="34" rx="6" fill="#ffffff" stroke="#a3cec2"/>
+  <text x="720" y="758" text-anchor="middle" font-size="12" fill="#333f4d">Compression</text>
+  <text x="796" y="758" font-size="11.5" fill="#7a8794">Applied before returning to clients</text>
+
+  <!-- Arrow: Response -> Backend -->
+  <line x1="610" y1="792" x2="610" y2="804" stroke="#5f6b78" stroke-width="1.6"/>
+  <polygon points="605,793 615,793 610,785" fill="#5f6b78"/>
+  <polygon points="605,803 615,803 610,811" fill="#5f6b78"/>
+
+  <!-- ======================= Backend Services ======================= -->
+  <rect x="56" y="812" width="1108" height="56" rx="10" fill="#f1f3f6" stroke="#9aa6b4" stroke-width="1.4"/>
+  <text x="610" y="836" text-anchor="middle" font-size="14" font-weight="bold" fill="#2b3844">Backend Services</text>
+  <text x="610" y="856" text-anchor="middle" font-size="12" fill="#6b7886">HTTP / HTTPS upstreams · Static files · TCP/UDP services</text>
+
+  <!-- ======================= Management Console (right column) ======================= -->
+  <rect x="1196" y="72" width="304" height="796" rx="10" fill="#f4effb" stroke="#a98fd4" stroke-width="1.4"/>
+  <text x="1348" y="102" text-anchor="middle" font-size="16" font-weight="bold" fill="#2b3844">Management</text>
+  <text x="1348" y="122" text-anchor="middle" font-size="11.5" fill="#6b7886">:26666 · Web Console</text>
+  <rect x="1216" y="140" width="264" height="42" rx="6" fill="#ffffff" stroke="#cabfe0"/>
+  <text x="1348" y="166" text-anchor="middle" font-size="12" fill="#333f4d">Vue Web UI</text>
+  <rect x="1216" y="194" width="264" height="42" rx="6" fill="#ffffff" stroke="#cabfe0"/>
+  <text x="1348" y="220" text-anchor="middle" font-size="12" fill="#333f4d">Account RBAC</text>
+  <rect x="1216" y="248" width="264" height="42" rx="6" fill="#ffffff" stroke="#cabfe0"/>
+  <text x="1348" y="274" text-anchor="middle" font-size="12" fill="#333f4d">OTP Two-Factor Auth</text>
+  <rect x="1216" y="302" width="264" height="42" rx="6" fill="#ffffff" stroke="#cabfe0"/>
+  <text x="1348" y="328" text-anchor="middle" font-size="12" fill="#333f4d">Encrypted Comm · Anti-Replay</text>
+  <rect x="1216" y="356" width="264" height="42" rx="6" fill="#ffffff" stroke="#cabfe0"/>
+  <text x="1348" y="382" text-anchor="middle" font-size="12" fill="#333f4d">Reports · Analytics</text>
+  <rect x="1216" y="410" width="264" height="42" rx="6" fill="#ffffff" stroke="#cabfe0"/>
+  <text x="1348" y="436" text-anchor="middle" font-size="12" fill="#333f4d">System / Host Monitoring</text>
+  <rect x="1216" y="464" width="264" height="42" rx="6" fill="#ffffff" stroke="#cabfe0"/>
+  <text x="1348" y="490" text-anchor="middle" font-size="12" fill="#333f4d">Attack / Access Log Query</text>
+  <rect x="1216" y="518" width="264" height="42" rx="6" fill="#ffffff" stroke="#cabfe0"/>
+  <text x="1348" y="544" text-anchor="middle" font-size="12" fill="#333f4d">Rules · Lists · Policies</text>
+  <rect x="1216" y="572" width="264" height="42" rx="6" fill="#ffffff" stroke="#cabfe0"/>
+  <text x="1348" y="598" text-anchor="middle" font-size="12" fill="#333f4d">Notification Channels</text>
+  <rect x="1216" y="626" width="264" height="42" rx="6" fill="#ffffff" stroke="#cabfe0"/>
+  <text x="1348" y="652" text-anchor="middle" font-size="12" fill="#333f4d">Open API Platform</text>
+  <rect x="1216" y="680" width="264" height="42" rx="6" fill="#ffffff" stroke="#cabfe0"/>
+  <text x="1348" y="706" text-anchor="middle" font-size="12" fill="#333f4d">Online Upgrade · One-Click Ops</text>
+  <text x="1348" y="762" text-anchor="middle" font-size="10.5" fill="#7a8794">Visit http://127.0.0.1:26666 in a browser</text>
+
+  <!-- Management <-> main pipeline dashed link -->
+  <line x1="1168" y1="470" x2="1192" y2="470" stroke="#a98fd4" stroke-width="1.4" stroke-dasharray="5 4"/>
+  <polygon points="1169,465 1169,475 1161,470" fill="#a98fd4"/>
+  <polygon points="1191,465 1191,475 1199,470" fill="#a98fd4"/>
+
+  <!-- ======================= Supporting Services ======================= -->
+  <rect x="56" y="896" width="1444" height="196" rx="10" fill="#f5f7f3" stroke="#9db38a" stroke-width="1.4"/>
+  <text x="72" y="924" font-size="15" font-weight="bold" fill="#2b3844">Supporting Services</text>
+  <!-- Row 1 -->
+  <rect x="72" y="938" width="344" height="64" rx="8" fill="#ffffff" stroke="#c2cdb8"/>
+  <text x="88" y="960" font-size="13" font-weight="bold" fill="#2b3844">Data Storage</text>
+  <text x="88" y="978" font-size="10.5" fill="#6b7886">Separate core / log / stats DBs · Log sharding</text>
+  <text x="88" y="993" font-size="10.5" fill="#6b7886">SQLite (default · encrypted) / MySQL (optional)</text>
+  <rect x="428" y="938" width="344" height="64" rx="8" fill="#ffffff" stroke="#c2cdb8"/>
+  <text x="444" y="960" font-size="13" font-weight="bold" fill="#2b3844">Encryption</text>
+  <text x="444" y="978" font-size="10.5" fill="#6b7886">AES / RSA · Key management</text>
+  <text x="444" y="993" font-size="10.5" fill="#6b7886">Sensitive data encrypted at rest</text>
+  <rect x="784" y="938" width="344" height="64" rx="8" fill="#ffffff" stroke="#c2cdb8"/>
+  <text x="800" y="960" font-size="13" font-weight="bold" fill="#2b3844">SSL Certificates</text>
+  <text x="800" y="978" font-size="10.5" fill="#6b7886">ACME auto issue &amp; renew · Multi-CA (EAB)</text>
+  <text x="800" y="993" font-size="10.5" fill="#6b7886">Batch expiry check · Auto load</text>
+  <rect x="1140" y="938" width="344" height="64" rx="8" fill="#ffffff" stroke="#c2cdb8"/>
+  <text x="1156" y="960" font-size="13" font-weight="bold" fill="#2b3844">Notifications</text>
+  <text x="1156" y="978" font-size="10.5" fill="#6b7886">Email · DingTalk · Feishu · WeCom · ServerChan</text>
+  <text x="1156" y="993" font-size="10.5" fill="#6b7886">Webhook · Kafka · RabbitMQ · Log file</text>
+  <!-- Row 2 -->
+  <rect x="72" y="1012" width="456" height="64" rx="8" fill="#ffffff" stroke="#c2cdb8"/>
+  <text x="88" y="1034" font-size="13" font-weight="bold" fill="#2b3844">IP Geolocation</text>
+  <text x="88" y="1052" font-size="10.5" fill="#6b7886">ip2region / GeoIP2</text>
+  <text x="88" y="1067" font-size="10.5" fill="#6b7886">IPv4 · IPv6 lookup · Geo-blocking data source</text>
+  <rect x="542" y="1012" width="456" height="64" rx="8" fill="#ffffff" stroke="#c2cdb8"/>
+  <text x="558" y="1034" font-size="13" font-weight="bold" fill="#2b3844">Task Scheduling</text>
+  <text x="558" y="1052" font-size="10.5" fill="#6b7886">Scheduled tasks · Batch tasks</text>
+  <text x="558" y="1067" font-size="10.5" fill="#6b7886">Data retention policy · History cleanup</text>
+  <rect x="1012" y="1012" width="456" height="64" rx="8" fill="#ffffff" stroke="#c2cdb8"/>
+  <text x="1028" y="1034" font-size="13" font-weight="bold" fill="#2b3844">Process Guard</text>
+  <text x="1028" y="1052" font-size="10.5" fill="#6b7886">Supervisor + Worker dual-process</text>
+  <text x="1028" y="1067" font-size="10.5" fill="#6b7886">Zero-downtime upgrade · Self-healing · Rollback</text>
+
+  <!-- ======================= Platforms ======================= -->
+  <rect x="56" y="1120" width="1444" height="56" rx="10" fill="#f1f3f6" stroke="#9aa6b4" stroke-width="1.4"/>
+  <text x="72" y="1154" font-size="15" font-weight="bold" fill="#2b3844">Platforms</text>
+  <rect x="552" y="1131" width="120" height="34" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="612" y="1153" text-anchor="middle" font-size="12" fill="#333f4d">Windows x64</text>
+  <rect x="686" y="1131" width="110" height="34" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="741" y="1153" text-anchor="middle" font-size="12" fill="#333f4d">Linux x64</text>
+  <rect x="810" y="1131" width="90" height="34" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="855" y="1153" text-anchor="middle" font-size="12" fill="#333f4d">ARM64</text>
+  <rect x="914" y="1131" width="90" height="34" rx="6" fill="#ffffff" stroke="#c6cfd9"/>
+  <text x="959" y="1153" text-anchor="middle" font-size="12" fill="#333f4d">Docker</text>
+</svg>

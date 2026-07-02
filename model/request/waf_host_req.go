@@ -46,6 +46,7 @@ type WafHostAddReq struct {
 	CookieSecurityJSON        string `json:"cookie_security_json"`         //Cookie安全保护配置 json
 	CsrfJSON                  string `json:"csrf_json"`                    //CSRF防护配置 json
 	TamperJSON                string `json:"tamper_json"`                  //网页防篡改配置 json
+	UploadSecurityJSON        string `json:"upload_security_json"`         //文件上传内容检测配置 json
 	IPMode                    string `json:"ip_mode"`                      //IP提取模式: "nic" 网卡模式 或 "proxy" 代理模式
 }
 
@@ -101,6 +102,7 @@ type WafHostEditReq struct {
 	CookieSecurityJSON        string `json:"cookie_security_json"`         //Cookie安全保护配置 json
 	CsrfJSON                  string `json:"csrf_json"`                    //CSRF防护配置 json
 	TamperJSON                string `json:"tamper_json"`                  //网页防篡改配置 json
+	UploadSecurityJSON        string `json:"upload_security_json"`         //文件上传内容检测配置 json
 	IPMode                    string `json:"ip_mode"`                      //IP提取模式: "nic" 网卡模式 或 "proxy" 代理模式
 }
 type WafHostGuardStatusReq struct {

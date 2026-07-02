@@ -52,6 +52,7 @@ type Hosts struct {
 	CookieSecurityJSON        string `gorm:"type:text" json:"cookie_security_json"`         //Cookie安全保护配置 json（HttpOnly/Secure/SameSite）
 	CsrfJSON                  string `gorm:"type:text" json:"csrf_json"`                    //CSRF防护配置 json（Origin/Referer 强校验）
 	TamperJSON                string `gorm:"type:text" json:"tamper_json"`                  //网页防篡改配置 json（响应基线比对）
+	UploadSecurityJSON        string `gorm:"type:text" json:"upload_security_json"`         //文件上传内容检测配置 json（扩展名/Webshell/类型/大小）
 	IPMode                    string `gorm:"size:20" json:"ip_mode"`                        //IP提取模式: "nic" 网卡模式 或 "proxy" 代理模式
 }
 
@@ -270,6 +271,45 @@ func ParseTamperConfig(jsonStr string) TamperConfig {
 	}
 	if c.MaxSizeKB <= 0 {
 		c.MaxSizeKB = 1024
+	}
+	return c
+}
+
+// UploadSecurityConfig 文件上传内容检测配置（multipart 上传的扩展名/Webshell/类型/大小四维检测）
+type UploadSecurityConfig struct {
+	IsEnable        int    `json:"is_enable"`         // 1 开启 0 关闭（默认0，老站点不受影响）
+	CheckExt        int    `json:"check_ext"`         // 1 启用扩展名黑名单检测
+	ExtBlacklist    string `json:"ext_blacklist"`     // 危险扩展名黑名单，逗号分隔；空用默认
+	CheckContent    int    `json:"check_content"`     // 1 启用 Webshell 内容特征检测
+	CheckMagic      int    `json:"check_magic"`       // 1 启用“声明类型与真实内容不符”检测
+	CheckSize       int    `json:"check_size"`        // 1 启用单文件大小上限检测
+	MaxSizeKB       int    `json:"max_size_kb"`       // 单文件大小上限KB=检测缓冲上限，默认10240(10MB)
+	OverLimitAction string `json:"over_limit_action"` // 请求体超过检测上限时：block(默认,fail-closed防绕过)/pass(放行不检测)
+	IncludePaths    string `json:"include_paths"`     // 只检测这些路径前缀，换行分隔；空=所有路径
+	ExcludePaths    string `json:"exclude_paths"`     // 跳过这些路径前缀，换行分隔；优先于 include
+}
+
+// DefaultUploadExtBlacklist 默认危险扩展名黑名单
+const DefaultUploadExtBlacklist = "php,php2,php3,php4,php5,php7,pht,phtml,phar,jsp,jspx,jspa,jsw,jsv,jspf,asp,aspx,asa,asax,ascx,ashx,asmx,cer,cdx,exe,dll,sh,bat,cmd,com,cgi,pl,py,jar,war"
+
+// ParseUploadSecurityConfig 解析文件上传检测配置；空 JSON 给默认值（默认关闭、超限拦、10MB）
+func ParseUploadSecurityConfig(jsonStr string) UploadSecurityConfig {
+	c := UploadSecurityConfig{
+		IsEnable:        0,
+		OverLimitAction: "block",
+		MaxSizeKB:       10240,
+	}
+	if jsonStr == "" {
+		return c
+	}
+	if err := json.Unmarshal([]byte(jsonStr), &c); err != nil {
+		return UploadSecurityConfig{IsEnable: 0, OverLimitAction: "block", MaxSizeKB: 10240}
+	}
+	if c.OverLimitAction == "" {
+		c.OverLimitAction = "block"
+	}
+	if c.MaxSizeKB <= 0 {
+		c.MaxSizeKB = 10240
 	}
 	return c
 }

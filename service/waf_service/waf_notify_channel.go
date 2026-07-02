@@ -167,6 +167,6 @@ func (receiver *WafNotifyChannelService) TestChannelApi(req request.WafNotifyCha
 // GetAllChannels 获取所有启用的通知渠道
 func (receiver *WafNotifyChannelService) GetAllChannels() []model.NotifyChannel {
 	var channels []model.NotifyChannel
-	global.GWAF_LOCAL_DB.Where("status = ?", 1).Find(&channels)
+	global.GWAF_LOCAL_DB.Where("`status` = ?", 1).Find(&channels)
 	return channels
 }

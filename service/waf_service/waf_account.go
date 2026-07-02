@@ -175,7 +175,7 @@ func (receiver *WafAccountService) ChangeMyPasswordApi(loginAccount, oldPlain, n
 func (receiver *WafAccountService) ResetPwdApi(req request.WafAccountResetPwdReq) error {
 
 	var superAccount model.Account
-	global.GWAF_LOCAL_DB.Where("role = ?", enums.ROLE_SUPER_ADMIN).First(&superAccount)
+	global.GWAF_LOCAL_DB.Where("`role` = ?", enums.ROLE_SUPER_ADMIN).First(&superAccount)
 	if superAccount.LoginPassword != receiver.pwdHash(req.LoginSuperPassword) {
 		return errors.New("超级管理员密码不正确")
 	}

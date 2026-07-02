@@ -80,8 +80,8 @@ func (receiver *WafSslConfigService) AddApi(req request.SslConfigAddReq) error {
 		SerialNo:    serialNo,
 		Subject:     subject,
 		Issuer:      issuer,
-		ValidFrom:   validFrom,
-		ValidTo:     validTo,
+		ValidFrom:   customtype.JsonTime(validFrom),
+		ValidTo:     customtype.JsonTime(validTo),
 		Domains:     domains,
 		CertPath:    req.CertPath,
 		KeyPath:     req.KeyPath,
@@ -198,8 +198,8 @@ func (receiver *WafSslConfigService) ModifyApi(req request.SslConfigEditReq) err
 		"SerialNo":    serialNo,
 		"Subject":     subject,
 		"Issuer":      issuer,
-		"ValidFrom":   validFrom,
-		"ValidTo":     validTo,
+		"ValidFrom":   customtype.JsonTime(validFrom),
+		"ValidTo":     customtype.JsonTime(validTo),
 		"Domains":     domains,
 		"UPDATE_TIME": customtype.JsonTime(time.Now()),
 		"CertPath":    req.CertPath,
@@ -311,7 +311,7 @@ func (receiver *WafSslConfigService) GetAllListInner() ([]response.WafSslConfigR
 	var list []model.SslConfig
 
 	var bindSslIDs []string
-	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Select("bind_ssl_id").Where("ssl =? and bind_ssl_id <> ?", 1, "").Find(&bindSslIDs)
+	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Select("bind_ssl_id").Where("`ssl` = ? and bind_ssl_id <> ?", 1, "").Find(&bindSslIDs)
 
 	global.GWAF_LOCAL_DB.Model(&model.SslConfig{}).Where("id IN ?", bindSslIDs).Order("valid_to desc").Find(&list)
 

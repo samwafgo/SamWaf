@@ -14,9 +14,12 @@ type HostPathRule struct {
 	StripPrefix int    `json:"strip_prefix"`              // 转发时是否去掉路径前缀 0否 1是
 
 	// TargetType=1 后端代理
-	RemoteHost string `gorm:"size:255" json:"remote_host"` // 远端域名
-	RemotePort int    `json:"remote_port"`                 // 远端端口
-	RemoteIP   string `gorm:"size:64" json:"remote_ip"`    // 远端指定IP（可空，空则解析域名）
+	RemoteHost      string `gorm:"size:255" json:"remote_host"`  // 远端域名
+	RemotePort      int    `json:"remote_port"`                  // 远端端口
+	RemoteIP        string `gorm:"size:64" json:"remote_ip"`     // 远端指定IP（可空，空则解析域名）
+	RemoteScheme    string `gorm:"size:10" json:"remote_scheme"` // 后端协议 auto/http/https，空或auto=跟随客户端
+	RecordAccessLog int    `json:"record_access_log"`            // 记录访问请求到程序日志 0关 1开
+	ResponseTimeOut int    `json:"response_time_out"`            // 响应头超时(秒) 0=继承网站设置，>0=覆盖（大文件下载可调大）
 
 	// TargetType=2 静态文件
 	StaticRoot  string `gorm:"size:1000" json:"static_root"` // 本地静态文件目录路径

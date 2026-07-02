@@ -1205,6 +1205,60 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移: 为 host_path_rules 表添加 remote_scheme（后端协议）、record_access_log（访问记录开关）、response_time_out（响应超时覆盖）字段
+		{
+			ID: "202607020002_add_host_path_rules_scheme_and_record_log",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202607020002: 为 host_path_rules 表添加 remote_scheme、record_access_log、response_time_out 字段")
+				if !tx.Migrator().HasColumn(&model.HostPathRule{}, "remote_scheme") {
+					if err := tx.Migrator().AddColumn(&model.HostPathRule{}, "RemoteScheme"); err != nil {
+						return fmt.Errorf("添加 remote_scheme 字段失败: %w", err)
+					}
+					// 存量规则回填空串（=auto，保持原有“跟随客户端协议”行为）
+					if err := tx.Exec("UPDATE host_path_rules SET remote_scheme = '' WHERE remote_scheme IS NULL").Error; err != nil {
+						zlog.Warn("回填 remote_scheme 默认值失败", "error", err.Error())
+					}
+				} else {
+					zlog.Info("remote_scheme 字段已存在，跳过添加")
+				}
+				if !tx.Migrator().HasColumn(&model.HostPathRule{}, "record_access_log") {
+					if err := tx.Migrator().AddColumn(&model.HostPathRule{}, "RecordAccessLog"); err != nil {
+						return fmt.Errorf("添加 record_access_log 字段失败: %w", err)
+					}
+					if err := tx.Exec("UPDATE host_path_rules SET record_access_log = 0 WHERE record_access_log IS NULL").Error; err != nil {
+						zlog.Warn("回填 record_access_log 默认值失败", "error", err.Error())
+					}
+				} else {
+					zlog.Info("record_access_log 字段已存在，跳过添加")
+				}
+				if !tx.Migrator().HasColumn(&model.HostPathRule{}, "response_time_out") {
+					if err := tx.Migrator().AddColumn(&model.HostPathRule{}, "ResponseTimeOut"); err != nil {
+						return fmt.Errorf("添加 response_time_out 字段失败: %w", err)
+					}
+					// 存量规则回填 0（=继承网站响应超时设置）
+					if err := tx.Exec("UPDATE host_path_rules SET response_time_out = 0 WHERE response_time_out IS NULL").Error; err != nil {
+						zlog.Warn("回填 response_time_out 默认值失败", "error", err.Error())
+					}
+				} else {
+					zlog.Info("response_time_out 字段已存在，跳过添加")
+				}
+				zlog.Info("host_path_rules 协议、访问记录、响应超时字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202607020002: 删除 host_path_rules 表的 remote_scheme、record_access_log、response_time_out 字段")
+				if tx.Migrator().HasColumn(&model.HostPathRule{}, "remote_scheme") {
+					_ = tx.Migrator().DropColumn(&model.HostPathRule{}, "remote_scheme")
+				}
+				if tx.Migrator().HasColumn(&model.HostPathRule{}, "record_access_log") {
+					_ = tx.Migrator().DropColumn(&model.HostPathRule{}, "record_access_log")
+				}
+				if tx.Migrator().HasColumn(&model.HostPathRule{}, "response_time_out") {
+					_ = tx.Migrator().DropColumn(&model.HostPathRule{}, "response_time_out")
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

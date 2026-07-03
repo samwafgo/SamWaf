@@ -235,7 +235,7 @@ Contoh: `SamWaf64.exe resetpwd` (di Linux: `./SamWafLinux64 resetpwd`)
 
 http://127.0.0.1:26666
 
-Akun default: admin  Kata sandi default: admin868 (Harap ubah kata sandi default saat login pertama kali)
+Akun default: admin  Kata sandi awal: instalasi baru otomatis membuat kata sandi acak yang disimpan di `data/initial_password.txt` (instalasi yang sudah ada tetap memakai kata sandi sebelumnya; harap ubah saat login pertama kali)
 
 
 ## Panduan Upgrade

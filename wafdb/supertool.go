@@ -67,10 +67,20 @@ func ResetAdminPwd() {
 		return
 	}
 
-	randomPassword, _ := utils.GenerateRandomPassword(12)
+	randomPassword, gerr := utils.GenerateRandomPassword(12)
+	if gerr != nil || randomPassword == "" {
+		fmt.Printf("Failed to generate new password: %v\n", gerr)
+		return
+	}
+	hash, herr := utils.BcryptHash(randomPassword)
+	if herr != nil {
+		fmt.Printf("Failed to hash new password: %v\n", herr)
+		return
+	}
 	beanMap := map[string]interface{}{
-		"LoginPassword": utils.Md5String(randomPassword + global.GWAF_DEFAULT_ACCOUNT_SALT),
-		"UPDATE_TIME":   customtype.JsonTime(time.Now()),
+		"LoginPassword":      hash,
+		"NeedChangePassword": 1, // 控制台重置后，目标账号下次登录需强制改密
+		"UPDATE_TIME":        customtype.JsonTime(time.Now()),
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.Account{}).Where("login_account = ?", chosenAccount).Updates(beanMap).Error
 	if err != nil {

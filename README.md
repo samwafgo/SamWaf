@@ -235,7 +235,7 @@ Example: `SamWaf64.exe resetpwd` (on Linux: `./SamWafLinux64 resetpwd`)
 
 http://127.0.0.1:26666
 
-Default account: admin  Default password: admin868 (Please change the default password upon first login)
+Default account: admin  Initial password: fresh installs auto-generate a random password saved to `data/initial_password.txt` (existing installs keep their previous password; please change it upon first login)
 
 
 ## Upgrade Guide

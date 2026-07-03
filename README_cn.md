@@ -236,7 +236,7 @@ docker run -d --name=samwaf-instance \
 
 http://127.0.0.1:26666
 
-默认帐号：admin  默认密码：admin868 (注意首次进入请把默认密码改掉)
+默认帐号：admin  初始密码：全新安装会自动生成随机密码并保存到 `data/initial_password.txt`（存量安装沿用原密码；请首次登录后立即修改）
 
 ## 升级指南
 

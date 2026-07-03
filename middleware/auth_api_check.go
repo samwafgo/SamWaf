@@ -147,6 +147,16 @@ func Auth() gin.HandlerFunc {
 					}
 				}
 
+				//强制改密门：需改密的令牌只放行改密/注销/ws，其余一律拦截（默认口令/被重置账号在改密前拿不到其他权限）
+				if tokenInfo.NeedChangePassword == 1 {
+					p := c.Request.URL.Path
+					if p != "/api/v1/account/changemypwd" && p != "/api/v1/logout" && p != "/api/v1/ws" {
+						response.NeedChangePwdWithMessage("请先修改初始/重置密码后再进行其他操作", c)
+						c.Abort()
+						return
+					}
+				}
+
 				//检测是否强制2Fa绑定
 				if global.GCONFIG_RECORD_FORCE_BIND_2FA == 1 && c.Request.RequestURI != "/api/v1/ws" && c.Request.RequestURI != "/api/v1/logout" {
 					otpBean := wafOtpService.GetDetailByUserNameApi(tokenInfo.LoginAccount)

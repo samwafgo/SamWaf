@@ -23,10 +23,11 @@ type AccountLog struct {
 }
 type TokenInfo struct {
 	baseorm.BaseOrm
-	LoginAccount      string `gorm:"size:100" json:"login_account"`              //登录账号
-	LoginIp           string `gorm:"size:64" json:"login_ip"`                    //登录IP
-	AccessToken       string `gorm:"type:text" json:"access_token" crypto:"aes"` //访问码
-	DeviceFingerprint string `gorm:"size:255" json:"device_fingerprint"`         //设备指纹
-	LoginType         string `gorm:"size:50" json:"login_type"`                  //登录类型 web/mobile
-	Role              string `gorm:"size:50" json:"role"`                        //登录角色(冗余自Account，便于鉴权中间件快速判定)
+	LoginAccount       string `gorm:"size:100" json:"login_account"`              //登录账号
+	LoginIp            string `gorm:"size:64" json:"login_ip"`                    //登录IP
+	AccessToken        string `gorm:"type:text" json:"access_token" crypto:"aes"` //访问码
+	DeviceFingerprint  string `gorm:"size:255" json:"device_fingerprint"`         //设备指纹
+	LoginType          string `gorm:"size:50" json:"login_type"`                  //登录类型 web/mobile
+	Role               string `gorm:"size:50" json:"role"`                        //登录角色(冗余自Account，便于鉴权中间件快速判定)
+	NeedChangePassword int    `gorm:"-" json:"need_change_password"`              //是否需强制改密：随令牌缓存下发，Auth 中间件据此拦截未改密令牌；不落库(gorm:"-")
 }

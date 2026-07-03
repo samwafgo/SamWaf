@@ -6,6 +6,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/service/waf_service"
+	"SamWaf/utils"
 	"bytes"
 	"io"
 	"net"
@@ -86,7 +87,7 @@ func ValidateOpenApiKey(c *gin.Context, apiKey string) (model.OPlatformKey, bool
 
 	// 5. 检查 IP 白名单
 	if keyBean.IPWhitelist != "" {
-		clientIP := c.ClientIP()
+		clientIP := utils.GetManageClientIP(c)
 		allowedIPs := strings.Split(keyBean.IPWhitelist, ",")
 		ipAllowed := false
 		for _, allowedIP := range allowedIPs {
@@ -156,7 +157,7 @@ func OpenApiLogMiddleware() gin.HandlerFunc {
 		startTime := time.Now()
 		path := c.Request.URL.Path
 		method := c.Request.Method
-		clientIP := c.ClientIP()
+		clientIP := utils.GetManageClientIP(c)
 
 		keyId, _ := c.Get("openapi_key_id")
 		keyName, _ := c.Get("openapi_key_name")

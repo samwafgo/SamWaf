@@ -404,12 +404,19 @@ func IsIP(input string) bool {
 }
 
 // GetManageClientIP 获取管理端客户端真实IP。
-// 若 GCONFIG_MANAGE_PROXY_HEADER 为空（默认），直接返回网络层 IP（c.RemoteIP()），
-// 防止未经信任的 X-Forwarded-For 被接受。
-// 若已配置代理头（逗号分隔，按优先级排列），依次读取首个有效 IP；全部失败则回退到网络层 IP。
+// 安全默认：未配置代理头（GCONFIG_MANAGE_PROXY_HEADER 为空）时直接返回网络层 IP（c.RemoteIP()）。
+// 即便配置了代理头，也仅当“直连对端 c.RemoteIP() 属于可信代理网段 GCONFIG_MANAGE_TRUSTED_PROXIES”
+// 时才采信代理头；否则一律用网络层 IP。防止任意直连客户端伪造 X-Forwarded-For/X-Real-IP 绕过
+// 登录错误锁定 / 管理端 IP 白名单 / 令牌 IP 绑定。
 func GetManageClientIP(c *gin.Context) string {
+	remoteIP := c.RemoteIP()
+	// 未配置代理头 → 直接用网络层 IP
 	if global.GCONFIG_MANAGE_PROXY_HEADER == "" {
-		return c.RemoteIP()
+		return remoteIP
+	}
+	// 配了代理头，但只信任来自“可信代理”的头；否则用网络层 IP
+	if !isTrustedManageProxy(remoteIP) {
+		return remoteIP
 	}
 	for _, header := range strings.Split(global.GCONFIG_MANAGE_PROXY_HEADER, ",") {
 		header = strings.TrimSpace(header)
@@ -420,10 +427,49 @@ func GetManageClientIP(c *gin.Context) string {
 		if val == "" {
 			continue
 		}
-		ip := strings.TrimSpace(strings.SplitN(val, ",", 2)[0])
-		if IsValidIPv4(ip) || IsValidIPv6(ip) {
+		// 从右往左取第一个“非可信代理”的 IP：反向代理按追加语义
+		// (nginx $proxy_add_x_forwarded_for) 把真实客户端 IP 追加在右侧、客户端伪造的值留在左侧，
+		// 故取最右侧的非可信 hop 才是真实客户端；逐个跳过可信代理链。取最左会取到伪造值。
+		parts := strings.Split(val, ",")
+		for i := len(parts) - 1; i >= 0; i-- {
+			ip := strings.TrimSpace(parts[i])
+			if !IsValidIPv4(ip) && !IsValidIPv6(ip) {
+				continue
+			}
+			if isTrustedManageProxy(ip) {
+				continue // 跳过可信代理 hop
+			}
 			return ip
 		}
 	}
-	return c.RemoteIP()
+	return remoteIP
+}
+
+// isTrustedManageProxy 判断直连对端 IP 是否落在管理端可信代理网段
+// GCONFIG_MANAGE_TRUSTED_PROXIES（CIDR 或单 IP，逗号分隔）内。
+// 留空 → 返回 false（不信任任何代理头，安全默认）。
+func isTrustedManageProxy(remoteIP string) bool {
+	if global.GCONFIG_MANAGE_TRUSTED_PROXIES == "" {
+		return false
+	}
+	ip := net.ParseIP(strings.TrimSpace(remoteIP))
+	if ip == nil {
+		return false
+	}
+	for _, entry := range strings.Split(global.GCONFIG_MANAGE_TRUSTED_PROXIES, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		if strings.Contains(entry, "/") {
+			if _, ipnet, err := net.ParseCIDR(entry); err == nil && ipnet.Contains(ip) {
+				return true
+			}
+			continue
+		}
+		if single := net.ParseIP(entry); single != nil && single.Equal(ip) {
+			return true
+		}
+	}
+	return false
 }

@@ -7,6 +7,7 @@ import (
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	"errors"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -148,7 +149,33 @@ func (w *WafAccountApi) ChangeMyPasswordApi(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
+	// 改密成功后清除当前令牌缓存里的强制改密标记，使其可正常访问其他接口（无需重新登录）
+	clearTokenNeedChangePassword(c)
 	response.OkWithMessage("修改密码成功", c)
+}
+
+// clearTokenNeedChangePassword 改密成功后，把当前令牌缓存里的强制改密标记清零。
+func clearTokenNeedChangePassword(c *gin.Context) {
+	tokenStr := c.GetHeader("X-Token")
+	if tokenStr == "" && c.GetHeader("X-Login-Type") == "mobile" {
+		tokenStr = c.GetHeader("X-Mobile-Token")
+	}
+	if tokenStr == "" {
+		return
+	}
+	key := enums.CACHE_TOKEN + tokenStr
+	var tokenInfo model.TokenInfo
+	if err := global.GCACHE_WAFCACHE.GetAs(key, &tokenInfo); err != nil {
+		return
+	}
+	tokenInfo.NeedChangePassword = 0
+	if expireTime, err := global.GCACHE_WAFCACHE.GetExpireTime(key); err == nil {
+		if remain := time.Until(expireTime); remain > 0 {
+			global.GCACHE_WAFCACHE.SetWithTTl(key, tokenInfo, remain)
+			return
+		}
+	}
+	global.GCACHE_WAFCACHE.SetWithTTl(key, tokenInfo, time.Duration(global.GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES)*time.Minute)
 }
 
 func (w *WafAccountApi) ResetAccountPwdApi(c *gin.Context) {

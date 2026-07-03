@@ -13,6 +13,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/wafenginmodel"
 	"SamWaf/plugin"
+	"SamWaf/service/waf_service"
 	"SamWaf/supervisor"
 	"SamWaf/utils"
 	"SamWaf/wafai"
@@ -390,6 +391,17 @@ func (m *wafSystenService) run() {
 		os.Exit(1)
 	}
 
+	// 全新安装引导：账户表为空(新用户判定)时创建默认管理员并生成随机初始口令。
+	// 放在启动初始化(核心库就绪后)执行，不再等首次登录才触发，便于新装即时拿到 data/initial_password.txt。
+	isFreshInstall := false
+	if cnt, _ := waf_service.WafAccountServiceApp.GetAccountCountApi(); cnt == 0 {
+		if err := waf_service.WafAccountServiceApp.InitDefaultAccount(); err != nil {
+			zlog.Error("初始化默认管理员账户失败", "error", err)
+		} else {
+			isFreshInstall = true
+		}
+	}
+
 	//初始化插件系统（从配置文件加载）
 	if err := plugin.InitPluginSystem(); err != nil {
 		zlog.Error("初始化插件系统失败", "error", err)
@@ -574,6 +586,14 @@ func (m *wafSystenService) run() {
 		zlog.Info("Access URL: http://127.0.0.1:" + strconv.Itoa(global.GWAF_LOCAL_SERVER_PORT) + "/" + global.GWAF_SECURITY_ENTRY_PATH + "/")
 	} else {
 		zlog.Info("SamWaf has started successfully.You can open http://127.0.0.1:" + strconv.Itoa(global.GWAF_LOCAL_SERVER_PORT) + " in your Browser")
+	}
+	// 仅全新安装(本次启动创建了默认管理员)时提示随机初始口令位置；按系统语言环境选择中/英文(默认英文，见 utils.IsChineseEnv 跨平台实现)
+	if isFreshInstall {
+		if utils.IsChineseEnv() {
+			zlog.Info("【全新安装】已生成随机初始管理员口令，请查看当前目录文件 data/initial_password.txt ，并在首次登录后立即修改密码")
+		} else {
+			zlog.Info("[Fresh Install] A random initial admin password has been generated, please see file: data/initial_password.txt and change it right after first login")
+		}
 	}
 	for {
 		select {

@@ -235,7 +235,7 @@ Exemplo: `SamWaf64.exe resetpwd` (no Linux: `./SamWafLinux64 resetpwd`)
 
 http://127.0.0.1:26666
 
-Conta padrão: admin  Senha padrão: admin868 (Altere a senha padrão no primeiro login)
+Conta padrão: admin  Senha inicial: instalações novas geram automaticamente uma senha aleatória salva em `data/initial_password.txt` (instalações existentes mantêm a senha anterior; altere-a no primeiro login)
 
 
 ## Guia de Atualização

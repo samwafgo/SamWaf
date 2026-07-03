@@ -235,7 +235,7 @@ Exemple : `SamWaf64.exe resetpwd` (sous Linux : `./SamWafLinux64 resetpwd`)
 
 http://127.0.0.1:26666
 
-Compte par défaut : admin  Mot de passe par défaut : admin868 (veuillez modifier le mot de passe par défaut dès la première connexion)
+Compte par défaut : admin  Mot de passe initial : les nouvelles installations génèrent automatiquement un mot de passe aléatoire enregistré dans `data/initial_password.txt` (les installations existantes conservent leur mot de passe précédent ; veuillez le modifier dès la première connexion)
 
 
 ## Guide de mise à niveau

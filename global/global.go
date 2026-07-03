@@ -225,8 +225,8 @@ var (
 
 	//默认创建的账户和密码
 	GWAF_DEFAULT_ACCOUNT      string = "admin"         //默认创建的账户
-	GWAF_DEFAULT_ACCOUNT_PWD  string = "admin868"      //默认创建的密码
-	GWAF_DEFAULT_ACCOUNT_SALT string = "%@311*abDop#*" //盐值
+	GWAF_DEFAULT_ACCOUNT_PWD  string = "admin868"      //历史默认口令：新装已改为随机口令(见 InitDefaultAccount)，此值仅作随机生成失败兜底与存量识别
+	GWAF_DEFAULT_ACCOUNT_SALT string = "%@311*abDop#*" //盐值(仅用于校验/识别存量 MD5，bcrypt 迁移后新账户不再使用)
 
 	//通讯加密
 	GWAF_COMMUNICATION_KEY = []byte("7E@u*has$d*@s5YX") //通讯加密密钥

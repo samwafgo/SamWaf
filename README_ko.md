@@ -235,7 +235,7 @@ Docker 상세 정보: https://hub.docker.com/r/samwaf/samwaf
 
 http://127.0.0.1:26666
 
-기본 계정: admin  기본 비밀번호: admin868 (첫 로그인 시 기본 비밀번호를 변경하시기 바랍니다)
+기본 계정: admin  초기 비밀번호: 새로 설치하면 임의의 비밀번호가 자동 생성되어 `data/initial_password.txt` 파일에 저장됩니다 (기존 설치는 이전 비밀번호를 유지합니다; 첫 로그인 시 즉시 변경하세요)
 
 
 ## 업그레이드 가이드

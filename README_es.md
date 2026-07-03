@@ -235,7 +235,7 @@ Ejemplo: `SamWaf64.exe resetpwd` (en Linux: `./SamWafLinux64 resetpwd`)
 
 http://127.0.0.1:26666
 
-Cuenta predeterminada: admin  Contraseña predeterminada: admin868 (cambie la contraseña predeterminada al iniciar sesión por primera vez)
+Cuenta predeterminada: admin  Contraseña inicial: las instalaciones nuevas generan automáticamente una contraseña aleatoria guardada en `data/initial_password.txt` (las instalaciones existentes conservan su contraseña anterior; cámbiela al iniciar sesión por primera vez)
 
 
 ## Guía de actualización

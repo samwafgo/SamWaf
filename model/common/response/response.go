@@ -19,6 +19,7 @@ const (
 	SUCCESS           = 0
 	INPUT_SECRET_CODE = -2
 	NEED_BIND_2FA     = -3
+	NEED_CHANGE_PWD   = -4
 	FORBIDDEN         = -403
 	AUTHFAIL          = -999
 )
@@ -83,4 +84,9 @@ func SecretCodeFailWithMessage(message string, c *gin.Context) {
 }
 func NeedBind2FAWithMessage(message string, c *gin.Context) {
 	Result(NEED_BIND_2FA, map[string]interface{}{}, message, c)
+}
+
+// NeedChangePwdWithMessage 令牌需强制改密：前端据此码引导用户先改密后再操作
+func NeedChangePwdWithMessage(message string, c *gin.Context) {
+	Result(NEED_CHANGE_PWD, map[string]interface{}{}, message, c)
 }

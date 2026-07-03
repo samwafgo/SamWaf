@@ -301,6 +301,10 @@ func (web *WafWebManager) StartLocalServer() error {
 		zlog.Warn("管理端未配置 IP 白名单，默认允许所有 IP4（0.0.0.0/0） IPv6 ::/0 访问")
 	}
 	r := gin.Default()
+	// 关闭 gin 默认的“信任全网代理头”：gin.Default() 默认 ForwardedByClientIP=true 且信任 0.0.0.0/0，
+	// 会让 c.ClientIP() 直接采信任意来源的 X-Forwarded-For/X-Real-IP。管理端一律以网络层对端为准，
+	// 需按可信代理识别真实客户端的地方统一走 utils.GetManageClientIP（读 GCONFIG_MANAGE_TRUSTED_PROXIES）。
+	_ = r.SetTrustedProxies(nil)
 	r.Use(web.cors()) //解决跨域
 	web.initRouter(r)
 

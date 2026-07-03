@@ -49,7 +49,8 @@ func (w *WafVpConfigApi) UpdateIpWhitelistApi(c *gin.Context) {
 	}
 
 	// 防护2：新白名单必须包含当前请求方的 IP，防止把自己锁在外面
-	clientIP := c.ClientIP()
+	// 用 GetManageClientIP 与 IP 白名单中间件的强制点保持同源，避免"看得到却锁得住"的不一致自锁
+	clientIP := utils.GetManageClientIP(c)
 	entries := strings.Split(req.IpWhitelist, ",")
 	selfIncluded := false
 	for _, entry := range entries {
@@ -102,6 +103,60 @@ func (w *WafVpConfigApi) GetIpWhitelistApi(c *gin.Context) {
 	}
 
 	response.OkWithDetailed(resp, "获取IP白名单成功", c)
+}
+
+// GetManageTrustedProxiesApi 获取管理端可信代理网段
+// @Summary      获取管理端可信代理网段
+// @Description  获取当前管理端可信代理网段（CIDR/IP，逗号分隔）
+// @Tags         管理端配置
+// @Produce      json
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /vipconfig/getManageTrustedProxies [get]
+func (w *WafVpConfigApi) GetManageTrustedProxiesApi(c *gin.Context) {
+	resp := response2.WafVpConfigManageTrustedProxiesGetResp{
+		TrustedProxies: global.GCONFIG_MANAGE_TRUSTED_PROXIES,
+	}
+	response.OkWithDetailed(resp, "获取管理端可信代理网段成功", c)
+}
+
+// UpdateManageTrustedProxiesApi 更新管理端可信代理网段
+// @Summary      更新管理端可信代理网段
+// @Description  仅当管理请求的直连对端落在此网段内，才采信代理头识别真实客户端；留空=不信任任何代理头。存 conf/config.yml，被白名单挡住时可改文件+重启自救
+// @Tags         管理端配置
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafVpConfigManageTrustedProxiesUpdateReq  true  "可信代理网段配置"
+// @Success      200   {object}  response.Response  "更新成功"
+// @Security     ApiKeyAuth
+// @Router       /vipconfig/updateManageTrustedProxies [post]
+func (w *WafVpConfigApi) UpdateManageTrustedProxiesApi(c *gin.Context) {
+	var req request.WafVpConfigManageTrustedProxiesUpdateReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage("解析请求失败", c)
+		return
+	}
+	// 校验每个条目是合法 CIDR 或 IP（留空=不信任任何代理头，允许）
+	for _, entry := range strings.Split(req.TrustedProxies, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		if strings.Contains(entry, "/") {
+			if _, _, err := net.ParseCIDR(entry); err != nil {
+				response.FailWithMessage(fmt.Sprintf("非法的CIDR: %s", entry), c)
+				return
+			}
+		} else if net.ParseIP(entry) == nil {
+			response.FailWithMessage(fmt.Sprintf("非法的IP: %s", entry), c)
+			return
+		}
+	}
+	if err := wafconfig.UpdateManageTrustedProxies(req.TrustedProxies); err != nil {
+		response.FailWithMessage("更新管理端可信代理网段失败: "+err.Error(), c)
+	} else {
+		response.OkWithMessage("更新管理端可信代理网段成功", c)
+	}
 }
 
 // UpdateSslEnableApi 更新管理端SSL启用状态

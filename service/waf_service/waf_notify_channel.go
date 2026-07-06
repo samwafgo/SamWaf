@@ -7,6 +7,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
+	"SamWaf/utils"
 	"SamWaf/wafnotify/dingtalk"
 	"SamWaf/wafnotify/email"
 	"SamWaf/wafnotify/feishu"
@@ -136,6 +137,13 @@ func (receiver *WafNotifyChannelService) TestChannelApi(req request.WafNotifyCha
 		title = "[" + global.GWAF_NOTICE_TITLE + "] " + title
 	}
 	content := "这是一条测试消息，发送时间：" + time.Now().Format("2006-01-02 15:04:05")
+
+	// N5
+	if channel.Type == "dingtalk" || channel.Type == "feishu" || channel.Type == "wechatwork" {
+		if ok, reason := utils.IsSafeOutboundURL(channel.WebhookURL); !ok {
+			return errors.New("WebhookURL 目标不被允许：" + reason)
+		}
+	}
 
 	switch channel.Type {
 	case "dingtalk":

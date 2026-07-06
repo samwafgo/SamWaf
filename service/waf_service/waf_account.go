@@ -169,11 +169,24 @@ func (receiver *WafAccountService) createAccount(loginAccount, role, plainPwd st
 func (receiver *WafAccountService) CheckIsExistApi(req request.WafAccountAddReq) error {
 	return global.GWAF_LOCAL_DB.First(&model.Account{}, "login_account = ? ", req.LoginAccount).Error
 }
-func (receiver *WafAccountService) ModifyApi(req request.WafAccountEditReq) error {
-	var bean model.Account
-	global.GWAF_LOCAL_DB.Where("login_account = ?", req.LoginAccount).Find(&bean)
-	if bean.Id != "" && bean.LoginAccount != req.LoginAccount {
-		return errors.New("当前数据已经存在")
+func (receiver *WafAccountService) ModifyApi(req request.WafAccountEditReq, operatorRole string) error {
+
+	var target model.Account
+	global.GWAF_LOCAL_DB.Where("id = ?", req.Id).First(&target)
+	if target.Id == "" {
+		return errors.New("账号不存在")
+	}
+	// N7：非超级管理员不得编辑超级管理员账号（防止改名/改状态等干扰或锁定超管账号）。
+	if enums.NormalizeRole(target.Role) == enums.ROLE_SUPER_ADMIN && enums.NormalizeRole(operatorRole) != enums.ROLE_SUPER_ADMIN {
+		return errors.New("仅超级管理员可编辑超级管理员账号")
+	}
+	// 若修改了登录名，新名不得与其他账号重复
+	if req.LoginAccount != target.LoginAccount {
+		var dup model.Account
+		global.GWAF_LOCAL_DB.Where("login_account = ? and id <> ?", req.LoginAccount, req.Id).First(&dup)
+		if dup.Id != "" {
+			return errors.New("当前登录账号已存在")
+		}
 	}
 	beanMap := map[string]interface{}{
 		"LoginAccount": req.LoginAccount,
@@ -186,11 +199,13 @@ func (receiver *WafAccountService) ModifyApi(req request.WafAccountEditReq) erro
 		if !enums.IsValidRole(req.Role) {
 			return errors.New("请指定合法的账号角色")
 		}
+		// N7 防提权：仅超级管理员可变更账号角色（对照被更新记录 target 的当前角色，杜绝 id/login_account 解耦绕过）。
+		if req.Role != target.Role && enums.NormalizeRole(operatorRole) != enums.ROLE_SUPER_ADMIN {
+			return errors.New("仅超级管理员可变更账号角色")
+		}
 		beanMap["Role"] = req.Role
 	}
-	err := global.GWAF_LOCAL_DB.Model(model.Account{}).Where("id = ?", req.Id).Updates(beanMap).Error
-
-	return err
+	return global.GWAF_LOCAL_DB.Model(model.Account{}).Where("id = ?", req.Id).Updates(beanMap).Error
 }
 
 // ChangeMyPasswordApi 当前登录账号自助改密：校验旧密码、复杂度、历史防重用，成功后清除强制改密标记

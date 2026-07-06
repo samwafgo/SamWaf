@@ -26,7 +26,7 @@ var (
 
 	// 指纹认证相关配置
 	GCONFIG_ENABLE_DEVICE_FINGERPRINT int64 = 1 // 是否启用设备指纹认证 1启用 0禁用
-	GCONFIG_ENABLE_STRICT_IP_BINDING  int64 = 1 // 是否启用严格IP绑定 1启用 0禁用
+	GCONFIG_ENABLE_STRICT_IP_BINDING  int64 = 0 // 是否启用严格IP绑定 1启用 0禁用(默认关：启用后令牌绑定登录时真实IP，IP变化需重登；反代后需先配可信代理网段。避免动态IP/多出口LB场景反复掉线)
 	GCONFIG_ENABLE_REPLAY_PROTECT     int64 = 1 // 防重放攻击开关 1启用 0禁用
 
 	GCONFIG_RECORD_ENABLE_OWASP int64  = 0               //启动OWASP数据检测

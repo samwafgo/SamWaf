@@ -5,6 +5,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model"
+	"SamWaf/utils"
 	"SamWaf/wafnotify/dingtalk"
 	"SamWaf/wafnotify/email"
 	"SamWaf/wafnotify/feishu"
@@ -74,14 +75,26 @@ func (receiver *WafNotifySenderService) sendToChannel(channel model.NotifyChanne
 
 	switch channel.Type {
 	case "dingtalk":
-		notifier := dingtalk.NewDingTalkNotifier(channel.WebhookURL, channel.Secret)
-		err = notifier.SendMarkdown(title, content)
+		if ok, reason := utils.IsSafeOutboundURL(channel.WebhookURL); !ok {
+			err = fmt.Errorf("WebhookURL 目标不被允许: %s", reason)
+		} else {
+			notifier := dingtalk.NewDingTalkNotifier(channel.WebhookURL, channel.Secret)
+			err = notifier.SendMarkdown(title, content)
+		}
 	case "feishu":
-		notifier := feishu.NewFeishuNotifier(channel.WebhookURL, channel.Secret)
-		err = notifier.SendMarkdown(title, content)
+		if ok, reason := utils.IsSafeOutboundURL(channel.WebhookURL); !ok {
+			err = fmt.Errorf("WebhookURL 目标不被允许: %s", reason)
+		} else {
+			notifier := feishu.NewFeishuNotifier(channel.WebhookURL, channel.Secret)
+			err = notifier.SendMarkdown(title, content)
+		}
 	case "wechatwork":
-		notifier := wechatwork.NewWechatWorkNotifier(channel.WebhookURL)
-		err = notifier.SendMarkdown(title, content)
+		if ok, reason := utils.IsSafeOutboundURL(channel.WebhookURL); !ok {
+			err = fmt.Errorf("WebhookURL 目标不被允许: %s", reason)
+		} else {
+			notifier := wechatwork.NewWechatWorkNotifier(channel.WebhookURL)
+			err = notifier.SendMarkdown(title, content)
+		}
 	case "email":
 		notifier, notifierErr := email.NewEmailNotifier(channel.ConfigJSON)
 		if notifierErr != nil {

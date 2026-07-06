@@ -10,6 +10,11 @@ type WafVpConfigManageTrustedProxiesUpdateReq struct {
 	TrustedProxies string `json:"trusted_proxies"` // 可信代理网段（CIDR/IP，逗号分隔，留空=不信任任何代理头）
 }
 
+// WafVpConfigCorsAllowOriginsUpdateReq CORS 跨域来源白名单更新请求
+type WafVpConfigCorsAllowOriginsUpdateReq struct {
+	CorsAllowOrigins string `json:"cors_allow_origins"` // CORS 跨域来源白名单（逗号分隔；回环/本机始终放行，无需填写）
+}
+
 // WafVpConfigSslEnableUpdateReq SSL启用状态更新请求
 type WafVpConfigSslEnableUpdateReq struct {
 	SslEnable bool `json:"ssl_enable"` // 是否启用SSL

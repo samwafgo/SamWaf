@@ -13,6 +13,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -156,6 +157,41 @@ func (w *WafVpConfigApi) UpdateManageTrustedProxiesApi(c *gin.Context) {
 		response.FailWithMessage("更新管理端可信代理网段失败: "+err.Error(), c)
 	} else {
 		response.OkWithMessage("更新管理端可信代理网段成功", c)
+	}
+}
+
+// GetCorsAllowOriginsApi 获取 CORS 跨域来源白名单
+func (w *WafVpConfigApi) GetCorsAllowOriginsApi(c *gin.Context) {
+	resp := response2.WafVpConfigCorsAllowOriginsGetResp{
+		CorsAllowOrigins: global.GCONFIG_CORS_ALLOW_ORIGINS,
+	}
+	response.OkWithDetailed(resp, "获取CORS跨域白名单成功", c)
+}
+
+// UpdateCorsAllowOriginsApi 更新 CORS 跨域来源白名单
+// 回环/本机来源始终放行，此处仅配置额外的跨域来源；留空=仅放行回环。存 conf/config.yml，跨域配错连不上时可改文件+重启自救。
+func (w *WafVpConfigApi) UpdateCorsAllowOriginsApi(c *gin.Context) {
+	var req request.WafVpConfigCorsAllowOriginsUpdateReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage("解析请求失败", c)
+		return
+	}
+	// 校验每个条目是合法来源(scheme://host[:port])；留空=仅放行回环，允许
+	for _, entry := range strings.Split(req.CorsAllowOrigins, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		u, err := url.Parse(entry)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			response.FailWithMessage(fmt.Sprintf("非法的来源(需形如 https://example.com[:端口]): %s", entry), c)
+			return
+		}
+	}
+	if err := wafconfig.UpdateCorsAllowOrigins(req.CorsAllowOrigins); err != nil {
+		response.FailWithMessage("更新CORS跨域白名单失败: "+err.Error(), c)
+	} else {
+		response.OkWithMessage("更新CORS跨域白名单成功", c)
 	}
 }
 

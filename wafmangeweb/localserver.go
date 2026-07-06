@@ -12,6 +12,7 @@ import (
 	"SamWaf/wafmangeweb/static"
 	"SamWaf/wafnet"
 	"context"
+	"crypto/subtle"
 	"crypto/tls"
 	_ "embed"
 	"errors"
@@ -20,6 +21,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -253,13 +255,14 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 	//性能检测部分
 	if global.GCONFIG_RECORD_DEBUG_ENABLE == 1 {
 		zlog.Info(web.LogName, "Debug On")
-		debugGroup := r.Group("/debug", func(c *gin.Context) {
+		// N8：加固
+		debugGroup := r.Group("/debug", middleware.IPWhitelist(), middleware.Auth(), func(c *gin.Context) {
 			if global.GCONFIG_RECORD_DEBUG_ENABLE == 0 {
 				c.AbortWithStatus(http.StatusForbidden)
 				return
 			}
 			if global.GCONFIG_RECORD_DEBUG_PWD != "" {
-				if c.Request.Header.Get("Authorization") != global.GCONFIG_RECORD_DEBUG_PWD {
+				if subtle.ConstantTimeCompare([]byte(c.Request.Header.Get("Authorization")), []byte(global.GCONFIG_RECORD_DEBUG_PWD)) != 1 {
 					c.AbortWithStatus(http.StatusForbidden)
 					return
 				}
@@ -274,10 +277,10 @@ func (web *WafWebManager) cors() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		method := c.Request.Method
 		origin := c.Request.Header.Get("Origin") //请求头部
-		if origin != "" {
-			//TODO 将来要控制 蔡鹏 20221005
-			// 将该域添加到allow-origin中
-			c.Header("Access-Control-Allow-Origin", origin) //
+		// N9：仅对白名单内的 Origin 回显 CORS 头并允许携带凭证，杜绝"反射任意 Origin + Allow-Credentials"。
+		// 白名单 GCONFIG_CORS_ALLOW_ORIGINS（逗号分隔）默认空=不允许任何跨域；同源管理界面无需 CORS 头、不受影响。
+		if origin != "" && isCorsOriginAllowed(origin) {
+			c.Header("Access-Control-Allow-Origin", origin)
 			c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, UPDATE")
 			c.Header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization,X-Token,Remote-Waf-User-Id,OPEN-X-Token,X-Login-Type,X-Mobile-Token,X-API-Key,X-Request-Time,X-Request-Id,X-APP-OP-PASSWORD")
 			c.Header("Access-Control-Expose-Headers", "Content-Length, Access-Control-Allow-Origin, Access-Control-Allow-Headers, Cache-Control, Content-Language, Content-Type")
@@ -289,6 +292,42 @@ func (web *WafWebManager) cors() gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+// isCorsOriginAllowed 判断 Origin 是否放行：回环/本机来源始终放行（开发环境 dev server、本地工具），
+// 其余需精确命中配置白名单 GCONFIG_CORS_ALLOW_ORIGINS（逗号分隔，大小写不敏感）。白名单为空=仅放行回环。
+func isCorsOriginAllowed(origin string) bool {
+	// 回环已被信任（能在本机环回起服务者已在本机），且管理端鉴权走 X-Token 头而非 Cookie，
+	// Allow-Credentials 对跨站攻击者无实益——故回环来源始终放行，避免误伤 dev/本地访问。
+	if isLoopbackOrigin(origin) {
+		return true
+	}
+	allow := strings.TrimSpace(global.GCONFIG_CORS_ALLOW_ORIGINS)
+	if allow == "" {
+		return false
+	}
+	for _, o := range strings.Split(allow, ",") {
+		if o = strings.TrimSpace(o); o != "" && strings.EqualFold(o, origin) {
+			return true
+		}
+	}
+	return false
+}
+
+// isLoopbackOrigin 判断 Origin 的主机是否为回环地址（127.0.0.0/8、::1、localhost）。
+func isLoopbackOrigin(origin string) bool {
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	host := u.Hostname()
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+	return false
 }
 
 // StartLocalServer 启动本地管理服务器

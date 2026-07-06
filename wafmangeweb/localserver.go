@@ -256,7 +256,7 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 	if global.GCONFIG_RECORD_DEBUG_ENABLE == 1 {
 		zlog.Info(web.LogName, "Debug On")
 		// N8：加固
-		debugGroup := r.Group("/debug", middleware.IPWhitelist(), middleware.Auth(), func(c *gin.Context) {
+		debugGroup := r.Group("/debug", middleware.IPWhitelist(), middleware.TokenOnlyAuth(), middleware.RequireRole(enums.ROLE_SYSTEM_ADMIN), func(c *gin.Context) {
 			if global.GCONFIG_RECORD_DEBUG_ENABLE == 0 {
 				c.AbortWithStatus(http.StatusForbidden)
 				return
@@ -314,7 +314,9 @@ func isCorsOriginAllowed(origin string) bool {
 	return false
 }
 
-// isLoopbackOrigin 判断 Origin 的主机是否为回环地址（127.0.0.0/8、::1、localhost）。
+// isLoopbackOrigin 判断 Origin 的主机是否为回环地址（127.0.0.0/8、::1、localhost，含 IPv4-mapped ::ffff:127.0.0.1）。
+// 注：这类地址只可能由本机上运行的页面作为 Origin 发出——远程攻击者无法让受害者浏览器在其回环地址上伺服页面，
+// 故"回环恒放行"不构成远程可利用的跨域面（详见漏洞台账 N9 残余风险）。
 func isLoopbackOrigin(origin string) bool {
 	u, err := url.Parse(origin)
 	if err != nil {

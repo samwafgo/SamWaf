@@ -74,6 +74,7 @@ var (
 	GCONFIG_RECORD_FORCE_BIND_2FA          int64  = 0      // 是否强制绑定双因素认证(1强制 0不强制)
 	GCONFIG_RECORD_DEBUG_ENABLE            int64  = 0      //调试开关 默认关闭
 	GCONFIG_RECORD_DEBUG_PWD               string = ""     //调试密码 如果未空则不需要密码
+	GCONFIG_CORS_ALLOW_ORIGINS             string = ""     //CORS 跨域来源白名单(逗号分隔,大小写不敏感)，默认空=不允许任何跨域(同源管理界面不受影响)
 
 	GCONFIG_RECORD_GPT_URL   string = "https://api.deepseek.com" //GPT远程地址 DeepSeek ChatGpt 以及使用one-api封装好的接口
 	GCONFIG_RECORD_GPT_TOKEN string = "SamWaf提示请输入密钥"            //GPT远程授权密钥

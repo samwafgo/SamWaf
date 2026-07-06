@@ -217,6 +217,15 @@ func LoadAndInitConfig() {
 		configChanged = true
 	}
 
+	//CORS 跨域来源白名单（逗号分隔，大小写不敏感）。同放 config.yml 而非数据库：
+	//异地部署的前端跨域配错会连不上后端，改文件即可自救；回环/本机来源(dev server)在代码里始终放行。
+	if config.IsSet("security.cors_allow_origins") {
+		global.GCONFIG_CORS_ALLOW_ORIGINS = config.GetString("security.cors_allow_origins")
+	} else {
+		config.Set("security.cors_allow_origins", global.GCONFIG_CORS_ALLOW_ORIGINS)
+		configChanged = true
+	}
+
 	//配置和提取域名白名单
 	if config.IsSet("security.domain_whitelist") {
 		global.GWAF_DOMAIN_WHITELIST = config.GetString("security.domain_whitelist")
@@ -481,6 +490,49 @@ func UpdateManageTrustedProxies(trustedProxies string) error {
 	}
 
 	fmt.Printf("%s\tINFO\tmanage trusted proxies config updated\n", currentTime)
+	return nil
+}
+
+// UpdateCorsAllowOrigins 更新 CORS 跨域来源白名单（写入 conf/config.yml 并立即生效）。
+// 同 IP 白名单/可信代理存 config.yml：既可前端编辑，也可在(异地部署)跨域配错连不上时改文件+重启自救。
+func UpdateCorsAllowOrigins(origins string) error {
+	currentTime := time.Now().Format("2006-01-02 15:04:05.000")
+
+	configDir := utils.GetCurrentDir() + "/conf/"
+	if _, err := os.Stat(configDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(configDir, os.ModePerm); err != nil {
+			fmt.Printf("%s\tERROR\t创建config目录失败:%v\n", currentTime, err)
+			return err
+		}
+	}
+
+	config := viper.New()
+	config.AddConfigPath(configDir)
+	config.SetConfigName("config")
+	config.SetConfigType("yml")
+
+	if err := config.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			fmt.Printf("%s\tWARN\t找不到配置文件..\n", currentTime)
+			config.Set("local_port", global.GWAF_LOCAL_SERVER_PORT)
+			if err = config.SafeWriteConfig(); err != nil {
+				return err
+			}
+		} else {
+			fmt.Printf("%s\tERROR\t配置文件出错..\n", currentTime)
+			return err
+		}
+	}
+
+	config.Set("security.cors_allow_origins", origins)
+	global.GCONFIG_CORS_ALLOW_ORIGINS = origins
+
+	if err := config.WriteConfig(); err != nil {
+		fmt.Printf("%s\tERROR\twrite config failed:%v\n", currentTime, err)
+		return err
+	}
+
+	fmt.Printf("%s\tINFO\tcors allow origins config updated\n", currentTime)
 	return nil
 }
 

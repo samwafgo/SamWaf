@@ -6,6 +6,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/model"
 	"fmt"
+	"regexp"
 	"time"
 
 	"gorm.io/gorm"
@@ -13,6 +14,47 @@ import (
 
 const cleanupBatchSize = 5000
 const cleanupBatchSleep = 50 * time.Millisecond
+
+// safeIdentPattern 合法 SQL 标识符（表名/列名）：字母或下划线开头，仅含字母、数字、下划线。
+// 。执行前用此白名单严格校验。
+var safeIdentPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// allowedCleanupTables 数据保留清理任务允许操作的表白名单。
+// 目前仅这三张统计/标签表会被自动清理；任何不在此列的表一律拒绝（即便表名是合法标识符），
+// 防止保留策略被篡改后误删/恶意删除业务表或核心表。新增可清理表时在此登记。
+var allowedCleanupTables = map[string]struct{}{
+	"stats_ip_days":      {},
+	"stats_ip_city_days": {},
+	"ip_tags":            {},
+}
+
+// validatePolicyIdentifiers 校验保留策略中所有会被拼接进 SQL 的标识符字段。
+// 任一不合法即返回错误（调用方跳过该策略、不执行任何删除），防止二阶 SQL 注入。
+func validatePolicyIdentifiers(policy *model.DataRetentionPolicy) error {
+	// 表名必须在清理白名单内（最紧控制：只允许动这几张表，其余一律不碰）
+	if _, ok := allowedCleanupTables[policy.TableName]; !ok {
+		return fmt.Errorf("表不在清理白名单内: %q", policy.TableName)
+	}
+	if policy.RetainDays > 0 {
+		if !safeIdentPattern.MatchString(policy.DayField) {
+			return fmt.Errorf("非法天数字段: %q", policy.DayField)
+		}
+		if policy.DayFieldType != "int_day" && policy.DayFieldType != "datetime" {
+			return fmt.Errorf("非法天数字段类型: %q", policy.DayFieldType)
+		}
+	}
+	if policy.RetainRows > 0 {
+		if !safeIdentPattern.MatchString(policy.RowOrderField) {
+			return fmt.Errorf("非法排序字段: %q", policy.RowOrderField)
+		}
+		// 方向仅允许精确的 ASC/DESC（与下游 compareOp 的大小写敏感判定一致）；
+		// 用精确等值而非 EqualFold，杜绝借排序方向注入，也排除 Unicode 大小写折叠等价字符(如 AſC)。
+		if policy.RowOrderDir != "ASC" && policy.RowOrderDir != "DESC" {
+			return fmt.Errorf("非法排序方向: %q", policy.RowOrderDir)
+		}
+	}
+	return nil
+}
 
 // TaskStatsDataCleanup 按数据保留策略清理统计数据
 func TaskStatsDataCleanup() {
@@ -31,6 +73,15 @@ func TaskStatsDataCleanup() {
 
 	for i := range policies {
 		policy := &policies[i]
+
+		// 防二阶 SQL 注入：执行任何删除前，先校验所有将被拼接进 SQL 的标识符字段；
+		// 不合法则跳过该策略（不删任何数据），并记日志告警。
+		if err := validatePolicyIdentifiers(policy); err != nil {
+			zlog.Error("TaskStatsDataCleanup: 保留策略标识符非法，已跳过该策略",
+				"table", policy.TableName, "error", err.Error())
+			continue
+		}
+
 		db := getDBForPolicy(policy.DbType, policy.TableName)
 		if db == nil {
 			zlog.Warn("TaskStatsDataCleanup: 无法获取目标数据库连接",

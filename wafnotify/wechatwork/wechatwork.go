@@ -1,11 +1,11 @@
 package wechatwork
 
 import (
+	"SamWaf/utils"
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 )
 
 // WechatWorkNotifier 企业微信通知器
@@ -58,7 +58,8 @@ func (w *WechatWorkNotifier) send(message WechatWorkMessage) error {
 	}
 
 	// 发送HTTP请求
-	resp, err := http.Post(w.WebhookURL, "application/json", bytes.NewBuffer(payload))
+	// N5
+	resp, err := utils.SafeHTTPClient().Post(w.WebhookURL, "application/json", bytes.NewBuffer(payload))
 	if err != nil {
 		return fmt.Errorf("发送HTTP请求失败: %v", err)
 	}

@@ -1,6 +1,7 @@
 package feishu
 
 import (
+	"SamWaf/utils"
 	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -8,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"strconv"
 	"time"
 )
@@ -116,7 +116,8 @@ func (f *FeishuNotifier) send(message FeishuMessage) error {
 	}
 
 	// 发送HTTP请求
-	resp, err := http.Post(f.WebhookURL, "application/json", bytes.NewBuffer(payload))
+	// N5：经带跳转校验的安全客户端发送，防 302 跳转到内网/云元数据(SSRF)
+	resp, err := utils.SafeHTTPClient().Post(f.WebhookURL, "application/json", bytes.NewBuffer(payload))
 	if err != nil {
 		return fmt.Errorf("发送HTTP请求失败: %v", err)
 	}

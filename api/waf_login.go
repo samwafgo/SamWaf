@@ -95,11 +95,27 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 			// 如果开启了二次登录校验 需要进行输入
 			otpBean := wafOtpService.GetDetailByUserNameApi(req.LoginAccount)
 			if otpBean.UserName != "" {
+				// N6：OTP 失败限流。，
+				otpCacheKey := enums.CACHE_OTP_ERROR + req.LoginAccount
+				otpErrCount := 0
+				if global.GCACHE_WAFCACHE.IsKeyExist(otpCacheKey) {
+					if v, e := global.GCACHE_WAFCACHE.GetInt(otpCacheKey); e == nil {
+						otpErrCount = v
+					}
+				}
+				if otpErrCount >= int(global.GCONFIG_RECORD_LOGIN_MAX_ERROR_TIME) {
+					response.SecretCodeFailWithMessage("安全码错误次数过多，请稍后重试", c)
+					return
+				}
 				valid := totp.Validate(req.LoginOtpSecretCode, otpBean.Secret)
 				if !valid {
+					otpErrCount++
+					global.GCACHE_WAFCACHE.SetWithTTl(otpCacheKey, otpErrCount, time.Duration(global.GCONFIG_RECORD_LOGIN_LIMIT_MINTUTES)*time.Minute)
 					response.SecretCodeFailWithMessage("请正确输入您的安全码", c)
 					return
 				}
+				// OTP 正确，清除 OTP 错误计数
+				global.GCACHE_WAFCACHE.Remove(otpCacheKey)
 			}
 
 			// 密码正确，清除错误计数

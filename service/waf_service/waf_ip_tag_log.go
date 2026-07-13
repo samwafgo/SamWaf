@@ -14,13 +14,9 @@ func (receiver *WafLogService) GetAttackIpListApi(req request.WafAttackIpTagSear
 	var results []model.AttackIPTag
 	var total int64
 
-	// 获取本地时区偏移量（秒）
-	_, offset := time.Now().Zone()
-	offsetMinutes := offset / 60
-
-	// 基础查询部分
-	firstTimeExpr := dialect.Get().FormatTimeWithOffset("MIN(update_time)", offsetMinutes)
-	latestTimeExpr := dialect.Get().FormatTimeWithOffset("MAX(update_time)", offsetMinutes)
+	// 基础查询部分（update_time 落库即本地时间，方言层只负责渲染，不做时区换算）
+	firstTimeExpr := dialect.Get().FormatLocalTime("MIN(update_time)")
+	latestTimeExpr := dialect.Get().FormatLocalTime("MAX(update_time)")
 	query := `
 	SELECT
 		tenant_id,

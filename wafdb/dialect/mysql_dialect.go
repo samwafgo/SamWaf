@@ -20,17 +20,11 @@ func (d *MySQLDialect) ForceIndexClause(table, idx string) string {
 	return fmt.Sprintf("%s FORCE INDEX (%s)", table, idx)
 }
 
-func (d *MySQLDialect) FormatTimeWithOffset(colExpr string, offsetMin int) string {
-	sign := "+"
-	h := offsetMin / 60
-	m := offsetMin % 60
-	if offsetMin < 0 {
-		sign = "-"
-		h = -h
-		m = -m
-	}
-	tz := fmt.Sprintf("%s%02d:%02d", sign, h, m)
-	return fmt.Sprintf("DATE_FORMAT(CONVERT_TZ(%s,'+00:00','%s'),'%%Y-%%m-%%d %%H:%%i:%%s')", colExpr, tz)
+// FormatLocalTime formats the column as-is: with loc=Local in the DSN the
+// DATETIME column already holds the local wall clock, so any timezone
+// conversion here would shift the value a second time.
+func (d *MySQLDialect) FormatLocalTime(colExpr string) string {
+	return fmt.Sprintf("DATE_FORMAT(%s,'%%Y-%%m-%%d %%H:%%i:%%s')", colExpr)
 }
 
 func (d *MySQLDialect) RenameTable(db *gorm.DB, src, dst string) error {

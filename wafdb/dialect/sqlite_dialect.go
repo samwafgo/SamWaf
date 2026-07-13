@@ -22,7 +22,12 @@ func (d *SQLiteDialect) ForceIndexClause(table, idx string) string {
 	return fmt.Sprintf("%s INDEXED BY %s", table, idx)
 }
 
-func (d *SQLiteDialect) FormatTimeWithOffset(colExpr string, offsetMin int) string {
+// FormatLocalTime adds the local UTC offset back: go-wxsqlite3 stores time.Time
+// as text carrying a zone suffix ('+08:00'), which SQLite normalizes to UTC
+// before applying the modifier.
+func (d *SQLiteDialect) FormatLocalTime(colExpr string) string {
+	_, offset := time.Now().Zone()
+	offsetMin := offset / 60
 	if offsetMin >= 0 {
 		return fmt.Sprintf("strftime('%%Y-%%m-%%d %%H:%%M:%%S', %s, '+%d minutes')", colExpr, offsetMin)
 	}

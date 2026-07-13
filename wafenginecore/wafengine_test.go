@@ -6,6 +6,13 @@ import (
 	"bytes"
 	"compress/flate"
 	"compress/gzip"
+	"golang.org/x/text/encoding"
+	"golang.org/x/text/encoding/charmap"
+	"golang.org/x/text/encoding/japanese"
+	"golang.org/x/text/encoding/korean"
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/encoding/traditionalchinese"
+	"golang.org/x/text/encoding/unicode"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -202,7 +209,7 @@ func TestGetOrgContent(t *testing.T) {
 			contentEncoding: "",
 			content:         "<html><body>没有指定字符集的内容</body></html>",
 			expectedContent: "<html><body>没有指定字符集的内容</body></html>",
-			expectedErr:     true,
+			expectedErr:     false, // UTF-8内容无声明时通过UTF-8校验兜底解出
 		},
 		{
 			// 对于不支持的字符集，我们跳过内容比较，只检查是否有错误
@@ -453,7 +460,7 @@ func TestGetOrgContent_MetaAndDoctypeCharset(t *testing.T) {
 		t.Errorf("DOCTYPE声明检测失败: err=%v, charset=%s, content=%s", err3, charset3, string(content3))
 	}
 
-	// 4. meta标签未知编码
+	// 4. meta标签未知编码：不再报错，内容为合法UTF-8时通过UTF-8校验兜底解出
 	htmlMetaUnknown := `<html><head><meta charset="unknown-charset"></head><body>未知编码</body></html>`
 	resp4 := &http.Response{
 		StatusCode: 200,
@@ -461,9 +468,9 @@ func TestGetOrgContent_MetaAndDoctypeCharset(t *testing.T) {
 		Body:       io.NopCloser(strings.NewReader(htmlMetaUnknown)),
 	}
 	resp4.Header.Set("Content-Type", "text/html")
-	_, _, err4 := waf.getOrgContent(resp4, false, "")
-	if err4 == nil || !strings.Contains(err4.Error(), "编码检测不确定") {
-		t.Errorf("未知meta编码检测失败，期望返回错误，实际: %v", err4)
+	content4, charset4, err4 := waf.getOrgContent(resp4, false, "")
+	if err4 != nil || charset4 != "utf-8" || !strings.Contains(string(content4), "未知编码") {
+		t.Errorf("未知meta编码应兜底为utf-8: err=%v, charset=%s, content=%s", err4, charset4, string(content4))
 	}
 }
 
@@ -914,6 +921,348 @@ func TestShouldAutoJumpHTTPS_Comprehensive(t *testing.T) {
 			} else {
 				t.Logf("✅ 多级域名 %s 匹配成功", tc.requestHost)
 			}
+		}
+	})
+}
+
+// encodeTestBody 用指定编码器将UTF-8原文编码为目标字符集字节，用于构造测试响应体
+func encodeTestBody(t *testing.T, enc encoding.Encoding, text string) []byte {
+	t.Helper()
+	b, err := enc.NewEncoder().Bytes([]byte(text))
+	if err != nil {
+		t.Fatalf("生成测试内容失败: %v", err)
+	}
+	return b
+}
+
+func newEncodingTestResponse(contentType string, body []byte) *http.Response {
+	resp := &http.Response{
+		StatusCode: 200,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(bytes.NewReader(body)),
+	}
+	if contentType != "" {
+		resp.Header.Set("Content-Type", contentType)
+	}
+	return resp
+}
+
+// TestGetOrgContent_MultiCharsets 覆盖WHATWG各编码家族：Content-Type声明与meta声明两条命中路径
+func TestGetOrgContent_MultiCharsets(t *testing.T) {
+	t.Parallel()
+	zlog.InitZLog(global.GWAF_LOG_DEBUG_ENABLE, "json")
+	waf := &WafEngine{}
+
+	cases := []struct {
+		label     string            // 声明用的charset标签
+		canonical string            // 期望getOrgContent返回的规范名
+		enc       encoding.Encoding // 生成测试字节用的编码器
+		text      string
+		viaMeta   bool // 是否额外测试meta声明路径
+	}{
+		{"gbk", "gbk", simplifiedchinese.GBK, "这是GBK编码的内容", true},
+		{"gb2312", "gbk", simplifiedchinese.GBK, "这是GB2312标签的内容", false},
+		{"gb18030", "gb18030", simplifiedchinese.GB18030, "GB18030扩展字符𠀀测试", true},
+		{"big5", "big5", traditionalchinese.Big5, "這是繁體中文內容", true},
+		{"shift_jis", "shift_jis", japanese.ShiftJIS, "これは日本語です", true},
+		{"euc-jp", "euc-jp", japanese.EUCJP, "日本語テスト", true},
+		{"iso-2022-jp", "iso-2022-jp", japanese.ISO2022JP, "日本語", false},
+		{"euc-kr", "euc-kr", korean.EUCKR, "한국어 테스트", true},
+		{"iso-8859-1", "windows-1252", charmap.Windows1252, "Café résumé", true},
+		{"iso-8859-2", "iso-8859-2", charmap.ISO8859_2, "Příliš žluťoučký", false},
+		{"iso-8859-15", "iso-8859-15", charmap.ISO8859_15, "€ Café", false},
+		{"windows-1252", "windows-1252", charmap.Windows1252, "€ smart “quotes”", true},
+		{"windows-1251", "windows-1251", charmap.Windows1251, "Привет мир", true},
+		{"koi8-r", "koi8-r", charmap.KOI8R, "Русский текст", false},
+		{"iso-8859-7", "iso-8859-7", charmap.ISO8859_7, "Ελληνικά", false},
+		{"windows-1256", "windows-1256", charmap.Windows1256, "مرحبا", false},
+		{"windows-874", "windows-874", charmap.Windows874, "สวัสดี", false},
+		{"ibm866", "ibm866", charmap.CodePage866, "Тест", false},
+		{"macintosh", "macintosh", charmap.Macintosh, "Café™", false},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		// 路径1：Content-Type头声明charset
+		t.Run(tc.label+"_content_type", func(t *testing.T) {
+			body := encodeTestBody(t, tc.enc, "<html><body>"+tc.text+"</body></html>")
+			resp := newEncodingTestResponse("text/html; charset="+tc.label, body)
+			content, cs, err := waf.getOrgContent(resp, false, "")
+			if err != nil || cs != tc.canonical || !strings.Contains(string(content), tc.text) {
+				t.Errorf("Content-Type声明%s检测失败: err=%v, charset=%s, content=%s", tc.label, err, cs, string(content))
+			}
+		})
+		// 路径2：HTML meta标签声明charset
+		if tc.viaMeta {
+			t.Run(tc.label+"_meta", func(t *testing.T) {
+				html := `<html><head><meta charset="` + tc.label + `"></head><body>` + tc.text + `</body></html>`
+				body := encodeTestBody(t, tc.enc, html)
+				resp := newEncodingTestResponse("text/html", body)
+				content, cs, err := waf.getOrgContent(resp, false, "")
+				if err != nil || cs != tc.canonical || !strings.Contains(string(content), tc.text) {
+					t.Errorf("meta声明%s检测失败: err=%v, charset=%s, content=%s", tc.label, err, cs, string(content))
+				}
+			})
+		}
+	}
+
+	// BOM检测：utf-16le / utf-16be / utf-8
+	t.Run("utf-16le_bom", func(t *testing.T) {
+		body := encodeTestBody(t, unicode.UTF16(unicode.LittleEndian, unicode.UseBOM), "<html><body>UTF16LE中文内容</body></html>")
+		resp := newEncodingTestResponse("text/html", body)
+		content, cs, err := waf.getOrgContent(resp, false, "")
+		if err != nil || cs != "utf-16le" || !strings.Contains(string(content), "UTF16LE中文内容") {
+			t.Errorf("utf-16le BOM检测失败: err=%v, charset=%s", err, cs)
+		}
+	})
+	t.Run("utf-16be_bom", func(t *testing.T) {
+		body := encodeTestBody(t, unicode.UTF16(unicode.BigEndian, unicode.UseBOM), "<html><body>UTF16BE中文内容</body></html>")
+		resp := newEncodingTestResponse("text/html", body)
+		content, cs, err := waf.getOrgContent(resp, false, "")
+		if err != nil || cs != "utf-16be" || !strings.Contains(string(content), "UTF16BE中文内容") {
+			t.Errorf("utf-16be BOM检测失败: err=%v, charset=%s", err, cs)
+		}
+	})
+	t.Run("utf-8_bom", func(t *testing.T) {
+		body := append([]byte{0xEF, 0xBB, 0xBF}, []byte("<html><body>UTF8BOM中文内容</body></html>")...)
+		resp := newEncodingTestResponse("text/html", body)
+		content, cs, err := waf.getOrgContent(resp, false, "")
+		if err != nil || cs != "utf-8" || !strings.Contains(string(content), "UTF8BOM中文内容") {
+			t.Errorf("utf-8 BOM检测失败: err=%v, charset=%s", err, cs)
+		}
+	})
+
+	// 危险标签：映射到replacement伪编码的标签绝不能采用（否则整个body变U+FFFD），应落入兜底链
+	t.Run("dangerous_label_header", func(t *testing.T) {
+		body := []byte("<html><body>危险编码标签测试</body></html>")
+		resp := newEncodingTestResponse("text/html; charset=hz-gb-2312", body)
+		content, cs, err := waf.getOrgContent(resp, false, "")
+		if err != nil || cs != "utf-8" || !strings.Contains(string(content), "危险编码标签测试") {
+			t.Errorf("危险标签hz-gb-2312应兜底为utf-8: err=%v, charset=%s, content=%s", err, cs, string(content))
+		}
+	})
+	t.Run("dangerous_label_meta", func(t *testing.T) {
+		body := []byte(`<html><head><meta charset="utf-7"></head><body>危险meta标签测试</body></html>`)
+		resp := newEncodingTestResponse("text/html", body)
+		content, cs, err := waf.getOrgContent(resp, false, "")
+		if err != nil || cs != "utf-8" || !strings.Contains(string(content), "危险meta标签测试") {
+			t.Errorf("危险标签utf-7应兜底为utf-8: err=%v, charset=%s, content=%s", err, cs, string(content))
+		}
+	})
+}
+
+// TestGetOrgContent_DefaultEncoding 站点"默认编码"配置的优先级与auto特判
+func TestGetOrgContent_DefaultEncoding(t *testing.T) {
+	t.Parallel()
+	zlog.InitZLog(global.GWAF_LOG_DEBUG_ENABLE, "json")
+	waf := &WafEngine{}
+
+	// 1. defaultEncoding=gbk 优先级最高：即使Content-Type谎报utf-8也按gbk解
+	body1 := encodeTestBody(t, simplifiedchinese.GBK, "<html><body>默认编码优先</body></html>")
+	resp1 := newEncodingTestResponse("text/html; charset=utf-8", body1)
+	content1, cs1, err1 := waf.getOrgContent(resp1, false, "gbk")
+	if err1 != nil || cs1 != "gbk" || !strings.Contains(string(content1), "默认编码优先") {
+		t.Errorf("defaultEncoding=gbk应优先生效: err=%v, charset=%s, content=%s", err1, cs1, string(content1))
+	}
+
+	// 2. defaultEncoding=auto 表示自动检测，顺延到Content-Type
+	body2 := encodeTestBody(t, simplifiedchinese.GBK, "<html><body>auto顺延头部编码</body></html>")
+	resp2 := newEncodingTestResponse("text/html; charset=gbk", body2)
+	content2, cs2, err2 := waf.getOrgContent(resp2, false, "auto")
+	if err2 != nil || cs2 != "gbk" || !strings.Contains(string(content2), "auto顺延头部编码") {
+		t.Errorf("defaultEncoding=auto应顺延Content-Type: err=%v, charset=%s, content=%s", err2, cs2, string(content2))
+	}
+
+	// 3. defaultEncoding=big5（新支持的编码在配置项生效）
+	body3 := encodeTestBody(t, traditionalchinese.Big5, "<html><body>繁體預設編碼</body></html>")
+	resp3 := newEncodingTestResponse("text/html", body3)
+	content3, cs3, err3 := waf.getOrgContent(resp3, false, "big5")
+	if err3 != nil || cs3 != "big5" || !strings.Contains(string(content3), "繁體預設編碼") {
+		t.Errorf("defaultEncoding=big5应生效: err=%v, charset=%s, content=%s", err3, cs3, string(content3))
+	}
+
+	// 4. defaultEncoding为无法识别的值时顺延后续检测链，不报错
+	body4 := []byte("<html><body>无效默认编码顺延</body></html>")
+	resp4 := newEncodingTestResponse("text/html; charset=utf-8", body4)
+	content4, cs4, err4 := waf.getOrgContent(resp4, false, "foobar")
+	if err4 != nil || cs4 != "utf-8" || !strings.Contains(string(content4), "无效默认编码顺延") {
+		t.Errorf("无效defaultEncoding应顺延检测链: err=%v, charset=%s, content=%s", err4, cs4, string(content4))
+	}
+}
+
+// TestGetOrgContent_HeuristicDetection 无声明时的兜底检测链
+func TestGetOrgContent_HeuristicDetection(t *testing.T) {
+	t.Parallel()
+	zlog.InitZLog(global.GWAF_LOG_DEBUG_ENABLE, "json")
+	waf := &WafEngine{}
+
+	// 1. UTF-8中文内容、无任何charset声明（复现线上"编码检测不确定"WARN）
+	t.Run("utf8_no_declaration", func(t *testing.T) {
+		body := []byte("<html><body>这是没有任何编码声明的UTF-8页面内容</body></html>")
+		resp := newEncodingTestResponse("text/html", body)
+		content, cs, err := waf.getOrgContent(resp, false, "")
+		if err != nil || cs != "utf-8" || !bytes.Equal(content, body) {
+			t.Errorf("无声明UTF-8应通过校验兜底: err=%v, charset=%s", err, cs)
+		}
+	})
+
+	// 2. JSON等非HTML内容、无charset声明
+	t.Run("json_no_charset", func(t *testing.T) {
+		body := []byte(`{"message":"中文数据","code":200}`)
+		resp := newEncodingTestResponse("application/json", body)
+		content, cs, err := waf.getOrgContent(resp, false, "")
+		if err != nil || cs != "utf-8" || !bytes.Equal(content, body) {
+			t.Errorf("无声明JSON应按utf-8处理: err=%v, charset=%s", err, cs)
+		}
+	})
+
+	// 3. 纯ASCII内容、无声明
+	t.Run("ascii_no_declaration", func(t *testing.T) {
+		body := []byte("<html><body>plain ascii content only</body></html>")
+		resp := newEncodingTestResponse("text/html", body)
+		content, cs, err := waf.getOrgContent(resp, false, "")
+		if err != nil || cs != "utf-8" || !bytes.Equal(content, body) {
+			t.Errorf("纯ASCII应按utf-8处理: err=%v, charset=%s", err, cs)
+		}
+	})
+
+	// 4. meta声明在1024字节之后（DetermineEncoding预扫描窗口外），靠8KB扩窗扫描命中
+	t.Run("meta_beyond_1024", func(t *testing.T) {
+		html := "<!-- " + strings.Repeat("x", 2048) + ` --><html><head><meta http-equiv="Content-Type" content="text/html; charset=gbk"></head><body>窗口之后的GBK正文</body></html>`
+		body := encodeTestBody(t, simplifiedchinese.GBK, html)
+		resp := newEncodingTestResponse("text/html", body)
+		content, cs, err := waf.getOrgContent(resp, false, "")
+		if err != nil || cs != "gbk" || !strings.Contains(string(content), "窗口之后的GBK正文") {
+			t.Errorf("1024字节后的meta声明应被扩窗扫描命中: err=%v, charset=%s", err, cs)
+		}
+	})
+
+	// 5. 无任何声明的纯GBK内容，靠GBK严格解码探测命中
+	t.Run("gbk_no_declaration", func(t *testing.T) {
+		body := encodeTestBody(t, simplifiedchinese.GBK, "<html><body>这是没有声明的GBK内容，用于启发式探测检查。</body></html>")
+		resp := newEncodingTestResponse("text/html", body)
+		content, cs, err := waf.getOrgContent(resp, false, "")
+		if err != nil || cs != "gbk" || !strings.Contains(string(content), "这是没有声明的GBK内容") {
+			t.Errorf("无声明GBK应被启发式探测命中: err=%v, charset=%s, content=%s", err, cs, string(content))
+		}
+	})
+
+	// 6. 不明单字节数据（非UTF-8也非GBK）→ latin-1无损兜底，不再报错
+	t.Run("unknown_bytes_fallback", func(t *testing.T) {
+		body := []byte("Hello \xe9 w\xf6rld") // latin-1字节，0xE9后跟空格不构成合法UTF-8/GBK
+		resp := newEncodingTestResponse("text/html", body)
+		content, cs, err := waf.getOrgContent(resp, false, "")
+		if err != nil || cs != rawLatin1Charset || !strings.Contains(string(content), "Hello") {
+			t.Errorf("不明字节应latin-1兜底: err=%v, charset=%s", err, cs)
+		}
+	})
+
+	// 7. 无声明的西欧latin-1文本：高位字节+ASCII恰好构成合法GBK双字节，不能被误判成GBK，
+	//    必须走latin-1兜底且往返字节无损
+	t.Run("latin1_text_not_gbk", func(t *testing.T) {
+		orig := encodeTestBody(t, charmap.ISO8859_1, "<html><body>Fußgänger café résumé réélection</body></html>")
+		resp := newEncodingTestResponse("text/html", orig)
+		content, cs, err := waf.getOrgContent(resp, false, "")
+		if err != nil || cs != rawLatin1Charset {
+			t.Fatalf("无声明西欧文本应latin-1兜底而非误判GBK: err=%v, charset=%s", err, cs)
+		}
+		out, _ := waf.compressContent(resp, false, content, cs)
+		if !bytes.Equal(out, orig) {
+			t.Errorf("西欧文本往返后字节不一致\n原始: % x\n结果: % x", orig, out)
+		}
+	})
+}
+
+// TestContentEncoding_RoundTrip 检测+回写的无损往返：getOrgContent解出UTF-8后经compressContent还原为原始字节
+func TestContentEncoding_RoundTrip(t *testing.T) {
+	t.Parallel()
+	zlog.InitZLog(global.GWAF_LOG_DEBUG_ENABLE, "json")
+	waf := &WafEngine{}
+
+	cases := []struct {
+		label string
+		enc   encoding.Encoding
+		text  string
+	}{
+		{"gbk", simplifiedchinese.GBK, "简体中文往返测试"},
+		{"gb18030", simplifiedchinese.GB18030, "GB18030往返𠀀测试"},
+		{"big5", traditionalchinese.Big5, "繁體中文往返測試"},
+		{"shift_jis", japanese.ShiftJIS, "日本語ラウンドトリップ"},
+		{"euc-jp", japanese.EUCJP, "日本語往復テスト"},
+		{"iso-2022-jp", japanese.ISO2022JP, "日本語往復"},
+		{"euc-kr", korean.EUCKR, "한국어 왕복 테스트"},
+		{"windows-1251", charmap.Windows1251, "Тест кириллицы"},
+		{"koi8-r", charmap.KOI8R, "Тест КОИ8"},
+		{"windows-1252", charmap.Windows1252, "€ Café “quotes”"},
+		{"windows-874", charmap.Windows874, "ทดสอบภาษาไทย"},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.label, func(t *testing.T) {
+			orig := encodeTestBody(t, tc.enc, "<html><body>"+tc.text+"</body></html>")
+			resp := newEncodingTestResponse("text/html; charset="+tc.label, orig)
+			content, cs, err := waf.getOrgContent(resp, false, "")
+			if err != nil {
+				t.Fatalf("getOrgContent失败: %v", err)
+			}
+			out, cErr := waf.compressContent(resp, false, content, cs)
+			if cErr != nil {
+				t.Fatalf("compressContent失败: %v", cErr)
+			}
+			if !bytes.Equal(out, orig) {
+				t.Errorf("%s往返后字节不一致\n原始: % x\n结果: % x", tc.label, orig, out)
+			}
+		})
+	}
+
+	// 带BOM的utf-16le无声明往返（BOM在解码时保留为U+FEFF字符，回写后还原）
+	t.Run("utf-16le_bom", func(t *testing.T) {
+		orig := encodeTestBody(t, unicode.UTF16(unicode.LittleEndian, unicode.UseBOM), "<html><body>UTF16往返内容</body></html>")
+		resp := newEncodingTestResponse("text/html", orig)
+		content, cs, err := waf.getOrgContent(resp, false, "")
+		if err != nil || cs != "utf-16le" {
+			t.Fatalf("utf-16le检测失败: err=%v, charset=%s", err, cs)
+		}
+		out, _ := waf.compressContent(resp, false, content, cs)
+		if !bytes.Equal(out, orig) {
+			t.Errorf("utf-16le BOM往返后字节不一致\n原始: % x\n结果: % x", orig, out)
+		}
+	})
+
+	// latin-1兜底路径的256字节全集无损往返（无损兜底的核心保证）
+	t.Run("latin1_fallback_all_bytes", func(t *testing.T) {
+		orig := make([]byte, 256)
+		for i := range orig {
+			orig[i] = byte(i)
+		}
+		resp := newEncodingTestResponse("application/octet-stream", orig)
+		content, cs, err := waf.getOrgContent(resp, false, "")
+		if err != nil || cs != rawLatin1Charset {
+			t.Fatalf("全字节内容应latin-1兜底: err=%v, charset=%s", err, cs)
+		}
+		out, _ := waf.compressContent(resp, false, content, cs)
+		if !bytes.Equal(out, orig) {
+			t.Errorf("latin-1兜底往返后字节不一致\n原始: % x\n结果: % x", orig, out)
+		}
+	})
+
+	// 敏感词替换模拟：GBK页面解出UTF-8替换后回写，页面仍可正常按GBK解码且替换生效
+	t.Run("gbk_sensitive_replace", func(t *testing.T) {
+		orig := encodeTestBody(t, simplifiedchinese.GBK, "<html><body>页面包含敏感词汇需要处理</body></html>")
+		resp := newEncodingTestResponse("text/html; charset=gbk", orig)
+		content, cs, err := waf.getOrgContent(resp, false, "")
+		if err != nil || cs != "gbk" {
+			t.Fatalf("GBK检测失败: err=%v, charset=%s", err, cs)
+		}
+		replaced := strings.Replace(string(content), "敏感词汇", "****", 1)
+		out, _ := waf.compressContent(resp, false, []byte(replaced), cs)
+		decoded, dErr := simplifiedchinese.GBK.NewDecoder().Bytes(out)
+		if dErr != nil {
+			t.Fatalf("替换后GBK解码失败: %v", dErr)
+		}
+		if !strings.Contains(string(decoded), "****") || !strings.Contains(string(decoded), "需要处理") || strings.ContainsRune(string(decoded), '�') {
+			t.Errorf("替换后页面异常: %s", string(decoded))
 		}
 	})
 }

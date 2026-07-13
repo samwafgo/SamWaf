@@ -22,4 +22,6 @@ func (receiver *RuleRouter) InitRuleRouter(group *gin.RouterGroup) {
 	wafRuleRouter.POST("/api/v1/wafhost/rule/format", ruleApi.FormatRuleApi)
 	wafRuleRouter.GET("/api/v1/wafhost/rule/rulestatus", ruleApi.ModifyRuleStatusApi)
 	wafRuleRouter.POST("/api/v1/wafhost/rule/test", ruleApi.TestRuleApi)
+	wafRuleRouter.POST("/api/v1/wafhost/rule/aigen", ruleApi.AiGenRuleApi)
+	wafRuleRouter.GET("/api/v1/wafhost/rule/aiprompt", ruleApi.RuleAiPromptApi)
 }

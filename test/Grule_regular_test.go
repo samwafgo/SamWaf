@@ -38,7 +38,8 @@ rule R77a9d95d14624d4baaa9ef7af3061404 "试试344" salience 10 {
 	err = ruleBuilder.BuildRuleFromResource("Tutorial", "0.0.1", byteArr)
 	assert.NoError(t, err)
 
-	knowledgeBase := knowledgeLibrary.NewKnowledgeBaseInstance("Tutorial", "0.0.1")
+	knowledgeBase, err := knowledgeLibrary.NewKnowledgeBaseInstance("Tutorial", "0.0.1")
+	assert.NoError(t, err)
 
 	my_engine := engine.NewGruleEngine()
 	processType := "match"

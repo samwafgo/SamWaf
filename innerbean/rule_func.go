@@ -267,3 +267,30 @@ func (rf *RuleFunc) LengthBetween(value string, min, max int64) bool {
 	length := int64(len(value))
 	return length >= min && length <= max
 }
+
+// ================== 规则动作标记函数 ==================
+//
+// 这几个方法本身不做任何事情（no-op），只是让规则的 then 块能声明"命中之后干什么"。
+// 引擎走的是 FetchMatchingRules（只求值 when，不执行 then），动作是在规则加载阶段
+// 由 utils.ExtractRuleActions 从规则文本里解析出来的，方法体永远不会被调用。
+// 之所以还要定义成真实方法，是因为 GRL 需要能编译通过。
+//
+// 未声明任何动作的规则默认为拦截（Deny），保证老规则行为不变。
+
+// Deny 命中后拦截请求（默认动作，可不写）
+// 使用示例: then RF.Deny();
+func (rf *RuleFunc) Deny() {}
+
+// Log 命中后仅记录，不拦截，继续执行后续检测
+// 使用示例: then RF.Log();
+func (rf *RuleFunc) Log() {}
+
+// Allow 命中后放行（不被自定义规则拦截），可选跳过指定的后续检测模块
+// modules: 要跳过的检测模块名，如 "CC"、"AI"、"SQLI"；传 "ALL" 表示跳过全部
+// 使用示例: then RF.Allow();              仅本环节放行，后续检测照常
+// 使用示例: then RF.Allow("CC", "AI");    放行并跳过CC和AI检测
+func (rf *RuleFunc) Allow(modules ...string) {}
+
+// AllowAll 命中后放行并跳过后续所有检测，直通后端（等价于 RF.Allow("ALL")）
+// 使用示例: then RF.AllowAll();
+func (rf *RuleFunc) AllowAll() {}

@@ -21,4 +21,16 @@ type Result struct {
 	检测内容
 	*/
 	Content string
+	/**
+	仅记录：命中了但不拦截，记录日志后继续走后续检测
+	*/
+	IsLogOnly bool
+	/**
+	自定义规则放行：不拦截，可按 SkipModules 跳过后续指定检测
+	*/
+	IsRuleAllow bool
+	/**
+	放行时要跳过的检测模块（大写模块名，含 "ALL" 表示跳过全部）
+	*/
+	SkipModules []string
 }

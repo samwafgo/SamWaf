@@ -35,6 +35,10 @@ var (
 	GCONFIG_AI_ENABLE int64  = 0         //AI智能检测总开关 1启用 0关闭（需先在AI模型管理上传模型包）
 	GCONFIG_AI_MODE   string = "observe" //AI检测工作模式: observe(仅记录/观察) / block(达到拦截阈值则拦截)
 
+	//自定义规则在检测链里的位置 0:默认(排在CC之后) 1:规则优先(排在黑名单之后、Bot/SQLI/XSS等之前)
+	//规则优先模式下，规则的放行动作(RF.Allow)才能跳过 Bot/SQLI/XSS/扫描/RCE/目录穿越/CC 这些检测
+	GCONFIG_RULE_CHAIN_MODE int64 = 0
+
 	GCONFIG_OWASP_BLOCK_THRESHOLD      int64  = 7         //OWASP 入站 anomaly score 阈值(官方默认 5,我们宽松到 7)
 	GCONFIG_RECORD_ENABLE_HTTP_80      int64  = 0         //启动80端口服务（为自动申请证书使用 HTTP文件验证类型，DNS验证不需要）
 	GCONFIG_RECORD_SSLOrder_EXPIRE_DAY int64  = 30        // 提前多少天进行自动申请

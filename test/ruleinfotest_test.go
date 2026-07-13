@@ -19,5 +19,11 @@ func TestJsonTest(t *testing.T) {
 	}
 	fmt.Printf("反序列化后 RuleName=%v RuleDomainCode=%v \n", ruleInfo.RuleBase.RuleName, ruleInfo.RuleBase.RuleDomainCode)
 
-	fmt.Println(ruleTool.GenRuleInfo(ruleInfo, "规则触发了"))
+	//规则标识实际是由规则码替换进来的（只含字母数字），这里模拟真实调用
+	ruleInfo.RuleBase.RuleName = "abc123"
+	ruleContent, err := ruleTool.GenRuleInfo(ruleInfo, "规则触发了")
+	if err != nil {
+		t.Fatalf("生成规则失败: %v", err)
+	}
+	fmt.Println(ruleContent)
 }

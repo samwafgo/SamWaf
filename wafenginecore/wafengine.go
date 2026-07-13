@@ -479,9 +479,36 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		r.Header.Add("waf_req_uuid", weblogbean.REQ_UUID)
 
 		if hostTarget.Host.GUARD_STATUS == 1 {
+			//自定义规则放行动作的结果：ruleSkipAll 跳过后续所有检测，ruleSkipModules 跳过指定检测
+			ruleSkipAll := false
+			ruleSkipModules := map[string]bool{}
+			//是否要跳过某个检测模块
+			ruleSkip := func(module string) bool {
+				return ruleSkipAll || ruleSkipModules[module]
+			}
 			//一系列检测逻辑
 			handleBlock := func(checkFunc func(*http.Request, *innerbean.WebLog, url.Values, *wafenginmodel.HostSafe, *wafenginmodel.HostSafe) detection.Result) bool {
 				detectionResult := checkFunc(r, &weblogbean, formValues, hostTarget, waf.rt().HostTarget[waf.rt().HostCode[global.GWAF_GLOBAL_HOST_CODE]])
+				//自定义规则放行：不拦截，按需跳过后续检测
+				if detectionResult.IsRuleAllow {
+					if detectionResult.JumpGuardResult {
+						ruleSkipAll = true
+					}
+					for _, m := range detectionResult.SkipModules {
+						if m == utils.RuleSkipAll {
+							ruleSkipAll = true
+						} else {
+							ruleSkipModules[m] = true
+						}
+					}
+					weblogbean.RULE = "自定义规则放行:" + detectionResult.Title
+					return false
+				}
+				//自定义规则仅记录：记录命中信息，继续走后续检测
+				if detectionResult.IsLogOnly {
+					weblogbean.RULE = "自定义规则记录:" + detectionResult.Title
+					return false
+				}
 				if detectionResult.IsBlock {
 					if hostTarget.Host.LogOnlyMode == 1 {
 						// 仅记录模式：记录攻击日志但不阻断请求
@@ -532,88 +559,108 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 
 				hostDefense := model.ParseHostsDefense(hostTarget.Host.DEFENSE_JSON)
+
+				//规则判断（规则优先编排：排在黑名单之后、其余检测之前，此时规则的放行动作才能跳过后面的检测）
+				ranRuleCheck := false
+				if global.GCONFIG_RULE_CHAIN_MODE == 1 {
+					if handleBlock(waf.CheckRule) {
+						return
+					}
+					ranRuleCheck = true
+				}
+
 				//检测爬虫bot
-				if hostDefense.DEFENSE_BOT == 1 {
+				if hostDefense.DEFENSE_BOT == 1 && !ruleSkip("BOT") {
 					if handleBlock(waf.CheckBot) {
 						return
 					}
 				}
 				//检测sqli
-				if hostDefense.DEFENSE_SQLI == 1 {
+				if hostDefense.DEFENSE_SQLI == 1 && !ruleSkip("SQLI") {
 					if handleBlock(waf.CheckSql) {
 						return
 					}
 				}
 				//检测xss
-				if hostDefense.DEFENSE_XSS == 1 {
+				if hostDefense.DEFENSE_XSS == 1 && !ruleSkip("XSS") {
 					if handleBlock(waf.CheckXss) {
 						return
 					}
 				}
 				//检测扫描工具
-				if hostDefense.DEFENSE_SCAN == 1 {
+				if hostDefense.DEFENSE_SCAN == 1 && !ruleSkip("SCAN") {
 					if handleBlock(waf.CheckSan) {
 						return
 					}
 				}
 				//检测RCE
-				if hostDefense.DEFENSE_RCE == 1 {
+				if hostDefense.DEFENSE_RCE == 1 && !ruleSkip("RCE") {
 					if handleBlock(waf.CheckRce) {
 						return
 					}
 				}
 				//目录穿越检测
-				if hostDefense.DEFENSE_DIR_TRAVERSAL == 1 {
+				if hostDefense.DEFENSE_DIR_TRAVERSAL == 1 && !ruleSkip("DIR") {
 					if handleBlock(waf.CheckDirTraversal) {
 						return
 					}
 				}
 				//检测CC
-				if handleBlock(waf.CheckCC) {
-					return
+				if !ruleSkip("CC") {
+					if handleBlock(waf.CheckCC) {
+						return
+					}
 				}
-				//规则判断
-				if handleBlock(waf.CheckRule) {
-					return
+				//规则判断（默认编排：排在CC之后）
+				if !ranRuleCheck {
+					if handleBlock(waf.CheckRule) {
+						return
+					}
 				}
 				//AI智能检测（全局开关开启且站点开启，规则抓确定的，AI 抓漏网的）
-				if global.GCONFIG_AI_ENABLE == 1 && hostDefense.DEFENSE_AI == 1 {
+				if global.GCONFIG_AI_ENABLE == 1 && hostDefense.DEFENSE_AI == 1 && !ruleSkip("AI") {
 					if handleBlock(waf.CheckAI) {
 						return
 					}
 				}
 				//检测敏感词
-				if hostDefense.DEFENSE_SENSITIVE == 1 {
+				if hostDefense.DEFENSE_SENSITIVE == 1 && !ruleSkip("SENSITIVE") {
 					if handleBlock(waf.CheckSensitive) {
 						return
 					}
 				}
 				//检测OWASP（全局开关或站点级 owaspset 启用时才进入）
-				if global.GCONFIG_RECORD_ENABLE_OWASP == 1 || hostDefense.DEFENSE_OWASP_SET == 1 {
+				if (global.GCONFIG_RECORD_ENABLE_OWASP == 1 || hostDefense.DEFENSE_OWASP_SET == 1) && !ruleSkip("OWASP") {
 					if handleBlock(waf.CheckOwasp) {
 						return
 					}
 				}
 
 				// 添加防盗链检查
-				if handleBlock(waf.CheckAntiLeech) {
-					return
+				if !ruleSkip("ANTILEECH") {
+					if handleBlock(waf.CheckAntiLeech) {
+						return
+					}
 				}
 
 				// CSRF 跨站请求伪造防护
-				if handleBlock(waf.CheckCsrf) {
-					return
+				if !ruleSkip("CSRF") {
+					if handleBlock(waf.CheckCsrf) {
+						return
+					}
 				}
 
 				// 文件上传内容检测（multipart 上传的扩展名/Webshell/类型/大小）
-				if handleBlock(waf.CheckUpload) {
-					return
+				if !ruleSkip("UPLOAD") {
+					if handleBlock(waf.CheckUpload) {
+						return
+					}
 				}
 
 				// 验证码检测
 				captchaConfig := model.ParseCaptchaConfig(hostTarget.Host.CaptchaJSON)
 
-				if captchaConfig.IsEnableCaptcha == 1 {
+				if captchaConfig.IsEnableCaptcha == 1 && !ruleSkip("CAPTCHA") {
 					if !waf.checkCaptchaToken(r, weblogbean, captchaConfig, hostTarget.Host.IPMode) {
 						// 检查当前URL是否在排除列表中
 						currentURL := strings.ToLower(r.URL.Path)

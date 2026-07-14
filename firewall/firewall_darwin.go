@@ -62,6 +62,17 @@ func (fw *FireWallEngine) IsFirewallEnabled() bool {
 	return strings.Contains(string(output), "Status: Enabled")
 }
 
+// checkAvailable 探测 pf 是否可用，供 CheckAvailable 带缓存调用
+func (fw *FireWallEngine) checkAvailable() error {
+	if _, err := exec.LookPath("pfctl"); err != nil {
+		return fmt.Errorf("未找到 pfctl 命令，无法使用系统防火墙封禁，可改用 WAF 应用层 IP 黑名单")
+	}
+	if !fw.IsFirewallEnabled() {
+		return fmt.Errorf("macOS pf 防火墙未启用或当前进程无权限，请以 root 身份运行并执行 sudo pfctl -e 启用防火墙")
+	}
+	return nil
+}
+
 func (fw *FireWallEngine) executeCommand(cmd *exec.Cmd) (error error, printstr string) {
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

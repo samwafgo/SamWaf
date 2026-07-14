@@ -14,6 +14,12 @@ services:
       - ./logs:/app/logs
       - ./ssl:/app/ssl
 
+    # “防火墙IP封禁”功能需要操作 iptables 的权限
+    cap_add:
+      - NET_ADMIN
+    # 若要让防火墙封禁对宿主机流量真正生效，需共享宿主网络命名空间：
+    # 取消下面一行的注释，并同时注释掉上面的 ports 与 networks 配置
+    # network_mode: host
     networks:
       - samwafnet
     restart: always

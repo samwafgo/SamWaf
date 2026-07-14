@@ -3,8 +3,10 @@
 package firewall
 
 import (
+	"SamWaf/common/wafexec"
 	"bufio"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -52,6 +54,7 @@ type IPBlockInfo struct {
 func (fw *FireWallEngine) IsFirewallEnabled() bool {
 	// 检查 pf 是否启用
 	cmd := exec.Command("pfctl", "-s", "info")
+	wafexec.FixStdin(cmd)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Printf("[WARN] 检查防火墙状态失败: %v\n", err)
@@ -74,6 +77,12 @@ func (fw *FireWallEngine) checkAvailable() error {
 }
 
 func (fw *FireWallEngine) executeCommand(cmd *exec.Cmd) (error error, printstr string) {
+	// 只补 Stdin：下面要取 StdoutPipe，Stdout 必须留给 os/exec 自己接管。
+	// Stderr 本函数不接管，无空设备时需显式兜底，否则 os/exec 会去打开空设备而失败。
+	wafexec.FixStdin(cmd)
+	if cmd.Stderr == nil && !wafexec.NullDeviceAvailable() {
+		cmd.Stderr = os.Stderr
+	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		fmt.Println(err)
@@ -104,6 +113,7 @@ func (fw *FireWallEngine) AddRule(ruleName, ipToAdd, action, proc, localport str
 	cmd := exec.Command("pfctl", "-t", PF_TABLE_NAME, "-T", "add", ipToAdd)
 	fmt.Printf("[DEBUG] 执行命令: pfctl -t %s -T add %s\n", PF_TABLE_NAME, ipToAdd)
 
+	wafexec.FixStdin(cmd)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Printf("[ERROR] 添加规则失败: %v, 输出: %s\n", err, string(output))
@@ -132,6 +142,7 @@ func (fw *FireWallEngine) DeleteRule(ruleName string) (bool, error) {
 	cmd := exec.Command("pfctl", "-t", PF_TABLE_NAME, "-T", "delete", ip)
 	fmt.Printf("[DEBUG] 执行命令: pfctl -t %s -T delete %s\n", PF_TABLE_NAME, ip)
 
+	wafexec.FixStdin(cmd)
 	output, err := cmd.CombinedOutput()
 	outputStr := string(output)
 
@@ -163,6 +174,7 @@ func (fw *FireWallEngine) IsRuleExists(ruleName string) (bool, error) {
 
 	// 检查 IP 是否在 table 中
 	cmd := exec.Command("pfctl", "-t", PF_TABLE_NAME, "-T", "show")
+	wafexec.FixStdin(cmd)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		// table 可能不存在
@@ -220,6 +232,7 @@ func (fw *FireWallEngine) BlockIP(ip string, reason string) error {
 
 	// 添加 IP 到 pf table
 	cmd := exec.Command("pfctl", "-t", PF_TABLE_NAME, "-T", "add", ip)
+	wafexec.FixStdin(cmd)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Printf("[ERROR] 封禁IP失败: %s, error: %v, output: %s\n", ip, err, string(output))
@@ -245,6 +258,7 @@ func (fw *FireWallEngine) UnblockIP(ip string) error {
 
 	// 从 table 中删除 IP
 	cmd := exec.Command("pfctl", "-t", PF_TABLE_NAME, "-T", "delete", ip)
+	wafexec.FixStdin(cmd)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Printf("[ERROR] 解除IP封禁失败: %s, error: %v, output: %s\n", ip, err, string(output))
@@ -317,6 +331,7 @@ func (fw *FireWallEngine) GetBlockedIPList() ([]string, error) {
 	fmt.Printf("[DEBUG] 获取已封禁IP列表 (Mac)\n")
 
 	cmd := exec.Command("pfctl", "-t", PF_TABLE_NAME, "-T", "show")
+	wafexec.FixStdin(cmd)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Printf("[ERROR] 获取IP列表失败: %v\n", err)
@@ -382,7 +397,7 @@ func (fw *FireWallEngine) ensureTableExists() error {
 	fmt.Printf("[DEBUG] 确保pf table存在\n")
 
 	// 检查 table 是否存在
-	cmd := exec.Command("pfctl", "-t", PF_TABLE_NAME, "-T", "show")
+	cmd := wafexec.FixStdin(exec.Command("pfctl", "-t", PF_TABLE_NAME, "-T", "show"))
 	_, err := cmd.CombinedOutput()
 	if err == nil {
 		// table 已存在
@@ -397,7 +412,7 @@ func (fw *FireWallEngine) ensureTableExists() error {
 
 	// 尝试添加并立即删除一个临时IP来初始化表
 	tempIP := "127.0.0.254"
-	cmd = exec.Command("pfctl", "-t", PF_TABLE_NAME, "-T", "add", tempIP)
+	cmd = wafexec.FixStdin(exec.Command("pfctl", "-t", PF_TABLE_NAME, "-T", "add", tempIP))
 	_, err = cmd.CombinedOutput()
 	if err != nil {
 		fmt.Printf("[WARN] 初始化table失败: %v\n", err)
@@ -405,7 +420,7 @@ func (fw *FireWallEngine) ensureTableExists() error {
 	}
 
 	// 删除临时IP
-	cmd = exec.Command("pfctl", "-t", PF_TABLE_NAME, "-T", "delete", tempIP)
+	cmd = wafexec.FixStdin(exec.Command("pfctl", "-t", PF_TABLE_NAME, "-T", "delete", tempIP))
 	cmd.CombinedOutput()
 
 	return nil

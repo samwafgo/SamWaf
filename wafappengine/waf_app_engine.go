@@ -1,6 +1,7 @@
 package wafappengine
 
 import (
+	"SamWaf/common/wafexec"
 	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/model"
@@ -149,6 +150,9 @@ func (e *WafAppEngine) startProcess(app model.WafApp, rt *wafappmodel.AppRuntime
 		}
 	}
 	cmd.Env = envs
+
+	// 只补 Stdin：下面要取 StdoutPipe/StderrPipe，Stdout/Stderr 必须留给 os/exec 自己接管
+	wafexec.FixStdin(cmd)
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -306,6 +310,9 @@ func (e *WafAppEngine) monitorApp(app model.WafApp, rt *wafappmodel.AppRuntime) 
 		}
 		newCmd.Env = envs
 
+		// 只补 Stdin：下面要取 StdoutPipe/StderrPipe，Stdout/Stderr 必须留给 os/exec 自己接管
+		wafexec.FixStdin(newCmd)
+
 		stdoutPipe, _ := newCmd.StdoutPipe()
 		stderrPipe, _ := newCmd.StderrPipe()
 		if startErr := newCmd.Start(); startErr != nil {
@@ -374,11 +381,11 @@ func (e *WafAppEngine) StopApp(code string) error {
 			stopCmd = exec.Command("/bin/sh", "-c", app.StopCmd)
 		}
 		stopCmd.Dir = app.AppDir
-		_ = stopCmd.Run()
+		_ = wafexec.FixStdio(stopCmd).Run()
 	} else {
 		if runtime.GOOS == "windows" {
 			// 发送 WM_CLOSE 给进程，给其机会优雅退出（不带 /F）
-			exec.Command("taskkill", "/PID", strconv.Itoa(rt.Pid)).Run()
+			wafexec.FixStdio(exec.Command("taskkill", "/PID", strconv.Itoa(rt.Pid))).Run()
 		} else {
 			rt.Cmd.Process.Signal(os.Interrupt)
 		}
@@ -391,7 +398,7 @@ func (e *WafAppEngine) StopApp(code string) error {
 	case <-time.After(time.Duration(timeout) * time.Second):
 		if runtime.GOOS == "windows" {
 			// /F 强制 + /T 终止整棵子进程树，解决 cmd.exe 子进程孤儿问题
-			exec.Command("taskkill", "/F", "/T", "/PID", strconv.Itoa(rt.Pid)).Run()
+			wafexec.FixStdio(exec.Command("taskkill", "/F", "/T", "/PID", strconv.Itoa(rt.Pid))).Run()
 		} else {
 			if rt.Cmd.Process != nil {
 				rt.Cmd.Process.Kill()
@@ -586,7 +593,7 @@ func buildChildMapWindows(m map[int][]int) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	// 列名字母序：ParentProcessId 排在 ProcessId 前面
-	out, err := exec.CommandContext(ctx, "wmic", "process", "get", "ParentProcessId,ProcessId").Output()
+	out, err := wafexec.FixStdin(exec.CommandContext(ctx, "wmic", "process", "get", "ParentProcessId,ProcessId")).Output()
 	if err != nil {
 		return
 	}
@@ -644,7 +651,7 @@ func buildChildMapLinux(m map[int][]int) {
 func fetchNetStatsWindows(pidSet map[int]bool) (*wafappmodel.NetStatsResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, "netstat", "-ano").Output()
+	out, err := wafexec.FixStdin(exec.CommandContext(ctx, "netstat", "-ano")).Output()
 	if err != nil {
 		return nil, fmt.Errorf("netstat failed: %w", err)
 	}
@@ -709,7 +716,7 @@ func fetchNetStatsLinux(pidSet map[int]bool) (*wafappmodel.NetStatsResult, error
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	// ss -tanp: TCP all-states, numeric, with-process
-	out, err := exec.CommandContext(ctx, "ss", "-tanp").Output()
+	out, err := wafexec.FixStdin(exec.CommandContext(ctx, "ss", "-tanp")).Output()
 	if err != nil {
 		// 降级到 netstat
 		return fetchNetStatsLinuxNetstat(pidSet)
@@ -777,7 +784,7 @@ func fetchNetStatsLinuxNetstat(pidSet map[int]bool) (*wafappmodel.NetStatsResult
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	// netstat -tnap: TCP numeric all programs
-	out, err := exec.CommandContext(ctx, "netstat", "-tnap").Output()
+	out, err := wafexec.FixStdin(exec.CommandContext(ctx, "netstat", "-tnap")).Output()
 	if err != nil {
 		return nil, fmt.Errorf("netstat failed: %w", err)
 	}

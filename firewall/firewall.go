@@ -3,6 +3,7 @@
 package firewall
 
 import (
+	"SamWaf/common/wafexec"
 	"bufio"
 	"fmt"
 	"os"
@@ -45,7 +46,7 @@ type IPBlockInfo struct {
 
 func (fw *FireWallEngine) IsFirewallEnabled() bool {
 	if runtime.GOOS == "linux" {
-		out, err := exec.Command("iptables", "-L").CombinedOutput()
+		out, err := wafexec.FixStdin(exec.Command("iptables", "-L")).CombinedOutput()
 		if err != nil {
 			return false
 		}
@@ -85,7 +86,7 @@ func (fw *FireWallEngine) checkAvailable() error {
 		}
 	}
 
-	out, err := exec.Command("iptables", "-S", "INPUT").CombinedOutput()
+	out, err := wafexec.FixStdin(exec.Command("iptables", "-S", "INPUT")).CombinedOutput()
 	if err != nil {
 		output := strings.TrimSpace(string(out))
 		if strings.Contains(output, "Permission denied") ||
@@ -104,6 +105,8 @@ func (fw *FireWallEngine) checkAvailable() error {
 }
 
 func (fw *FireWallEngine) executeCommand(cmd *exec.Cmd) (error, string) {
+	// 只补 Stdin：下面要取 StdoutPipe/StderrPipe，Stdout/Stderr 必须留给 os/exec 自己接管
+	wafexec.FixStdin(cmd)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		fmt.Println(err)
@@ -136,7 +139,7 @@ func (fw *FireWallEngine) executeCommand(cmd *exec.Cmd) (error, string) {
 
 // isIPInRules 直接用原始 IP 检查 iptables 中是否存在 DROP 规则，支持单 IP 和 CIDR
 func (fw *FireWallEngine) isIPInRules(ip string) (bool, error) {
-	cmd := exec.Command("iptables-save")
+	cmd := wafexec.FixStdin(exec.Command("iptables-save"))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Printf("[ERROR] 获取iptables规则失败: %v\n", err)
@@ -285,7 +288,7 @@ func (fw *FireWallEngine) UnblockIPList(ips []string) (successCount int, failedI
 
 // GetBlockedIPList 获取所有已封禁的IP列表
 func (fw *FireWallEngine) GetBlockedIPList() ([]string, error) {
-	cmd := exec.Command("iptables-save")
+	cmd := wafexec.FixStdin(exec.Command("iptables-save"))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get blocked IP list: %v", err)

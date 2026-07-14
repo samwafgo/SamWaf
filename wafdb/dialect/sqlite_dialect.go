@@ -22,6 +22,27 @@ func (d *SQLiteDialect) ForceIndexClause(table, idx string) string {
 	return fmt.Sprintf("%s INDEXED BY %s", table, idx)
 }
 
+func (d *SQLiteDialect) Quote(ident string) string { return sqliteQuote(ident) }
+
+// BatchDeleteSQL uses SQLite's implicit rowid pseudo-column, which works even on
+// tables without a declared primary key (web_logs).
+func (d *SQLiteDialect) BatchDeleteSQL(table, where string, limit int) string {
+	q := sqliteQuote(table)
+	return fmt.Sprintf(
+		"DELETE FROM %s WHERE rowid IN (SELECT rowid FROM %s WHERE %s LIMIT %d)",
+		q, q, where, limit,
+	)
+}
+
+func (d *SQLiteDialect) GroupConcatDistinct(expr string) string {
+	return fmt.Sprintf("GROUP_CONCAT(DISTINCT %s)", expr)
+}
+
+func (d *SQLiteDialect) InsertIgnoreSQL(table, quotedCols, rowPlaceholders string) string {
+	return fmt.Sprintf("INSERT OR IGNORE INTO %s (%s) VALUES %s",
+		sqliteQuote(table), quotedCols, rowPlaceholders)
+}
+
 // FormatLocalTime adds the local UTC offset back: go-wxsqlite3 stores time.Time
 // as text carrying a zone suffix ('+08:00'), which SQLite normalizes to UTC
 // before applying the modifier.

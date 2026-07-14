@@ -53,8 +53,11 @@ func applyPerfPragmas(db *gorm.DB, relaxedSync bool) {
 }
 
 func InitCoreDb(currentDir string) (bool, error) {
-	if dialect.Get().Name() == "mysql" {
+	switch dialect.Get().Name() {
+	case "mysql":
 		return InitCoreDbMySQL()
+	case "postgres":
+		return InitCoreDbPostgres()
 	}
 	if currentDir == "" {
 		currentDir = utils.GetCurrentDir()
@@ -146,8 +149,11 @@ func InitCoreDb(currentDir string) (bool, error) {
 }
 
 func InitLogDb(currentDir string) (bool, error) {
-	if dialect.Get().Name() == "mysql" {
+	switch dialect.Get().Name() {
+	case "mysql":
 		return InitLogDbMySQL()
+	case "postgres":
+		return InitLogDbPostgres()
 	}
 	if currentDir == "" {
 		currentDir = utils.GetCurrentDir()
@@ -299,8 +305,11 @@ func CloseManualLogDb(custFileName string) {
 }
 
 func InitStatsDb(currentDir string) (bool, error) {
-	if dialect.Get().Name() == "mysql" {
+	switch dialect.Get().Name() {
+	case "mysql":
 		return InitStatsDbMySQL()
+	case "postgres":
+		return InitStatsDbPostgres()
 	}
 	if currentDir == "" {
 		currentDir = utils.GetCurrentDir()

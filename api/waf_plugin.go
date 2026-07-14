@@ -7,6 +7,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/common/response"
 	pluginconfig "SamWaf/plugin/config"
+	"SamWaf/wafdb/dialect"
 	"encoding/json"
 
 	"github.com/gin-gonic/gin"
@@ -222,7 +223,7 @@ func (w *WafPluginApi) UpdateSystemConfigApi(c *gin.Context) {
 	// 更新配置
 	for key, value := range req {
 		var config model.WafPluginSystemConfig
-		err := global.GWAF_LOCAL_DB.Where("`key` = ?", key).First(&config).Error
+		err := global.GWAF_LOCAL_DB.Where(dialect.Q("key")+" = ?", key).First(&config).Error
 		if err == nil {
 			// 更新
 			global.GWAF_LOCAL_DB.Model(&config).Update("value", value)

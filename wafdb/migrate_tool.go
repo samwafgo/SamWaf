@@ -5,7 +5,6 @@ import (
 	"SamWaf/utils"
 	"SamWaf/wafdb/dialect"
 	"bufio"
-	"database/sql"
 	"fmt"
 	"io"
 	"net/url"
@@ -22,13 +21,56 @@ import (
 )
 
 // ===========================================================================
+// Supported migration matrix
+// ===========================================================================
+//
+//	sqlite -> mysql      (original behaviour, must not regress)
+//	sqlite -> postgres
+//	mysql  -> postgres
+//
+// PostgreSQL is never a source and SQLite is never a target, so "the MySQL side"
+// is unambiguous: global.GWAF_MYSQL_* always describes whichever end is MySQL, and
+// global.GWAF_PG_* the PostgreSQL end. No second set of source globals is needed.
+
+type migrateRoute struct {
+	From  string // "sqlite" | "mysql"
+	To    string // "mysql"  | "postgres"
+	Label string
+}
+
+var migrateRoutes = []migrateRoute{
+	{From: "sqlite", To: "mysql", Label: "SQLite → MySQL"},
+	{From: "sqlite", To: "postgres", Label: "SQLite → PostgreSQL"},
+	{From: "mysql", To: "postgres", Label: "MySQL → PostgreSQL"},
+}
+
+// routeLabel returns the display label for a from/to pair, or "" if unsupported.
+func routeLabel(from, to string) string {
+	for _, r := range migrateRoutes {
+		if r.From == from && r.To == to {
+			return r.Label
+		}
+	}
+	return ""
+}
+
+// pgMaxBindParams is PostgreSQL's hard wire-protocol limit on bind parameters in a
+// single statement. The batch INSERT uses BatchSize x len(cols) placeholders, so a
+// wide table at the default batch size of 1000 blows straight through it. MySQL never
+// hits this because its limit is max_allowed_packet (a byte size, not a count).
+const pgMaxBindParams = 65535
+
+// ===========================================================================
 // Checkpoint model
 // ===========================================================================
 
 // MigrationCheckpoint tracks per-table migration progress.
-// Stored in the MySQL core database (_migration_checkpoint table).
+// Stored in the target core database (_migration_checkpoint table).
 type MigrationCheckpoint struct {
-	SrcDB        string    `gorm:"column:src_db;primaryKey;size:32"`
+	// SrcDB is "<srcKind>:<label>", e.g. "sqlite:core". The source kind is part of the
+	// key so that a sqlite->postgres run does not pick up stale checkpoints left by an
+	// earlier sqlite->mysql run against the same target.
+	SrcDB        string    `gorm:"column:src_db;primaryKey;size:64"`
 	TblName      string    `gorm:"column:table_name;primaryKey;size:128"`
 	TotalRows    int64     `gorm:"column:total_rows"`
 	CopiedRows   int64     `gorm:"column:copied_rows"`
@@ -51,6 +93,8 @@ type MigrateOptions struct {
 	Force      bool
 	BatchSize  int
 	CurrentDir string
+	From       string // "sqlite" | "mysql"; empty => ask interactively
+	To         string // "mysql"  | "postgres"; empty => ask interactively
 }
 
 type tableMigrateResult struct {
@@ -81,12 +125,29 @@ var migrateSkipTables = map[string]bool{
 // MigrateTool
 // ===========================================================================
 
-// MigrateTool runs offline SQLite → MySQL data migration with checkpoint/resume.
+// MigrateTool runs offline data migration with checkpoint/resume.
 type MigrateTool struct {
 	opts    MigrateOptions
-	cpDB    *gorm.DB // checkpoint DB (MySQL core)
+	srcKind string // "sqlite" | "mysql"
+	dstKind string // "mysql"  | "postgres"
+
+	// Dialects are held as instances rather than read from the global registry,
+	// because a migration needs BOTH ends at once. Every DBDialect method takes the
+	// *gorm.DB it should act on, so an instance is fully usable on its own.
+	// dialect.Register() still receives the TARGET dialect: the schema-migration
+	// functions (RunCoreDBMigrations -> safeCreateIndex) consult dialect.Get().
+	srcDia dialect.DBDialect
+	dstDia dialect.DBDialect
+
+	cpDB    *gorm.DB // checkpoint DB (target core)
 	results []dbMigrateResult
 	startAt time.Time
+
+	// stdin is a single shared reader for every prompt. It must not be re-created
+	// per prompt group: bufio reads ahead, so a second bufio.NewReader(os.Stdin)
+	// would find the buffer already drained and see EOF. That works by accident on
+	// an interactive TTY but silently cancels the run when stdin is piped.
+	stdin *bufio.Reader
 }
 
 // RunMigrateDB is the entry point called from the CLI (samwaf migratedb).
@@ -97,14 +158,31 @@ func RunMigrateDB(opts MigrateOptions) error {
 	if opts.CurrentDir == "" {
 		opts.CurrentDir = utils.GetCurrentDir()
 	}
-	t := &MigrateTool{opts: opts, startAt: time.Now()}
+	t := &MigrateTool{opts: opts, startAt: time.Now(), stdin: bufio.NewReader(os.Stdin)}
 	return t.run()
+}
+
+type migPair struct {
+	srcLabel  string // core | log | stats
+	srcPath   string // sqlite source: .db file path
+	srcKey    string // sqlite source: encryption key
+	srcDBName string // mysql source: database name
+	dstDBName string
+	dstLabel  string
+	schemaMig func(*gorm.DB) error
 }
 
 func (t *MigrateTool) run() error {
 	fmt.Println("================================================")
-	fmt.Println("         SamWaf 数据迁移工具 (SQLite → MySQL)")
+	fmt.Println("            SamWaf 数据迁移工具")
 	fmt.Println("================================================")
+
+	// 1. 确定迁移方向（命令行 flag 优先，否则交互式菜单）
+	if err := t.resolveRoute(); err != nil {
+		return err
+	}
+	label := routeLabel(t.srcKind, t.dstKind)
+	fmt.Printf("\n迁移方向: %s\n", label)
 
 	if t.opts.DryRun {
 		fmt.Println(">>> DRY-RUN 模式：只做预估，不写入任何数据 <<<")
@@ -119,19 +197,36 @@ func (t *MigrateTool) run() error {
 	fmt.Println("     建议步骤：停止服务 → 运行迁移 → 验证数据 → 切换驱动 → 重启服务")
 	fmt.Println()
 
-	// 1. 交互式采集 MySQL 连接参数
-	if err := t.promptMySQLConfig(); err != nil {
-		return err
+	// 2. 采集连接参数
+	if t.srcKind == "mysql" {
+		fmt.Println("── 源库（MySQL）连接信息 ──")
+		if err := t.promptMySQLConfig(); err != nil {
+			return err
+		}
+	}
+	switch t.dstKind {
+	case "mysql":
+		fmt.Println("── 目标库（MySQL）连接信息 ──")
+		if err := t.promptMySQLConfig(); err != nil {
+			return err
+		}
+	case "postgres":
+		fmt.Println("── 目标库（PostgreSQL）连接信息 ──")
+		if err := t.promptPostgresConfig(); err != nil {
+			return err
+		}
 	}
 
-	// 2. 注册 MySQL 方言（schema 迁移函数依赖 dialect.Get()）
-	dialect.Register(&dialect.MySQLDialect{})
+	// 3. 注册方言。全局注册的是目标方言（schema 迁移函数内部走 dialect.Get()）。
+	t.srcDia = dialectFor(t.srcKind)
+	t.dstDia = dialectFor(t.dstKind)
+	dialect.Register(t.dstDia)
 
-	// 3. 测试连接
-	fmt.Println("\n测试 MySQL 连接...")
-	testDB, testErr := openMySQLDB(global.GWAF_MYSQL_CORE_DB)
+	// 4. 测试目标连接
+	fmt.Printf("\n测试 %s 连接...\n", t.dstKind)
+	testDB, testErr := t.openTarget(t.dstCoreDBName())
 	if testErr != nil {
-		return fmt.Errorf("MySQL 连接失败: %w\n请检查连接参数后重试", testErr)
+		return fmt.Errorf("%s 连接失败: %w\n请检查连接参数后重试", t.dstKind, testErr)
 	}
 	if sqlDB, e := testDB.DB(); e == nil {
 		sqlDB.Close()
@@ -139,55 +234,17 @@ func (t *MigrateTool) run() error {
 	fmt.Println("连接成功 ✓")
 
 	fmt.Printf("\n批大小   : %d 行/批\n", t.opts.BatchSize)
-	fmt.Printf("数据目录 : %s/data\n", t.opts.CurrentDir)
-
-	// 4. 选择迁移范围
-	type migPair struct {
-		srcPath   string
-		srcKey    string
-		srcLabel  string
-		dstDBName string
-		dstLabel  string
-		schemaMig func(*gorm.DB) error
+	if t.srcKind == "sqlite" {
+		fmt.Printf("数据目录 : %s/data\n", t.opts.CurrentDir)
 	}
 
-	allPairs := []migPair{
-		{
-			srcPath:   filepath.Join(t.opts.CurrentDir, "data", "local.db"),
-			srcKey:    global.GWAF_PWD_COREDB,
-			srcLabel:  "core",
-			dstDBName: global.GWAF_MYSQL_CORE_DB,
-			dstLabel:  "mysql_core",
-			schemaMig: func(db *gorm.DB) error {
-				if err := RunCoreDBMigrations(db); err != nil {
-					return err
-				}
-				return RunTaskInitMigrations(db)
-			},
-		},
-		{
-			srcPath:   filepath.Join(t.opts.CurrentDir, "data", "local_log.db"),
-			srcKey:    global.GWAF_PWD_LOGDB,
-			srcLabel:  "log",
-			dstDBName: global.GWAF_MYSQL_LOG_DB,
-			dstLabel:  "mysql_log",
-			schemaMig: RunLogDBMigrations,
-		},
-		{
-			srcPath:   filepath.Join(t.opts.CurrentDir, "data", "local_stats.db"),
-			srcKey:    global.GWAF_PWD_STATDB,
-			srcLabel:  "stats",
-			dstDBName: global.GWAF_MYSQL_STATS_DB,
-			dstLabel:  "mysql_stats",
-			schemaMig: RunStatsDBMigrations,
-		},
-	}
+	allPairs := t.buildPairs()
 
-	scopeReader := bufio.NewReader(os.Stdin)
+	// 5. 选择迁移范围
 	fmt.Println("\n请选择迁移范围：")
 	fmt.Println("  1. 仅迁移核心库 (core)")
 	fmt.Println("  2. 迁移全部（核心库 + 日志库 + 统计库）[默认]")
-	scopeLine, scopeErr := readLine(scopeReader, "请输入选项", "2")
+	scopeLine, scopeErr := readLine(t.stdin, "请输入选项", "2")
 	if scopeErr != nil {
 		fmt.Println("已取消。")
 		return nil
@@ -203,33 +260,34 @@ func (t *MigrateTool) run() error {
 		fmt.Println("已选择：全部（核心库 + 日志库 + 统计库）")
 	}
 
-	// 5. 迁移前行数预览（打开每个 SQLite，统计表数和总行数）
-	fmt.Println("\n数据预览（SQLite 源库行数）：")
-	fmt.Printf("  %-8s  %-30s  %8s  %12s\n", "库", "文件", "表数量", "总行数")
+	// 6. 迁移前行数预览
+	fmt.Printf("\n数据预览（%s 源库行数）：\n", t.srcKind)
+	fmt.Printf("  %-8s  %-30s  %8s  %12s\n", "库", "来源", "表数量", "总行数")
 	fmt.Println("  " + strings.Repeat("-", 62))
 	var totalTables, totalRows int64
 	for _, p := range pairs {
-		if _, statErr := os.Stat(p.srcPath); os.IsNotExist(statErr) {
-			fmt.Printf("  %-8s  %-30s  %8s  %12s\n", p.srcLabel, filepath.Base(p.srcPath), "-", "文件不存在")
+		desc := t.pairSourceDesc(p)
+		if miss, reason := t.sourceMissing(p); miss {
+			fmt.Printf("  %-8s  %-30s  %8s  %12s\n", p.srcLabel, desc, "-", reason)
 			continue
 		}
-		tblCnt, rowCnt, surveyErr := t.surveySource(p.srcPath, p.srcKey)
+		tblCnt, rowCnt, surveyErr := t.surveySource(p)
 		if surveyErr != nil {
-			fmt.Printf("  %-8s  %-30s  %8s  %12s\n", p.srcLabel, filepath.Base(p.srcPath), "?", "读取失败")
+			fmt.Printf("  %-8s  %-30s  %8s  %12s\n", p.srcLabel, desc, "?", "读取失败")
 			continue
 		}
-		fmt.Printf("  %-8s  %-30s  %8d  %12d\n", p.srcLabel, filepath.Base(p.srcPath), tblCnt, rowCnt)
+		fmt.Printf("  %-8s  %-30s  %8d  %12d\n", p.srcLabel, desc, tblCnt, rowCnt)
 		totalTables += tblCnt
 		totalRows += rowCnt
 	}
 	fmt.Println("  " + strings.Repeat("-", 62))
 	fmt.Printf("  %-39s  %8d  %12d\n", "合计", totalTables, totalRows)
 
-	// 6. 确认后才开始写入（dry-run 跳过）
+	// 7. 确认后才开始写入（dry-run 跳过）
 	if !t.opts.DryRun {
 		fmt.Println()
-		confirmReader := bufio.NewReader(os.Stdin)
-		answer, confirmErr := readLine(confirmReader, "确认将以上 SQLite 数据迁移到 MySQL？[y/N]", "")
+		answer, confirmErr := readLine(t.stdin,
+			fmt.Sprintf("确认执行 %s 迁移？[y/N]", label), "")
 		if confirmErr != nil {
 			fmt.Println("已取消。")
 			return nil
@@ -241,10 +299,10 @@ func (t *MigrateTool) run() error {
 		fmt.Println()
 	}
 
-	// 7. 建 checkpoint 表
-	coreDB, err := openMySQLDB(global.GWAF_MYSQL_CORE_DB)
+	// 8. 建 checkpoint 表（目标核心库）
+	coreDB, err := t.openTarget(t.dstCoreDBName())
 	if err != nil {
-		return fmt.Errorf("连接 MySQL 核心库失败: %w", err)
+		return fmt.Errorf("连接目标核心库失败: %w", err)
 	}
 	t.cpDB = coreDB
 
@@ -257,24 +315,24 @@ func (t *MigrateTool) run() error {
 	for _, p := range pairs {
 		fmt.Printf("\n--- [%s] %s → %s ---\n", time.Now().Format("15:04:05"), p.srcLabel, p.dstLabel)
 
-		if _, statErr := os.Stat(p.srcPath); os.IsNotExist(statErr) {
-			fmt.Printf("  源文件不存在，跳过: %s\n", p.srcPath)
+		if miss, reason := t.sourceMissing(p); miss {
+			fmt.Printf("  源不可用（%s），跳过: %s\n", reason, t.pairSourceDesc(p))
 			t.results = append(t.results, dbMigrateResult{SrcLabel: p.srcLabel, DstLabel: p.dstLabel})
 			continue
 		}
 
-		srcDB, openErr := t.openSQLiteSource(p.srcPath, p.srcKey)
+		srcDB, openErr := t.openSource(p)
 		if openErr != nil {
-			return fmt.Errorf("打开源数据库 %s 失败: %w", p.srcPath, openErr)
+			return fmt.Errorf("打开源数据库 %s 失败: %w", t.pairSourceDesc(p), openErr)
 		}
 
-		dstDB, dstErr := openMySQLDB(p.dstDBName)
+		dstDB, dstErr := t.openTarget(p.dstDBName)
 		if dstErr != nil {
 			return fmt.Errorf("打开目标数据库 %s 失败: %w", p.dstDBName, dstErr)
 		}
 
 		if !t.opts.DryRun {
-			fmt.Printf("  [schema] 在 MySQL 上创建/同步表结构...\n")
+			fmt.Printf("  [schema] 在 %s 上创建/同步表结构...\n", t.dstKind)
 			if schemaErr := p.schemaMig(dstDB); schemaErr != nil {
 				return fmt.Errorf("[%s] schema 迁移失败: %w", p.srcLabel, schemaErr)
 			}
@@ -300,7 +358,6 @@ func (t *MigrateTool) run() error {
 	fmt.Print(report)
 	fmt.Println("================================================")
 
-	// 报告路径单独突出显示
 	if saveErr != nil {
 		fmt.Printf("\n⚠  迁移报告保存失败: %v\n", saveErr)
 	} else {
@@ -311,20 +368,20 @@ func (t *MigrateTool) run() error {
 
 	// 迁移完成后，若无失败且非 dry-run，询问是否写入 config.yml
 	if !t.opts.DryRun && t.countFailed() == 0 {
-		cfgReader := bufio.NewReader(os.Stdin)
-		answer, cfgErr := readLine(cfgReader, "迁移成功，是否将 config.yml 切换为 MySQL 驱动？[Y/n]", "y")
+		answer, cfgErr := readLine(t.stdin,
+			fmt.Sprintf("迁移成功，是否将 config.yml 切换为 %s 驱动？[Y/n]", t.dstKind), "y")
 		if cfgErr != nil {
 			fmt.Println("已跳过 config.yml 更新。")
 			return nil
 		}
 		if answer == "" || strings.ToLower(answer) == "y" || strings.ToLower(answer) == "yes" {
-			if cfgErr := t.saveMySQLToConfig(); cfgErr != nil {
+			if cfgErr := t.saveTargetToConfig(); cfgErr != nil {
 				fmt.Printf("警告：config.yml 写入失败: %v\n", cfgErr)
 			} else {
-				fmt.Println("config.yml 已更新，下次启动将使用 MySQL 数据库。")
+				fmt.Printf("config.yml 已更新，下次启动将使用 %s 数据库。\n", t.dstKind)
 			}
 		} else {
-			fmt.Println("config.yml 未修改，如需切换请手动更新 database.driver: mysql。")
+			fmt.Printf("config.yml 未修改，如需切换请手动更新 database.driver: %s。\n", t.dstKind)
 		}
 	} else if t.countFailed() > 0 {
 		fmt.Printf("\n有 %d 张表迁移失败，config.yml 未修改。修复后可重新运行（支持断点续传）。\n",
@@ -334,9 +391,191 @@ func (t *MigrateTool) run() error {
 	return nil
 }
 
-// surveySource opens a SQLite source and returns (tableCount, totalRowCount, error).
-func (t *MigrateTool) surveySource(srcPath, srcKey string) (int64, int64, error) {
-	db, err := t.openSQLiteSource(srcPath, srcKey)
+// dialectFor returns a dialect instance for a driver name.
+func dialectFor(kind string) dialect.DBDialect {
+	switch kind {
+	case "mysql":
+		return &dialect.MySQLDialect{}
+	case "postgres":
+		return &dialect.PostgresDialect{}
+	default:
+		return &dialect.SQLiteDialect{}
+	}
+}
+
+// resolveRoute settles srcKind/dstKind from the --from/--to flags, falling back to an
+// interactive menu. Option 1 is the historical SQLite -> MySQL route, so a user who
+// just presses Enter through the old flow gets exactly the old behaviour.
+func (t *MigrateTool) resolveRoute() error {
+	from, to := strings.ToLower(t.opts.From), strings.ToLower(t.opts.To)
+
+	if from != "" && to != "" {
+		if routeLabel(from, to) == "" {
+			return fmt.Errorf("不支持的迁移方向: %s → %s\n支持的方向: %s", from, to, supportedRoutesText())
+		}
+		t.srcKind, t.dstKind = from, to
+		return nil
+	}
+
+	fmt.Println("\n请选择迁移方向：")
+	for i, route := range migrateRoutes {
+		suffix := ""
+		if i == 0 {
+			suffix = " [默认]"
+		}
+		fmt.Printf("  %d. %s%s\n", i+1, route.Label, suffix)
+	}
+	line, err := readLine(t.stdin, "请输入选项", "1")
+	if err != nil {
+		return errCancelled
+	}
+	idx, convErr := strconv.Atoi(line)
+	if convErr != nil || idx < 1 || idx > len(migrateRoutes) {
+		return fmt.Errorf("无效的选项: %s", line)
+	}
+	t.srcKind = migrateRoutes[idx-1].From
+	t.dstKind = migrateRoutes[idx-1].To
+	return nil
+}
+
+func supportedRoutesText() string {
+	parts := make([]string, 0, len(migrateRoutes))
+	for _, r := range migrateRoutes {
+		parts = append(parts, fmt.Sprintf("--from=%s --to=%s", r.From, r.To))
+	}
+	return strings.Join(parts, " | ")
+}
+
+// buildPairs assembles the core/log/stats migration pairs for the chosen route.
+func (t *MigrateTool) buildPairs() []migPair {
+	dataDir := filepath.Join(t.opts.CurrentDir, "data")
+
+	core := migPair{
+		srcLabel:  "core",
+		srcPath:   filepath.Join(dataDir, "local.db"),
+		srcKey:    global.GWAF_PWD_COREDB,
+		srcDBName: global.GWAF_MYSQL_CORE_DB,
+		dstDBName: t.dstCoreDBName(),
+		dstLabel:  t.dstKind + "_core",
+		schemaMig: func(db *gorm.DB) error {
+			if err := RunCoreDBMigrations(db); err != nil {
+				return err
+			}
+			return RunTaskInitMigrations(db)
+		},
+	}
+	logPair := migPair{
+		srcLabel:  "log",
+		srcPath:   filepath.Join(dataDir, "local_log.db"),
+		srcKey:    global.GWAF_PWD_LOGDB,
+		srcDBName: global.GWAF_MYSQL_LOG_DB,
+		dstDBName: t.dstLogDBName(),
+		dstLabel:  t.dstKind + "_log",
+		schemaMig: RunLogDBMigrations,
+	}
+	statsPair := migPair{
+		srcLabel:  "stats",
+		srcPath:   filepath.Join(dataDir, "local_stats.db"),
+		srcKey:    global.GWAF_PWD_STATDB,
+		srcDBName: global.GWAF_MYSQL_STATS_DB,
+		dstDBName: t.dstStatsDBName(),
+		dstLabel:  t.dstKind + "_stats",
+		schemaMig: RunStatsDBMigrations,
+	}
+	return []migPair{core, logPair, statsPair}
+}
+
+func (t *MigrateTool) dstCoreDBName() string {
+	if t.dstKind == "postgres" {
+		return global.GWAF_PG_CORE_DB
+	}
+	return global.GWAF_MYSQL_CORE_DB
+}
+
+func (t *MigrateTool) dstLogDBName() string {
+	if t.dstKind == "postgres" {
+		return global.GWAF_PG_LOG_DB
+	}
+	return global.GWAF_MYSQL_LOG_DB
+}
+
+func (t *MigrateTool) dstStatsDBName() string {
+	if t.dstKind == "postgres" {
+		return global.GWAF_PG_STATS_DB
+	}
+	return global.GWAF_MYSQL_STATS_DB
+}
+
+// pairSourceDesc describes the source for display.
+func (t *MigrateTool) pairSourceDesc(p migPair) string {
+	if t.srcKind == "sqlite" {
+		return filepath.Base(p.srcPath)
+	}
+	return p.srcDBName
+}
+
+// sourceMissing reports whether the source for this pair is unavailable, so the pair
+// can be skipped rather than aborting the whole run. A partial source is normal: an
+// install that never enabled stats has no stats database at all.
+func (t *MigrateTool) sourceMissing(p migPair) (bool, string) {
+	if t.srcKind == "sqlite" {
+		if _, err := os.Stat(p.srcPath); os.IsNotExist(err) {
+			return true, "文件不存在"
+		}
+		return false, ""
+	}
+
+	// MySQL source: the database may simply not exist. openMySQLDBRaw never creates it,
+	// and GORM's MySQL dialector queries the server version on open, so a missing
+	// database surfaces as an error here rather than later mid-copy.
+	db, err := openMySQLDBRaw(p.srcDBName)
+	if err != nil {
+		return true, "库不存在"
+	}
+	sqlDB, dbErr := db.DB()
+	if dbErr != nil {
+		return true, "库不存在"
+	}
+	defer sqlDB.Close()
+	if pingErr := sqlDB.Ping(); pingErr != nil {
+		return true, "库不存在"
+	}
+	return false, ""
+}
+
+// openSource opens the source database for a pair.
+func (t *MigrateTool) openSource(p migPair) (*gorm.DB, error) {
+	if t.srcKind == "sqlite" {
+		return t.openSQLiteSource(p.srcPath, p.srcKey)
+	}
+	// MySQL source: never attempt CREATE DATABASE on a database we are only reading.
+	return openMySQLDBRaw(p.srcDBName)
+}
+
+// openTarget opens the target database, creating it if necessary.
+func (t *MigrateTool) openTarget(dbName string) (*gorm.DB, error) {
+	if t.dstKind == "postgres" {
+		return openPostgresDB(dbName)
+	}
+	return openMySQLDB(dbName)
+}
+
+// openSQLiteSource opens an encrypted SQLite database in read mode.
+func (t *MigrateTool) openSQLiteSource(path, key string) (*gorm.DB, error) {
+	encodedKey := url.QueryEscape(key)
+	dsn := fmt.Sprintf("%s?_db_key=%s", path, encodedKey)
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return db, nil
+}
+
+// surveySource returns (tableCount, totalRowCount, error) for one pair's source.
+func (t *MigrateTool) surveySource(p migPair) (int64, int64, error) {
+	db, err := t.openSource(p)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -346,7 +585,7 @@ func (t *MigrateTool) surveySource(srcPath, srcKey string) (int64, int64, error)
 		}
 	}()
 
-	tables, err := listSQLiteUserTables(db)
+	tables, err := t.srcDia.ListTables(db)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -403,7 +642,7 @@ func readLine(r *bufio.Reader, prompt, defaultVal string) (string, error) {
 // promptMySQLConfig interactively reads MySQL connection parameters from stdin.
 // Returns errCancelled when the user presses Ctrl+Z / Ctrl+D at any prompt.
 func (t *MigrateTool) promptMySQLConfig() error {
-	r := bufio.NewReader(os.Stdin)
+	r := t.stdin
 
 	must := func(field *string, prompt, def string) error {
 		v, err := readLine(r, prompt, def)
@@ -414,7 +653,7 @@ func (t *MigrateTool) promptMySQLConfig() error {
 		return nil
 	}
 
-	fmt.Println("\n请输入 MySQL 连接信息（直接回车使用默认值，Ctrl+Z/Ctrl+D 退出）：")
+	fmt.Println("请输入 MySQL 连接信息（直接回车使用默认值，Ctrl+Z/Ctrl+D 退出）：")
 
 	if err := must(&global.GWAF_MYSQL_HOST, "主机", global.GWAF_MYSQL_HOST); err != nil {
 		return err
@@ -451,9 +690,71 @@ func (t *MigrateTool) promptMySQLConfig() error {
 	return nil
 }
 
-// saveMySQLToConfig writes database.driver=mysql and all MySQL params to config.yml.
-// Uses yaml.v3 Node API to preserve key order instead of viper (which sorts alphabetically).
-func (t *MigrateTool) saveMySQLToConfig() error {
+// promptPostgresConfig interactively reads PostgreSQL connection parameters from stdin.
+func (t *MigrateTool) promptPostgresConfig() error {
+	r := t.stdin
+
+	must := func(field *string, prompt, def string) error {
+		v, err := readLine(r, prompt, def)
+		if err != nil {
+			return err
+		}
+		*field = v
+		return nil
+	}
+
+	fmt.Println("请输入 PostgreSQL 连接信息（直接回车使用默认值，Ctrl+Z/Ctrl+D 退出）：")
+
+	if err := must(&global.GWAF_PG_HOST, "主机", global.GWAF_PG_HOST); err != nil {
+		return err
+	}
+	portStr, err := readLine(r, "端口", strconv.Itoa(global.GWAF_PG_PORT))
+	if err != nil {
+		return err
+	}
+	if p, e := strconv.Atoi(portStr); e == nil && p > 0 {
+		global.GWAF_PG_PORT = p
+	}
+	if err := must(&global.GWAF_PG_USER, "用户名", global.GWAF_PG_USER); err != nil {
+		return err
+	}
+	if err := must(&global.GWAF_PG_PASSWORD, "密码", global.GWAF_PG_PASSWORD); err != nil {
+		return err
+	}
+	if err := must(&global.GWAF_PG_SSLMODE, "SSL 模式", global.GWAF_PG_SSLMODE); err != nil {
+		return err
+	}
+	// 时区决定 timestamptz 的渲染时区，配错不报错、只让界面上所有时间静默偏移
+	if err := must(&global.GWAF_PG_TIMEZONE, "时区", global.GWAF_PG_TIMEZONE); err != nil {
+		return err
+	}
+	if err := must(&global.GWAF_PG_MAINTENANCE_DB, "维护库名（用于建库）", global.GWAF_PG_MAINTENANCE_DB); err != nil {
+		return err
+	}
+	if err := must(&global.GWAF_PG_CORE_DB, "核心库名", global.GWAF_PG_CORE_DB); err != nil {
+		return err
+	}
+	if err := must(&global.GWAF_PG_LOG_DB, "日志库名", global.GWAF_PG_LOG_DB); err != nil {
+		return err
+	}
+	if err := must(&global.GWAF_PG_STATS_DB, "统计库名", global.GWAF_PG_STATS_DB); err != nil {
+		return err
+	}
+
+	fmt.Println()
+	fmt.Printf("  PostgreSQL : %s@%s:%d (sslmode=%s, timezone=%s)\n",
+		global.GWAF_PG_USER, global.GWAF_PG_HOST, global.GWAF_PG_PORT,
+		global.GWAF_PG_SSLMODE, global.GWAF_PG_TIMEZONE)
+	fmt.Printf("  核心库 : %s\n", global.GWAF_PG_CORE_DB)
+	fmt.Printf("  日志库 : %s\n", global.GWAF_PG_LOG_DB)
+	fmt.Printf("  统计库 : %s\n", global.GWAF_PG_STATS_DB)
+
+	return nil
+}
+
+// saveTargetToConfig writes database.driver and the target's connection params to
+// config.yml. Uses the yaml.v3 Node API to preserve key order (viper sorts keys).
+func (t *MigrateTool) saveTargetToConfig() error {
 	configPath := filepath.Join(t.opts.CurrentDir, "conf", "config.yml")
 
 	data, err := os.ReadFile(configPath)
@@ -470,32 +771,48 @@ func (t *MigrateTool) saveMySQLToConfig() error {
 	}
 	root := doc.Content[0] // root MappingNode
 
-	// Ensure database: section exists
 	dbNode := yamlEnsureMapping(root, "database")
+	yamlSetNode(dbNode, "driver", &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: t.dstKind})
 
-	// Set database.driver = mysql
-	yamlSetNode(dbNode, "driver", &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "mysql"})
-
-	// Build mysql sub-section with keys in the desired order.
-	// Completely replace to guarantee ordering even on re-run.
-	mysqlNode := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+	// Build the target's sub-section with keys in a deterministic order.
+	// Replaced wholesale so ordering is guaranteed even on re-run.
+	sect := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
 	appendStr := func(k, v string) {
-		mysqlNode.Content = append(mysqlNode.Content,
+		sect.Content = append(sect.Content,
 			&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: k},
 			&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: v},
 		)
 	}
-	appendStr("host", global.GWAF_MYSQL_HOST)
-	mysqlNode.Content = append(mysqlNode.Content,
-		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "port"},
-		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: strconv.Itoa(global.GWAF_MYSQL_PORT)},
-	)
-	appendStr("user", global.GWAF_MYSQL_USER)
-	appendStr("password", global.GWAF_MYSQL_PASSWORD)
-	appendStr("core_db", global.GWAF_MYSQL_CORE_DB)
-	appendStr("log_db", global.GWAF_MYSQL_LOG_DB)
-	appendStr("stats_db", global.GWAF_MYSQL_STATS_DB)
-	yamlSetNode(dbNode, "mysql", mysqlNode)
+	appendInt := func(k string, v int) {
+		sect.Content = append(sect.Content,
+			&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: k},
+			&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: strconv.Itoa(v)},
+		)
+	}
+
+	switch t.dstKind {
+	case "postgres":
+		appendStr("host", global.GWAF_PG_HOST)
+		appendInt("port", global.GWAF_PG_PORT)
+		appendStr("user", global.GWAF_PG_USER)
+		appendStr("password", global.GWAF_PG_PASSWORD)
+		appendStr("sslmode", global.GWAF_PG_SSLMODE)
+		appendStr("timezone", global.GWAF_PG_TIMEZONE)
+		appendStr("maintenance_db", global.GWAF_PG_MAINTENANCE_DB)
+		appendStr("core_db", global.GWAF_PG_CORE_DB)
+		appendStr("log_db", global.GWAF_PG_LOG_DB)
+		appendStr("stats_db", global.GWAF_PG_STATS_DB)
+		yamlSetNode(dbNode, "postgres", sect)
+	default: // mysql
+		appendStr("host", global.GWAF_MYSQL_HOST)
+		appendInt("port", global.GWAF_MYSQL_PORT)
+		appendStr("user", global.GWAF_MYSQL_USER)
+		appendStr("password", global.GWAF_MYSQL_PASSWORD)
+		appendStr("core_db", global.GWAF_MYSQL_CORE_DB)
+		appendStr("log_db", global.GWAF_MYSQL_LOG_DB)
+		appendStr("stats_db", global.GWAF_MYSQL_STATS_DB)
+		yamlSetNode(dbNode, "mysql", sect)
+	}
 
 	out, err := yaml.Marshal(&doc)
 	if err != nil {
@@ -538,24 +855,11 @@ func yamlSetNode(mapping *yaml.Node, key string, val *yaml.Node) {
 	)
 }
 
-// openSQLiteSource opens an encrypted SQLite database in read mode.
-func (t *MigrateTool) openSQLiteSource(path, key string) (*gorm.DB, error) {
-	encodedKey := url.QueryEscape(key)
-	dsn := fmt.Sprintf("%s?_db_key=%s", path, encodedKey)
-	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
-	})
-	if err != nil {
-		return nil, err
-	}
-	return db, nil
-}
-
-// migrateOneDB migrates all user tables from one SQLite DB to one MySQL DB.
+// migrateOneDB migrates all user tables from one source DB to one target DB.
 func (t *MigrateTool) migrateOneDB(srcDB *gorm.DB, srcLabel string, dstDB *gorm.DB, dstLabel string) dbMigrateResult {
 	result := dbMigrateResult{SrcLabel: srcLabel, DstLabel: dstLabel}
 
-	tables, err := listSQLiteUserTables(srcDB)
+	tables, err := t.srcDia.ListTables(srcDB)
 	if err != nil {
 		fmt.Printf("  [%s] 获取表列表失败: %v\n", srcLabel, err)
 		return result
@@ -575,10 +879,31 @@ func (t *MigrateTool) migrateOneDB(srcDB *gorm.DB, srcLabel string, dstDB *gorm.
 	return result
 }
 
-// migrateTable copies one table from SQLite to MySQL with checkpoint/resume.
+// effectiveBatchSize clamps the batch size so a single INSERT stays within the
+// target's limits. PostgreSQL caps a statement at 65535 bind parameters, and the
+// batch INSERT uses batchSize x len(cols) of them — a wide table at the default
+// batch size of 1000 would exceed that and fail with an opaque protocol error.
+func (t *MigrateTool) effectiveBatchSize(numCols int) int {
+	batch := t.opts.BatchSize
+	if t.dstKind == "postgres" && numCols > 0 {
+		if maxRows := pgMaxBindParams / numCols; maxRows < batch {
+			batch = maxRows
+		}
+	}
+	if batch < 1 {
+		batch = 1
+	}
+	return batch
+}
+
+// migrateTable copies one table from source to target with checkpoint/resume.
 func (t *MigrateTool) migrateTable(srcDB, dstDB *gorm.DB, srcLabel, tableName string) tableMigrateResult {
 	start := time.Now()
 	r := tableMigrateResult{Name: tableName}
+
+	// The checkpoint key carries the source kind so runs along different routes
+	// against the same target do not collide.
+	cpKey := t.srcKind + ":" + srcLabel
 
 	// 1. Count source rows
 	var srcCount int64
@@ -609,7 +934,7 @@ func (t *MigrateTool) migrateTable(srcDB, dstDB *gorm.DB, srcLabel, tableName st
 
 	// 4. Get or create checkpoint
 	var cp MigrationCheckpoint
-	cpErr := t.cpDB.Where("src_db = ? AND table_name = ?", srcLabel, tableName).First(&cp).Error
+	cpErr := t.cpDB.Where("src_db = ? AND table_name = ?", cpKey, tableName).First(&cp).Error
 	if cpErr != nil {
 		// No checkpoint: check for existing target data
 		var dstCount int64
@@ -622,7 +947,7 @@ func (t *MigrateTool) migrateTable(srcDB, dstDB *gorm.DB, srcLabel, tableName st
 			return r
 		}
 		cp = MigrationCheckpoint{
-			SrcDB:     srcLabel,
+			SrcDB:     cpKey,
 			TblName:   tableName,
 			TotalRows: srcCount,
 			Status:    "pending",
@@ -643,14 +968,21 @@ func (t *MigrateTool) migrateTable(srcDB, dstDB *gorm.DB, srcLabel, tableName st
 		return r
 	}
 
-	// 6. Get column names from SQLite PRAGMA
-	cols, colErr := getSQLiteColumnNames(srcDB, tableName)
-	if colErr != nil || len(cols) == 0 {
+	// 6. Column names from the SOURCE dialect (sqlite_master/PRAGMA vs information_schema)
+	srcCols, colErr := t.srcDia.ColumnInfo(srcDB, tableName)
+	if colErr != nil || len(srcCols) == 0 {
 		r.Status = "failed"
 		r.Error = fmt.Sprintf("获取列信息失败: %v", colErr)
 		r.Duration = time.Since(start)
 		return r
 	}
+	cols := make([]string, len(srcCols))
+	for i, c := range srcCols {
+		cols[i] = c.Name
+	}
+
+	// 7. Per-column value conversion, derived from the TARGET column types.
+	coercers := buildCoercers(t.dstDia, dstDB, tableName, cols)
 
 	// Mark checkpoint as running
 	t.cpDB.Model(&cp).Updates(map[string]interface{}{
@@ -659,24 +991,33 @@ func (t *MigrateTool) migrateTable(srcDB, dstDB *gorm.DB, srcLabel, tableName st
 		"updated_at": time.Now(),
 	})
 
-	// 7. Build SQL fragments (backtick-quoted, work for both SQLite and MySQL)
-	quotedCols := make([]string, len(cols))
+	// 8. Build SQL fragments with each side's own quoting rules.
+	srcCols2 := make([]string, len(cols))
+	dstCols := make([]string, len(cols))
 	placeholders := make([]string, len(cols))
 	for i, c := range cols {
-		quotedCols[i] = "`" + c + "`"
+		srcCols2[i] = t.srcDia.Quote(c)
+		dstCols[i] = t.dstDia.Quote(c)
 		placeholders[i] = "?"
 	}
-	colsStr := strings.Join(quotedCols, ", ")
+	srcColsStr := strings.Join(srcCols2, ", ")
+	dstColsStr := strings.Join(dstCols, ", ")
 	rowPlaceholder := "(" + strings.Join(placeholders, ", ") + ")"
+
+	batchSize := t.effectiveBatchSize(len(cols))
+	if batchSize < t.opts.BatchSize {
+		fmt.Printf("  NOTE %-45s  批大小降为 %d（%d 列 × %d 超过 PostgreSQL 65535 参数上限）\n",
+			tableName, batchSize, len(cols), t.opts.BatchSize)
+	}
 
 	offset := cp.LastCursor
 	copied := cp.CopiedRows
 
-	// 8. Batch copy loop
+	// 9. Batch copy loop
 	for {
-		sqliteRows, queryErr := srcDB.Raw(
-			fmt.Sprintf("SELECT %s FROM `%s` LIMIT ? OFFSET ?", colsStr, tableName),
-			t.opts.BatchSize, offset,
+		srcRows, queryErr := srcDB.Raw(
+			fmt.Sprintf("SELECT %s FROM %s LIMIT ? OFFSET ?", srcColsStr, t.srcDia.Quote(tableName)),
+			batchSize, offset,
 		).Rows()
 		if queryErr != nil {
 			t.cpDB.Model(&cp).Updates(map[string]interface{}{
@@ -692,40 +1033,35 @@ func (t *MigrateTool) migrateTable(srcDB, dstDB *gorm.DB, srcLabel, tableName st
 		var batchRowPHs []string
 		rowCount := 0
 
-		for sqliteRows.Next() {
+		for srcRows.Next() {
 			vals := make([]interface{}, len(cols))
 			valPtrs := make([]interface{}, len(cols))
 			for i := range vals {
 				valPtrs[i] = &vals[i]
 			}
-			if scanErr := sqliteRows.Scan(valPtrs...); scanErr != nil {
-				sqliteRows.Close()
+			if scanErr := srcRows.Scan(valPtrs...); scanErr != nil {
+				srcRows.Close()
 				r.Status = "failed"
 				r.Error = "Scan 失败: " + scanErr.Error()
 				r.Duration = time.Since(start)
 				return r
 			}
-			// []byte (BLOB/TEXT in SQLite) → string so MySQL accepts it
-			for i, v := range vals {
-				if b, ok := v.([]byte); ok {
-					vals[i] = string(b)
-				}
+			// Convert each value to something the target column will accept.
+			for i := range vals {
+				vals[i] = coercers[i](vals[i])
 			}
 			batchRowPHs = append(batchRowPHs, rowPlaceholder)
 			batchVals = append(batchVals, vals...)
 			rowCount++
 		}
-		sqliteRows.Close()
+		srcRows.Close()
 
 		if rowCount == 0 {
 			break
 		}
 
-		// INSERT IGNORE handles re-runs without duplicate-key errors
-		insertSQL := fmt.Sprintf(
-			"INSERT IGNORE INTO `%s` (%s) VALUES %s",
-			tableName, colsStr, strings.Join(batchRowPHs, ", "),
-		)
+		// Insert-and-ignore makes re-runs idempotent on duplicate keys.
+		insertSQL := t.dstDia.InsertIgnoreSQL(tableName, dstColsStr, strings.Join(batchRowPHs, ", "))
 		if insertErr := dstDB.Exec(insertSQL, batchVals...).Error; insertErr != nil {
 			t.cpDB.Model(&cp).Updates(map[string]interface{}{
 				"status": "failed", "error_message": insertErr.Error(), "updated_at": time.Now(),
@@ -748,7 +1084,7 @@ func (t *MigrateTool) migrateTable(srcDB, dstDB *gorm.DB, srcLabel, tableName st
 	}
 	fmt.Println()
 
-	// 9. Final row-count verification
+	// 10. Final row-count verification
 	var finalDst int64
 	dstDB.Table(tableName).Count(&finalDst)
 	r.DstRows = finalDst
@@ -778,10 +1114,17 @@ func (t *MigrateTool) generateReport() string {
 	duration := endTime.Sub(t.startAt).Round(time.Second)
 
 	sb.WriteString("# SamWaf 数据迁移报告\n\n")
+	sb.WriteString(fmt.Sprintf("- **迁移方向**: %s\n", routeLabel(t.srcKind, t.dstKind)))
 	sb.WriteString(fmt.Sprintf("- **开始时间**: %s\n", t.startAt.Format("2006-01-02 15:04:05")))
 	sb.WriteString(fmt.Sprintf("- **结束时间**: %s\n", endTime.Format("2006-01-02 15:04:05")))
 	sb.WriteString(fmt.Sprintf("- **总耗时**: %s\n", duration))
-	sb.WriteString(fmt.Sprintf("- **目标 MySQL**: %s:%d\n", global.GWAF_MYSQL_HOST, global.GWAF_MYSQL_PORT))
+	if t.dstKind == "postgres" {
+		sb.WriteString(fmt.Sprintf("- **目标 PostgreSQL**: %s:%d (timezone=%s)\n",
+			global.GWAF_PG_HOST, global.GWAF_PG_PORT, global.GWAF_PG_TIMEZONE))
+	} else {
+		sb.WriteString(fmt.Sprintf("- **目标 MySQL**: %s:%d\n",
+			global.GWAF_MYSQL_HOST, global.GWAF_MYSQL_PORT))
+	}
 	if t.opts.DryRun {
 		sb.WriteString("- **模式**: DRY-RUN（未写入数据）\n")
 	} else {
@@ -794,7 +1137,7 @@ func (t *MigrateTool) generateReport() string {
 	for _, dr := range t.results {
 		sb.WriteString(fmt.Sprintf("## %s → %s\n\n", dr.SrcLabel, dr.DstLabel))
 		if len(dr.Tables) == 0 {
-			sb.WriteString("_（无数据或源文件不存在）_\n\n")
+			sb.WriteString("_（无数据或源不存在）_\n\n")
 			continue
 		}
 		sb.WriteString("| 表名 | 源行数 | 目标行数 | 耗时 | 状态 | 备注 |\n")
@@ -840,53 +1183,4 @@ func (t *MigrateTool) saveReport(report string) (string, error) {
 	filename := fmt.Sprintf("migration_report_%s.md", t.startAt.Format("20060102_150405"))
 	path := filepath.Join(dir, filename)
 	return path, os.WriteFile(path, []byte(report), 0644)
-}
-
-// ===========================================================================
-// SQLite-specific helpers (always use SQLite syntax, dialect-agnostic)
-// ===========================================================================
-
-// listSQLiteUserTables returns user-defined table names in a SQLite database.
-// Excludes sqlite_% system tables.
-func listSQLiteUserTables(db *gorm.DB) ([]string, error) {
-	rows, err := db.Raw(
-		"SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
-	).Rows()
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var tables []string
-	for rows.Next() {
-		var name string
-		if scanErr := rows.Scan(&name); scanErr == nil {
-			tables = append(tables, name)
-		}
-	}
-	return tables, nil
-}
-
-// getSQLiteColumnNames returns column names (in declaration order) for the given table.
-func getSQLiteColumnNames(db *gorm.DB, tableName string) ([]string, error) {
-	rows, err := db.Raw(fmt.Sprintf("PRAGMA table_info(`%s`)", tableName)).Rows()
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var cols []string
-	for rows.Next() {
-		var (
-			cid     int
-			name    string
-			colType string
-			notNull int
-			dflt    sql.NullString
-			pk      int
-		)
-		if scanErr := rows.Scan(&cid, &name, &colType, &notNull, &dflt, &pk); scanErr == nil {
-			cols = append(cols, name)
-		}
-	}
-	return cols, nil
 }

@@ -28,7 +28,7 @@ Un pare-feu applicatif web léger et open source
 En résumé, l'objectif était de créer un outil efficace de protection des sites web ou des API, capable de gérer les situations anormales et d'assurer le fonctionnement normal des sites et des applications.
 
 # Présentation du logiciel
-SamWaf est un pare-feu applicatif web (WAF) léger et open source destiné aux petites entreprises, aux studios et aux sites web personnels. Il prend en charge un déploiement entièrement privé, chiffre les données stockées en local, se lance facilement et fonctionne sous Linux, Windows 64 bits et ARM64, avec des images Docker disponibles. Par défaut, il utilise une base de données SQLite embarquée et chiffrée, sans aucune dépendance externe, et peut en option basculer vers MySQL.
+SamWaf est un pare-feu applicatif web (WAF) léger et open source destiné aux petites entreprises, aux studios et aux sites web personnels. Il prend en charge un déploiement entièrement privé, chiffre les données stockées en local, se lance facilement et fonctionne sous Linux, Windows 64 bits et ARM64, avec des images Docker disponibles. Par défaut, il utilise une base de données SQLite embarquée et chiffrée, sans aucune dépendance externe, et peut en option basculer vers MySQL / PostgreSQL.
 
 ## Architecture
 
@@ -150,7 +150,7 @@ SamWaf est un pare-feu applicatif web (WAF) léger et open source destiné aux p
 - RBAC pour les comptes, authentification à deux facteurs OTP, journaux de connexion et d'opérations
 - Rapports statistiques et supervision du système et des hôtes
 - Politique de conservation des données avec partitionnement et archivage automatiques des journaux
-- SQLite (chiffré) par défaut, MySQL en option, avec un outil intégré de migration SQLite→MySQL
+- SQLite (chiffré) par défaut, MySQL / PostgreSQL en option, avec un outil intégré de migration SQLite→MySQL / SQLite→PostgreSQL / MySQL→PostgreSQL
 - Mise à niveau en ligne en un clic, redémarrage progressif sans interruption de service et retour à une version antérieure
 - Tâches par lots, tâches planifiées et sauvegarde des données
 - API ouverte
@@ -226,7 +226,7 @@ Tags :
 | `resetotp` | Réinitialiser le code de sécurité (OTP) |
 | `repairdb` | Réparer une base de données corrompue |
 | `execsql` | Exécuter des instructions SQL sur une base de données sélectionnée |
-| `migratedb` | Migration hors ligne de la base de données SQLite → MySQL (`--dry-run` pour une simple estimation, `--force` pour écraser) |
+| `migratedb` | Migration hors ligne de la base de données SQLite → MySQL / SQLite → PostgreSQL / MySQL → PostgreSQL (`--dry-run` pour une simple estimation, `--force` pour écraser) |
 | `rollback` | Revenir à une version de sauvegarde antérieure |
 
 Exemple : `SamWaf64.exe resetpwd` (sous Linux : `./SamWafLinux64 resetpwd`)

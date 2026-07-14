@@ -10,6 +10,7 @@ import (
 	"SamWaf/model/request"
 	"SamWaf/model/response"
 	"SamWaf/utils"
+	"SamWaf/wafdb/dialect"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
@@ -311,7 +312,7 @@ func (receiver *WafSslConfigService) GetAllListInner() ([]response.WafSslConfigR
 	var list []model.SslConfig
 
 	var bindSslIDs []string
-	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Select("bind_ssl_id").Where("`ssl` = ? and bind_ssl_id <> ?", 1, "").Find(&bindSslIDs)
+	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Select("bind_ssl_id").Where(dialect.Q("ssl")+" = ? and bind_ssl_id <> ?", 1, "").Find(&bindSslIDs)
 
 	global.GWAF_LOCAL_DB.Model(&model.SslConfig{}).Where("id IN ?", bindSslIDs).Order("valid_to desc").Find(&list)
 

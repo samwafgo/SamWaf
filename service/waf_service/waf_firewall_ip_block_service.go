@@ -8,6 +8,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
+	"SamWaf/wafdb/dialect"
 	"errors"
 	"fmt"
 	"time"
@@ -23,7 +24,7 @@ var WafFirewallIPBlockServiceApp = new(WafFirewallIPBlockService)
 func (receiver *WafFirewallIPBlockService) AddApi(req request.WafFirewallIPBlockAddReq) error {
 	// 1. 检查IP是否已存在
 	var existBean model.FirewallIPBlock
-	err := global.GWAF_LOCAL_DB.Where("ip = ? AND `status` = ?", req.IP, "active").First(&existBean).Error
+	err := global.GWAF_LOCAL_DB.Where("ip = ? AND "+dialect.Q("status")+" = ?", req.IP, "active").First(&existBean).Error
 	if err == nil && existBean.Id != "" {
 		return errors.New("该IP已经被封禁")
 	}
@@ -69,7 +70,7 @@ func (receiver *WafFirewallIPBlockService) AddApi(req request.WafFirewallIPBlock
 
 // CheckIsExistApi 检查IP是否已存在
 func (receiver *WafFirewallIPBlockService) CheckIsExistApi(req request.WafFirewallIPBlockAddReq) error {
-	return global.GWAF_LOCAL_DB.First(&model.FirewallIPBlock{}, "ip = ? AND `status` = ?", req.IP, "active").Error
+	return global.GWAF_LOCAL_DB.First(&model.FirewallIPBlock{}, "ip = ? AND "+dialect.Q("status")+" = ?", req.IP, "active").Error
 }
 
 // ModifyApi 修改防火墙IP封禁
@@ -170,7 +171,7 @@ func (receiver *WafFirewallIPBlockService) GetListApi(req request.WafFirewallIPB
 		query = query.Where("block_type = ?", req.BlockType)
 	}
 	if len(req.Status) > 0 {
-		query = query.Where("`status` = ?", req.Status)
+		query = query.Where(dialect.Q("status")+" = ?", req.Status)
 	}
 
 	// 统计总数
@@ -337,7 +338,7 @@ func (receiver *WafFirewallIPBlockService) DisableApi(req request.WafFirewallIPB
 func (receiver *WafFirewallIPBlockService) SyncFirewallRules(hostCode string) (successCount int, failedCount int, err error) {
 	// 1. 获取所有active状态的记录
 	var beans []model.FirewallIPBlock
-	query := global.GWAF_LOCAL_DB.Where("`status` = ?", "active")
+	query := global.GWAF_LOCAL_DB.Where(dialect.Q("status")+" = ?", "active")
 
 	if hostCode != "" {
 		query = query.Where("host_code = ?", hostCode)
@@ -368,7 +369,7 @@ func (receiver *WafFirewallIPBlockService) ClearExpiredRules() (int, error) {
 	// 1. 查找所有过期的记录（ExpireTime > 0 且 < 当前时间）
 	currentTime := time.Now().Unix()
 	var beans []model.FirewallIPBlock
-	err := global.GWAF_LOCAL_DB.Where("expire_time > 0 AND expire_time < ? AND `status` = ?", currentTime, "active").
+	err := global.GWAF_LOCAL_DB.Where("expire_time > 0 AND expire_time < ? AND "+dialect.Q("status")+" = ?", currentTime, "active").
 		Find(&beans).Error
 	if err != nil {
 		return 0, err
@@ -407,7 +408,7 @@ func (receiver *WafFirewallIPBlockService) GetHostCodesByIds(ids []string) ([]st
 func (receiver *WafFirewallIPBlockService) GetAllActiveIPs() ([]string, error) {
 	var ips []string
 	err := global.GWAF_LOCAL_DB.Model(&model.FirewallIPBlock{}).
-		Where("`status` = ?", "active").
+		Where(dialect.Q("status")+" = ?", "active").
 		Pluck("ip", &ips).Error
 	return ips, err
 }
@@ -417,8 +418,8 @@ func (receiver *WafFirewallIPBlockService) GetStatistics() map[string]interface{
 	var total, active, inactive, expired int64
 
 	global.GWAF_LOCAL_DB.Model(&model.FirewallIPBlock{}).Count(&total)
-	global.GWAF_LOCAL_DB.Model(&model.FirewallIPBlock{}).Where("`status` = ?", "active").Count(&active)
-	global.GWAF_LOCAL_DB.Model(&model.FirewallIPBlock{}).Where("`status` = ?", "inactive").Count(&inactive)
+	global.GWAF_LOCAL_DB.Model(&model.FirewallIPBlock{}).Where(dialect.Q("status")+" = ?", "active").Count(&active)
+	global.GWAF_LOCAL_DB.Model(&model.FirewallIPBlock{}).Where(dialect.Q("status")+" = ?", "inactive").Count(&inactive)
 
 	currentTime := time.Now().Unix()
 	global.GWAF_LOCAL_DB.Model(&model.FirewallIPBlock{}).

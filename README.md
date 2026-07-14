@@ -28,7 +28,7 @@ A lightweight open-source web application firewall
 In short, the goal was to create an effective tool for website or API protection to handle abnormal situations and ensure the normal operation of websites and applications.
 
 # Software Introduction
-SamWaf is a lightweight, open-source web application firewall for small companies, studios, and personal websites. It supports fully private deployment, encrypts data stored locally, is easy to start, and supports Linux, Windows 64-bit and ARM64, with Docker images available. By default it uses an embedded encrypted SQLite database with zero external dependencies, and can optionally switch to MySQL.
+SamWaf is a lightweight, open-source web application firewall for small companies, studios, and personal websites. It supports fully private deployment, encrypts data stored locally, is easy to start, and supports Linux, Windows 64-bit and ARM64, with Docker images available. By default it uses an embedded encrypted SQLite database with zero external dependencies, and can optionally switch to MySQL / PostgreSQL.
 
 ## Architecture
 
@@ -150,7 +150,7 @@ SamWaf is a lightweight, open-source web application firewall for small companie
 - Account RBAC, OTP two-factor authentication, login/operation logs
 - Statistics reports and system/host monitoring
 - Data retention policy with automatic log sharding and archiving
-- SQLite (encrypted) by default, optional MySQL, with a built-in SQLite→MySQL migration tool
+- SQLite (encrypted) by default, optional MySQL / PostgreSQL, with a built-in SQLite→MySQL / SQLite→PostgreSQL / MySQL→PostgreSQL migration tool
 - Online one-click upgrade, zero-downtime rolling restart, and version rollback
 - Batch tasks, scheduled tasks, and data backup
 - Open API
@@ -226,7 +226,7 @@ Tags:
 | `resetotp` | Reset the security code (OTP) |
 | `repairdb` | Repair a corrupted database |
 | `execsql` | Execute SQL statements on a selected database |
-| `migratedb` | Offline database migration SQLite → MySQL (`--dry-run` to estimate only, `--force` to overwrite) |
+| `migratedb` | Offline database migration SQLite → MySQL / SQLite → PostgreSQL / MySQL → PostgreSQL (`--dry-run` to estimate only, `--force` to overwrite) |
 | `rollback` | Roll back to a previous backup version |
 
 Example: `SamWaf64.exe resetpwd` (on Linux: `./SamWafLinux64 resetpwd`)

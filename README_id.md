@@ -28,7 +28,7 @@ Firewall aplikasi web open-source yang ringan
 Singkatnya, tujuannya adalah membuat alat yang efektif untuk proteksi situs web atau API guna menangani situasi abnormal dan memastikan situs web serta aplikasi tetap beroperasi secara normal.
 
 # Pengenalan Perangkat Lunak
-SamWaf adalah firewall aplikasi web open-source yang ringan untuk perusahaan kecil, studio, dan situs web pribadi. SamWaf mendukung deployment sepenuhnya privat, mengenkripsi data yang disimpan secara lokal, mudah dijalankan, serta mendukung Linux, Windows 64-bit, dan ARM64, dengan image Docker yang tersedia. Secara default, SamWaf menggunakan database SQLite terenkripsi yang tertanam tanpa dependensi eksternal, dan dapat beralih ke MySQL secara opsional.
+SamWaf adalah firewall aplikasi web open-source yang ringan untuk perusahaan kecil, studio, dan situs web pribadi. SamWaf mendukung deployment sepenuhnya privat, mengenkripsi data yang disimpan secara lokal, mudah dijalankan, serta mendukung Linux, Windows 64-bit, dan ARM64, dengan image Docker yang tersedia. Secara default, SamWaf menggunakan database SQLite terenkripsi yang tertanam tanpa dependensi eksternal, dan dapat beralih ke MySQL / PostgreSQL secara opsional.
 
 ## Arsitektur
 
@@ -150,7 +150,7 @@ SamWaf adalah firewall aplikasi web open-source yang ringan untuk perusahaan kec
 - RBAC akun, autentikasi dua faktor OTP, log login/operasi
 - Laporan statistik serta pemantauan sistem/host
 - Kebijakan retensi data dengan sharding dan pengarsipan log otomatis
-- SQLite (terenkripsi) secara default, MySQL opsional, dengan alat migrasi SQLite→MySQL bawaan
+- SQLite (terenkripsi) secara default, MySQL / PostgreSQL opsional, dengan alat migrasi SQLite→MySQL / SQLite→PostgreSQL / MySQL→PostgreSQL bawaan
 - Upgrade online sekali klik, rolling restart tanpa downtime, dan rollback versi
 - Tugas batch, tugas terjadwal, dan pencadangan data
 - Open API
@@ -226,7 +226,7 @@ Tag:
 | `resetotp` | Mereset kode keamanan (OTP) |
 | `repairdb` | Memperbaiki database yang rusak |
 | `execsql` | Menjalankan pernyataan SQL pada database yang dipilih |
-| `migratedb` | Migrasi database offline SQLite → MySQL (`--dry-run` hanya untuk estimasi, `--force` untuk menimpa) |
+| `migratedb` | Migrasi database offline SQLite → MySQL / SQLite → PostgreSQL / MySQL → PostgreSQL (`--dry-run` hanya untuk estimasi, `--force` untuk menimpa) |
 | `rollback` | Mengembalikan ke versi cadangan sebelumnya |
 
 Contoh: `SamWaf64.exe resetpwd` (di Linux: `./SamWafLinux64 resetpwd`)

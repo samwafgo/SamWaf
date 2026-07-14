@@ -207,7 +207,7 @@ var (
 	GWAF_PWD_STATDB = "3Y)(27EtO^tK8Bj~STAT" //加密
 	GWAF_PWD_LOGDB  = "3Y)(27EtO^tK8Bj~LOG"  //加密
 
-	// Database driver: "sqlite" | "mysql" | "sqlserver" (default: sqlite)
+	// Database driver: "sqlite" | "mysql" | "postgres" (default: sqlite)
 	GWAF_DB_DRIVER string = "sqlite"
 
 	// MySQL connection config (populated from conf/config.yml database.mysql.*)
@@ -222,6 +222,27 @@ var (
 	GWAF_MYSQL_MAX_OPEN_CONNS            int    = 50
 	GWAF_MYSQL_MAX_IDLE_CONNS            int    = 10
 	GWAF_MYSQL_CONN_MAX_LIFETIME_MINUTES int    = 60
+
+	// PostgreSQL connection config (populated from conf/config.yml database.postgres.*)
+	GWAF_PG_HOST     string = "127.0.0.1"
+	GWAF_PG_PORT     int    = 5432
+	GWAF_PG_USER     string = "postgres"
+	GWAF_PG_PASSWORD string = ""
+	GWAF_PG_SSLMODE  string = "disable"
+	// GWAF_PG_TIMEZONE pins the session time zone. It is load-bearing, not cosmetic:
+	// timestamptz values come back in the session zone and customtype.JsonTime renders
+	// whatever Location it is handed, so a wrong value silently shifts every timestamp
+	// shown in the UI. Overridable via database.postgres.timezone.
+	GWAF_PG_TIMEZONE string = "Asia/Shanghai"
+	// GWAF_PG_MAINTENANCE_DB is the database connected to in order to CREATE DATABASE
+	// (PostgreSQL cannot create a database from a connection to that same database).
+	GWAF_PG_MAINTENANCE_DB            string = "postgres"
+	GWAF_PG_CORE_DB                   string = "samwaf_core"
+	GWAF_PG_LOG_DB                    string = "samwaf_log"
+	GWAF_PG_STATS_DB                  string = "samwaf_stats"
+	GWAF_PG_MAX_OPEN_CONNS            int    = 50
+	GWAF_PG_MAX_IDLE_CONNS            int    = 10
+	GWAF_PG_CONN_MAX_LIFETIME_MINUTES int    = 60
 
 	//默认创建的账户和密码
 	GWAF_DEFAULT_ACCOUNT      string = "admin"         //默认创建的账户

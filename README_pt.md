@@ -28,7 +28,7 @@ Um firewall de aplicação web leve e de código aberto
 Em resumo, o objetivo era criar uma ferramenta eficaz de proteção para sites ou APIs, capaz de lidar com situações anormais e garantir o funcionamento normal de sites e aplicações.
 
 # Apresentação do Software
-O SamWaf é um firewall de aplicação web leve e de código aberto para pequenas empresas, estúdios e sites pessoais. Ele suporta implantação totalmente privada, criptografa os dados armazenados localmente, é fácil de iniciar e suporta Linux, Windows 64 bits e ARM64, com imagens Docker disponíveis. Por padrão, utiliza um banco de dados SQLite embutido e criptografado, sem nenhuma dependência externa, podendo opcionalmente ser trocado por MySQL.
+O SamWaf é um firewall de aplicação web leve e de código aberto para pequenas empresas, estúdios e sites pessoais. Ele suporta implantação totalmente privada, criptografa os dados armazenados localmente, é fácil de iniciar e suporta Linux, Windows 64 bits e ARM64, com imagens Docker disponíveis. Por padrão, utiliza um banco de dados SQLite embutido e criptografado, sem nenhuma dependência externa, podendo opcionalmente ser trocado por MySQL / PostgreSQL.
 
 ## Arquitetura
 
@@ -150,7 +150,7 @@ O SamWaf é um firewall de aplicação web leve e de código aberto para pequena
 - RBAC de contas, autenticação de dois fatores com OTP, logs de login/operações
 - Relatórios estatísticos e monitoramento de sistema/hosts
 - Política de retenção de dados com fragmentação (sharding) e arquivamento automáticos de logs
-- SQLite (criptografado) por padrão, MySQL opcional, com ferramenta integrada de migração SQLite→MySQL
+- SQLite (criptografado) por padrão, MySQL / PostgreSQL opcional, com ferramenta integrada de migração SQLite→MySQL / SQLite→PostgreSQL / MySQL→PostgreSQL
 - Atualização online com um clique, reinício gradual sem tempo de inatividade e reversão de versão
 - Tarefas em lote, tarefas agendadas e backup de dados
 - API aberta
@@ -226,7 +226,7 @@ Tags:
 | `resetotp` | Redefine o código de segurança (OTP) |
 | `repairdb` | Repara um banco de dados corrompido |
 | `execsql` | Executa instruções SQL em um banco de dados selecionado |
-| `migratedb` | Migração offline de banco de dados SQLite → MySQL (`--dry-run` para apenas estimar, `--force` para sobrescrever) |
+| `migratedb` | Migração offline de banco de dados SQLite → MySQL / SQLite → PostgreSQL / MySQL → PostgreSQL (`--dry-run` para apenas estimar, `--force` para sobrescrever) |
 | `rollback` | Reverte para uma versão de backup anterior |
 
 Exemplo: `SamWaf64.exe resetpwd` (no Linux: `./SamWafLinux64 resetpwd`)

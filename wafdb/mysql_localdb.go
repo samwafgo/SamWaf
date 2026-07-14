@@ -174,11 +174,18 @@ func ensureMySQLDatabase(dbName string) error {
 }
 
 // openMySQLDB opens a GORM connection to the named MySQL database,
-// applying connection pool settings from global config.
+// creating the database first if it does not exist.
 func openMySQLDB(dbName string) (*gorm.DB, error) {
 	if err := ensureMySQLDatabase(dbName); err != nil {
 		return nil, err
 	}
+	return openMySQLDBRaw(dbName)
+}
+
+// openMySQLDBRaw opens the database without trying to create it, applying connection
+// pool settings from global config. Used when MySQL is a migration *source*: reading
+// from an existing database must never attempt a CREATE DATABASE.
+func openMySQLDBRaw(dbName string) (*gorm.DB, error) {
 	dsn := dialect.BuildMySQLDSN(
 		global.GWAF_MYSQL_HOST, global.GWAF_MYSQL_PORT,
 		global.GWAF_MYSQL_USER, global.GWAF_MYSQL_PASSWORD,

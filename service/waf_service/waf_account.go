@@ -10,6 +10,7 @@ import (
 	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
 	"SamWaf/utils"
+	"SamWaf/wafdb/dialect"
 	"errors"
 	"fmt"
 	"os"
@@ -243,7 +244,7 @@ func (receiver *WafAccountService) ChangeMyPasswordApi(loginAccount, oldPlain, n
 func (receiver *WafAccountService) ResetPwdApi(req request.WafAccountResetPwdReq) error {
 
 	var superAccount model.Account
-	global.GWAF_LOCAL_DB.Where("`role` = ?", enums.ROLE_SUPER_ADMIN).First(&superAccount)
+	global.GWAF_LOCAL_DB.Where(dialect.Q("role")+" = ?", enums.ROLE_SUPER_ADMIN).First(&superAccount)
 	if !receiver.VerifyPassword(superAccount.LoginPassword, req.LoginSuperPassword) {
 		return errors.New("超级管理员密码不正确")
 	}

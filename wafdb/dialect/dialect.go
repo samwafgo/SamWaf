@@ -82,7 +82,42 @@ type DBDialect interface {
 	//   SQLite:    "tbl INDEXED BY idx"
 	//   MySQL:     "tbl FORCE INDEX (idx)"
 	//   SQL Server:"tbl WITH (INDEX(idx))"
+	// PostgreSQL has no index hints: it returns the bare table name.
 	ForceIndexClause(table, idx string) string
+
+	// Quote wraps an identifier in the engine's quoting characters.
+	//   SQLite / PostgreSQL: "x"
+	//   MySQL:               `x`
+	Quote(ident string) string
+
+	// BatchDeleteSQL builds a "delete at most limit rows matching where" statement.
+	// where is a caller-built fragment that may contain ? placeholders; it appears
+	// exactly once in the result on every engine, so the caller's argument list is
+	// identical across dialects.
+	//
+	// Not every table has a primary key (innerbean.WebLog / web_logs has none), so
+	// this cannot key off an id column and must use each engine's physical row handle:
+	//   SQLite:     DELETE FROM t WHERE rowid IN (SELECT rowid FROM t WHERE <where> LIMIT n)
+	//   PostgreSQL: DELETE FROM t WHERE ctid  IN (SELECT ctid  FROM t WHERE <where> LIMIT n)
+	//   MySQL:      DELETE FROM t WHERE <where> LIMIT n
+	// MySQL has no row-handle pseudo-column and rejects a LIMIT-bearing subquery on the
+	// table being deleted from (error 1093), hence the flat DELETE ... LIMIT form.
+	BatchDeleteSQL(table, where string, limit int) string
+
+	// GroupConcatDistinct aggregates expr into one comma-separated string, de-duplicated.
+	//   SQLite / MySQL: GROUP_CONCAT(DISTINCT expr)
+	//   PostgreSQL:     string_agg(DISTINCT expr, ',')
+	GroupConcatDistinct(expr string) string
+
+	// InsertIgnoreSQL builds a multi-row INSERT that silently skips rows conflicting
+	// with an existing primary/unique key, so a re-run is idempotent.
+	//   SQLite:     INSERT OR IGNORE INTO t (cols) VALUES (...),(...)
+	//   MySQL:      INSERT IGNORE INTO t (cols) VALUES (...),(...)
+	//   PostgreSQL: INSERT INTO t (cols) VALUES (...),(...) ON CONFLICT DO NOTHING
+	// quotedCols and rowPlaceholders are pre-built, already-quoted SQL fragments.
+	// Note: with no unique key there is nothing to conflict on, so this degrades to a
+	// plain INSERT (web_logs has no primary key on any engine).
+	InsertIgnoreSQL(table, quotedCols, rowPlaceholders string) string
 
 	// FormatLocalTime returns a SQL expression that renders a DATETIME column as
 	// 'YYYY-MM-DD HH:MM:SS' in local time, matching customtype.JsonTime.MarshalJSON.

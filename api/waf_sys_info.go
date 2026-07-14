@@ -171,11 +171,15 @@ func (w *WafSysInfoApi) CheckVersionApi(c *gin.Context) {
 // SystemParamsApi 返回认证后才能获取的系统参数（可扩展）
 // GET /api/v1/sysinfo/systemparams
 func (w *WafSysInfoApi) SystemParamsApi(c *gin.Context) {
-	// 当前数据库（sqlite|mysql），mysql 额外给出连接目标（不含密码）
+	// 当前数据库（sqlite|mysql|postgres），服务端数据库额外给出连接目标（不含密码）
 	database := gin.H{"driver": global.GWAF_DB_DRIVER}
-	if global.GWAF_DB_DRIVER == "mysql" {
+	switch global.GWAF_DB_DRIVER {
+	case "mysql":
 		database["host"] = global.GWAF_MYSQL_HOST
 		database["port"] = global.GWAF_MYSQL_PORT
+	case "postgres":
+		database["host"] = global.GWAF_PG_HOST
+		database["port"] = global.GWAF_PG_PORT
 	}
 	// 当前缓存（memory|redis），redis 额外给出连接目标（不含密码）
 	cache := gin.H{"type": global.GCACHE_TYPE}

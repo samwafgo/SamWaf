@@ -17,6 +17,8 @@ func (receiver *WafLogService) GetAttackIpListApi(req request.WafAttackIpTagSear
 	// 基础查询部分（update_time 落库即本地时间，方言层只负责渲染，不做时区换算）
 	firstTimeExpr := dialect.Get().FormatLocalTime("MIN(update_time)")
 	latestTimeExpr := dialect.Get().FormatLocalTime("MAX(update_time)")
+	// 聚合去重拼接：SQLite/MySQL 用 GROUP_CONCAT，PostgreSQL 用 string_agg
+	ipTotalTagExpr := dialect.Get().GroupConcatDistinct("CASE WHEN ip_tag <> '正常' THEN ip_tag END")
 	query := `
 	SELECT
 		tenant_id,
@@ -26,7 +28,7 @@ func (receiver *WafLogService) GetAttackIpListApi(req request.WafAttackIpTagSear
 		SUM(CASE WHEN ip_tag <> '正常' THEN cnt ELSE 0 END) AS deny_num,
 		` + firstTimeExpr + ` AS first_time,
 		` + latestTimeExpr + ` AS latest_time,
-		GROUP_CONCAT(DISTINCT CASE WHEN ip_tag <> '正常' THEN ip_tag END) AS ip_total_tag
+		` + ipTotalTagExpr + ` AS ip_total_tag
 	FROM
 		ip_tags
 	WHERE tenant_id=? and user_code=?`
@@ -170,16 +172,12 @@ func (receiver *WafLogService) DeleteTagByNameApi(tagName string, deleteLogs boo
 		batchSize := 1000 // 每批删除1000条
 
 		for {
-			// 分批删除日志
-			deleteLogQuery := `
-				DELETE FROM web_logs 
-				WHERE rowid IN (
-					SELECT rowid FROM web_logs 
-					WHERE tenant_id=? AND user_code=? AND rule=? 
-					LIMIT ?
-				)
-			`
-			result := global.GWAF_LOCAL_LOG_DB.Exec(deleteLogQuery, global.GWAF_TENANT_ID, global.GWAF_USER_CODE, tagName, batchSize)
+			// 分批删除日志。web_logs 无主键，只能走各引擎的物理行标识（rowid/ctid），
+			// MySQL 两者都没有则退化成 DELETE ... LIMIT —— 统一交给方言层构造。
+			deleteLogQuery := dialect.Get().BatchDeleteSQL(
+				"web_logs", "tenant_id=? AND user_code=? AND rule=?", batchSize,
+			)
+			result := global.GWAF_LOCAL_LOG_DB.Exec(deleteLogQuery, global.GWAF_TENANT_ID, global.GWAF_USER_CODE, tagName)
 
 			if result.Error != nil {
 				return fmt.Errorf("删除关联日志数据失败: %v", result.Error)

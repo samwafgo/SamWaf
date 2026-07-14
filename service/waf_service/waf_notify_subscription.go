@@ -7,6 +7,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
+	"SamWaf/wafdb/dialect"
 	"time"
 )
 
@@ -106,6 +107,6 @@ func (receiver *WafNotifySubscriptionService) DelApi(req request.WafNotifySubscr
 // GetSubscriptionsByMessageType 根据消息类型获取订阅
 func (receiver *WafNotifySubscriptionService) GetSubscriptionsByMessageType(messageType string) []model.NotifySubscription {
 	var subscriptions []model.NotifySubscription
-	global.GWAF_LOCAL_DB.Where("message_type = ? and `status` = ?", messageType, 1).Find(&subscriptions)
+	global.GWAF_LOCAL_DB.Where("message_type = ? and "+dialect.Q("status")+" = ?", messageType, 1).Find(&subscriptions)
 	return subscriptions
 }

@@ -28,7 +28,7 @@ Un firewall de aplicaciones web ligero y de código abierto
 En resumen, el objetivo era crear una herramienta eficaz para la protección de sitios web o API, capaz de gestionar situaciones anómalas y garantizar el funcionamiento normal de los sitios web y las aplicaciones.
 
 # Introducción al software
-SamWaf es un firewall de aplicaciones web ligero y de código abierto para pequeñas empresas, estudios y sitios web personales. Admite un despliegue totalmente privado, cifra los datos almacenados localmente, es fácil de poner en marcha y es compatible con Linux, Windows de 64 bits y ARM64, con imágenes Docker disponibles. De forma predeterminada utiliza una base de datos SQLite cifrada e integrada, sin dependencias externas, y opcionalmente puede cambiarse a MySQL.
+SamWaf es un firewall de aplicaciones web ligero y de código abierto para pequeñas empresas, estudios y sitios web personales. Admite un despliegue totalmente privado, cifra los datos almacenados localmente, es fácil de poner en marcha y es compatible con Linux, Windows de 64 bits y ARM64, con imágenes Docker disponibles. De forma predeterminada utiliza una base de datos SQLite cifrada e integrada, sin dependencias externas, y opcionalmente puede cambiarse a MySQL / PostgreSQL.
 
 ## Arquitectura
 
@@ -150,7 +150,7 @@ SamWaf es un firewall de aplicaciones web ligero y de código abierto para peque
 - RBAC de cuentas, autenticación de dos factores OTP, registros de inicio de sesión y de operaciones
 - Informes estadísticos y monitorización del sistema y de los hosts
 - Política de retención de datos con particionado y archivado automáticos de los registros
-- SQLite (cifrado) por defecto, MySQL opcional, con una herramienta integrada de migración SQLite→MySQL
+- SQLite (cifrado) por defecto, MySQL / PostgreSQL opcional, con una herramienta integrada de migración SQLite→MySQL / SQLite→PostgreSQL / MySQL→PostgreSQL
 - Actualización en línea con un clic, reinicio continuo sin tiempo de inactividad y reversión de versiones
 - Tareas por lotes, tareas programadas y copia de seguridad de datos
 - API abierta
@@ -226,7 +226,7 @@ Etiquetas:
 | `resetotp` | Restablecer el código de seguridad (OTP) |
 | `repairdb` | Reparar una base de datos dañada |
 | `execsql` | Ejecutar sentencias SQL en una base de datos seleccionada |
-| `migratedb` | Migración de base de datos sin conexión SQLite → MySQL (`--dry-run` para solo estimar, `--force` para sobrescribir) |
+| `migratedb` | Migración de base de datos sin conexión SQLite → MySQL / SQLite → PostgreSQL / MySQL → PostgreSQL (`--dry-run` para solo estimar, `--force` para sobrescribir) |
 | `rollback` | Revertir a una versión de copia de seguridad anterior |
 
 Ejemplo: `SamWaf64.exe resetpwd` (en Linux: `./SamWafLinux64 resetpwd`)

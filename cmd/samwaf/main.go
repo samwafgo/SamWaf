@@ -1176,14 +1176,18 @@ func main() {
 			fmt.Println("\n💻 SQL 执行工具")
 			fmt.Println("可以在指定数据库上执行 SQL 语句\n")
 			wafdb.ExecuteSQLCommand("")
-		case "migratedb": // 离线迁移：SQLite → MySQL
+		case "migratedb": // 离线迁移：SQLite→MySQL / SQLite→PostgreSQL / MySQL→PostgreSQL
 			opts := wafdb.MigrateOptions{}
 			for _, arg := range os.Args[2:] {
-				switch arg {
-				case "--dry-run":
+				switch {
+				case arg == "--dry-run":
 					opts.DryRun = true
-				case "--force":
+				case arg == "--force":
 					opts.Force = true
+				case strings.HasPrefix(arg, "--from="):
+					opts.From = strings.TrimPrefix(arg, "--from=")
+				case strings.HasPrefix(arg, "--to="):
+					opts.To = strings.TrimPrefix(arg, "--to=")
 				}
 			}
 			if err := wafdb.RunMigrateDB(opts); err != nil {
@@ -1271,7 +1275,10 @@ func main() {
 			fmt.Println("  resetotp  - 重置安全码")
 			fmt.Println("  repairdb  - 修复损坏的数据库")
 			fmt.Println("  execsql   - 执行SQL语句（支持SELECT/UPDATE/DELETE等）")
-			fmt.Println("  migratedb - 离线迁移数据库（SQLite → MySQL，需先在 config.yml 设 driver: mysql）")
+			fmt.Println("  migratedb - 离线迁移数据库（不带参数则交互式选择迁移方向）")
+			fmt.Println("              支持方向: SQLite→MySQL / SQLite→PostgreSQL / MySQL→PostgreSQL")
+			fmt.Println("              --from=sqlite|mysql     迁移源（缺省则交互式选择）")
+			fmt.Println("              --to=mysql|postgres     迁移目标（缺省则交互式选择）")
 			fmt.Println("              --dry-run  只做预估，不写入数据")
 			fmt.Println("              --force    目标表已有数据时强制覆盖")
 			fmt.Println("  rollback  - 回退到历史版本 (--list 列出, --version=v1.x.x 指定版本)")

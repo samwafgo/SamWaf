@@ -9,6 +9,7 @@ import (
 	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
 	"SamWaf/utils"
+	"SamWaf/wafdb/dialect"
 	"encoding/json"
 	"errors"
 	"strconv"
@@ -415,10 +416,10 @@ func (receiver *WafHostService) GetAllSSLHost() ([]model.Hosts, int64, error) {
 	/**排序*/
 	orderInfo := "create_time desc"
 
-	if err := global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where("`ssl` = ? ", 1).Order(orderInfo).Find(&list).Error; err != nil {
+	if err := global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where(dialect.Q("ssl")+" = ? ", 1).Order(orderInfo).Find(&list).Error; err != nil {
 		return nil, 0, err
 	}
-	if err := global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where("`ssl` = ? ", 1).Count(&total).Error; err != nil {
+	if err := global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where(dialect.Q("ssl")+" = ? ", 1).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
@@ -433,10 +434,10 @@ func (receiver *WafHostService) GetAllSSLBindHost() ([]model.Hosts, int64, error
 	/**排序*/
 	orderInfo := "create_time desc"
 
-	if err := global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where("`ssl` = ? and bind_ssl_id <> ?", 1, "").Order(orderInfo).Find(&list).Error; err != nil {
+	if err := global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where(dialect.Q("ssl")+" = ? and bind_ssl_id <> ?", 1, "").Order(orderInfo).Find(&list).Error; err != nil {
 		return nil, 0, err
 	}
-	if err := global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where("`ssl` = ? and bind_ssl_id <> ?", 1, "").Count(&total).Error; err != nil {
+	if err := global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where(dialect.Q("ssl")+" = ? and bind_ssl_id <> ?", 1, "").Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 

@@ -28,7 +28,7 @@ Eine leichtgewichtige Open-Source-Web-Application-Firewall
 Kurz gesagt: Ziel war es, ein wirksames Werkzeug zum Schutz von Websites oder APIs zu schaffen, um mit anormalen Situationen umzugehen und den normalen Betrieb von Websites und Anwendungen sicherzustellen.
 
 # Software-Einführung
-SamWaf ist eine leichtgewichtige Open-Source-Web-Application-Firewall für kleine Unternehmen, Studios und private Websites. Sie unterstützt eine vollständig private Bereitstellung, verschlüsselt lokal gespeicherte Daten, ist einfach zu starten und unterstützt Linux, Windows 64-Bit und ARM64; Docker-Images sind verfügbar. Standardmäßig verwendet sie eine eingebettete, verschlüsselte SQLite-Datenbank ohne jegliche externe Abhängigkeiten und kann optional auf MySQL umgestellt werden.
+SamWaf ist eine leichtgewichtige Open-Source-Web-Application-Firewall für kleine Unternehmen, Studios und private Websites. Sie unterstützt eine vollständig private Bereitstellung, verschlüsselt lokal gespeicherte Daten, ist einfach zu starten und unterstützt Linux, Windows 64-Bit und ARM64; Docker-Images sind verfügbar. Standardmäßig verwendet sie eine eingebettete, verschlüsselte SQLite-Datenbank ohne jegliche externe Abhängigkeiten und kann optional auf MySQL / PostgreSQL umgestellt werden.
 
 ## Architektur
 
@@ -150,7 +150,7 @@ SamWaf ist eine leichtgewichtige Open-Source-Web-Application-Firewall für klein
 - RBAC für Konten, OTP-Zwei-Faktor-Authentifizierung, Anmelde- und Aktionsprotokolle
 - Statistikberichte sowie System- und Host-Überwachung
 - Datenaufbewahrungsrichtlinie mit automatischem Log-Sharding und automatischer Archivierung
-- Standardmäßig SQLite (verschlüsselt), optional MySQL, mit integriertem Migrationswerkzeug für SQLite→MySQL
+- Standardmäßig SQLite (verschlüsselt), optional MySQL / PostgreSQL, mit integriertem Migrationswerkzeug für SQLite→MySQL / SQLite→PostgreSQL / MySQL→PostgreSQL
 - Online-Upgrade per Klick, Rolling-Restart ohne Ausfallzeit und Versions-Rollback
 - Batch-Aufgaben, geplante Aufgaben und Datensicherung
 - Offene API
@@ -226,7 +226,7 @@ Tags:
 | `resetotp` | Sicherheitscode (OTP) zurücksetzen |
 | `repairdb` | Beschädigte Datenbank reparieren |
 | `execsql` | SQL-Anweisungen auf einer ausgewählten Datenbank ausführen |
-| `migratedb` | Offline-Datenbankmigration SQLite → MySQL (`--dry-run` nur zur Abschätzung, `--force` zum Überschreiben) |
+| `migratedb` | Offline-Datenbankmigration SQLite → MySQL / SQLite → PostgreSQL / MySQL → PostgreSQL (`--dry-run` nur zur Abschätzung, `--force` zum Überschreiben) |
 | `rollback` | Auf eine frühere Sicherungsversion zurücksetzen |
 
 Beispiel: `SamWaf64.exe resetpwd` (unter Linux: `./SamWafLinux64 resetpwd`)

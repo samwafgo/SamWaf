@@ -5,6 +5,7 @@ import (
 	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/model"
+	"SamWaf/wafdb/dialect"
 	"fmt"
 	"regexp"
 	"time"
@@ -174,9 +175,8 @@ func cleanByDays(db *gorm.DB, policy *model.DataRetentionPolicy) (int64, error) 
 		zlog.Info("cleanByDays(int_day)", "table", table, "threshold", threshold, "field", policy.DayField)
 
 		for {
-			sql := fmt.Sprintf(
-				"DELETE FROM %s WHERE rowid IN (SELECT rowid FROM %s WHERE %s < ? LIMIT %d)",
-				table, table, policy.DayField, cleanupBatchSize,
+			sql := dialect.Get().BatchDeleteSQL(
+				table, fmt.Sprintf("%s < ?", policy.DayField), cleanupBatchSize,
 			)
 			result := db.Exec(sql, threshold)
 			if result.Error != nil {
@@ -195,9 +195,8 @@ func cleanByDays(db *gorm.DB, policy *model.DataRetentionPolicy) (int64, error) 
 		zlog.Info("cleanByDays(datetime)", "table", table, "threshold", threshold.Format("2006-01-02"), "field", policy.DayField)
 
 		for {
-			sql := fmt.Sprintf(
-				"DELETE FROM %s WHERE rowid IN (SELECT rowid FROM %s WHERE %s < ? LIMIT %d)",
-				table, table, policy.DayField, cleanupBatchSize,
+			sql := dialect.Get().BatchDeleteSQL(
+				table, fmt.Sprintf("%s < ?", policy.DayField), cleanupBatchSize,
 			)
 			result := db.Exec(sql, threshold)
 			if result.Error != nil {
@@ -264,9 +263,8 @@ func cleanByRows(db *gorm.DB, policy *model.DataRetentionPolicy) (int64, error) 
 			return 0, nil
 		}
 
-		deleteSQL := fmt.Sprintf(
-			"DELETE FROM %s WHERE rowid IN (SELECT rowid FROM %s WHERE %s %s ? LIMIT %d)",
-			table, table, policy.RowOrderField, compareOp, cleanupBatchSize,
+		deleteSQL := dialect.Get().BatchDeleteSQL(
+			table, fmt.Sprintf("%s %s ?", policy.RowOrderField, compareOp), cleanupBatchSize,
 		)
 		for {
 			result := db.Exec(deleteSQL, thresholdVal)
@@ -290,9 +288,8 @@ func cleanByRows(db *gorm.DB, policy *model.DataRetentionPolicy) (int64, error) 
 			return 0, nil
 		}
 
-		deleteSQL := fmt.Sprintf(
-			"DELETE FROM %s WHERE rowid IN (SELECT rowid FROM %s WHERE %s %s ? LIMIT %d)",
-			table, table, policy.RowOrderField, compareOp, cleanupBatchSize,
+		deleteSQL := dialect.Get().BatchDeleteSQL(
+			table, fmt.Sprintf("%s %s ?", policy.RowOrderField, compareOp), cleanupBatchSize,
 		)
 		for {
 			result := db.Exec(deleteSQL, thresholdVal)

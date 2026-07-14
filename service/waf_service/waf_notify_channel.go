@@ -8,6 +8,7 @@ import (
 	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
 	"SamWaf/utils"
+	"SamWaf/wafdb/dialect"
 	"SamWaf/wafnotify/dingtalk"
 	"SamWaf/wafnotify/email"
 	"SamWaf/wafnotify/feishu"
@@ -175,6 +176,6 @@ func (receiver *WafNotifyChannelService) TestChannelApi(req request.WafNotifyCha
 // GetAllChannels 获取所有启用的通知渠道
 func (receiver *WafNotifyChannelService) GetAllChannels() []model.NotifyChannel {
 	var channels []model.NotifyChannel
-	global.GWAF_LOCAL_DB.Where("`status` = ?", 1).Find(&channels)
+	global.GWAF_LOCAL_DB.Where(dialect.Q("status")+" = ?", 1).Find(&channels)
 	return channels
 }

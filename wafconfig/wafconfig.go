@@ -376,6 +376,49 @@ func LoadAndInitConfig() {
 		}
 	}
 
+	if global.GWAF_DB_DRIVER == "postgres" {
+		// PostgreSQL 连接参数（有默认值，仅在 config.yml 有对应键时才覆盖）
+		if config.IsSet("database.postgres.host") {
+			global.GWAF_PG_HOST = config.GetString("database.postgres.host")
+		}
+		if config.IsSet("database.postgres.port") {
+			global.GWAF_PG_PORT = config.GetInt("database.postgres.port")
+		}
+		if config.IsSet("database.postgres.user") {
+			global.GWAF_PG_USER = config.GetString("database.postgres.user")
+		}
+		if config.IsSet("database.postgres.password") {
+			global.GWAF_PG_PASSWORD = config.GetString("database.postgres.password")
+		}
+		if config.IsSet("database.postgres.sslmode") {
+			global.GWAF_PG_SSLMODE = config.GetString("database.postgres.sslmode")
+		}
+		if config.IsSet("database.postgres.timezone") {
+			global.GWAF_PG_TIMEZONE = config.GetString("database.postgres.timezone")
+		}
+		if config.IsSet("database.postgres.maintenance_db") {
+			global.GWAF_PG_MAINTENANCE_DB = config.GetString("database.postgres.maintenance_db")
+		}
+		if config.IsSet("database.postgres.core_db") {
+			global.GWAF_PG_CORE_DB = config.GetString("database.postgres.core_db")
+		}
+		if config.IsSet("database.postgres.log_db") {
+			global.GWAF_PG_LOG_DB = config.GetString("database.postgres.log_db")
+		}
+		if config.IsSet("database.postgres.stats_db") {
+			global.GWAF_PG_STATS_DB = config.GetString("database.postgres.stats_db")
+		}
+		if config.IsSet("database.postgres.max_open_conns") {
+			global.GWAF_PG_MAX_OPEN_CONNS = config.GetInt("database.postgres.max_open_conns")
+		}
+		if config.IsSet("database.postgres.max_idle_conns") {
+			global.GWAF_PG_MAX_IDLE_CONNS = config.GetInt("database.postgres.max_idle_conns")
+		}
+		if config.IsSet("database.postgres.conn_max_lifetime_minutes") {
+			global.GWAF_PG_CONN_MAX_LIFETIME_MINUTES = config.GetInt("database.postgres.conn_max_lifetime_minutes")
+		}
+	}
+
 	// 只有在配置发生变化时才写入文件（提前写，dialect 注册在下方）
 	if configChanged {
 		err := config.WriteConfig()
@@ -393,7 +436,20 @@ func LoadAndInitConfig() {
 		dialect.Register(&dialect.MySQLDialect{})
 		fmt.Printf("%s\tINFO\t数据库驱动: MySQL (%s:%d)\n",
 			currentTime, global.GWAF_MYSQL_HOST, global.GWAF_MYSQL_PORT)
+	case "postgres":
+		dialect.Register(&dialect.PostgresDialect{})
+		// 时区必须打出来：它决定 timestamptz 的渲染时区，配错不会报错，
+		// 只会让界面上所有时间静默偏移，是最难发现的一类问题。
+		fmt.Printf("%s\tINFO\t数据库驱动: PostgreSQL (%s:%d, timezone=%s)\n",
+			currentTime, global.GWAF_PG_HOST, global.GWAF_PG_PORT, global.GWAF_PG_TIMEZONE)
+	case "sqlite", "":
+		dialect.Register(&dialect.SQLiteDialect{})
 	default:
+		// 不认识的 driver 不能静默降级成 SQLite：那样 "postgre" 这种笔误会让用户
+		// 以为在跑 PG，实际数据全写进了本地 SQLite 文件。
+		fmt.Printf("%s\tWARN\t未知的数据库驱动 %q，已回退到 SQLite。可选值: sqlite | mysql | postgres\n",
+			currentTime, global.GWAF_DB_DRIVER)
+		global.GWAF_DB_DRIVER = "sqlite"
 		dialect.Register(&dialect.SQLiteDialect{})
 	}
 }

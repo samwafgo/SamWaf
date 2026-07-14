@@ -1359,12 +1359,15 @@ func cleanupDuplicateIPTags(tx *gorm.DB) error {
 
 	// 检查是否存在重复数据
 	var duplicateCount int64
+	// HAVING 必须写 COUNT(*) 而不是 SELECT 里的别名 cnt：
+	// SQLite/MySQL 容忍在 HAVING 中引用 SELECT 别名，PostgreSQL 不允许。
+	// COUNT(*) 三个引擎都合法。
 	err := tx.Raw(`
 		SELECT COUNT(*) FROM (
 			SELECT user_code, tenant_id, ip, ip_tag, COUNT(*) as cnt
 			FROM ip_tags
 			GROUP BY user_code, tenant_id, ip, ip_tag
-			HAVING cnt > 1
+			HAVING COUNT(*) > 1
 		) AS t
 	`).Scan(&duplicateCount).Error
 

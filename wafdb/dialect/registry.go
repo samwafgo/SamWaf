@@ -17,3 +17,14 @@ func Get() DBDialect {
 	}
 	return current
 }
+
+// Q quotes an identifier with the active dialect's quoting characters.
+//
+// Use it in hand-written SQL fragments for column names that are reserved words in
+// some engine — `key`, `ssl`, `role`, `status`. Hard-coding MySQL back-ticks there
+// breaks PostgreSQL, which reads ` as an operator ("operator does not exist: `").
+//
+//	db.Where(dialect.Q("status")+" = ?", "active")
+func Q(ident string) string {
+	return Get().Quote(ident)
+}

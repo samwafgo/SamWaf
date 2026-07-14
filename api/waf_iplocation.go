@@ -21,7 +21,9 @@ type WafIPLocationApi struct {
 // ipdbStatusResponse 在 DBStatus 基础上追加文件存在信息
 type ipdbStatusResponse struct {
 	iplocation.DBStatus
-	FileExists map[string]bool `json:"file_exists"`
+	FileExists map[string]bool `json:"file_exists"` // 磁盘上是否有用户上传的文件
+	// BuiltinExists 该数据文件是否有内置数据兜底（随程序发布，无需上传）
+	BuiltinExists map[string]bool `json:"builtin_exists"`
 }
 
 // IPDBConfigResp IP 数据库配置项响应
@@ -72,8 +74,9 @@ func getConfigOrDefault(item, def string) string {
 	return bean.Value
 }
 
-// sourceFileExists 检查指定 ip 类型与 source 对应的物理文件是否存在
-func sourceFileExists(ipType, source, dataDir string) bool {
+// sourceDataAvailable 检查指定 ip 类型与 source 的数据是否可用。
+// 可用 = 磁盘上有上传的文件，或该来源有内置数据兜底（全新安装即属后者）。
+func sourceDataAvailable(ipType, source, dataDir string) bool {
 	var fileName string
 	switch source {
 	case "ip2region":
@@ -89,8 +92,10 @@ func sourceFileExists(ipType, source, dataDir string) bool {
 	default:
 		return false
 	}
-	_, err := os.Stat(filepath.Join(dataDir, fileName))
-	return err == nil
+	if _, err := os.Stat(filepath.Join(dataDir, fileName)); err == nil {
+		return true
+	}
+	return iplocation.HasBuiltinSource(ipType, source)
 }
 
 // reloadManagerByCurrentConfig 根据 global 中当前的 source/format 重新加载 manager
@@ -164,10 +169,18 @@ func (w *WafIPLocationApi) GetIPDBStatusApi(c *gin.Context) {
 		"geolite2":     checkFile("GeoLite2-Country.mmdb"),
 		"ipdb":         checkFile("iplocation.ipdb"),
 	}
+	// 磁盘无文件时哪些来源仍有内置数据可用（全新安装即走这里）
+	builtinExists := map[string]bool{
+		"ip2region_v4": iplocation.HasBuiltinFile("ip2region_v4"),
+		"ip2region_v6": iplocation.HasBuiltinFile("ip2region_v6"),
+		"geolite2":     iplocation.HasBuiltinFile("geolite2"),
+		"ipdb":         iplocation.HasBuiltinFile("ipdb"),
+	}
 
 	response.OkWithDetailed(ipdbStatusResponse{
-		DBStatus:   *status,
-		FileExists: fileExists,
+		DBStatus:      *status,
+		FileExists:    fileExists,
+		BuiltinExists: builtinExists,
 	}, "获取成功", c)
 }
 
@@ -202,13 +215,13 @@ func (w *WafIPLocationApi) SaveIPDBConfigApi(c *gin.Context) {
 		return
 	}
 
-	// 文件存在性兜底校验
+	// 数据可用性兜底校验（磁盘文件或内置数据）
 	dataDir := filepath.Join(utils.GetCurrentDir(), "data")
-	if !sourceFileExists("ipv4", req.Ipv4Source, dataDir) {
+	if !sourceDataAvailable("ipv4", req.Ipv4Source, dataDir) {
 		response.FailWithMessage("IPv4 所选来源的数据库文件不存在，请先上传", c)
 		return
 	}
-	if !sourceFileExists("ipv6", req.Ipv6Source, dataDir) {
+	if !sourceDataAvailable("ipv6", req.Ipv6Source, dataDir) {
 		response.FailWithMessage("IPv6 所选来源的数据库文件不存在，请先上传", c)
 		return
 	}

@@ -42,10 +42,12 @@ type DBStatus struct {
 	IPv4FileSize   int64  `json:"ipv4_file_size"`
 	IPv4LoadTime   string `json:"ipv4_load_time"`
 	IPv4CreateTime string `json:"ipv4_create_time"`
+	IPv4Builtin    bool   `json:"ipv4_builtin"` // 当前 IPv4 后端来自内置数据而非磁盘文件
 
 	IPv6Source     string `json:"ipv6_source"`
 	IPv6Format     string `json:"ipv6_format"`
 	IPv6FileSize   int64  `json:"ipv6_file_size"`
 	IPv6LoadTime   string `json:"ipv6_load_time"`
 	IPv6CreateTime string `json:"ipv6_create_time"`
+	IPv6Builtin    bool   `json:"ipv6_builtin"` // 当前 IPv6 后端来自内置数据而非磁盘文件
 }

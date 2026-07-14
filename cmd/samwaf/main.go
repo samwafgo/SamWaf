@@ -154,36 +154,59 @@ func (m *wafSystenService) run() {
 	//初始化步骤[加载ip数据库]
 	// 创建 IP Location Manager
 	global.GIPLOCATION_MANAGER = iplocation.NewManager()
+	// 注册内置数据库，供 manager 在磁盘无文件时兜底加载
+	iplocation.SetBuiltinData(Ip2regionBytes, Ipv6CountryBytes)
 
-	// 加载 IPv4 数据库
-	ip2RegionFilePath := filepath.Join(utils.GetCurrentDir(), "data", "ip2region.xdb")
-	var ipv4Data []byte
-	if _, err := os.Stat(ip2RegionFilePath); os.IsNotExist(err) {
-		// 使用内置数据
-		ipv4Data = Ip2regionBytes
-		zlog.Info("Using embedded IPv4 database, size: ", len(ipv4Data))
-	} else {
-		// 读取外部文件
-		fileBytes, err := ioutil.ReadFile(ip2RegionFilePath)
-		if err != nil {
-			log.Fatalf("Failed to read IP database file ip2region.xdb: %v", err)
-		}
-		ipv4Data = fileBytes
-		zlog.Info("IPv4 database ip2region.xdb loaded from file, size: ", len(ipv4Data), ip2RegionFilePath)
-	}
-
-	// 根据配置加载 IPv4 数据库
+	// 根据配置加载 IPv4 数据库：每种来源读各自的文件，磁盘无文件时回落到内置数据
 	if global.GCONFIG_IP_V4_SOURCE == "ip2region" {
+		ip2RegionFilePath := filepath.Join(utils.GetCurrentDir(), "data", "ip2region.xdb")
+		var ipv4Data []byte
+		ipv4FromBuiltin := false
+		if _, err := os.Stat(ip2RegionFilePath); os.IsNotExist(err) {
+			// 使用内置数据
+			ipv4Data = Ip2regionBytes
+			ipv4FromBuiltin = true
+			zlog.Info("Using embedded IPv4 ip2region database, size: ", len(ipv4Data))
+		} else {
+			// 读取外部文件
+			fileBytes, err := ioutil.ReadFile(ip2RegionFilePath)
+			if err != nil {
+				log.Fatalf("Failed to read IP database file ip2region.xdb: %v", err)
+			}
+			ipv4Data = fileBytes
+			zlog.Info("IPv4 database ip2region.xdb loaded from file, size: ", len(ipv4Data), ip2RegionFilePath)
+		}
+
 		err := global.GIPLOCATION_MANAGER.LoadV4Ip2Region(ipv4Data, iplocation.DBFormat(global.GCONFIG_IP_V4_FORMAT))
 		if err != nil {
 			log.Fatalf("Failed to load IPv4 ip2region database: %v", err)
 		}
+		global.GIPLOCATION_MANAGER.SetV4Builtin(ipv4FromBuiltin)
 		zlog.Info("IPv4 ip2region database loaded successfully")
 	} else if global.GCONFIG_IP_V4_SOURCE == "geolite2" {
+		// GeoLite2 读的是 mmdb，与 ip2region.xdb 是两种格式，不能混用同一份字节
+		ipv4GeoLitePath := filepath.Join(utils.GetCurrentDir(), "data", "GeoLite2-Country.mmdb")
+		var ipv4Data []byte
+		ipv4FromBuiltin := false
+		if _, err := os.Stat(ipv4GeoLitePath); os.IsNotExist(err) {
+			// 内置 GeoLite2-Country.mmdb，IPv4/IPv6 共用同一份
+			ipv4Data = Ipv6CountryBytes
+			ipv4FromBuiltin = true
+			zlog.Info("Using embedded IPv4 GeoLite2 database, size: ", len(ipv4Data))
+		} else {
+			fileBytes, err := ioutil.ReadFile(ipv4GeoLitePath)
+			if err != nil {
+				log.Fatalf("Failed to read IPv4 GeoLite2 database file: %v", err)
+			}
+			ipv4Data = fileBytes
+			zlog.Info("IPv4 GeoLite2 database loaded from file, size: ", len(ipv4Data), ipv4GeoLitePath)
+		}
+
 		err := global.GIPLOCATION_MANAGER.LoadV4GeoLite2(ipv4Data)
 		if err != nil {
 			log.Fatalf("Failed to load IPv4 GeoLite2 database: %v", err)
 		}
+		global.GIPLOCATION_MANAGER.SetV4Builtin(ipv4FromBuiltin)
 		zlog.Info("IPv4 GeoLite2 database loaded successfully")
 	} else if global.GCONFIG_IP_V4_SOURCE == "ipdb" {
 		ipdbPath := filepath.Join(utils.GetCurrentDir(), "data", "iplocation.ipdb")
@@ -211,6 +234,7 @@ func (m *wafSystenService) run() {
 				if err != nil {
 					zlog.Warn("Failed to load IPv6 ip2region database: ", err)
 				} else {
+					global.GIPLOCATION_MANAGER.SetV6Builtin(false)
 					zlog.Info("IPv6 ip2region database loaded successfully, size: ", len(fileBytes))
 				}
 			}
@@ -221,9 +245,11 @@ func (m *wafSystenService) run() {
 		// IPv6 GeoLite2
 		ipv6GeoLitePath := filepath.Join(utils.GetCurrentDir(), "data", "GeoLite2-Country.mmdb")
 		var ipv6Data []byte
+		ipv6FromBuiltin := false
 		if _, err := os.Stat(ipv6GeoLitePath); os.IsNotExist(err) {
 			// 使用内置数据
 			ipv6Data = Ipv6CountryBytes
+			ipv6FromBuiltin = true
 			zlog.Info("Using embedded IPv6 GeoLite2 database, size: ", len(ipv6Data))
 		} else {
 			// 读取外部文件
@@ -239,6 +265,7 @@ func (m *wafSystenService) run() {
 		if err != nil {
 			log.Fatalf("Failed to load IPv6 GeoLite2 database: %v", err)
 		}
+		global.GIPLOCATION_MANAGER.SetV6Builtin(ipv6FromBuiltin)
 		zlog.Info("IPv6 GeoLite2 database loaded successfully")
 	} else if global.GCONFIG_IP_V6_SOURCE == "ipdb" {
 		// 如果 v4 已经加载了 ipdb，跳过重复加载

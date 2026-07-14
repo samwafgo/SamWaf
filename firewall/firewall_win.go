@@ -62,6 +62,34 @@ func (fw *FireWallEngine) IsFirewallEnabled() bool {
 	return enabled == 1
 }
 
+// isAnyProfileEnabled 只要域/专用/公用任一配置文件启用了防火墙就认为可用
+func isAnyProfileEnabled() bool {
+	const basePath = `SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy\`
+	for _, profile := range []string{"DomainProfile", "StandardProfile", "PublicProfile"} {
+		key, err := registry.OpenKey(registry.LOCAL_MACHINE, basePath+profile, registry.QUERY_VALUE)
+		if err != nil {
+			continue
+		}
+		enabled, _, err := key.GetIntegerValue("EnableFirewall")
+		key.Close()
+		if err == nil && enabled == 1 {
+			return true
+		}
+	}
+	return false
+}
+
+// checkAvailable 探测 Windows 防火墙是否可用，供 CheckAvailable 带缓存调用
+func (fw *FireWallEngine) checkAvailable() error {
+	if _, err := exec.LookPath("netsh"); err != nil {
+		return fmt.Errorf("未找到 netsh 命令，无法使用系统防火墙封禁，可改用 WAF 应用层 IP 黑名单")
+	}
+	if !isAnyProfileEnabled() {
+		return fmt.Errorf("Windows 防火墙未启用，封禁规则不会生效，请先在系统中开启 Windows 防火墙")
+	}
+	return nil
+}
+
 func (fw *FireWallEngine) executeCommand(cmd *exec.Cmd) (error error, printstr string) {
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

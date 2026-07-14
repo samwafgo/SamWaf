@@ -32,4 +32,5 @@ func (receiver *FirewallIPBlockRouter) InitFirewallIPBlockRouter(group *gin.Rout
 	router.POST("/api/v1/firewall/ipblock/sync", api.SyncApi)                  // 同步规则
 	router.POST("/api/v1/firewall/ipblock/clear/expired", api.ClearExpiredApi) // 清理过期
 	router.GET("/api/v1/firewall/ipblock/statistics", api.GetStatisticsApi)    // 统计信息
+	router.GET("/api/v1/firewall/ipblock/capability", api.GetCapabilityApi)    // 当前环境防火墙能力
 }

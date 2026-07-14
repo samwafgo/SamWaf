@@ -171,6 +171,10 @@ func (w *WafFirewallIPBlockApi) BatchAddApi(c *gin.Context) {
 		if len(failedIPs) > 0 {
 			msg += fmt.Sprintf("，失败的IP: %v", failedIPs)
 		}
+		// 整体不可用（如环境不支持系统防火墙）时，带上具体原因
+		if successCount == 0 {
+			msg += "，原因: " + err.Error()
+		}
 		response.FailWithMessage(msg, c)
 	} else {
 		response.OkWithMessage(fmt.Sprintf("批量添加成功，共封禁 %d 个IP", successCount), c)
@@ -246,4 +250,24 @@ func (w *WafFirewallIPBlockApi) ClearExpiredApi(c *gin.Context) {
 func (w *WafFirewallIPBlockApi) GetStatisticsApi(c *gin.Context) {
 	stats := wafFirewallIPBlockService.GetStatistics()
 	response.OkWithDetailed(stats, "获取成功", c)
+}
+
+// GetCapabilityApi 获取当前环境的系统防火墙能力
+// @Summary      获取系统防火墙能力
+// @Description  探测当前运行环境是否支持系统防火墙封禁（如容器内未安装 iptables 或缺少 NET_ADMIN 权限时不可用）
+// @Tags         防火墙-IP封禁
+// @Produce      json
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /firewall/ipblock/capability [get]
+func (w *WafFirewallIPBlockApi) GetCapabilityApi(c *gin.Context) {
+	err := wafFirewallIPBlockService.CheckFirewallAvailable()
+	capability := map[string]interface{}{
+		"available": err == nil,
+		"message":   "",
+	}
+	if err != nil {
+		capability["message"] = err.Error()
+	}
+	response.OkWithDetailed(capability, "获取成功", c)
 }

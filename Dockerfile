@@ -7,8 +7,10 @@ WORKDIR /app
 ENV TZ=Asia/Shanghai
 
 # 更新并安装时区数据
+# iptables 供“防火墙IP封禁”功能使用（提供 iptables / iptables-save）
+# 注意：容器还需以 --cap-add=NET_ADMIN --network host 启动，规则才能对宿主机流量生效
 RUN apk update && \
-    apk add --no-cache tzdata && \
+    apk add --no-cache tzdata iptables && \
     ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime && \
     echo "${TZ}" > /etc/timezone
 

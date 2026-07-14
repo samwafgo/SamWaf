@@ -5,6 +5,7 @@ package firewall
 import (
 	"bufio"
 	"fmt"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -51,6 +52,55 @@ func (fw *FireWallEngine) IsFirewallEnabled() bool {
 		return len(out) > 0
 	}
 	return false
+}
+
+// containerHint 容器部署时的补充说明
+const containerHint = "当前运行在容器内：镜像中需安装 iptables（alpine: apk add iptables），" +
+	"并以 --cap-add=NET_ADMIN --network host 启动容器，否则规则只写入容器自身的网络命名空间，对宿主机流量无效。"
+
+// isInContainer 粗略判断当前进程是否运行在容器内
+func isInContainer() bool {
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		return true
+	}
+	data, err := os.ReadFile("/proc/1/cgroup")
+	if err != nil {
+		return false
+	}
+	content := string(data)
+	return strings.Contains(content, "docker") ||
+		strings.Contains(content, "containerd") ||
+		strings.Contains(content, "kubepods")
+}
+
+// checkAvailable 探测 iptables 是否存在且当前进程有权限操作，供 CheckAvailable 带缓存调用
+func (fw *FireWallEngine) checkAvailable() error {
+	for _, bin := range []string{"iptables", "iptables-save"} {
+		if _, err := exec.LookPath(bin); err != nil {
+			msg := fmt.Sprintf("当前环境未安装 %s，无法使用系统防火墙封禁，可改用 WAF 应用层 IP 黑名单。", bin)
+			if isInContainer() {
+				msg += containerHint
+			}
+			return fmt.Errorf("%s", msg)
+		}
+	}
+
+	out, err := exec.Command("iptables", "-S", "INPUT").CombinedOutput()
+	if err != nil {
+		output := strings.TrimSpace(string(out))
+		if strings.Contains(output, "Permission denied") ||
+			strings.Contains(output, "must be root") ||
+			strings.Contains(output, "Operation not permitted") {
+			msg := "当前进程没有操作 iptables 的权限，请以 root 身份运行。"
+			if isInContainer() {
+				msg += containerHint
+			}
+			return fmt.Errorf("%s原始信息: %s", msg, output)
+		}
+		return fmt.Errorf("iptables 不可用: %v, 输出: %s", err, output)
+	}
+
+	return nil
 }
 
 func (fw *FireWallEngine) executeCommand(cmd *exec.Cmd) (error, string) {

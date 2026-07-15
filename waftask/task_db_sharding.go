@@ -19,7 +19,7 @@ import (
 // 检测库是否切换
 func TaskShareDbInfo() {
 	innerLogName := "TaskDBSharding"
-	zlog.Info(innerLogName, "检测是否需要进行分库")
+	zlog.Debug(innerLogName, "检测是否需要进行分库")
 
 	if global.GDATA_CURRENT_CHANGE {
 		//如果正在切换库 跳过

@@ -13,7 +13,7 @@ var (
 func TaskFirewallCleanExpired() {
 	innerLogName := "TaskFirewallCleanExpired"
 
-	zlog.Info(innerLogName, "开始清理过期的防火墙IP封禁规则")
+	zlog.Debug(innerLogName, "开始清理过期的防火墙IP封禁规则")
 
 	// 调用清理服务
 	count, err := wafFirewallIPBlockService.ClearExpiredRules()

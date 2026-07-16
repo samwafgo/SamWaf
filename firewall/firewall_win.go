@@ -3,6 +3,7 @@
 package firewall
 
 import (
+	"SamWaf/common/wafexec"
 	"bufio"
 	"fmt"
 	"os/exec"
@@ -91,6 +92,8 @@ func (fw *FireWallEngine) checkAvailable() error {
 }
 
 func (fw *FireWallEngine) executeCommand(cmd *exec.Cmd) (error error, printstr string) {
+	// 只补 Stdin：下面要取 StdoutPipe/StderrPipe，Stdout/Stderr 必须留给 os/exec 自己接管
+	wafexec.FixStdin(cmd)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		fmt.Println(err)

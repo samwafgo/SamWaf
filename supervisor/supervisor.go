@@ -10,6 +10,7 @@
 package supervisor
 
 import (
+	"SamWaf/common/wafexec"
 	"SamWaf/common/zlog"
 	"SamWaf/wafipc"
 	"SamWaf/wafupdate"
@@ -295,6 +296,9 @@ func (s *Supervisor) spawn(takeover bool) (int, error) {
 	cmd := exec.Command(s.opts.ExePath, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	// Stdin 必须显式兜底：nil 时 os/exec 会去打开系统空设备(Windows 上是 NUL)，
+	// 精简版系统缺失该设备会导致 Start() 直接失败，连首个 Worker 都拉不起来。
+	wafexec.FixStdin(cmd)
 	if err := cmd.Start(); err != nil {
 		return 0, err
 	}

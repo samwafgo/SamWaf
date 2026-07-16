@@ -4,6 +4,7 @@ import (
 	"SamWaf/cache"
 	"SamWaf/common/gwebsocket"
 	"SamWaf/common/tasklog"
+	"SamWaf/common/wafexec"
 	"SamWaf/common/zlog"
 	"SamWaf/enums"
 	"SamWaf/global"
@@ -865,6 +866,7 @@ func (m *wafSystenService) run() {
 					cmd := exec.Command(global.GWAF_RUNTIME_CURRENT_EXEPATH, "restart")
 					cmd.Stdout = os.Stdout
 					cmd.Stderr = os.Stderr
+					wafexec.FixStdin(cmd)
 					if err := cmd.Start(); err != nil {
 						zlog.Error("启动新进程失败:", err)
 						os.Exit(0)
@@ -876,6 +878,7 @@ func (m *wafSystenService) run() {
 					cmd := exec.Command(global.GWAF_RUNTIME_CURRENT_EXEPATH)
 					cmd.Stdout = os.Stdout
 					cmd.Stderr = os.Stderr
+					wafexec.FixStdin(cmd)
 					if err := cmd.Start(); err != nil {
 						zlog.Error("启动新进程失败:", err)
 						os.Exit(0)
@@ -1068,6 +1071,14 @@ func main() {
 	}
 	pid := os.Getpid()
 	zlog.Debug("SamWaf Current PID:" + strconv.Itoa(pid))
+
+	// 环境自检：精简版 Windows(如 LTSC 纯净版)可能裁剪/禁用 Null 内核驱动，导致空设备不可用。
+	// os/exec 在标准流为 nil 时会去打开该设备，缺失则所有子进程(含 Worker)都起不来。
+	// SamWaf 已通过 wafexec 自动规避，这里只留一条线索：Supervisor 记在 supervisor.log、Worker 记在 log.log。
+	if !wafexec.NullDeviceAvailable() {
+		zlog.Warn("[环境] 系统空设备 " + os.DevNull + " 不可用（精简版 Windows 常见：Null 内核驱动被裁剪或禁用）。" +
+			"SamWaf 已自动规避，不影响运行；如需彻底恢复，请以管理员执行 `sc config Null start=system` 后重启系统。")
+	}
 
 	// 调试标识：响应头标记处理进程，便于验证升级时新旧 Worker 交替。
 	// 主开关在 config.yml 的 debug_worker_header（已由上方 LoadAndInitConfig 读入，Supervisor/Worker 均生效，

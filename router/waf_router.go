@@ -16,4 +16,5 @@ func (receiver *OneKeyModRouter) InitOneKeyModRouter(group *gin.RouterGroup) {
 	router.POST("/api/v1/wafhost/onekeymod/doModify", api.DoOneKeyModifyApi)
 	router.GET("/api/v1/wafhost/onekeymod/del", api.DelApi)
 	router.GET("/api/v1/wafhost/onekeymod/restore", api.RestoreApi)
+	router.POST("/api/v1/wafhost/onekeymod/parseNginx", api.ParseNginxApi)
 }

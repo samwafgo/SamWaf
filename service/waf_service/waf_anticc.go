@@ -57,7 +57,7 @@ func (receiver *WafAntiCCService) ModifyApi(req request.WafAntiCCEditReq) error 
 		return errors.New("当前网站已经存在")
 	}
 	ipWhiteMap := map[string]interface{}{
-		"Host_Code":     req.HostCode,
+		"host_code":     req.HostCode,
 		"Url":           req.Url,
 		"Rate":          req.Rate,
 		"Limit":         req.Limit,

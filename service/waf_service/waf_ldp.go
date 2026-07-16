@@ -45,10 +45,10 @@ func (receiver *WafLdpUrlService) ModifyApi(req request.WafLdpUrlEditReq) error 
 		return errors.New("当前网站和url已经存在")
 	}
 	ipWhiteMap := map[string]interface{}{
-		"Host_Code":    req.HostCode,
+		"host_code":    req.HostCode,
 		"Url":          req.Url,
 		"Remarks":      req.Remarks,
-		"Compare_Type": req.CompareType,
+		"compare_type": req.CompareType,
 		"UPDATE_TIME":  customtype.JsonTime(time.Now()),
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.LDPUrl{}).Where("id = ?", req.Id).Updates(ipWhiteMap).Error

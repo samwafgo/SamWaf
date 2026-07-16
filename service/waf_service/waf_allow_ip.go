@@ -44,7 +44,7 @@ func (receiver *WafWhiteIpService) ModifyApi(wafWhiteIpEditReq request.WafAllowI
 		return errors.New("当前网站和IP已经存在")
 	}
 	ipWhiteMap := map[string]interface{}{
-		"Host_Code":   wafWhiteIpEditReq.HostCode,
+		"host_code":   wafWhiteIpEditReq.HostCode,
 		"Ip":          wafWhiteIpEditReq.Ip,
 		"Remarks":     wafWhiteIpEditReq.Remarks,
 		"UPDATE_TIME": customtype.JsonTime(time.Now()),

@@ -896,7 +896,9 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				}
 
 				// 历史数据默认值为 false（保持原有行为：继续检测全局CC）
-				if err := tx.Exec("UPDATE anti_ccs SET skip_global_cc = 0 WHERE skip_global_cc IS NULL").Error; err != nil {
+				// 用 false 而非 0：skip_global_cc 是 boolean 列，PostgreSQL 不接受整数字面量
+				// （42804: type boolean but expression is of type integer）；false 三种引擎通用。
+				if err := tx.Exec("UPDATE anti_ccs SET skip_global_cc = false WHERE skip_global_cc IS NULL").Error; err != nil {
 					zlog.Warn("设置 skip_global_cc 默认值失败", "error", err.Error())
 				}
 

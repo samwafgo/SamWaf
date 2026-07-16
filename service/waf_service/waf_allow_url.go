@@ -45,8 +45,8 @@ func (receiver *WafWhiteUrlService) ModifyApi(req request.WafAllowUrlEditReq) er
 		return errors.New("当前网站和url已经存在")
 	}
 	ipWhiteMap := map[string]interface{}{
-		"Host_Code":    req.HostCode,
-		"Compare_Type": req.CompareType,
+		"host_code":    req.HostCode,
+		"compare_type": req.CompareType,
 		"Url":          req.Url,
 		"Remarks":      req.Remarks,
 		"UPDATE_TIME":  customtype.JsonTime(time.Now()),

@@ -46,9 +46,9 @@ func (receiver *WafLoadBalanceService) ModifyApi(req request.WafLoadBalanceEditR
 		return errors.New("当前网站和IP已经存在")
 	}
 	editMap := map[string]interface{}{
-		"Host_Code":   req.HostCode,
-		"Remote_Ip":   req.Remote_ip,
-		"Remote_Port": req.Remote_port,
+		"host_code":   req.HostCode,
+		"remote_ip":   req.Remote_ip,
+		"remote_port": req.Remote_port,
 		"Weight":      req.Weight,
 		"Remarks":     req.Remarks,
 		"UPDATE_TIME": customtype.JsonTime(time.Now()),

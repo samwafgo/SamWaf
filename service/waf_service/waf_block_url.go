@@ -45,7 +45,7 @@ func (receiver *WafBlockUrlService) ModifyApi(req request.WafBlockUrlEditReq) er
 		return errors.New("当前网站和url已经存在")
 	}
 	modfiyMap := map[string]interface{}{
-		"Host_Code":   req.HostCode,
+		"host_code":   req.HostCode,
 		"Url":         req.Url,
 		"Remarks":     req.Remarks,
 		"CompareType": req.CompareType,

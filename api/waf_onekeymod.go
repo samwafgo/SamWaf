@@ -113,6 +113,37 @@ func (w *WafOneKeyModApi) DoOneKeyModifyApi(c *gin.Context) {
 	}
 }
 
+// ParseNginxApi 解析nginx配置为待添加主机候选
+// @Summary      解析nginx配置
+// @Description  解析粘贴文本或扫描宝塔vhost目录，提取待添加的被防护主机候选（只读，不修改文件）
+// @Tags         一键修改
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafParseNginxReq  true  "解析参数"
+// @Success      200   {object}  response.Response  "解析成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/onekeymod/parseNginx [post]
+func (w *WafOneKeyModApi) ParseNginxApi(c *gin.Context) {
+	var req request.WafParseNginxReq
+	err := c.ShouldBindJSON(&req)
+	if err != nil {
+		response.FailWithMessage("解析失败", c)
+		return
+	}
+	var candidates []wafonekey.NginxHostCandidate
+	switch req.Source {
+	case "scan":
+		candidates, err = wafonekey.ScanNginxDir(req.FilePath)
+	default: // text
+		candidates, err = wafonekey.ParseNginxText(req.Content)
+	}
+	if err != nil {
+		response.FailWithMessage("解析失败 "+err.Error(), c)
+		return
+	}
+	response.OkWithDetailed(candidates, "解析成功", c)
+}
+
 // RestoreApi 还原一键修改
 // @Summary      还原一键修改
 // @Description  根据ID还原指定的一键修改记录到原始状态

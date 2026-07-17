@@ -253,7 +253,9 @@ jobs:
         if: steps.check_win7_build.outputs.skip_win7_build != 'true'
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25'
+          # 锁定小版本
+          go-version: '1.25.11'
+          check-latest: false
 
       - name: Install dependencies for Windows cross-compilation
         if: steps.check_win7_build.outputs.skip_win7_build != 'true'

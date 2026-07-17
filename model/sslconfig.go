@@ -26,7 +26,7 @@ type SslConfig struct {
 	CertPath    string              `gorm:"size:500" json:"cert_path"`     //crt文件配置
 	// 是否启用「凌晨3点从上面路径自动加载证书」：1=开启(默认) 0=关闭。
 	// 当该证书夹由 SamWaf 自动申请管理时会被自动置为0，避免两个自动渠道互相覆盖。
-	AutoLoadPath int `gorm:"default:1" json:"auto_load_path"`
+	AutoLoadPath int `json:"auto_load_path"`
 }
 
 // ExpirationMessage 获取到期提示信息

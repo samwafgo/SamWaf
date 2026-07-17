@@ -117,7 +117,8 @@ func (receiver *WafSslConfigService) CreateNewIdInner(config model.SslConfig) {
 	if config.KeyPath == "" {
 		config.KeyPath = filepath.Join(utils.GetCurrentDir(), "ssl", config.Id, "domain.key")
 	}
-	global.GWAF_LOCAL_DB.Create(config)
+	//必须传指针：按值传给 Create 会导致 GORM 回写字段默认值时对不可寻址反射值 SetInt 而 panic
+	global.GWAF_LOCAL_DB.Create(&config)
 	zlog.Info(fmt.Sprintf("%s 原来证书已备份", config.Domains))
 }
 func (receiver *WafSslConfigService) CreateInner(config model.SslConfig) {
@@ -133,7 +134,8 @@ func (receiver *WafSslConfigService) CreateInner(config model.SslConfig) {
 	if config.KeyPath == "" {
 		config.KeyPath = filepath.Join(utils.GetCurrentDir(), "ssl", config.Id, "domain.key")
 	}
-	global.GWAF_LOCAL_DB.Create(config)
+	//必须传指针：按值传给 Create 会导致 GORM 回写字段默认值时对不可寻址反射值 SetInt 而 panic
+	global.GWAF_LOCAL_DB.Create(&config)
 	zlog.Info(fmt.Sprintf("%s 原来证书已备份", config.Domains))
 }
 

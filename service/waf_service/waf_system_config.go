@@ -140,11 +140,11 @@ func (receiver *WafSystemConfigService) GetListApi(req request.WafSystemConfigSe
 }
 func (receiver *WafSystemConfigService) DelApi(req request.WafSystemConfigDelReq) error {
 	var bean model.SystemConfig
-	err := global.GWAF_LOCAL_DB.Where("id = ? and is_system=0", req.Id).First(&bean).Error
+	err := global.GWAF_LOCAL_DB.Where("id = ? and is_system='0'", req.Id).First(&bean).Error
 	if err != nil {
 		return err
 	}
-	err = global.GWAF_LOCAL_DB.Where("id = ? and is_system=0", req.Id).Delete(model.SystemConfig{}).Error
+	err = global.GWAF_LOCAL_DB.Where("id = ? and is_system='0'", req.Id).Delete(model.SystemConfig{}).Error
 	return err
 }
 

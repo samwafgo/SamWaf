@@ -72,7 +72,8 @@ func buildSelectExcluding(model interface{}, excludeDBNames map[string]bool) str
 }
 
 func (receiver *WafLogService) AddApi(log innerbean.WebLog) error {
-	global.GWAF_LOCAL_LOG_DB.Create(log)
+	//必须传指针：WebLog.TASK_FLAG 带 gorm:"default:-1" 标签，按值 Create 遇零值回写默认值会 panic（#885 同类）
+	global.GWAF_LOCAL_LOG_DB.Create(&log)
 	return nil
 }
 func (receiver *WafLogService) ModifyApi(log innerbean.WebLog) error {

@@ -1,14 +1,19 @@
 //go:build crossdb
 
-// 跨三种数据库（SQLite / MySQL / PostgreSQL）兼容回归测试。
+// 跨三种数据库（SQLite / MySQL / PostgreSQL）兼容回归测试 —— 骨架与公共设施。
 //
-// 目的：验证「修改」类接口的 Updates(map) 列名在三种引擎下都能落库。
-// PostgreSQL 对加引号的标识符大小写敏感，历史上写错大小写的 map key
-// （如 "Host_Code"）在 SQLite/MySQL 上碰巧能跑、在 PG 上会报 42703。
+// 目标：对 service 层的数据库操作，在三种引擎各跑一遍，断言 ①不崩溃 ②数据正确。
+// 建表走**真实迁移**（RunCoreDBMigrations/RunLogDBMigrations/RunStatsDBMigrations），
+// 与生产完全一致（含索引、种子数据、方言分支），而非手写 AutoMigrate 清单。
+//
+// 分组用例分布在同包的其它 crossdb 文件里：
+//   - cross_engine_core_test.go   core 库 CRUD（本阶段主体）
+//   - cross_engine_log_test.go    log 库（后续阶段）
+//   - cross_engine_stats_test.go  stats 库（后续阶段）
 //
 // 运行（三种库都开着时）：
 //
-//	go test -tags crossdb ./service/waf_service/ -run CrossEngine -v
+//	go test -tags crossdb ./service/waf_service/ -run TestCrossEngine -v
 //
 // 连接可用环境变量覆盖：
 //
@@ -19,14 +24,12 @@
 package waf_service
 
 import (
-	"SamWaf/common/uuid"
+	"SamWaf/common/zlog"
 	"SamWaf/customtype"
 	"SamWaf/global"
-	"SamWaf/model"
 	"SamWaf/model/baseorm"
-	"SamWaf/model/request"
+	"SamWaf/wafdb"
 	"SamWaf/wafdb/dialect"
-	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -41,21 +44,23 @@ import (
 )
 
 const (
-	xtestDBName = "samwaf_xtest_core"
-	xtestUser   = "xtest_user"
-	xtestTenant = "xtest_tenant"
+	xtestCoreDB  = "samwaf_xtest_core"
+	xtestLogDB   = "samwaf_xtest_log"
+	xtestStatsDB = "samwaf_xtest_stats"
+	xtestUser    = "xtest_user"
+	xtestTenant  = "xtest_tenant"
 )
 
-// 受测的模型，每个引擎测试前 AutoMigrate。
-var xtestModels = []interface{}{
-	&model.IPBlockList{}, &model.IPAllowList{},
-	&model.URLBlockList{}, &model.URLAllowList{},
-	&model.AntiCC{}, &model.LDPUrl{}, &model.LoadBalance{}, &model.Rules{},
+// xdb 打包一个引擎的三个库句柄
+type xdb struct {
+	core  *gorm.DB
+	logdb *gorm.DB
+	stats *gorm.DB
 }
 
 type xengine struct {
 	name  string
-	setup func(t *testing.T) (db *gorm.DB, teardown func())
+	setup func(t *testing.T) (*xdb, func())
 }
 
 func xengines() []xengine {
@@ -66,90 +71,161 @@ func xengines() []xengine {
 	}
 }
 
-func setupSQLite(t *testing.T) (*gorm.DB, func()) {
-	path := filepath.Join(t.TempDir(), "xtest.db")
-	dsn := path + "?_db_key=" + url.QueryEscape("xtestkey")
-	db, err := gorm.Open(sqlitedriver.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
-	if err != nil {
-		t.Logf("sqlite 打开失败: %v", err)
-		return nil, nil
+// registerTenantScope 复刻 wafdb.before_query：所有 GORM 查询自动加租户/用户过滤，
+// 保持与生产一致（Raw/Exec 不受影响）。
+func registerTenantScope(db *gorm.DB) {
+	_ = db.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", func(d *gorm.DB) {
+		d.Where("tenant_id = ? and user_code = ?", global.GWAF_TENANT_ID, global.GWAF_USER_CODE)
+	})
+}
+
+// runRealMigrations 在给定连接上跑真实建表迁移并注册租户回调。
+func migrateCore(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	if err := wafdb.RunCoreDBMigrations(db); err != nil {
+		t.Fatalf("core 迁移失败: %v", err)
 	}
+	if err := wafdb.RunTaskInitMigrations(db); err != nil {
+		t.Fatalf("task 初始化迁移失败: %v", err)
+	}
+	registerTenantScope(db)
+}
+
+func migrateLog(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	if err := wafdb.RunLogDBMigrations(db); err != nil {
+		t.Fatalf("log 迁移失败: %v", err)
+	}
+	registerTenantScope(db)
+}
+
+func migrateStats(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	if err := wafdb.RunStatsDBMigrations(db); err != nil {
+		t.Fatalf("stats 迁移失败: %v", err)
+	}
+	registerTenantScope(db)
+}
+
+var silentCfg = &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)}
+
+func setupSQLite(t *testing.T) (*xdb, func()) {
+	dir := t.TempDir()
 	dialect.Register(&dialect.SQLiteDialect{})
-	if err := db.AutoMigrate(xtestModels...); err != nil {
-		t.Fatalf("sqlite AutoMigrate: %v", err)
+	open := func(name, key string) *gorm.DB {
+		dsn := filepath.Join(dir, name) + "?_db_key=" + url.QueryEscape(key)
+		db, err := gorm.Open(sqlitedriver.Open(dsn), silentCfg)
+		if err != nil {
+			t.Fatalf("sqlite 打开 %s 失败: %v", name, err)
+		}
+		return db
 	}
-	return db, func() {
-		if s, e := db.DB(); e == nil {
-			s.Close()
+	core := open("core.db", "kcore")
+	migrateCore(t, core)
+	logdb := open("log.db", "klog")
+	migrateLog(t, logdb)
+	stats := open("stats.db", "kstats")
+	migrateStats(t, stats)
+
+	return &xdb{core, logdb, stats}, func() {
+		for _, db := range []*gorm.DB{core, logdb, stats} {
+			if s, e := db.DB(); e == nil {
+				s.Close()
+			}
 		}
 	}
 }
 
-func setupMySQL(t *testing.T) (*gorm.DB, func()) {
+func setupMySQL(t *testing.T) (*xdb, func()) {
 	base := os.Getenv("SAMWAF_TEST_MYSQL_DSN")
 	if base == "" {
 		base = "root:canteen1@tcp(127.0.0.1:3306)/"
 	}
-	// 维护连接：建库
-	root, err := gorm.Open(mysqldriver.Open(base+"?parseTime=true"), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+	root, err := gorm.Open(mysqldriver.Open(base+"?parseTime=true"), silentCfg)
 	if err != nil {
 		t.Logf("mysql 连接失败（跳过）: %v", err)
 		return nil, nil
 	}
-	root.Exec("DROP DATABASE IF EXISTS " + xtestDBName)
-	if err := root.Exec("CREATE DATABASE " + xtestDBName + " CHARACTER SET utf8mb4").Error; err != nil {
-		t.Logf("mysql 建库失败（跳过）: %v", err)
-		return nil, nil
-	}
-	work, err := gorm.Open(mysqldriver.Open(base+xtestDBName+"?charset=utf8mb4&parseTime=True&loc=Local"),
-		&gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
-	if err != nil {
-		t.Fatalf("mysql 打开工作库: %v", err)
+	names := []string{xtestCoreDB, xtestLogDB, xtestStatsDB}
+	for _, n := range names {
+		root.Exec("DROP DATABASE IF EXISTS " + n)
+		if err := root.Exec("CREATE DATABASE " + n + " CHARACTER SET utf8mb4").Error; err != nil {
+			t.Logf("mysql 建库 %s 失败（跳过）: %v", n, err)
+			return nil, nil
+		}
 	}
 	dialect.Register(&dialect.MySQLDialect{})
-	if err := work.AutoMigrate(xtestModels...); err != nil {
-		t.Fatalf("mysql AutoMigrate: %v", err)
-	}
-	return work, func() {
-		if s, e := work.DB(); e == nil {
-			s.Close()
+	open := func(n string) *gorm.DB {
+		db, err := gorm.Open(mysqldriver.Open(base+n+"?charset=utf8mb4&parseTime=True&loc=Local"), silentCfg)
+		if err != nil {
+			t.Fatalf("mysql 打开 %s: %v", n, err)
 		}
-		root.Exec("DROP DATABASE IF EXISTS " + xtestDBName)
+		return db
+	}
+	core := open(xtestCoreDB)
+	migrateCore(t, core)
+	logdb := open(xtestLogDB)
+	migrateLog(t, logdb)
+	stats := open(xtestStatsDB)
+	migrateStats(t, stats)
+
+	return &xdb{core, logdb, stats}, func() {
+		for _, db := range []*gorm.DB{core, logdb, stats} {
+			if s, e := db.DB(); e == nil {
+				s.Close()
+			}
+		}
+		for _, n := range names {
+			root.Exec("DROP DATABASE IF EXISTS " + n)
+		}
 		if s, e := root.DB(); e == nil {
 			s.Close()
 		}
 	}
 }
 
-func setupPostgres(t *testing.T) (*gorm.DB, func()) {
+func setupPostgres(t *testing.T) (*xdb, func()) {
 	base := os.Getenv("SAMWAF_TEST_PG_DSN")
 	if base == "" {
 		base = "postgres://postgres:postgres@127.0.0.1:5432/"
 	}
-	root, err := gorm.Open(pgdriver.Open(base+"postgres?sslmode=disable"), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+	root, err := gorm.Open(pgdriver.Open(base+"postgres?sslmode=disable"), silentCfg)
 	if err != nil {
 		t.Logf("postgres 连接失败（跳过）: %v", err)
 		return nil, nil
 	}
-	root.Exec("DROP DATABASE IF EXISTS " + xtestDBName)
-	if err := root.Exec("CREATE DATABASE " + xtestDBName + " ENCODING 'UTF8'").Error; err != nil {
-		t.Logf("postgres 建库失败（跳过）: %v", err)
-		return nil, nil
-	}
-	work, err := gorm.Open(pgdriver.Open(base+xtestDBName+"?sslmode=disable&TimeZone=Asia/Shanghai"),
-		&gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
-	if err != nil {
-		t.Fatalf("postgres 打开工作库: %v", err)
+	names := []string{xtestCoreDB, xtestLogDB, xtestStatsDB}
+	for _, n := range names {
+		root.Exec("DROP DATABASE IF EXISTS " + n)
+		if err := root.Exec("CREATE DATABASE " + n + " ENCODING 'UTF8'").Error; err != nil {
+			t.Logf("postgres 建库 %s 失败（跳过）: %v", n, err)
+			return nil, nil
+		}
 	}
 	dialect.Register(&dialect.PostgresDialect{})
-	if err := work.AutoMigrate(xtestModels...); err != nil {
-		t.Fatalf("postgres AutoMigrate: %v", err)
-	}
-	return work, func() {
-		if s, e := work.DB(); e == nil {
-			s.Close() // 先断开工作连接，否则 DROP DATABASE 会被占用
+	open := func(n string) *gorm.DB {
+		db, err := gorm.Open(pgdriver.Open(base+n+"?sslmode=disable&TimeZone=Asia/Shanghai"), silentCfg)
+		if err != nil {
+			t.Fatalf("postgres 打开 %s: %v", n, err)
 		}
-		root.Exec("DROP DATABASE IF EXISTS " + xtestDBName)
+		return db
+	}
+	core := open(xtestCoreDB)
+	migrateCore(t, core)
+	logdb := open(xtestLogDB)
+	migrateLog(t, logdb)
+	stats := open(xtestStatsDB)
+	migrateStats(t, stats)
+
+	return &xdb{core, logdb, stats}, func() {
+		for _, db := range []*gorm.DB{core, logdb, stats} {
+			if s, e := db.DB(); e == nil {
+				s.Close()
+			}
+		}
+		for _, n := range names {
+			root.Exec("DROP DATABASE IF EXISTS " + n)
+		}
 		if s, e := root.DB(); e == nil {
 			s.Close()
 		}
@@ -167,102 +243,45 @@ func newBase(id string) baseorm.BaseOrm {
 }
 
 func TestCrossEngine(t *testing.T) {
+	zlog.InitZLog(false, "console") // 真实迁移内部大量 zlog.Info，未初始化会 nil panic
 	global.GWAF_USER_CODE = xtestUser
 	global.GWAF_TENANT_ID = xtestTenant
+	global.GWAF_CUSTOM_SERVER_NAME = "xtest"
 
 	for _, e := range xengines() {
 		e := e
 		t.Run(e.name, func(t *testing.T) {
-			// 每个引擎前清空全局句柄，避免复用上一个引擎的连接
+			// 每个引擎前清空三个句柄，避免复用上一个引擎的连接
 			global.GWAF_LOCAL_DB = nil
-			db, teardown := e.setup(t)
-			if db == nil {
+			global.GWAF_LOCAL_LOG_DB = nil
+			global.GWAF_LOCAL_STATS_DB = nil
+
+			x, teardown := e.setup(t)
+			if x == nil {
 				t.Skipf("%s 未就绪，跳过", e.name)
 				return
 			}
 			defer teardown()
-			global.GWAF_LOCAL_DB = db
+			global.GWAF_LOCAL_DB = x.core
+			global.GWAF_LOCAL_LOG_DB = x.logdb
+			global.GWAF_LOCAL_STATS_DB = x.stats
 
-			// —— 修改类接口：走真实 service ModifyApi，内部即 Updates(map) ——
+			// —— core 库 CRUD 用例（见 cross_engine_core_test.go）——
+			runCoreCases(t, x.core)
 
-			t.Run("BlockIP", func(t *testing.T) {
-				id := uuid.GenUUID()
-				must(t, db.Create(&model.IPBlockList{BaseOrm: newBase(id), HostCode: "h1", Ip: "1.1.1.1"}).Error)
-				fatalIf(t, WafBlockIpServiceApp.ModifyApi(request.WafBlockIpEditReq{Id: id, HostCode: "h2", Ip: "1.1.1.1", Remarks: "r"}))
-				assertHostCode(t, db, &model.IPBlockList{}, id)
-			})
+			// —— log 库用例（见 cross_engine_log_test.go）——
+			t.Run("log", func(t *testing.T) { runLogCases(t, x.logdb) })
 
-			t.Run("AllowIP", func(t *testing.T) {
-				id := uuid.GenUUID()
-				must(t, db.Create(&model.IPAllowList{BaseOrm: newBase(id), HostCode: "h1", Ip: "2.2.2.2"}).Error)
-				fatalIf(t, WafWhiteIpServiceApp.ModifyApi(request.WafAllowIpEditReq{Id: id, HostCode: "h2", Ip: "2.2.2.2", Remarks: "r"}))
-				assertHostCode(t, db, &model.IPAllowList{}, id)
-			})
+			// —— stats 库用例（见 cross_engine_stats_test.go）——
+			t.Run("stats", func(t *testing.T) { runStatsCases(t, x.stats) })
 
-			t.Run("AllowUrl", func(t *testing.T) {
-				id := uuid.GenUUID()
-				must(t, db.Create(&model.URLAllowList{BaseOrm: newBase(id), HostCode: "h1", CompareType: "suffix", Url: "/a"}).Error)
-				fatalIf(t, WafWhiteUrlServiceApp.ModifyApi(request.WafAllowUrlEditReq{Id: id, HostCode: "h2", CompareType: "prefix", Url: "/a", Remarks: "r"}))
-				assertHostCode(t, db, &model.URLAllowList{}, id)
-			})
-
-			t.Run("BlockUrl", func(t *testing.T) {
-				id := uuid.GenUUID()
-				must(t, db.Create(&model.URLBlockList{BaseOrm: newBase(id), HostCode: "h1", CompareType: "suffix", Url: "/b"}).Error)
-				fatalIf(t, WafBlockUrlServiceApp.ModifyApi(request.WafBlockUrlEditReq{Id: id, HostCode: "h2", CompareType: "prefix", Url: "/b", Remarks: "r"}))
-				assertHostCode(t, db, &model.URLBlockList{}, id)
-			})
-
-			t.Run("AntiCC", func(t *testing.T) {
-				id := uuid.GenUUID()
-				must(t, db.Create(&model.AntiCC{BaseOrm: newBase(id), HostCode: "h1", Rate: 1, Limit: 1, LimitMode: "window"}).Error)
-				fatalIf(t, WafAntiCCServiceApp.ModifyApi(request.WafAntiCCEditReq{
-					Id: id, HostCode: "h2", Rate: 5, Limit: 5, LockIPMinutes: 5, LimitMode: "window",
-				}))
-				assertHostCode(t, db, &model.AntiCC{}, id)
-			})
-
-			t.Run("Ldp", func(t *testing.T) {
-				id := uuid.GenUUID()
-				must(t, db.Create(&model.LDPUrl{BaseOrm: newBase(id), HostCode: "h1", CompareType: "suffix", Url: "/c"}).Error)
-				fatalIf(t, WafLdpUrlServiceApp.ModifyApi(request.WafLdpUrlEditReq{Id: id, HostCode: "h2", CompareType: "prefix", Url: "/c", Remarks: "r"}))
-				assertHostCode(t, db, &model.LDPUrl{}, id)
-			})
-
-			t.Run("LoadBalance", func(t *testing.T) {
-				id := uuid.GenUUID()
-				must(t, db.Create(&model.LoadBalance{BaseOrm: newBase(id), HostCode: "h1", Remote_ip: "3.3.3.3", Remote_port: 80}).Error)
-				fatalIf(t, WafLoadBalanceServiceApp.ModifyApi(request.WafLoadBalanceEditReq{
-					Id: id, HostCode: "h2", Remote_ip: "4.4.4.4", Remote_port: 8080, Weight: 2, Remarks: "r",
-				}))
-				var got model.LoadBalance
-				must(t, db.Where("id = ?", id).First(&got).Error)
-				if got.HostCode != "h2" || got.Remote_ip != "4.4.4.4" || got.Remote_port != 8080 {
-					t.Fatalf("LoadBalance 更新未落库: %+v", got)
-				}
-			})
-
-			// Rule 的 ModifyApi 签名较重，直接用它内部同款 Updates(map) 验证 user_code 等 key
-			t.Run("Rule_UpdateMap", func(t *testing.T) {
-				code := uuid.GenUUID()
-				must(t, db.Create(&model.Rules{BaseOrm: newBase(uuid.GenUUID()), RuleCode: code, RuleName: "r1"}).Error)
-				ruleMap := map[string]interface{}{
-					"host_code":   "hh", // 与修复后一致的列名写法
-					"RuleName":    "r2",
-					"user_code":   xtestUser, // 本次修复点：原为 "User_code"
-					"UPDATE_TIME": customtype.JsonTime(time.Now()),
-				}
-				fatalIf(t, db.Model(model.Rules{}).Where("rule_code = ?", code).Updates(ruleMap).Error)
-				var got model.Rules
-				must(t, db.Where("rule_code = ?", code).First(&got).Error)
-				if got.RuleName != "r2" {
-					t.Fatalf("Rule 更新未落库: %+v", got)
-				}
-			})
+			// —— 有副作用 service 的 DB-only 路径（见 cross_engine_side_test.go）——
+			t.Run("side", func(t *testing.T) { runSideCases(t, x) })
 
 			// —— 方言 SQL 在各引擎真实执行 ——
 			t.Run("DialectSQL", func(t *testing.T) {
 				d := dialect.Get()
+				db := x.core
 				db.Exec("DROP TABLE IF EXISTS xtest_probe")
 				fatalIf(t, db.Exec("CREATE TABLE xtest_probe (id varchar(64), tag varchar(64), cnt int)").Error)
 				fatalIf(t, db.Exec("INSERT INTO xtest_probe (id,tag,cnt) VALUES ('a','t1',1),('b','t2',20)").Error)
@@ -278,6 +297,8 @@ func TestCrossEngine(t *testing.T) {
 	}
 }
 
+// ————— 公共断言助手 —————
+
 func must(t *testing.T, err error) {
 	t.Helper()
 	if err != nil {
@@ -288,37 +309,24 @@ func must(t *testing.T, err error) {
 func fatalIf(t *testing.T, err error) {
 	t.Helper()
 	if err != nil {
-		t.Fatalf("操作失败（PG 未修复时此处应报 42703）: %v", err)
+		t.Fatalf("操作失败: %v", err)
 	}
 }
 
-// assertHostCode 读回记录，断言 host_code 已更新为 "h2"。
-func assertHostCode(t *testing.T, db *gorm.DB, dst interface{}, id string) {
+// mustCount 断言某模型按条件的记录数
+func countBy(t *testing.T, db *gorm.DB, dst interface{}, where string, args ...interface{}) int64 {
 	t.Helper()
-	if err := db.Where("id = ?", id).First(dst).Error; err != nil {
-		t.Fatalf("读回失败: %v", err)
+	var n int64
+	if err := db.Model(dst).Where(where, args...).Count(&n).Error; err != nil {
+		t.Fatalf("计数失败(%T): %v", dst, err)
 	}
-	got := fmt.Sprintf("%v", getHostCode(dst))
-	if got != "h2" {
-		t.Fatalf("host_code 未更新，仍为 %q，模型 %T", got, dst)
-	}
+	return n
 }
 
-func getHostCode(v interface{}) string {
-	switch x := v.(type) {
-	case *model.IPBlockList:
-		return x.HostCode
-	case *model.IPAllowList:
-		return x.HostCode
-	case *model.URLBlockList:
-		return x.HostCode
-	case *model.URLAllowList:
-		return x.HostCode
-	case *model.AntiCC:
-		return x.HostCode
-	case *model.LDPUrl:
-		return x.HostCode
-	default:
-		return ""
+// assertGone 断言某 id 的记录已被删除
+func assertGone(t *testing.T, db *gorm.DB, dst interface{}, id string) {
+	t.Helper()
+	if n := countBy(t, db, dst, "id = ?", id); n != 0 {
+		t.Fatalf("记录应已删除但仍存在(%T id=%s)", dst, id)
 	}
 }

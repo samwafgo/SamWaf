@@ -14,7 +14,7 @@ func WafHttpCoreUrlEncode(encoded string, maxDepth int) string {
 	// 尝试解码 URL 编码
 	decoded, err := url.QueryUnescape(encoded)
 	if err != nil {
-		zlog.Error("URL_ENCODE 解码失败,尝试用Php解码", err.Error(), encoded)
+		zlog.Debug("URL_ENCODE 解码失败,尝试用Php解码", err.Error())
 		//尝试进行PHP解码
 		return phpUrlEncode(encoded)
 	}

@@ -34,9 +34,15 @@ func renderTemplate(templateContent string, data map[string]interface{}) ([]byte
 }
 
 // EchoErrorInfo  ruleName 对内记录  blockInfo 对外展示  attackType 攻击类型
-func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean *innerbean.WebLog, ruleName string, blockInfo string, hostsafe *wafenginmodel.HostSafe, globalHostSafe *wafenginmodel.HostSafe, isLog bool, attackType string) {
+// 返回值：实际下发的 HTTP 状态码（供调用方记录 weblog）
+func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean *innerbean.WebLog, ruleName string, blockInfo string, hostsafe *wafenginmodel.HostSafe, globalHostSafe *wafenginmodel.HostSafe, isLog bool, attackType string) int {
 	resBytes := []byte("")
 	var responseCode int = 403
+	// 反向代理环路：未配置专属拦截页时，默认按标准 508 Loop Detected 返回（仿 444 的按类型特判）；
+	// 用户若给 proxy_loop 配了拦截页则以页面配置的响应码为准（见下方 blockingPage.ResponseCode 覆盖）
+	if attackType == "proxy_loop" {
+		responseCode = 508
+	}
 
 	renderData := map[string]interface{}{
 		"SAMWAF_REQ_UUID":   weblogbean.REQ_UUID,
@@ -144,7 +150,7 @@ func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean *innerbean
 					weblogbean.GUEST_IDENTIFICATION = "可疑用户"
 					global.GQEQUE_LOG_DB.Enqueue(weblogbean)
 				}
-				return
+				return 444
 			}
 		}
 		// 如果无法劫持连接，则降级为正常的403响应
@@ -155,7 +161,7 @@ func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean *innerbean
 	_, err := w.Write(resBytes)
 	if err != nil {
 		zlog.Debug("write fail:", zap.Any("", err))
-		return
+		return responseCode
 	}
 
 	if isLog {
@@ -181,6 +187,7 @@ func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean *innerbean
 		weblogbean.GUEST_IDENTIFICATION = "可疑用户"
 		global.GQEQUE_LOG_DB.Enqueue(weblogbean)
 	}
+	return responseCode
 }
 
 // EchoResponseErrorInfo  ruleName 对内记录  blockInfo 对外展示  attackType 攻击类型

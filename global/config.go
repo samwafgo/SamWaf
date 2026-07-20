@@ -15,6 +15,7 @@ var (
 	GCONFIG_RECORD_KAFKA_TOPIC          string = "samwaf_logs_topic" //kafka topic
 	GCONFIG_RECORD_REDIRECT_HTTPS_CODE  int64  = 301                 //80跳转https的方式
 	GCONFIG_ENABLE_HTTPS_REDIRECT       int64  = 0                   //是否启用HTTPS重定向服务器 0关闭 1开启
+	GCONFIG_RECORD_PROXY_LOOP_MAX_HOP   int64  = 10                  //反向代理最大跳数，超过则判定为环路并拦截；0=关闭环路检测 proxy_loop_max_hop
 	GCONFIG_RECORD_LOGIN_MAX_ERROR_TIME int64  = 3                   //登录周期里错误最大次数
 	GCONFIG_RECORD_LOGIN_LIMIT_MINTUTES int64  = 1                   //登录错误记录周期 单位分钟最小1
 

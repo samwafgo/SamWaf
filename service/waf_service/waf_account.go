@@ -121,7 +121,7 @@ func (receiver *WafAccountService) InitDefaultAccount() error {
 
 // writeInitialPasswordFile 全新安装时把随机初始口令写入 data/ 供用户查看，并打印日志提示。
 func (receiver *WafAccountService) writeInitialPasswordFile(account, plainPwd string) {
-	dir := "data"
+	dir := filepath.Join(utils.GetCurrentDir(), "data")
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		zlog.Error("创建 data 目录失败", err)
 		return
@@ -133,7 +133,8 @@ func (receiver *WafAccountService) writeInitialPasswordFile(account, plainPwd st
 		zlog.Error("写入初始口令文件失败", err)
 		return
 	}
-	zlog.Info(fmt.Sprintf("首次安装已生成随机管理员初始口令，请查看文件: %s 并在登录后立即修改", fp))
+	zlog.Info(fmt.Sprintf("首次安装已生成随机管理员初始口令（首次登录必须立即修改）：账号=%s 初始口令=%s ，也可查看文件 %s",
+		account, plainPwd, fp))
 }
 
 // createAccount 内部统一建账逻辑

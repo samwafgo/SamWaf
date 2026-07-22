@@ -54,6 +54,7 @@ type Hosts struct {
 	TamperJSON                string `gorm:"type:text" json:"tamper_json"`                  //网页防篡改配置 json（响应基线比对）
 	UploadSecurityJSON        string `gorm:"type:text" json:"upload_security_json"`         //文件上传内容检测配置 json（扩展名/Webshell/类型/大小）
 	IPMode                    string `gorm:"size:20" json:"ip_mode"`                        //IP提取模式: "nic" 网卡模式 或 "proxy" 代理模式
+	DisableHTTP2              int    `json:"disable_http2"`                                 //对外HTTP/2开关 0启用(默认/现状) 1关闭(该站点ALPN只提供http/1.1,兼容安卓等原生WebSocket客户端)
 }
 
 type HostsDefense struct {

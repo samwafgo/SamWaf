@@ -1880,8 +1880,11 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 					Handler: waf,
 					TLSConfig: &tls.Config{
 						GetCertificate: waf.GetCertificateFunc,
-						MinVersion:     utils.ParseTLSVersion(global.GCONFIG_RECORD_SSLMinVerson),
-						MaxVersion:     utils.ParseTLSVersion(global.GCONFIG_RECORD_SSLMaxVerson),
+						// 按 SNI 逐连接定制 ALPN，实现 per-host 的对外 HTTP/2 开关：
+						// 命中 DisableHTTP2==1 的站点只广告 http/1.1，兼容原生 WebSocket 客户端。
+						GetConfigForClient: waf.GetTLSConfigForClient,
+						MinVersion:         utils.ParseTLSVersion(global.GCONFIG_RECORD_SSLMinVerson),
+						MaxVersion:         utils.ParseTLSVersion(global.GCONFIG_RECORD_SSLMaxVerson),
 					},
 				}
 				serclone, _ := waf.ServerOnline.Get(innruntime.Port)
@@ -1892,16 +1895,32 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 				zlog.Info("启动HTTPS 服务器" + strconv.Itoa(innruntime.Port))
 
 				if global.GCONFIG_ENABLE_HTTP3 == 1 {
+					// h3 用独立 TLSConfig：不挂 h2 的 GetConfigForClient，否则会把 "h3" 从
+					// NextProtos 里剔掉、打断整个 HTTP/3（h3 与 h2 是独立 ALPN，互不影响）。
+					h3TLS := &tls.Config{
+						GetCertificate: waf.GetCertificateFunc,
+						MinVersion:     utils.ParseTLSVersion(global.GCONFIG_RECORD_SSLMinVerson),
+						MaxVersion:     utils.ParseTLSVersion(global.GCONFIG_RECORD_SSLMaxVerson),
+					}
 					h3 := &http3.Server{
 						Addr:      ":" + strconv.Itoa(innruntime.Port),
 						Handler:   waf,
-						TLSConfig: svr.TLSConfig,
+						TLSConfig: h3TLS,
 					}
 					if global.GCONFIG_ENABLE_HTTP3_BBR == 1 {
 						h3.QUICConfig.Congestion = func() quic.SendAlgorithmWithDebugInfos { return quic.NewBBRv1(nil) }
 					}
+					h3Port := strconv.Itoa(innruntime.Port)
 					svr.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-						h3.SetQUICHeaders(w.Header())
+						// 关了 h2 的站点不广告 h3(Alt-Svc)：原生 WebSocket 客户端同样不能走 h3，
+						// 避免其被诱导升级到 h3 后再次握手失败，让该站点彻底只走 http/1.1。
+						reqDomain := r.Host
+						if idx := strings.IndexByte(reqDomain, ':'); idx >= 0 {
+							reqDomain = reqDomain[:idx]
+						}
+						if !waf.isHTTP2DisabledForServerName(reqDomain, h3Port) {
+							h3.SetQUICHeaders(w.Header())
+						}
 						waf.ServeHTTP(w, r)
 					})
 					go func() {

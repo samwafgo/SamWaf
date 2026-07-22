@@ -1261,6 +1261,33 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移: 为 hosts 表添加 disable_http2 字段（per-host 对外 HTTP/2 开关，0启用/1关闭）
+		{
+			ID: "202607220001_add_hosts_disable_http2",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202607220001: 为 hosts 表添加 disable_http2 字段")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "disable_http2") {
+					zlog.Info("disable_http2 字段已存在，跳过添加")
+					return nil
+				}
+				if err := tx.Migrator().AddColumn(&model.Hosts{}, "DisableHTTP2"); err != nil {
+					return fmt.Errorf("添加 disable_http2 字段失败: %w", err)
+				}
+				// 存量站点回填 0（=保持现状：对外启用 HTTP/2）
+				if err := tx.Exec("UPDATE hosts SET disable_http2 = 0 WHERE disable_http2 IS NULL").Error; err != nil {
+					zlog.Warn("回填 disable_http2 默认值失败", "error", err.Error())
+				}
+				zlog.Info("disable_http2 字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202607220001: 删除 hosts 表的 disable_http2 字段")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "disable_http2") {
+					return tx.Migrator().DropColumn(&model.Hosts{}, "disable_http2")
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

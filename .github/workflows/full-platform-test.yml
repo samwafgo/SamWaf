@@ -1,0 +1,459 @@
+name: Full Platform Build and Startup Test
+
+# 手动触发的全平台编译 + 启动冒烟测试（不发 Release、不推 Docker、不打 tag）
+# 用途：引入新第三方库后，验证各平台能编译且二进制能真实启动（探活 :26666）
+on:
+  workflow_dispatch:
+    inputs:
+      run_macos:
+        description: '编译并冒烟测试 macOS (arm64 + Rosetta amd64)'
+        type: boolean
+        default: true
+      run_win7:
+        description: '编译并冒烟测试 Win7/Win2008R2 专用版'
+        type: boolean
+        default: true
+  # 临时触发器：分支首验用，验证通过后删除
+  push:
+    branches:
+      - ci_fullplatform_test
+
+permissions:
+  contents: read
+
+jobs:
+  # ============ 1. goreleaser 快照编译 linux amd64/arm64 + windows amd64 ============
+  build-cross:
+    name: build linux+windows (goreleaser snapshot)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21.4'
+
+      - name: Install dependencies for cross-compilation
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu build-essential musl-tools
+
+      - name: Run GoReleaser (build only, snapshot)
+        uses: goreleaser/goreleaser-action@v4
+        with:
+          distribution: goreleaser
+          version: '2.1.0'
+          args: build --snapshot --clean --id samwaf_linux --id samwaf_win --id samwaf_linux_arm64
+        env:
+          CGO_ENABLED: 1
+
+      - name: Collect binaries
+        run: |
+          ls -R dist
+          mkdir -p out
+          cp dist/samwaf_linux_*/SamWafLinux64 out/
+          cp dist/samwaf_win_*/SamWaf64.exe out/
+          cp dist/samwaf_linux_arm64_*/SamWafLinuxArm64 out/
+          ls -lh out
+
+      - name: Upload SamWafLinux64
+        uses: actions/upload-artifact@v4
+        with:
+          name: SamWafLinux64
+          path: out/SamWafLinux64
+          retention-days: 3
+
+      - name: Upload SamWaf64.exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: SamWaf64
+          path: out/SamWaf64.exe
+          retention-days: 3
+
+      - name: Upload SamWafLinuxArm64
+        uses: actions/upload-artifact@v4
+        with:
+          name: SamWafLinuxArm64
+          path: out/SamWafLinuxArm64
+          retention-days: 3
+
+  # ============ 2. Linux amd64 启动冒烟 ============
+  smoke-linux-amd64:
+    name: startup test linux/amd64
+    runs-on: ubuntu-latest
+    needs: build-cross
+    timeout-minutes: 10
+    steps:
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: SamWafLinux64
+
+      - name: Startup test
+        timeout-minutes: 3
+        run: |
+          chmod +x ./SamWafLinux64
+          echo "Starting SamWaf service..."
+          ./SamWafLinux64 &
+          SERVICE_PID=$!
+          echo "Service started with PID: $SERVICE_PID"
+
+          echo "Waiting for service to start..."
+          for i in {1..30}; do
+            if curl -f http://localhost:26666 2>/dev/null; then
+              echo "Service is up and running!"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "Service failed to start within 30 seconds"
+              kill $SERVICE_PID || true
+              exit 1
+            fi
+            echo "Attempt $i/30: Service not ready yet, waiting..."
+            sleep 1
+          done
+
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:26666)
+          echo "HTTP Status Code: $HTTP_CODE"
+          kill $SERVICE_PID || true
+          wait $SERVICE_PID 2>/dev/null || true
+
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 500 ]; then
+            echo "Health check passed!"
+          else
+            echo "Health check failed with status code: $HTTP_CODE"
+            exit 1
+          fi
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          find . -name '*.log' -type f | while read f; do echo "===== $f ====="; cat "$f"; done
+
+  # ============ 3. Linux arm64 启动冒烟（原生 arm64 runner） ============
+  smoke-linux-arm64:
+    name: startup test linux/arm64
+    runs-on: ubuntu-24.04-arm
+    needs: build-cross
+    timeout-minutes: 10
+    steps:
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: SamWafLinuxArm64
+
+      - name: Startup test
+        timeout-minutes: 3
+        run: |
+          chmod +x ./SamWafLinuxArm64
+          echo "Starting SamWaf service..."
+          ./SamWafLinuxArm64 &
+          SERVICE_PID=$!
+          echo "Service started with PID: $SERVICE_PID"
+
+          echo "Waiting for service to start..."
+          for i in {1..30}; do
+            if curl -f http://localhost:26666 2>/dev/null; then
+              echo "Service is up and running!"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "Service failed to start within 30 seconds"
+              kill $SERVICE_PID || true
+              exit 1
+            fi
+            echo "Attempt $i/30: Service not ready yet, waiting..."
+            sleep 1
+          done
+
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:26666)
+          echo "HTTP Status Code: $HTTP_CODE"
+          kill $SERVICE_PID || true
+          wait $SERVICE_PID 2>/dev/null || true
+
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 500 ]; then
+            echo "Health check passed!"
+          else
+            echo "Health check failed with status code: $HTTP_CODE"
+            exit 1
+          fi
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          find . -name '*.log' -type f | while read f; do echo "===== $f ====="; cat "$f"; done
+
+  # ============ 4. Windows amd64 启动冒烟 ============
+  smoke-windows:
+    name: startup test windows/amd64
+    runs-on: windows-2022
+    needs: build-cross
+    timeout-minutes: 10
+    steps:
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: SamWaf64
+
+      - name: Startup test
+        shell: pwsh
+        timeout-minutes: 4
+        env:
+          SMOKE_EXE: SamWaf64.exe
+        run: |
+          Write-Host "Starting $env:SMOKE_EXE ..."
+          Start-Process -FilePath ".\$env:SMOKE_EXE" -WorkingDirectory $PWD
+          $ok = $false
+          foreach ($i in 1..45) {
+            try {
+              $r = Invoke-WebRequest -Uri "http://127.0.0.1:26666" -UseBasicParsing -TimeoutSec 3
+              if ([int]$r.StatusCode -ge 200) { $ok = $true; break }
+            } catch {
+              $resp = $_.Exception.Response
+              if ($resp) {
+                $code = [int]$resp.StatusCode
+                Write-Host "Attempt ${i}: got HTTP $code"
+                if ($code -ge 200 -and $code -lt 500) { $ok = $true; break }
+              } else {
+                Write-Host "Attempt ${i}: service not ready yet"
+              }
+            }
+            Start-Sleep -Seconds 1
+          }
+          Get-Process SamWaf* -ErrorAction SilentlyContinue | Stop-Process -Force
+          if (-not $ok) {
+            Write-Error "Service failed to start within timeout"
+            exit 1
+          }
+          Write-Host "Startup test passed!"
+
+      - name: Show logs on failure
+        if: failure()
+        shell: pwsh
+        run: |
+          Get-ChildItem -Recurse -Filter *.log -ErrorAction SilentlyContinue | ForEach-Object {
+            Write-Host "===== $($_.FullName) ====="
+            Get-Content $_.FullName
+          }
+
+  # ============ 5. macOS 原生编译 + 启动冒烟（arm64 原生 / amd64 走 Rosetta） ============
+  build-macos-smoke:
+    name: build+startup test macOS
+    runs-on: macos-latest
+    if: ${{ inputs.run_macos != false }}
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21.4'
+
+      - name: Download SamWafWeb
+        run: |
+          curl -L https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
+          tar -zxvf dist.tar.gz
+          rm -rf public/dist
+          mv -f dist public
+          rm -rf dist.tar.gz
+
+      - name: Build macOS binaries
+        env:
+          CGO_ENABLED: 1
+          MACOSX_DEPLOYMENT_TARGET: "10.15"
+        run: |
+          CURRENT_TAG="citest-${{ github.run_number }}"
+          BUILDTIME=$(date +'%Y%m%d')
+
+          echo "Building macOS AMD64..."
+          GOOS=darwin GOARCH=amd64 go build \
+            -ldflags="-X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=false -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=${CURRENT_TAG} -s -w" \
+            -o ./dist/SamWafDarwinAmd64 ./cmd/samwaf/main.go
+
+          echo "Building macOS ARM64..."
+          GOOS=darwin GOARCH=arm64 go build \
+            -ldflags="-X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=false -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=${CURRENT_TAG} -s -w" \
+            -o ./dist/SamWafDarwinArm64 ./cmd/samwaf/main.go
+
+      - name: Ensure Rosetta 2 (for amd64 smoke test)
+        run: |
+          softwareupdate --install-rosetta --agree-to-license || true
+
+      - name: Startup test (arm64 native, then amd64 via Rosetta)
+        timeout-minutes: 6
+        run: |
+          run_smoke() {
+            BIN=$1
+            WORKDIR=$2
+            mkdir -p "$WORKDIR"
+            cp "$BIN" "$WORKDIR/samwaf-under-test"
+            cd "$WORKDIR"
+            chmod +x ./samwaf-under-test
+            echo "Starting $BIN ..."
+            ./samwaf-under-test &
+            SERVICE_PID=$!
+            RESULT=1
+            for i in {1..30}; do
+              if curl -f http://localhost:26666 >/dev/null 2>&1; then
+                echo "Service is up!"
+                break
+              fi
+              echo "Attempt $i/30: not ready yet..."
+              sleep 1
+            done
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:26666)
+            echo "HTTP Status Code: $HTTP_CODE"
+            kill $SERVICE_PID || true
+            wait $SERVICE_PID 2>/dev/null || true
+            cd - >/dev/null
+            if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 500 ]; then
+              echo "Startup test passed for $BIN"
+              return 0
+            else
+              echo "Startup test FAILED for $BIN (HTTP $HTTP_CODE)"
+              return 1
+            fi
+          }
+
+          run_smoke ./dist/SamWafDarwinArm64 /tmp/smoke-arm64
+          sleep 3
+          run_smoke ./dist/SamWafDarwinAmd64 /tmp/smoke-amd64
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          find /tmp/smoke-arm64 /tmp/smoke-amd64 -name '*.log' -type f 2>/dev/null | while read f; do echo "===== $f ====="; cat "$f"; done
+
+      - name: Upload macOS binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: SamWaf-macOS
+          path: |
+            dist/SamWafDarwinAmd64
+            dist/SamWafDarwinArm64
+          retention-days: 3
+
+  # ============ 6. Win7/Win2008R2 专用版编译（补丁版 Go 1.25） ============
+  build-win7:
+    name: build win7/win2008r2 special
+    runs-on: ubuntu-latest
+    if: ${{ inputs.run_win7 != false }}
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.11'
+          check-latest: false
+
+      - name: Install dependencies for Windows cross-compilation
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 build-essential
+
+      - name: Download SamWafWeb
+        run: |
+          curl -L https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
+          tar -zxvf dist.tar.gz
+          rm -rf public/dist
+          mv -f dist public
+          rm -rf dist.tar.gz
+
+      - name: Revert Golang1.25 commit for Windows7/8
+        run: |
+          cd $(go env GOROOT)
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go125/1bdabae205052afe1dadb2ad6f1ba612cdbc532a.diff
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go125/34b899c2fb39b092db4fa67c4417e41dc046be4b.diff
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go125/466f6c7a29bc098b0d4c987b803c779222894a11.diff
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go125/a90777dcf692dd2168577853ba743b4338721b06.diff
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go125/bed309eff415bcb3c77dd4bc3277b682b89a388d.diff
+          patch --verbose -p 1 < $GITHUB_WORKSPACE/.github/win7patch/patch_go125/f6bddda4e8ff58a957462a1a09562924d5f3d05c.diff
+
+      - name: Build Win7/Win8/Windows2008r2
+        env:
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: 1
+          CC: x86_64-w64-mingw32-gcc
+          CXX: x86_64-w64-mingw32-g++
+          CGO_CFLAGS: -Wno-unused-variable -Wno-implicit-function-declaration
+        run: |
+          CURRENT_TAG="citest-${{ github.run_number }}"
+          BUILDTIME=$(date +'%Y%m%d')
+          go build -ldflags="-X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=true -X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=${CURRENT_TAG} -s -w -extldflags '-static'" -o ./release/SamWaf64ForWin7Win8Win2008.exe ./cmd/samwaf/main.go
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SamWaf64ForWin7Win8Win2008
+          path: release/SamWaf64ForWin7Win8Win2008.exe
+          retention-days: 3
+
+  # ============ 7. Win7 专用版在 windows-2022 上近似冒烟（2008R2 无托管镜像） ============
+  smoke-win7-approx:
+    name: startup test win7 special (approx on win2022)
+    runs-on: windows-2022
+    needs: build-win7
+    if: ${{ inputs.run_win7 != false }}
+    timeout-minutes: 10
+    steps:
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: SamWaf64ForWin7Win8Win2008
+
+      - name: Startup test
+        shell: pwsh
+        timeout-minutes: 4
+        env:
+          SMOKE_EXE: SamWaf64ForWin7Win8Win2008.exe
+        run: |
+          Write-Host "NOTE: GitHub has no Windows 2008 R2 image; this is an approximate check on windows-2022."
+          Write-Host "Starting $env:SMOKE_EXE ..."
+          Start-Process -FilePath ".\$env:SMOKE_EXE" -WorkingDirectory $PWD
+          $ok = $false
+          foreach ($i in 1..45) {
+            try {
+              $r = Invoke-WebRequest -Uri "http://127.0.0.1:26666" -UseBasicParsing -TimeoutSec 3
+              if ([int]$r.StatusCode -ge 200) { $ok = $true; break }
+            } catch {
+              $resp = $_.Exception.Response
+              if ($resp) {
+                $code = [int]$resp.StatusCode
+                Write-Host "Attempt ${i}: got HTTP $code"
+                if ($code -ge 200 -and $code -lt 500) { $ok = $true; break }
+              } else {
+                Write-Host "Attempt ${i}: service not ready yet"
+              }
+            }
+            Start-Sleep -Seconds 1
+          }
+          Get-Process SamWaf* -ErrorAction SilentlyContinue | Stop-Process -Force
+          if (-not $ok) {
+            Write-Error "Service failed to start within timeout"
+            exit 1
+          }
+          Write-Host "Startup test passed!"
+
+      - name: Show logs on failure
+        if: failure()
+        shell: pwsh
+        run: |
+          Get-ChildItem -Recurse -Filter *.log -ErrorAction SilentlyContinue | ForEach-Object {
+            Write-Host "===== $($_.FullName) ====="
+            Get-Content $_.FullName
+          }

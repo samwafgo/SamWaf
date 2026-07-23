@@ -35,7 +35,7 @@ func (waf *WafEngine) ProxyHTTP(w http.ResponseWriter, r *http.Request, host str
 			for addrIndex, loadBalance := range hostTarget.LoadBalanceLists {
 				//初始化后端负载
 				zlog.Debug("HTTP REQUEST", weblog.REQ_UUID, weblog.URL, "未初始化")
-				transport := waf.getOrCreateTransport(r, host, 1, loadBalance, hostTarget) // 使用缓存的Transport
+				transport := waf.getOrCreateTransport(r, host, 1, loadBalance, hostTarget, remoteUrl.Scheme) // 使用缓存的Transport
 				customHeaders := waf.getCustomHeaders(r, host, 1, loadBalance, hostTarget)
 				customConfig := map[string]string{}
 				customConfig["IsTransBackDomain"] = strconv.Itoa(hostTarget.Host.IsTransBackDomain)
@@ -89,7 +89,7 @@ func (waf *WafEngine) ProxyHTTP(w http.ResponseWriter, r *http.Request, host str
 		}
 
 	} else {
-		transport := waf.getOrCreateTransport(r, host, 0, model.LoadBalance{}, hostTarget) // 使用缓存的Transport
+		transport := waf.getOrCreateTransport(r, host, 0, model.LoadBalance{}, hostTarget, remoteUrl.Scheme) // 使用缓存的Transport
 		customHeaders := waf.getCustomHeaders(r, host, 0, model.LoadBalance{}, hostTarget)
 		customConfig := map[string]string{}
 		customConfig["IsTransBackDomain"] = strconv.Itoa(hostTarget.Host.IsTransBackDomain)
@@ -241,7 +241,9 @@ func resolvePathRuleScheme(r *http.Request, rule *model.HostPathRule) string {
 	}
 }
 
-func (waf *WafEngine) createTransport(r *http.Request, host string, isEnableLoadBalance int, loadBalance model.LoadBalance, hostTarget *wafenginmodel.HostSafe) (*http.Transport, map[string]string) {
+// backendScheme 为后端连接协议（remoteUrl.Scheme，如 http/https），决定是否挂 TLS 配置；
+// 不再用客户端连接协议 r.TLS 判断，从而让 "HTTP 进 → HTTPS 后端" 也能复用 InsecureSkipVerify（对齐 createPathRuleTransport / #857）
+func (waf *WafEngine) createTransport(r *http.Request, host string, isEnableLoadBalance int, loadBalance model.LoadBalance, hostTarget *wafenginmodel.HostSafe, backendScheme string) (*http.Transport, map[string]string) {
 	customHeaders := map[string]string{}
 	var transport *http.Transport
 	dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -266,9 +268,13 @@ func (waf *WafEngine) createTransport(r *http.Request, host string, isEnableLoad
 		return dialer.DialContext(ctx, network, addr)
 	}
 
+	// 增加https标识：仍按“客户端进来的协议”设置，反映客户端真实协议
 	if r.TLS != nil {
-		// 增加https标识
 		customHeaders["X-FORWARDED-PROTO"] = "https"
+	}
+	// 是否挂后端 TLS 配置：按“后端协议”判断（而非 r.TLS），
+	// 这样 "HTTP 进 → HTTPS 后端" 也能正确挂载 TLS 配置并复用 InsecureSkipVerify
+	if strings.EqualFold(backendScheme, "https") {
 		transport = &http.Transport{
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: hostTarget.Host.InsecureSkipVerify == 1,
@@ -331,9 +337,9 @@ func (waf *WafEngine) createTransport(r *http.Request, host string, isEnableLoad
 }
 
 // 获取或创建Transport
-func (waf *WafEngine) getOrCreateTransport(r *http.Request, host string, isEnableLoadBalance int, loadBalance model.LoadBalance, hostTarget *wafenginmodel.HostSafe) *http.Transport {
+func (waf *WafEngine) getOrCreateTransport(r *http.Request, host string, isEnableLoadBalance int, loadBalance model.LoadBalance, hostTarget *wafenginmodel.HostSafe, backendScheme string) *http.Transport {
 	// 生成Transport的唯一键
-	transportKey := waf.generateTransportKey(host, isEnableLoadBalance, loadBalance, hostTarget)
+	transportKey := waf.generateTransportKey(host, isEnableLoadBalance, loadBalance, hostTarget, backendScheme)
 
 	waf.TransportMux.RLock()
 	if transport, exists := waf.TransportPool[transportKey]; exists {
@@ -351,7 +357,7 @@ func (waf *WafEngine) getOrCreateTransport(r *http.Request, host string, isEnabl
 		return transport
 	}
 
-	transport, _ := waf.createTransport(r, host, isEnableLoadBalance, loadBalance, hostTarget)
+	transport, _ := waf.createTransport(r, host, isEnableLoadBalance, loadBalance, hostTarget, backendScheme)
 
 	// 优化Transport配置
 	/*transport.MaxIdleConns = 1000
@@ -366,21 +372,24 @@ func (waf *WafEngine) getOrCreateTransport(r *http.Request, host string, isEnabl
 }
 
 // 生成Transport的唯一键
-func (waf *WafEngine) generateTransportKey(host string, isEnableLoadBalance int, loadBalance model.LoadBalance, hostTarget *wafenginmodel.HostSafe) string {
+func (waf *WafEngine) generateTransportKey(host string, isEnableLoadBalance int, loadBalance model.LoadBalance, hostTarget *wafenginmodel.HostSafe, backendScheme string) string {
 
-	key := fmt.Sprintf("%s_%d_%s_%d_%v",
+	// key 末尾加入 backendScheme，避免不同后端协议(是否挂 TLS 配置)命中同一条缓存
+	key := fmt.Sprintf("%s_%d_%s_%d_%v_%s",
 		host,
 		isEnableLoadBalance,
 		hostTarget.Host.Remote_ip,
 		hostTarget.Host.Remote_port,
-		hostTarget.Host.InsecureSkipVerify)
+		hostTarget.Host.InsecureSkipVerify,
+		backendScheme)
 	if isEnableLoadBalance == 1 {
-		key = fmt.Sprintf("%s_%d_%s_%d_%v",
+		key = fmt.Sprintf("%s_%d_%s_%d_%v_%s",
 			host,
 			isEnableLoadBalance,
 			loadBalance.Remote_ip,
 			loadBalance.Remote_port,
-			hostTarget.Host.InsecureSkipVerify)
+			hostTarget.Host.InsecureSkipVerify,
+			backendScheme)
 	}
 	return key
 }

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 
@@ -50,7 +51,13 @@ func (w *WafStatApi) StatRumtimeSysinfoApi(c *gin.Context) {
 // @Router       /wafstatsumday [get]
 func (w *WafStatApi) StatHomeSumDayApi(c *gin.Context) {
 
-	wafStat, _ := wafStatService.StatHomeSumDayApi()
+	wafStat, err := wafStatService.StatHomeSumDayApi()
+	if err != nil {
+		// 详细错误只落日志，响应体不回传 SQL/表结构信息
+		zlog.Error("获取今日访问统计失败", err)
+		response.FailWithMessage("获取统计数据失败", c)
+		return
+	}
 	response.OkWithDetailed(wafStat, "获取成功", c)
 }
 
@@ -68,7 +75,12 @@ func (w *WafStatApi) StatHomeSumDayRangeApi(c *gin.Context) {
 	var req request.WafStatsDayRangeReq
 	err := c.ShouldBind(&req)
 	if err == nil {
-		wafStat, _ := wafStatService.StatHomeSumDayRangeApi(req)
+		wafStat, err := wafStatService.StatHomeSumDayRangeApi(req)
+		if err != nil {
+			zlog.Error("按日期范围统计访问量失败", err)
+			response.FailWithMessage("获取统计数据失败", c)
+			return
+		}
 		response.OkWithDetailed(wafStat, "获取成功", c)
 	} else {
 
@@ -90,7 +102,12 @@ func (w *WafStatApi) StatHomeSumDayTopIPRangeApi(c *gin.Context) {
 	var req request.WafStatsDayRangeReq
 	err := c.ShouldBind(&req)
 	if err == nil {
-		wafStat, _ := wafStatService.StatHomeSumDayTopIPRangeApi(req)
+		wafStat, err := wafStatService.StatHomeSumDayTopIPRangeApi(req)
+		if err != nil {
+			zlog.Error("统计攻击IP排行失败", err)
+			response.FailWithMessage("获取统计数据失败", c)
+			return
+		}
 		response.OkWithDetailed(wafStat, "获取成功", c)
 	} else {
 
@@ -112,7 +129,12 @@ func (w *WafStatApi) StatSiteOverviewApi(c *gin.Context) {
 	var req request.WafStatsSiteOverviewReq
 	err := c.ShouldBind(&req)
 	if err == nil {
-		data, _ := wafStatService.StatSiteOverviewApi(req)
+		data, err := wafStatService.StatSiteOverviewApi(req)
+		if err != nil {
+			zlog.Error("站点综合概览查询失败", err)
+			response.FailWithMessage("获取统计数据失败", c)
+			return
+		}
 		response.OkWithDetailed(data, "获取成功", c)
 	} else {
 		response.FailWithMessage("解析失败", c)
@@ -133,7 +155,12 @@ func (w *WafStatApi) StatSiteDetailApi(c *gin.Context) {
 	var req request.WafStatsSiteDetailReq
 	err := c.ShouldBind(&req)
 	if err == nil {
-		data, _ := wafStatService.StatSiteDetailApi(req)
+		data, err := wafStatService.StatSiteDetailApi(req)
+		if err != nil {
+			zlog.Error("站点详情趋势查询失败", err)
+			response.FailWithMessage("获取统计数据失败", c)
+			return
+		}
 		response.OkWithDetailed(data, "获取成功", c)
 	} else {
 		response.FailWithMessage("解析失败", c)

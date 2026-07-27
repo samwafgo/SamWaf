@@ -35,9 +35,11 @@ func (waf *WafEngine) CheckAllowIP(r *http.Request, weblogbean *innerbean.WebLog
 		}
 	}
 	//ip白名单策略（全局）
-	if waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].Host.GUARD_STATUS == 1 && waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPWhiteLists != nil {
-		for i := 0; i < len(waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPWhiteLists); i++ {
-			if utils.CheckIPInCIDR(clientIp, waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPWhiteLists[i].Ip) {
+	//注意：全局网站可能还没登记进路由快照（未初始化/正在重载），必须判空，否则解引用 panic
+	globalHost := waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME]
+	if globalHost != nil && globalHost.Host.GUARD_STATUS == 1 && globalHost.IPWhiteLists != nil {
+		for i := 0; i < len(globalHost.IPWhiteLists); i++ {
+			if utils.CheckIPInCIDR(clientIp, globalHost.IPWhiteLists[i].Ip) {
 				result.JumpGuardResult = true
 				break
 			}

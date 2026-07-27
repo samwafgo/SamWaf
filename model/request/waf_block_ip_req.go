@@ -33,4 +33,5 @@ type WafBlockIpBatchDelReq struct {
 }
 
 type WafBlockIpDelAllReq struct {
+	HostCode string `json:"host_code" form:"host_code"` //网站唯一码，为空则删除所有
 }

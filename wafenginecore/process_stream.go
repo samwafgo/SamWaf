@@ -128,27 +128,33 @@ func (sp *StreamProcessor) processPrivacyProtection(data string) string {
 	ldpFlag := false
 
 	// 检查局部隐私保护规则
-	for i := 0; i < len(sp.wafEngine.rt().HostTarget[host].LdpUrlLists); i++ {
-		lowerRuleURL := strings.ToLower(sp.wafEngine.rt().HostTarget[host].LdpUrlLists[i].Url)
+	//注意：host 解析不到时 HostTarget[host] 为 nil，必须判空，否则解引用 panic
+	localHost := sp.wafEngine.rt().HostTarget[host]
+	if localHost != nil {
+		for i := 0; i < len(localHost.LdpUrlLists); i++ {
+			lowerRuleURL := strings.ToLower(localHost.LdpUrlLists[i].Url)
 
-		if (sp.wafEngine.rt().HostTarget[host].LdpUrlLists[i].CompareType == "等于" && lowerRuleURL == lowerRequestURI) ||
-			(sp.wafEngine.rt().HostTarget[host].LdpUrlLists[i].CompareType == "前缀匹配" && strings.HasPrefix(lowerRequestURI, lowerRuleURL)) ||
-			(sp.wafEngine.rt().HostTarget[host].LdpUrlLists[i].CompareType == "后缀匹配" && strings.HasSuffix(lowerRequestURI, lowerRuleURL)) ||
-			(sp.wafEngine.rt().HostTarget[host].LdpUrlLists[i].CompareType == "包含匹配" && strings.Contains(lowerRequestURI, lowerRuleURL)) {
-			ldpFlag = true
-			break
+			if (localHost.LdpUrlLists[i].CompareType == "等于" && lowerRuleURL == lowerRequestURI) ||
+				(localHost.LdpUrlLists[i].CompareType == "前缀匹配" && strings.HasPrefix(lowerRequestURI, lowerRuleURL)) ||
+				(localHost.LdpUrlLists[i].CompareType == "后缀匹配" && strings.HasSuffix(lowerRequestURI, lowerRuleURL)) ||
+				(localHost.LdpUrlLists[i].CompareType == "包含匹配" && strings.Contains(lowerRequestURI, lowerRuleURL)) {
+				ldpFlag = true
+				break
+			}
 		}
 	}
 
 	// 检查全局隐私保护规则
-	if !ldpFlag {
-		for i := 0; i < len(sp.wafEngine.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists); i++ {
-			lowerGlobalRuleURL := strings.ToLower(sp.wafEngine.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].Url)
+	//注意：全局网站可能还没登记进路由快照（未初始化/正在重载），必须判空，否则解引用 panic
+	globalHost := sp.wafEngine.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME]
+	if !ldpFlag && globalHost != nil {
+		for i := 0; i < len(globalHost.LdpUrlLists); i++ {
+			lowerGlobalRuleURL := strings.ToLower(globalHost.LdpUrlLists[i].Url)
 
-			if (sp.wafEngine.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].CompareType == "等于" && lowerGlobalRuleURL == lowerRequestURI) ||
-				(sp.wafEngine.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].CompareType == "前缀匹配" && strings.HasPrefix(lowerRequestURI, lowerGlobalRuleURL)) ||
-				(sp.wafEngine.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].CompareType == "后缀匹配" && strings.HasSuffix(lowerRequestURI, lowerGlobalRuleURL)) ||
-				(sp.wafEngine.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].LdpUrlLists[i].CompareType == "包含匹配" && strings.Contains(lowerRequestURI, lowerGlobalRuleURL)) {
+			if (globalHost.LdpUrlLists[i].CompareType == "等于" && lowerGlobalRuleURL == lowerRequestURI) ||
+				(globalHost.LdpUrlLists[i].CompareType == "前缀匹配" && strings.HasPrefix(lowerRequestURI, lowerGlobalRuleURL)) ||
+				(globalHost.LdpUrlLists[i].CompareType == "后缀匹配" && strings.HasSuffix(lowerRequestURI, lowerGlobalRuleURL)) ||
+				(globalHost.LdpUrlLists[i].CompareType == "包含匹配" && strings.Contains(lowerRequestURI, lowerGlobalRuleURL)) {
 				ldpFlag = true
 				break
 			}

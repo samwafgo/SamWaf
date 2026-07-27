@@ -99,11 +99,7 @@ func (w *WafBlockingPageApi) ModifyApi(c *gin.Context) {
 		if err != nil {
 			response.FailWithMessage("编辑发生错误"+err.Error(), c)
 		} else {
-			w.NotifyWaf(req.HostCode)
-			if bean.HostCode != req.HostCode && bean.HostCode != "" {
-				//老的主机编码
-				w.NotifyWaf(bean.HostCode)
-			}
+			notifyWafHostChanged(w.NotifyWaf, bean.HostCode, req.HostCode)
 			response.OkWithMessage("编辑成功", c)
 		}
 	} else {

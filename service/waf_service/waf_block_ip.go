@@ -135,9 +135,21 @@ func (receiver *WafBlockIpService) BatchDelApi(req request.WafBlockIpBatchDelReq
 
 // DelAllApi 删除指定网站的所有IP黑名单
 func (receiver *WafBlockIpService) DelAllApi(req request.WafBlockIpDelAllReq) error {
+	var whereCondition string
+	var whereValues []interface{}
+
+	// 指定了网站就只清空该网站，为空才是清空全部（原先无条件删全部，会误删其它网站的黑名单）
+	if len(req.HostCode) > 0 {
+		whereCondition = "host_code = ? AND user_code = ? AND tenant_id = ?"
+		whereValues = append(whereValues, req.HostCode, global.GWAF_USER_CODE, global.GWAF_TENANT_ID)
+	} else {
+		whereCondition = "user_code = ? AND tenant_id = ?"
+		whereValues = append(whereValues, global.GWAF_USER_CODE, global.GWAF_TENANT_ID)
+	}
+
 	// 先检查是否存在记录
 	var count int64
-	err := global.GWAF_LOCAL_DB.Model(&model.IPBlockList{}).Count(&count).Error
+	err := global.GWAF_LOCAL_DB.Model(&model.IPBlockList{}).Where(whereCondition, whereValues...).Count(&count).Error
 	if err != nil {
 		return err
 	}
@@ -146,9 +158,9 @@ func (receiver *WafBlockIpService) DelAllApi(req request.WafBlockIpDelAllReq) er
 		return errors.New("没有IP黑名单记录")
 	}
 
-	// 执行全量删除 - 限制在当前租户和用户范围内
+	// 执行删除 - 限制在当前租户和用户范围内
 	err = global.GWAF_LOCAL_DB.
-		Where("user_code = ? AND tenant_id = ?", global.GWAF_USER_CODE, global.GWAF_TENANT_ID).
+		Where(whereCondition, whereValues...).
 		Delete(&model.IPBlockList{}).Error
 	return err
 }

@@ -46,15 +46,17 @@ func (waf *WafEngine) CheckDenyURL(r *http.Request, weblogbean *innerbean.WebLog
 	}
 
 	//url黑名单策略-(全局)
-	if waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].Host.GUARD_STATUS == 1 && waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists != nil {
-		for i := 0; i < len(waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists); i++ {
+	//注意：全局网站可能还没登记进路由快照（未初始化/正在重载），必须判空，否则解引用 panic
+	globalHost := waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME]
+	if globalHost != nil && globalHost.Host.GUARD_STATUS == 1 && globalHost.UrlBlockLists != nil {
+		for i := 0; i < len(globalHost.UrlBlockLists); i++ {
 			// 将全局规则URL也转为小写
-			lowerGlobalRuleURL := strings.ToLower(waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].Url)
+			lowerGlobalRuleURL := strings.ToLower(globalHost.UrlBlockLists[i].Url)
 
-			if (waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].CompareType == "等于" && lowerGlobalRuleURL == lowerURL) ||
-				(waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].CompareType == "前缀匹配" && strings.HasPrefix(lowerURL, lowerGlobalRuleURL)) ||
-				(waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].CompareType == "后缀匹配" && strings.HasSuffix(lowerURL, lowerGlobalRuleURL)) ||
-				(waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].UrlBlockLists[i].CompareType == "包含匹配" && strings.Contains(lowerURL, lowerGlobalRuleURL)) {
+			if (globalHost.UrlBlockLists[i].CompareType == "等于" && lowerGlobalRuleURL == lowerURL) ||
+				(globalHost.UrlBlockLists[i].CompareType == "前缀匹配" && strings.HasPrefix(lowerURL, lowerGlobalRuleURL)) ||
+				(globalHost.UrlBlockLists[i].CompareType == "后缀匹配" && strings.HasSuffix(lowerURL, lowerGlobalRuleURL)) ||
+				(globalHost.UrlBlockLists[i].CompareType == "包含匹配" && strings.Contains(lowerURL, lowerGlobalRuleURL)) {
 				weblogbean.RISK_LEVEL = 1
 				result.IsBlock = true
 				result.Title = "【全局】URL黑名单"

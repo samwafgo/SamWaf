@@ -142,11 +142,13 @@ func (w *WafBlockIpApi) ModifyBlockIpApi(c *gin.Context) {
 	var req request.WafBlockIpEditReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		//编辑前先取旧记录，拿到可能被本次编辑改掉的旧 host_code(issue #898)
+		bean := wafIpBlockService.GetDetailByIdApi(req.Id)
 		err = wafIpBlockService.ModifyApi(req)
 		if err != nil {
 			response.FailWithMessage("编辑发生错误", c)
 		} else {
-			w.NotifyWaf(req.HostCode)
+			notifyWafHostChanged(w.NotifyWaf, bean.HostCode, req.HostCode)
 			response.OkWithMessage("编辑成功", c)
 		}
 
@@ -203,7 +205,11 @@ func (w *WafBlockIpApi) DelAllBlockIpApi(c *gin.Context) {
 			for _, hostCode := range hostCodes {
 				w.NotifyWaf(hostCode)
 			}
-			response.OkWithMessage("成功删除该网站的所有IP黑名单", c)
+			if len(req.HostCode) > 0 {
+				response.OkWithMessage("成功删除该网站的所有IP黑名单", c)
+			} else {
+				response.OkWithMessage("成功删除所有IP黑名单", c)
+			}
 		}
 	} else {
 		response.FailWithMessage("解析失败", c)

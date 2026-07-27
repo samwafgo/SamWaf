@@ -142,11 +142,13 @@ func (w *WafAllowUrlApi) ModifyAllowUrlApi(c *gin.Context) {
 	var req request.WafAllowUrlEditReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		//编辑前先取旧记录，拿到可能被本次编辑改掉的旧 host_code(issue #898)
+		bean := wafUrlAllowService.GetDetailByIdApi(req.Id)
 		err = wafUrlAllowService.ModifyApi(req)
 		if err != nil {
 			response.FailWithMessage("编辑发生错误", c)
 		} else {
-			w.NotifyWaf(req.HostCode)
+			notifyWafHostChanged(w.NotifyWaf, bean.HostCode, req.HostCode)
 			response.OkWithMessage("编辑成功", c)
 		}
 

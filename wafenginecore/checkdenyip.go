@@ -38,9 +38,11 @@ func (waf *WafEngine) CheckDenyIP(r *http.Request, weblogbean *innerbean.WebLog,
 		}
 	}
 	//ip黑名单策略（全局）
-	if waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].Host.GUARD_STATUS == 1 && waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPBlockLists != nil {
-		for i := 0; i < len(waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPBlockLists); i++ {
-			if utils.CheckIPInCIDR(clientIp, waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME].IPBlockLists[i].Ip) {
+	//注意：全局网站可能还没登记进路由快照（未初始化/正在重载），必须判空，否则解引用 panic
+	globalHost := waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME]
+	if globalHost != nil && globalHost.Host.GUARD_STATUS == 1 && globalHost.IPBlockLists != nil {
+		for i := 0; i < len(globalHost.IPBlockLists); i++ {
+			if utils.CheckIPInCIDR(clientIp, globalHost.IPBlockLists[i].Ip) {
 				weblogbean.RISK_LEVEL = 1
 				result.IsBlock = true
 				result.Title = "【全局】IP黑名单"

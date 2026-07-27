@@ -3,9 +3,10 @@ package response
 import "SamWaf/customtype"
 
 type AllHostRep struct {
-	Code    string `json:"value"`    //唯一码
-	Host    string `json:"label"`    //域名
-	PreHost string `json:"pre_host"` //纯域名和端口
+	Code     string `json:"value"`    //唯一码
+	Host     string `json:"label"`    //域名
+	PreHost  string `json:"pre_host"` //纯域名和端口
+	Nickname string `json:"nickname"` //网站昵称（纯昵称，可能为空）
 }
 
 type AllShareDbRep struct {

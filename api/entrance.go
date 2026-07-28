@@ -63,6 +63,7 @@ type APIGroup struct {
 	WafHostPathRuleApi
 	WafAppApi
 	WafAIApi
+	WafUIPreferenceApi
 }
 
 var APIGroupAPP = new(APIGroup)
@@ -139,4 +140,6 @@ var (
 	wafHostPathRuleService  = waf_service.WafHostPathRuleServiceApp
 	wafAppService           = waf_service.WafAppServiceApp
 	wafAppChangeLogService  = waf_service.WafAppChangeLogServiceApp
+
+	wafUIPreferenceService = waf_service.WafUIPreferenceServiceApp
 )

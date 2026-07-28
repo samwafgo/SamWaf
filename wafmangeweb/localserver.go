@@ -169,6 +169,8 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitIPLocationRouter(RouterGroup)
 		router.ApiGroupApp.InitWafDataRetentionRouter(RouterGroup)
 		router.ApiGroupApp.InitWafHostPathRuleRouter(RouterGroup)
+		// 界面偏好：按登录账号隔离（账号归属即授权边界），任意已登录角色均可存取本人的界面偏好
+		router.ApiGroupApp.InitWafUIPreferenceRouter(RouterGroup)
 
 		// 自助改密：任意已登录角色均可修改本人密码（含首次登录/到期强制改密场景），不受角色域限制
 		RouterGroup.POST("/api/v1/account/changemypwd", api.APIGroupAPP.WafAccountApi.ChangeMyPasswordApi)

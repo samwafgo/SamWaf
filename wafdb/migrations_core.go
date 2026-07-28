@@ -65,6 +65,7 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 						&model.CacheRule{},
 						&model.Tunnel{},
 						&model.CaServerInfo{},
+						&model.UIPreference{},
 					); err != nil {
 						return fmt.Errorf("同步表结构失败: %w", err)
 					}
@@ -103,6 +104,7 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 						&model.CacheRule{},
 						&model.Tunnel{},
 						&model.CaServerInfo{},
+						&model.UIPreference{},
 					); err != nil {
 						return fmt.Errorf("创建core表失败: %w", err)
 					}
@@ -1284,6 +1286,30 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				zlog.Info("回滚 202607220001: 删除 hosts 表的 disable_http2 字段")
 				if tx.Migrator().HasColumn(&model.Hosts{}, "disable_http2") {
 					return tx.Migrator().DropColumn(&model.Hosts{}, "disable_http2")
+				}
+				return nil
+			},
+		},
+		// 迁移: 创建界面偏好表（按登录账号保存管理端界面偏好，如访问日志列配置）
+		{
+			ID: "202607280001_add_ui_preferences_table",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202607280001: 创建界面偏好表")
+				if err := tx.AutoMigrate(&model.UIPreference{}); err != nil {
+					return fmt.Errorf("创建界面偏好表失败: %w", err)
+				}
+				// 同一账号同一偏好名只允许一行
+				if err := safeCreateIndex(tx, "ui_preferences", "uni_ui_pref",
+					"CREATE UNIQUE INDEX IF NOT EXISTS uni_ui_pref ON ui_preferences (user_code, tenant_id, login_account, pref_name)"); err != nil {
+					zlog.Warn("创建索引 uni_ui_pref 失败", "error", err.Error())
+				}
+				zlog.Info("界面偏好表创建成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202607280001: 删除界面偏好表")
+				if tx.Migrator().HasTable(&model.UIPreference{}) {
+					return tx.Migrator().DropTable(&model.UIPreference{})
 				}
 				return nil
 			},

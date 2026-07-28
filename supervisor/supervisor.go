@@ -12,6 +12,7 @@ package supervisor
 import (
 	"SamWaf/common/wafexec"
 	"SamWaf/common/zlog"
+	"SamWaf/global"
 	"SamWaf/wafipc"
 	"SamWaf/wafupdate"
 	"encoding/json"
@@ -33,6 +34,10 @@ type Options struct {
 	Token        string // 鉴权 token，空则自动生成
 	DrainTimeout int    // Worker 排空超时(秒)
 	ReadyTimeout int    // 升级时等待新 Worker READY 的超时(秒)
+	// ServiceManaged 表示本进程由服务管理器(SCM/systemd)托管。
+	// Windows 的自升级交接靠"退出 + 助手把服务重新 start"，前台运行时退出等于停服，
+	// 故仅在托管模式下才交接。
+	ServiceManaged bool
 }
 
 type workerState struct {
@@ -132,6 +137,12 @@ func (s *Supervisor) Run() error {
 	s.ctrlAddr = ln.Addr().String()
 	zlog.Info("[Supervisor] 控制通道监听于 " + s.ctrlAddr)
 	s.writeState()
+
+	// 清扫上一轮升级/回退遗留的临时二进制(.<exe>.old* / .new / .rollback)。
+	// 只在这里扫、不在 Worker 里扫：Supervisor 常驻不为升级退出，升级后它自身的
+	// 映像文件就是某个 .old、在它活着时(Windows)删不掉；只有"服务重启后、新 Supervisor
+	// 刚起来"这一刻上一代 Supervisor 已退出，旧映像才真正可删。
+	wafupdate.CleanupLegacyLeftovers()
 
 	go s.acceptLoop()
 
@@ -349,6 +360,60 @@ func (s *Supervisor) monitor(w *workerState) {
 	s.handleCrashRespawn()
 }
 
+// adoptedPollInterval 被原地认领的 Worker 的存活探测间隔。
+const adoptedPollInterval = 2 * time.Second
+
+// monitorAdopted 监护"被原地认领"的 Worker。
+//
+// 这类 Worker 不是本 Supervisor 的子进程(它是上一代 Supervisor 拉起来的)，
+// 拿不到 os.Process 句柄，monitor() 依赖的 Process.Wait() 用不了
+// （Unix 上对非子进程直接返回 ECHILD，会被误判成"已退出"）。
+// 改用跨平台的 isProcessAlive 轮询，保证崩溃自愈对它同样生效。
+//
+// 拿不到退出码，故用 state 判定是否为计划内退出：DRAIN/SHUTDOWN 会把 state 置为
+// draining，其余情况(进程被杀/崩溃)一律按崩溃处理并重拉。
+func (s *Supervisor) monitorAdopted(w *workerState) {
+	// 先起一个"收尸"协程。Unix 上 re-exec 交接后 PID 不变，被认领的 Worker 其实仍是本
+	// 进程的子进程；它退出后若无人 wait，会一直挂成僵尸，而 kill(pid,0) 对僵尸返回成功
+	// —— 存活探测就会永远为真，崩溃自愈失效。
+	// 对非子进程(服务重启后收编的真孤儿)Wait 会立刻返回 ECHILD，无副作用。
+	if p, err := os.FindProcess(w.pid); err == nil {
+		go func() { _, _ = p.Wait() }()
+	}
+
+	for {
+		time.Sleep(adoptedPollInterval)
+
+		s.mu.Lock()
+		_, registered := s.workers[w.pid]
+		down := s.shuttingDown
+		s.mu.Unlock()
+		if !registered || down {
+			return // 已被别的路径清理，或正在停止
+		}
+		if isProcessAlive(w.pid) {
+			continue
+		}
+
+		s.mu.Lock()
+		planned := w.state == "draining"
+		wasActive := w.pid == s.activePID
+		delete(s.workers, w.pid)
+		down = s.shuttingDown
+		s.mu.Unlock()
+		s.writeState()
+
+		zlog.Info("[Supervisor] 被认领的 Worker pid=" + strconv.Itoa(w.pid) +
+			" 已消失 planned=" + strconv.FormatBool(planned))
+
+		if down || planned || !wasActive {
+			return
+		}
+		s.handleCrashRespawn()
+		return
+	}
+}
+
 // upgradeProbationWindow 升级观察期：升级切到新版本后，仅在此时间窗内的连续崩溃才判为坏版本并回滚二进制；
 // 超出该窗口的崩溃视为环境/配置问题，只重拉、不回滚，避免把运行已久的好版本误降级。
 const upgradeProbationWindow = 5 * time.Minute
@@ -472,6 +537,52 @@ func (s *Supervisor) doUpgrade() {
 		nw.send(wafipc.Message{Type: wafipc.MsgActivate})
 	}
 	zlog.Info("[Supervisor] 滚动升级完成，active Worker pid=" + strconv.Itoa(newPID))
+
+	// 业务已在新版本上跑起来了，最后让 Supervisor 自己也换到新二进制。
+	// 放在最后、且只在升级确认成功后做：失败也只是"Supervisor 继续跑旧版本"，业务不受影响。
+	s.selfHandoff(newPID)
+}
+
+// selfHandoff 让 Supervisor 自身也换到新二进制（设计文档 §4.6 Supervisor 自我升级）。
+//
+// 不做这件事的后果有两层：
+//  1. supervisor / wafipc / main.go 角色分流之前的代码改了不生效，要等人工重启服务；
+//  2. Windows 上 Supervisor 的映像文件就是被换下来的那个 .old，永远删不掉、永远钉住
+//     —— 这正是"第二次升级 Access is denied"的根因（现已由 wafupdate 的唯一 .old 命名兜住，
+//     但残留仍会一直堆着）。
+//
+// 端口在 Worker 手里，Supervisor 不持有任何业务/管理端口，所以它可以随时换人而不动业务。
+func (s *Supervisor) selfHandoff(newPID int) {
+	w := s.getWorker(newPID)
+	if w == nil || w.version == "" {
+		zlog.Info("[Supervisor] 自升级交接：新 Worker 版本未知，跳过")
+		return
+	}
+	self := global.GWAF_RELEASE_VERSION
+	if w.version == self {
+		zlog.Info("[Supervisor] 自升级交接：Supervisor 与新 Worker 同为 " + self + "，无需交接")
+		return
+	}
+
+	s.mu.Lock()
+	stopping := s.shuttingDown
+	s.mu.Unlock()
+	if stopping {
+		zlog.Info("[Supervisor] 自升级交接：正在停止，跳过")
+		return
+	}
+
+	// 交接前务必把 ctrl 地址 / token / Worker PID 落盘：
+	// 新 Supervisor 全靠这份 state 复用端口 + token，才能把留下来的 Worker 收编回去。
+	s.writeState()
+
+	zlog.Info("[Supervisor] 自升级交接：Supervisor 仍是旧版本 " + self + "，新 Worker 已是 " + w.version + "，开始交接")
+	if err := handoffToNewBinary(s.opts.ExePath, s.opts.ServiceManaged); err != nil {
+		// 交接不成不是故障：Worker 已经是新版本，业务照常。Supervisor 留在旧版本，
+		// 等下次服务重启再换即可。
+		zlog.Warn("[Supervisor] 自升级交接未执行(" + err.Error() + ")；业务不受影响，" +
+			"Supervisor 仍为 " + self + "，将在下次服务重启时换到新二进制")
+	}
 }
 
 // adoptOrphans 处理 Supervisor 自身重启后遗留的、仍存活的 Worker(孤儿)。
@@ -509,6 +620,40 @@ func (s *Supervisor) adoptOrphans(prev *stateFile) bool {
 		s.mu.Unlock()
 	}
 
+	// 先等孤儿重连(每 2s 一次)，拿到它们 HELLO 上报的版本号再决定怎么收编。
+	deadline := time.Now().Add(8 * time.Second)
+	for time.Now().Before(deadline) {
+		if s.allConnected(candidates) {
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	// 同版本原地认领（设计文档 §4.6"不重复 spawn"）：
+	// 恰好一个孤儿、已重连鉴权通过、且版本与本 Supervisor 一致 —— 说明它就是本
+	// Supervisor 自升级交接前留下的那个 Worker，直接接管即可，不必再起一个新 Worker
+	// 把它换掉（那会白白多一次独占单例(应用/隧道/cron)的秒级重启）。
+	if pid, ok := s.singleSameVersionOrphan(candidates); ok {
+		s.mu.Lock()
+		s.activePID = pid
+		if w := s.workers[pid]; w != nil {
+			w.state = "active"
+		}
+		s.mu.Unlock()
+		s.writeState()
+		zlog.Info("[Supervisor] 同版本原地认领遗留 Worker pid=" + strconv.Itoa(pid) +
+			" version=" + global.GWAF_RELEASE_VERSION + "，不再拉起新 Worker（业务全程无感）")
+		if w := s.getWorker(pid); w != nil {
+			// 若该 Worker 是"takeover 起来但还没等到 ACTIVATE"就成了孤儿的，这里补发一次
+			// 让它接管独占单例；已接管过的由 Worker 侧的 activateOnce 吞掉，重复发无副作用。
+			w.send(wafipc.Message{Type: wafipc.MsgActivate})
+			// 它不是本进程的子进程，Process.Wait() 用不了，必须走轮询监护，
+			// 否则崩溃自愈对这个长期存活的 active Worker 会失效。
+			go s.monitorAdopted(w)
+		}
+		return true
+	}
+
 	// 起受管新 Worker(takeover：与孤儿 REUSEPORT 并存、跳过 :26666 单实例探测、延迟独占单例到 ACTIVATE)
 	newPID, err := s.spawn(true)
 	if err != nil {
@@ -541,9 +686,11 @@ func (s *Supervisor) adoptOrphans(prev *stateFile) bool {
 	s.mu.Unlock()
 	s.writeState()
 
-	// 给候选孤儿一点时间重连(其 loop 每 2s 重连一次)，便于走优雅 DRAIN
-	deadline := time.Now().Add(8 * time.Second)
-	for time.Now().Before(deadline) {
+	// 再给还没重连上的孤儿一点时间(其 loop 每 2s 重连一次)。
+	// spawn 之前已经等过一轮(为了拿版本号做原地认领判定)，这里是补等：
+	// 起新 Worker 又花了些时间，晚重连的孤儿也该露面了。已连上的会立刻返回，不白等。
+	waitDeadline := time.Now().Add(8 * time.Second)
+	for time.Now().Before(waitDeadline) {
 		if s.allConnected(candidates) {
 			break
 		}
@@ -581,6 +728,27 @@ func (s *Supervisor) adoptOrphans(prev *stateFile) bool {
 	}
 	zlog.Info("[Supervisor] 遗留 Worker 收编完成，active Worker pid=" + strconv.Itoa(newPID))
 	return true
+}
+
+// singleSameVersionOrphan 判断候选孤儿里是否"恰好一个、已重连鉴权通过、且版本与本
+// Supervisor 一致"。满足时可直接原地认领，不必再起新 Worker 把它换掉。
+//
+// 之所以要求"恰好一个"：多于一个说明上次留下了并存的新旧 Worker（升级半途夭折），
+// 独占单例(应用/隧道/cron)归属不清，还是走 takeover 编排逐个收尾更稳妥。
+func (s *Supervisor) singleSameVersionOrphan(candidates []int) (int, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(candidates) != 1 {
+		return 0, false
+	}
+	w := s.workers[candidates[0]]
+	if w == nil || w.conn == nil {
+		return 0, false
+	}
+	if w.version == "" || w.version != global.GWAF_RELEASE_VERSION {
+		return 0, false
+	}
+	return w.pid, true
 }
 
 // allConnected 判断给定 PID 是否都已建立控制连接（线程安全）。

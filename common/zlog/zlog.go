@@ -17,7 +17,10 @@ import (
 // zlog.Debug("hello", zap.String("name", "Kevin"), zap.Any("arbitraryObj", dummyObject))
 // zlog.Info("hello", zap.String("name", "Kevin"), zap.Any("arbitraryObj", dummyObject))
 // zlog.Warn("hello", zap.String("name", "Kevin"), zap.Any("arbitraryObj", dummyObject))
-var logger *zap.Logger
+// logger 默认是 Nop 而非 nil：InitZLog 之前就打日志的代码路径（早期启动、
+// 一次性 CLI 命令、单元测试）不该因为 nil 指针把进程打崩，丢几条早期日志即可。
+// InitZLog 会把它换成真正的 logger。
+var logger = zap.NewNop()
 
 // baseCores 保存 InitZLog 创建的基础 cores，供 AddCore 重建时使用
 var baseCores []zapcore.Core
@@ -63,7 +66,8 @@ func InitZLog(debugEnable bool, outputFormat string) {
 // AddCore 在现有 logger 上追加一个额外的 zapcore.Core（通常在 zlog 初始化之后调用）
 // 追加后原有的所有 baseCores 依然保留，新 core 并联写入
 func AddCore(extra zapcore.Core) {
-	if logger == nil || extra == nil {
+	// baseCores 为空表示 InitZLog 还没跑过（logger 此时是 Nop），追加没有意义。
+	if len(baseCores) == 0 || extra == nil {
 		return
 	}
 	all := make([]zapcore.Core, 0, len(baseCores)+1)

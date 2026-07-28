@@ -90,14 +90,17 @@ func canUpdate() (err error) {
 	fileName := filepath.Base(path)
 
 	// attempt to open a file in the file's directory
-	newPath := filepath.Join(fileDir, fmt.Sprintf(".%s.new", fileName))
+	newPath := stagePath(fileDir, fileName, stageNewSuffix)
+	// 残留的 .new 若带 HIDDEN/SYSTEM 属性，CREATE_ALWAYS 会直接 ACCESS_DENIED，
+	// 预检本身就会误报"目录不可写"。先清属性再删掉。
+	_ = removeFileForce(newPath)
 	fp, err := os.OpenFile(newPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
 	if err != nil {
 		return
 	}
 	fp.Close()
 
-	_ = os.Remove(newPath)
+	_ = removeFileForce(newPath)
 	return
 }
 
@@ -435,66 +438,54 @@ func (u *Updater) UpdateWithChannel(channel string) error {
 	return nil
 }
 
+// fromStream 把新二进制落盘为 .new，再委托 replaceExecutable 完成原地替换。
+// 替换本身(唯一 .old 命名、属性清理、重试、旧二进制处置)统一在 binreplace.go，
+// 与 RollbackExecutable 共用，不要在这里再写一套 rename 技巧。
 func fromStream(updateWith io.Reader) (err error, errRecover error) {
 	updatePath, err := os.Executable()
 	if err != nil {
 		return
 	}
-
-	var newBytes []byte
-	newBytes, err = ioutil.ReadAll(updateWith)
-	if err != nil {
-		return
+	// 与 Update()/RollbackExecutable() 保持一致：替换软链指向的真实文件，而不是软链本身。
+	if resolved, e := filepath.EvalSymlinks(updatePath); e == nil {
+		updatePath = resolved
 	}
 
-	// get the directory the executable exists in
 	updateDir := filepath.Dir(updatePath)
 	filename := filepath.Base(updatePath)
+	newPath := stagePath(updateDir, filename, stageNewSuffix)
 
-	// Copy the contents of of newbinary to a the new executable file
-	newPath := filepath.Join(updateDir, fmt.Sprintf(".%s.new", filename))
+	// 清掉上一轮遗留的 .new（可能带 HIDDEN，会让 CREATE_ALWAYS 直接 ACCESS_DENIED）
+	_ = removeFileForce(newPath)
+
 	fp, err := os.OpenFile(newPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
 	if err != nil {
+		err = fmt.Errorf("%s", diagnoseFileOp("create", newPath, "", err))
 		return
 	}
-	defer fp.Close()
-	_, err = io.Copy(fp, bytes.NewReader(newBytes))
-
-	// if we don't call fp.Close(), windows won't let us move the new executable
-	// because the file will still be "in use"
-	fp.Close()
-
-	// this is where we'll move the executable to so that we can swap in the updated replacement
-	oldPath := filepath.Join(updateDir, fmt.Sprintf(".%s.old", filename))
-
-	// delete any existing old exec file - this is necessary on Windows for two reasons:
-	// 1. after a successful update, Windows can't remove the .old file because the process is still running
-	// 2. windows rename operations fail if the destination file already exists
-	_ = os.Remove(oldPath)
-
-	// move the existing executable to a new file in the same directory
-	err = os.Rename(updatePath, oldPath)
-	if err != nil {
+	// 原实现丢弃了 io.Copy 的错误(随后被 rename 的返回值覆盖)，
+	// 磁盘满/写盘中断会把半截二进制 rename 成主程序。这里必须逐步判错。
+	if _, cerr := io.Copy(fp, updateWith); cerr != nil {
+		fp.Close()
+		_ = removeFileForce(newPath)
+		err = fmt.Errorf("写入升级临时文件失败: %w", cerr)
+		return
+	}
+	// rename 前确保字节真正落盘
+	if serr := fp.Sync(); serr != nil {
+		fp.Close()
+		_ = removeFileForce(newPath)
+		err = fmt.Errorf("刷盘升级临时文件失败: %w", serr)
+		return
+	}
+	// 必须先 Close，否则 Windows 认为文件仍在使用、无法 rename
+	if cerr := fp.Close(); cerr != nil {
+		_ = removeFileForce(newPath)
+		err = fmt.Errorf("关闭升级临时文件失败: %w", cerr)
 		return
 	}
 
-	// move the new exectuable in to become the new program
-	err = os.Rename(newPath, updatePath)
-
-	if err != nil {
-		// copy unsuccessful
-		errRecover = os.Rename(oldPath, updatePath)
-	} else {
-		// copy successful, remove the old binary
-		errRemove := os.Remove(oldPath)
-
-		// windows has trouble with removing old binaries, so hide it instead
-		if errRemove != nil {
-			_ = hideFile(oldPath)
-		}
-	}
-
-	return
+	return replaceExecutable(updatePath, newPath)
 }
 
 // fetchInfo fetches the update JSON manifest at u.ApiURL/appname/platform.json?v=currentVersion
@@ -827,7 +818,8 @@ func RollbackExecutable(version string) error {
 	backupFilePath := filepath.Join(backupDir, target.FileName)
 
 	// 将备份复制到临时文件
-	rollbackPath := filepath.Join(updateDir, fmt.Sprintf(".%s.rollback", filename))
+	rollbackPath := stagePath(updateDir, filename, stageRollbackSuffix)
+	_ = removeFileForce(rollbackPath)
 	src, err := os.Open(backupFilePath)
 	if err != nil {
 		return fmt.Errorf("打开备份文件失败: %w", err)
@@ -839,22 +831,27 @@ func RollbackExecutable(version string) error {
 	}
 	_, copyErr := io.Copy(dst, src)
 	src.Close()
-	dst.Close()
+	if syncErr := dst.Sync(); syncErr != nil && copyErr == nil {
+		copyErr = syncErr
+	}
+	if closeErr := dst.Close(); closeErr != nil && copyErr == nil {
+		copyErr = closeErr
+	}
 	if copyErr != nil {
+		_ = removeFileForce(rollbackPath)
 		return fmt.Errorf("复制备份文件失败: %w", copyErr)
 	}
 
-	// 与 fromStream() 相同的 rename 技巧（Windows 运行中的 exe 允许 rename 但不允许 overwrite）
-	oldPath := filepath.Join(updateDir, fmt.Sprintf(".%s.old", filename))
-	_ = os.Remove(oldPath)
-
-	if err = os.Rename(execPath, oldPath); err != nil {
-		return fmt.Errorf("重命名当前程序失败: %w", err)
-	}
-	if err = os.Rename(rollbackPath, execPath); err != nil {
-		// 尝试恢复
-		_ = os.Rename(oldPath, execPath)
-		return fmt.Errorf("替换程序失败: %w", err)
+	// 与升级共用同一套替换底座（唯一 .old 命名 + 属性清理 + 重试 + 旧二进制处置）。
+	// 旧实现在这里复制了一份固定名 .old 的 rename 技巧，同样会在 Windows 上
+	// 撞到"目标已存在且被常驻 Supervisor 占用"而失败——即 supervisor.rollbackBinary()
+	// 的自动回滚在 Windows 生产上一直是坏的。
+	repErr, recoverErr := replaceExecutable(execPath, rollbackPath)
+	if repErr != nil {
+		if recoverErr != nil {
+			return fmt.Errorf("回退失败且未能恢复原程序(需人工介入): %v ; 恢复错误: %v", repErr, recoverErr)
+		}
+		return fmt.Errorf("回退失败(原程序已恢复): %w", repErr)
 	}
 	return nil
 }

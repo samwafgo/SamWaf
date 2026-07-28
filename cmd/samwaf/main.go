@@ -561,6 +561,11 @@ func (m *wafSystenService) run() {
 	// cron 任务调度同样是单例（避免新旧 Worker 重复执行定时任务）；takeover 模式延迟到 ACTIVATE 再启动。
 	if !global.GWAF_RUNTIME_IS_TAKEOVER {
 		globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler.Start()
+		// 独占单例已在本函数内联启动完毕，这里把 activateOnce 消费掉，
+		// 使后续任何 ACTIVATE 都成为空操作。Supervisor 重启后"原地认领"存活 Worker 时
+		// 会补发一次 ACTIVATE（它无从判断该 Worker 当初是否已接管过单例），
+		// 没有这道守卫就会把隧道/应用/cron 重复启动一遍。
+		markSingletonsActivated()
 	}
 
 	//脱敏处理初始化
@@ -1064,6 +1069,11 @@ func main() {
 	if isWorker, _, _, _ := parseWorkerRole(); !isWorker {
 		zlog.FileName = "supervisor.log"
 	}
+	// 自升级交接助手是与 Supervisor 并存的第三个短命进程，同理单独写一个日志文件，
+	// 免得三个进程抢同一个 supervisor.log 的滚动 rename。
+	if len(os.Args) > 1 && os.Args[1] == supervisor.HandoffRestartArg {
+		zlog.FileName = "handoff.log"
+	}
 	//初始化日志
 	zlog.InitZLog(global.GWAF_LOG_DEBUG_ENABLE, global.GWAF_LOG_OUTPUT_FORMAT)
 	if v := recover(); v != nil {
@@ -1138,6 +1148,9 @@ func main() {
 		ExePath:      exePath,
 		DataDir:      dataDir,
 		DrainTimeout: int(global.GCONFIG_RECORD_DRAIN_TIMEOUT),
+		// 自升级交接(Windows)靠"退出 + 助手把服务重新 start"，前台运行时退出等于停服，
+		// 故把"是否由服务管理器托管"传下去，由 Supervisor 决定是否交接。
+		ServiceManaged: !service.Interactive(),
 	})
 	prg := &supervisorService{sup: sup}
 	s, err := service.New(prg, svcConfig)
@@ -1166,6 +1179,11 @@ func main() {
 			}
 			fmt.Printf("Samwaf has successfully executed the '%s' command.\n", command)
 			break
+		case supervisor.HandoffRestartArg:
+			// 自升级交接助手（Windows，隐藏命令，由 Supervisor 自己拉起）。
+			// 老 Supervisor 交接前起本进程后就退出了；本进程轮询把服务重新 start 起来，
+			// 让 Supervisor 换到新二进制。期间 Worker 作为孤儿继续转发业务，不中断。
+			runHandoffRestart(s)
 		case "rolling-restart": // 零停机滚动重启：通知运行中的 Supervisor 换 Worker（业务不中断），亦用于测试升级编排
 			if err := supervisor.TriggerUpgrade(dataDir); err != nil {
 				fmt.Println("滚动重启触发失败:", err)
@@ -1348,6 +1366,46 @@ type workerCtrl struct {
 // gWorkerCtrl 当前进程的 Worker 控制客户端（仅 worker 角色下非 nil）。
 var gWorkerCtrl *workerCtrl
 
+// runHandoffRestart 是 Supervisor 自升级交接的"重启助手"（Windows 隐藏命令）。
+//
+// Windows 没有 execve，Supervisor 换二进制只能退出再被拉起来。这里不依赖 SCM 的
+// 失败恢复动作（那是服务安装时写入的，老版本装的服务可能压根没配），而是由老
+// Supervisor 先起本进程、随后自己干净退出，本进程轮询把服务 start 回来。
+//
+// 期间 Worker 作为孤儿继续转发业务，新 Supervisor 起来后靠 supervisor.state 里的
+// ctrl 端口 + token 把它收编回去（同版本原地认领，不重起 Worker）。
+func runHandoffRestart(s service.Service) {
+	const (
+		interval = 1 * time.Second
+		timeout  = 60 * time.Second
+	)
+	zlog.Info("[交接助手] 等待旧 Supervisor 退出后把服务重新拉起...")
+	deadline := time.Now().Add(timeout)
+	sawStopped := false
+	for time.Now().Before(deadline) {
+		time.Sleep(interval)
+		if st, err := s.Status(); err == nil && st == service.StatusRunning {
+			if sawStopped {
+				// 服务停过又跑起来了——可能是 SCM 的失败恢复动作先我们一步。目的已达成。
+				zlog.Info("[交接助手] 服务已重新运行(由服务管理器先行拉起)，交接完成")
+				return
+			}
+			// 旧 Supervisor 还没退干净，继续等。
+			continue
+		}
+		sawStopped = true
+		if err := service.Control(s, "start"); err != nil {
+			zlog.Debug("[交接助手] start 暂未成功，稍后重试: " + err.Error())
+			continue
+		}
+		zlog.Info("[交接助手] 服务已以新二进制重新启动，交接完成")
+		return
+	}
+	// 拉不起来不代表业务断了：Worker 仍在转发流量，只是暂时没有监护进程。
+	zlog.Error("[交接助手] " + timeout.String() + " 内未能把服务拉起来。Worker 仍在服务，" +
+		"但监护进程缺席，请人工执行 SamWaf64.exe start")
+}
+
 // activateOnce 保证独占单例(应用/隧道/cron)只被接管启动一次。
 var activateOnce sync.Once
 
@@ -1367,6 +1425,13 @@ func activateSingletons() {
 			globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler.Start()
 		}
 	})
+}
+
+// markSingletonsActivated 把 activateOnce 消费掉而不做任何事，
+// 供"独占单例已在 run() 内联启动"的非 takeover 路径调用，让之后收到的
+// ACTIVATE 变成空操作（幂等），避免隧道/应用/cron 被重复启动。
+func markSingletonsActivated() {
+	activateOnce.Do(func() {})
 }
 
 // startWorkerControl 启动 Worker 控制通道客户端（后台重连循环）。

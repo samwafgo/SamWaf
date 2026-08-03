@@ -3,9 +3,10 @@ package request
 import "SamWaf/model/common/request"
 
 type WafBlockIpAddReq struct {
-	HostCode string `json:"host_code" binding:"required"` //网站唯一码（主要键）
-	Ip       string `json:"ip" binding:"required"`        //Block ip
-	Remarks  string `json:"remarks"`                      //备注
+	HostCode    string `json:"host_code" binding:"required"` //网站唯一码（主要键）
+	Ip          string `json:"ip" binding:"required"`        //Block ip
+	Remarks     string `json:"remarks"`                      //备注
+	TargetLayer string `json:"target_layer"`                 //封禁层级: ""/waf(WAF应用层) | system(系统防火墙) | both(两者)
 }
 
 type WafBlockIpEditReq struct {

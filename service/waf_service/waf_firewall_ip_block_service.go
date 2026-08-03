@@ -26,6 +26,29 @@ func (receiver *WafFirewallIPBlockService) CheckFirewallAvailable() error {
 	return receiver.fw.CheckAvailable()
 }
 
+// SupportsIPSet 报告当前环境是否可用"大列表批量封禁"(Linux ipset / Windows 分片规则 / macOS pf table)。
+// 供威胁情报订阅"系统层落地"判定是否可下发大列表。
+func (receiver *WafFirewallIPBlockService) SupportsIPSet() bool {
+	return receiver.fw.SupportsIPSet()
+}
+
+// RecommendBlockLayer 根据站点 IP 模式与系统防火墙可用性，推荐"加黑名单"的封禁层级(供前端下拉预选)。
+//   - 代理模式站点：系统防火墙只能看到上游代理IP，封真实客户端无效 → 推荐 WAF 应用层
+//   - 直连站点且防火墙可用：内核层 DROP 更省资源 → 推荐系统层
+//   - 直连但防火墙不可用：回退 WAF 应用层
+func (receiver *WafFirewallIPBlockService) RecommendBlockLayer(hostCode string) (layer string, reason string) {
+	var host model.Hosts
+	global.GWAF_LOCAL_DB.Where("code = ?", hostCode).First(&host)
+	if host.IPMode == "proxy" {
+		return "waf", "该站点为代理模式，系统防火墙只能看到上游代理IP，封真实客户端无效，建议在WAF应用层封禁"
+	}
+	if err := receiver.fw.CheckAvailable(); err == nil {
+		return "system", "该站点直连客户端，系统防火墙内核层DROP性能更优"
+	} else {
+		return "waf", "当前环境无系统防火墙能力(" + err.Error() + ")，回退WAF应用层封禁"
+	}
+}
+
 // AddApi 添加防火墙IP封禁（自动调用系统防火墙）
 func (receiver *WafFirewallIPBlockService) AddApi(req request.WafFirewallIPBlockAddReq) error {
 	// 1. 环境不具备防火墙能力时直接给出明确原因，不要把底层命令错误抛给用户
@@ -402,36 +425,45 @@ func (receiver *WafFirewallIPBlockService) SyncFirewallRules(hostCode string) (s
 	return 0, 0, nil
 }
 
-// ClearExpiredRules 清理过期的封禁规则
+// ClearExpiredRules 清理过期的封禁规则：撤销系统防火墙规则并【删除】数据库记录。
+// 说明：过期记录(expire_time>0 且已过期)无论当前是 active 还是 inactive 都会被清掉；
+// 以前只是把状态置为 inactive，导致过期记录长期堆积在库里、再次点“清理过期”也不消失，
+// 用户期望“清理”即彻底删除，故改为硬删除(与手工删除一致)。永久封禁(expire_time=0)不受影响。
 func (receiver *WafFirewallIPBlockService) ClearExpiredRules() (int, error) {
-	// 1. 查找所有过期的记录（ExpireTime > 0 且 < 当前时间）
+	// 1. 查找所有过期的记录（ExpireTime > 0 且 < 当前时间，任意状态）
+	// 只取清理循环需要的列(id/ip/status)，避免把 reason/remarks 等大字段一并读出加重 IO；
+	// 命中 (status, expire_time) 复合索引后该查询应为毫秒级。
 	currentTime := time.Now().Unix()
 	var beans []model.FirewallIPBlock
-	err := global.GWAF_LOCAL_DB.Where("expire_time > 0 AND expire_time < ? AND "+dialect.Q("status")+" = ?", currentTime, "active").
+	err := global.GWAF_LOCAL_DB.Select("id", "ip", dialect.Q("status")).
+		Where("expire_time > 0 AND expire_time < ?", currentTime).
 		Find(&beans).Error
 	if err != nil {
 		return 0, err
 	}
 
-	// 2. 防火墙不可用时（如容器内没有 iptables），跳过防火墙操作，只把过期记录置为未封禁
+	// 2. 防火墙不可用时（如容器内没有 iptables），跳过防火墙操作，只删数据库记录
 	fwAvailable := receiver.fw.CheckAvailable() == nil
 
 	count := 0
+	idsToDelete := make([]string, 0, len(beans))
 	for _, bean := range beans {
-		// 删除防火墙规则
-		if fwAvailable {
+		// 仍处于封禁(active)的过期记录先撤系统防火墙规则；撤不掉则跳过删除，避免留下孤儿规则
+		if bean.Status == "active" && fwAvailable {
 			if err := receiver.fw.UnblockIP(bean.IP); err != nil {
 				continue
 			}
 		}
-		// 更新数据库状态为inactive
-		global.GWAF_LOCAL_DB.Model(&model.FirewallIPBlock{}).
-			Where("id = ?", bean.Id).
-			Updates(map[string]interface{}{
-				"Status":      "inactive",
-				"UPDATE_TIME": customtype.JsonTime(time.Now()),
-			})
+		idsToDelete = append(idsToDelete, bean.Id)
 		count++
+	}
+
+	// 3. 批量硬删除过期记录
+	if len(idsToDelete) > 0 {
+		if err := global.GWAF_LOCAL_DB.Where("id IN ?", idsToDelete).
+			Delete(&model.FirewallIPBlock{}).Error; err != nil {
+			return 0, err
+		}
 	}
 
 	return count, nil

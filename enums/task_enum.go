@@ -24,4 +24,5 @@ const (
 	TASK_DB_MONITOR                   = "task_db_monitor"                   //数据库监控
 	TASK_FIREWALL_CLEAN_EXPIRED       = "task_firewall_clean_expired"       //清理过期防火墙IP封禁规则
 	TASK_STATS_DATA_CLEANUP           = "task_stats_data_cleanup"           //清理统计数据（按保留策略）
+	TASK_THREAT_IP_SYNC               = "task_threat_ip_sync"               //威胁情报IP订阅同步
 )

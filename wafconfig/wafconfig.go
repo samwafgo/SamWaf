@@ -217,6 +217,15 @@ func LoadAndInitConfig() {
 		configChanged = true
 	}
 
+	//管理端引用的 CDN 厂商码（管理端也挂 CDN 时）。设置后 GetManageClientIP 会额外把该厂商中心库
+	//最新回源段视为可信代理，自动跟随更新，无需手填静态网段。同放 config.yml 便于救命自救。
+	if config.IsSet("security.manage_cdn_provider") {
+		global.GCONFIG_MANAGE_CDN_PROVIDER = config.GetString("security.manage_cdn_provider")
+	} else {
+		config.Set("security.manage_cdn_provider", global.GCONFIG_MANAGE_CDN_PROVIDER)
+		configChanged = true
+	}
+
 	//CORS 跨域来源白名单（逗号分隔，大小写不敏感）。同放 config.yml 而非数据库：
 	//异地部署的前端跨域配错会连不上后端，改文件即可自救；回环/本机来源(dev server)在代码里始终放行。
 	if config.IsSet("security.cors_allow_origins") {
@@ -546,6 +555,49 @@ func UpdateManageTrustedProxies(trustedProxies string) error {
 	}
 
 	fmt.Printf("%s\tINFO\tmanage trusted proxies config updated\n", currentTime)
+	return nil
+}
+
+// UpdateManageCDNProvider 更新管理端引用的 CDN 厂商码（写入 conf/config.yml 并立即生效）。
+// 设置后 GetManageClientIP 额外信任该厂商中心库最新回源段；留空=不引用任何 CDN。
+func UpdateManageCDNProvider(provider string) error {
+	currentTime := time.Now().Format("2006-01-02 15:04:05.000")
+
+	configDir := utils.GetCurrentDir() + "/conf/"
+	if _, err := os.Stat(configDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(configDir, os.ModePerm); err != nil {
+			fmt.Printf("%s\tERROR\t创建config目录失败:%v\n", currentTime, err)
+			return err
+		}
+	}
+
+	config := viper.New()
+	config.AddConfigPath(configDir)
+	config.SetConfigName("config")
+	config.SetConfigType("yml")
+
+	if err := config.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			fmt.Printf("%s\tWARN\t找不到配置文件..\n", currentTime)
+			config.Set("local_port", global.GWAF_LOCAL_SERVER_PORT)
+			if err = config.SafeWriteConfig(); err != nil {
+				return err
+			}
+		} else {
+			fmt.Printf("%s\tERROR\t配置文件出错..\n", currentTime)
+			return err
+		}
+	}
+
+	config.Set("security.manage_cdn_provider", provider)
+	global.GCONFIG_MANAGE_CDN_PROVIDER = provider
+
+	if err := config.WriteConfig(); err != nil {
+		fmt.Printf("%s\tERROR\twrite config failed:%v\n", currentTime, err)
+		return err
+	}
+
+	fmt.Printf("%s\tINFO\tmanage cdn provider config updated\n", currentTime)
 	return nil
 }
 

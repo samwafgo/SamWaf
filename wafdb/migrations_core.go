@@ -1290,6 +1290,70 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移: 创建威胁情报 IP 订阅渠道表与紧凑快照表
+		{
+			ID: "202607160001_add_threat_ip_subscription_tables",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202607160001: 创建 threat_ip_channel / threat_ip_snapshot 表")
+				if err := tx.AutoMigrate(
+					&model.ThreatIPChannel{},
+					&model.ThreatIPSnapshot{},
+				); err != nil {
+					return fmt.Errorf("创建威胁情报订阅表失败: %w", err)
+				}
+				if err := safeCreateIndex(tx, "threat_ip_channel", "idx_threat_ip_channel_code",
+					"CREATE INDEX IF NOT EXISTS idx_threat_ip_channel_code ON threat_ip_channel(code)"); err != nil {
+					zlog.Warn("创建索引 idx_threat_ip_channel_code 失败", "error", err.Error())
+				}
+				if err := safeCreateIndex(tx, "threat_ip_snapshot", "idx_threat_ip_snapshot_channel",
+					"CREATE INDEX IF NOT EXISTS idx_threat_ip_snapshot_channel ON threat_ip_snapshot(channel_code)"); err != nil {
+					zlog.Warn("创建索引 idx_threat_ip_snapshot_channel 失败", "error", err.Error())
+				}
+				zlog.Info("威胁情报订阅表创建成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202607160001: 删除威胁情报订阅表")
+				return tx.Migrator().DropTable(
+					&model.ThreatIPChannel{},
+					&model.ThreatIPSnapshot{},
+				)
+			},
+		},
+		// 迁移: 为 hosts 表添加真实客户端 IP 提取加固字段(默认空=与旧版行为完全一致)
+		{
+			ID: "202607160003_add_hosts_ip_source_hardening",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202607160003: 为 hosts 表添加真实IP来源加固字段")
+				cols := []string{"ip_source_mode", "ip_trust_depth", "ip_real_header", "ip_trust_proxies", "cdn_provider"}
+				fields := map[string]string{
+					"ip_source_mode":   "IPSourceMode",
+					"ip_trust_depth":   "IPTrustDepth",
+					"ip_real_header":   "IPRealHeader",
+					"ip_trust_proxies": "IPTrustProxies",
+					"cdn_provider":     "CDNProvider",
+				}
+				for _, col := range cols {
+					if tx.Migrator().HasColumn(&model.Hosts{}, col) {
+						continue
+					}
+					if err := tx.Migrator().AddColumn(&model.Hosts{}, fields[col]); err != nil {
+						return fmt.Errorf("添加 hosts.%s 字段失败: %w", col, err)
+					}
+				}
+				zlog.Info("hosts 真实IP来源加固字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202607160003: 删除 hosts 真实IP来源加固字段")
+				for _, field := range []string{"IPSourceMode", "IPTrustDepth", "IPRealHeader", "IPTrustProxies", "CDNProvider"} {
+					if tx.Migrator().HasColumn(&model.Hosts{}, field) {
+						_ = tx.Migrator().DropColumn(&model.Hosts{}, field)
+					}
+				}
+				return nil
+			},
+		},
 		// 迁移: 创建界面偏好表（按登录账号保存管理端界面偏好，如访问日志列配置）
 		{
 			ID: "202607280001_add_ui_preferences_table",
@@ -1312,6 +1376,44 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 					return tx.Migrator().DropTable(&model.UIPreference{})
 				}
 				return nil
+			},
+		},
+		// 迁移: 为 firewall_ip_block 加 (status, expire_time) 复合索引
+		// 过期清理任务查询 `status='active' AND expire_time 范围`，原单列索引各只覆盖一半谓词，
+		// 表变大后可能退化为全表扫描(加密 SQLite 全扫更慢，出现秒级 SLOW SQL)。复合索引精确命中该查询。
+		{
+			ID: "202607160004_add_firewall_ip_block_status_expire_index",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202607160004: 创建 firewall_ip_block (status, expire_time) 复合索引")
+				if err := safeCreateIndex(tx, "firewall_ip_block", "idx_firewall_ip_block_status_expire",
+					"CREATE INDEX IF NOT EXISTS idx_firewall_ip_block_status_expire ON firewall_ip_block(status, expire_time)"); err != nil {
+					zlog.Warn("创建复合索引 idx_firewall_ip_block_status_expire 失败", "error", err.Error())
+				}
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202607160004: 删除 firewall_ip_block 复合索引")
+				return tx.Exec("DROP INDEX IF EXISTS idx_firewall_ip_block_status_expire").Error
+			},
+		},
+		// 迁移: 创建 CDN 厂商回源段中心库(每厂商一行，含加密凭证与最新回源段快照)
+		{
+			ID: "202607170001_add_cdn_provider_table",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202607170001: 创建 cdn_provider 表")
+				if err := tx.AutoMigrate(&model.CDNProvider{}); err != nil {
+					return fmt.Errorf("创建 cdn_provider 表失败: %w", err)
+				}
+				if err := safeCreateIndex(tx, "cdn_provider", "idx_cdn_provider_code",
+					"CREATE INDEX IF NOT EXISTS idx_cdn_provider_code ON cdn_provider(provider)"); err != nil {
+					zlog.Warn("创建索引 idx_cdn_provider_code 失败", "error", err.Error())
+				}
+				zlog.Info("cdn_provider 表创建成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202607170001: 删除 cdn_provider 表")
+				return tx.Migrator().DropTable(&model.CDNProvider{})
 			},
 		},
 	})

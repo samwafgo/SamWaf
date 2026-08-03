@@ -301,7 +301,8 @@ func (w *WafRuleAPi) ModifyRuleApi(c *gin.Context) {
 		if err != nil {
 			response.FailWithMessage("编辑发生错误", c)
 		} else {
-			w.NotifyWaf(ruleInfo.RuleBase.RuleDomainCode)
+			//rule 是编辑前按 CODE 取出的旧记录，若本次把规则挪到了别的网站，旧网站也要一并刷新(issue #898)
+			notifyWafHostChanged(w.NotifyWaf, rule.HostCode, ruleInfo.RuleBase.RuleDomainCode)
 			response.OkWithMessage("编辑成功", c)
 		}
 

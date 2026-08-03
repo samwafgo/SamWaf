@@ -7,16 +7,25 @@ package api
 // 引擎侧收到 msg 之后做什么，由 wafenginecore/checkdenyip_test.go 覆盖。
 
 import (
+	"SamWaf/common/uuid"
+	"SamWaf/customtype"
 	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/model"
-	"SamWaf/model/request"
+	"SamWaf/model/baseorm"
 	"SamWaf/model/spec"
 	"bytes"
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	sqlite "github.com/samwafgo/sqlitedriver"
@@ -109,7 +118,7 @@ func doJSONPost(t *testing.T, handler gin.HandlerFunc, body string) *httptest.Re
 	return rec
 }
 
-// notifyCase 描述一个名单模块：怎么种数据、编辑接口是哪个、通知内容怎么数。
+// notifyCase 描述一个「按网站分组」的配置模块：怎么种数据、编辑接口是哪个、通知内容长什么样。
 type notifyCase struct {
 	name string
 	// tables 需要建的表
@@ -122,27 +131,53 @@ type notifyCase struct {
 	editBody func(id string, changeHost bool) string
 	// wantType 期望的通道消息类型
 	wantType int
-	// countContent 断言 Content 类型并返回条目数
-	countContent func(t *testing.T, content interface{}) int
+	// checkContent 断言某网站收到的 Content 表示「有 wantCount 条配置」；
+	// 为 nil 表示该模块的通知不带内容（如负载均衡只发信号让引擎重建代理）
+	checkContent func(t *testing.T, hostCode string, content interface{}, wantCount int)
 }
 
-func seedIdOf(t *testing.T, dst interface{}, where string, args ...interface{}) string {
+// sliceChecker 生成「Content 是 []T、且长度为 wantCount」的断言器，适用于所有名单/规则类模块。
+func sliceChecker[T any]() func(t *testing.T, hostCode string, content interface{}, wantCount int) {
+	return func(t *testing.T, hostCode string, content interface{}, wantCount int) {
+		t.Helper()
+		list, ok := content.([]T)
+		if !ok {
+			t.Fatalf("%s 的 Content 类型应为 []%T，实际 %T", hostCode, *new(T), content)
+		}
+		if len(list) != wantCount {
+			t.Errorf("%s 的配置应有 %d 条，实际 %d 条", hostCode, wantCount, len(list))
+		}
+	}
+}
+
+// newTestBase 造一条带租户信息的 BaseOrm，供直接 Create 种子数据用。
+// 种子一律走 GORM 直写而不走 service.AddApi：本用例只关心「通知发给了谁」，
+// 不想被各 service 新增时的副作用（加密、唯一校验、基线学习等）干扰。
+func newTestBase(id string) baseorm.BaseOrm {
+	return baseorm.BaseOrm{
+		Id:          id,
+		USER_CODE:   global.GWAF_USER_CODE,
+		Tenant_ID:   global.GWAF_TENANT_ID,
+		CREATE_TIME: customtype.JsonTime(time.Now()),
+		UPDATE_TIME: customtype.JsonTime(time.Now()),
+	}
+}
+
+// seedRow 直接落一条种子记录，返回其主键。
+func seedRow(t *testing.T, bean interface{}, id string) string {
 	t.Helper()
-	if err := global.GWAF_LOCAL_DB.Where(where, args...).First(dst).Error; err != nil {
-		t.Fatalf("种子数据回查失败: %v", err)
+	if err := global.GWAF_LOCAL_DB.Create(bean).Error; err != nil {
+		t.Fatalf("种子数据写入失败: %v", err)
 	}
-	switch v := dst.(type) {
-	case *model.IPBlockList:
-		return v.Id
-	case *model.IPAllowList:
-		return v.Id
-	case *model.URLBlockList:
-		return v.Id
-	case *model.URLAllowList:
-		return v.Id
+	return id
+}
+
+// hostOf 编辑请求里该填哪个网站：切换时填 hostB，否则维持 hostA。
+func hostOf(changeHost bool) string {
+	if changeHost {
+		return "hostB"
 	}
-	t.Fatalf("未知的种子类型 %T", dst)
-	return ""
+	return "hostA"
 }
 
 func notifyCases() []notifyCase {
@@ -151,105 +186,179 @@ func notifyCases() []notifyCase {
 			name:   "IP黑名单",
 			tables: []interface{}{&model.IPBlockList{}},
 			seed: func(t *testing.T) string {
-				if err := wafIpBlockService.AddApi(request.WafBlockIpAddReq{HostCode: "hostA", Ip: "1.2.3.4"}); err != nil {
-					t.Fatalf("种子新增失败: %v", err)
-				}
-				return seedIdOf(t, &model.IPBlockList{}, "host_code=? and ip=?", "hostA", "1.2.3.4")
+				id := uuid.GenUUID()
+				return seedRow(t, &model.IPBlockList{BaseOrm: newTestBase(id), HostCode: "hostA", Ip: "1.2.3.4"}, id)
 			},
 			handler: new(WafBlockIpApi).ModifyBlockIpApi,
 			editBody: func(id string, changeHost bool) string {
-				host := "hostA"
-				if changeHost {
-					host = "hostB"
-				}
-				return `{"id":"` + id + `","host_code":"` + host + `","ip":"1.2.3.4","remarks":"r"}`
+				return `{"id":"` + id + `","host_code":"` + hostOf(changeHost) + `","ip":"1.2.3.4","remarks":"r"}`
 			},
-			wantType: enums.ChanTypeBlockIP,
-			countContent: func(t *testing.T, content interface{}) int {
-				list, ok := content.([]model.IPBlockList)
-				if !ok {
-					t.Fatalf("Content 类型应为 []model.IPBlockList，实际 %T", content)
-				}
-				return len(list)
-			},
+			wantType:     enums.ChanTypeBlockIP,
+			checkContent: sliceChecker[model.IPBlockList](),
 		},
 		{
 			name:   "IP白名单",
 			tables: []interface{}{&model.IPAllowList{}},
 			seed: func(t *testing.T) string {
-				if err := wafIpAllowService.AddApi(request.WafAllowIpAddReq{HostCode: "hostA", Ip: "1.2.3.4"}); err != nil {
-					t.Fatalf("种子新增失败: %v", err)
-				}
-				return seedIdOf(t, &model.IPAllowList{}, "host_code=? and ip=?", "hostA", "1.2.3.4")
+				id := uuid.GenUUID()
+				return seedRow(t, &model.IPAllowList{BaseOrm: newTestBase(id), HostCode: "hostA", Ip: "1.2.3.4"}, id)
 			},
 			handler: new(WafAllowIpApi).ModifyAllowIpApi,
 			editBody: func(id string, changeHost bool) string {
-				host := "hostA"
-				if changeHost {
-					host = "hostB"
-				}
-				return `{"id":"` + id + `","host_code":"` + host + `","ip":"1.2.3.4","remarks":"r"}`
+				return `{"id":"` + id + `","host_code":"` + hostOf(changeHost) + `","ip":"1.2.3.4","remarks":"r"}`
 			},
-			wantType: enums.ChanTypeAllowIP,
-			countContent: func(t *testing.T, content interface{}) int {
-				list, ok := content.([]model.IPAllowList)
-				if !ok {
-					t.Fatalf("Content 类型应为 []model.IPAllowList，实际 %T", content)
-				}
-				return len(list)
-			},
+			wantType:     enums.ChanTypeAllowIP,
+			checkContent: sliceChecker[model.IPAllowList](),
 		},
 		{
 			name:   "URL黑名单",
 			tables: []interface{}{&model.URLBlockList{}},
 			seed: func(t *testing.T) string {
-				if err := wafUrlBlockService.AddApi(request.WafBlockUrlAddReq{HostCode: "hostA", CompareType: "前缀匹配", Url: "/admin"}); err != nil {
-					t.Fatalf("种子新增失败: %v", err)
-				}
-				return seedIdOf(t, &model.URLBlockList{}, "host_code=? and url=?", "hostA", "/admin")
+				id := uuid.GenUUID()
+				return seedRow(t, &model.URLBlockList{BaseOrm: newTestBase(id), HostCode: "hostA", CompareType: "前缀匹配", Url: "/admin"}, id)
 			},
 			handler: new(WafBlockUrlApi).ModifyBlockUrlApi,
 			editBody: func(id string, changeHost bool) string {
-				host := "hostA"
-				if changeHost {
-					host = "hostB"
-				}
-				return `{"id":"` + id + `","host_code":"` + host + `","compare_type":"前缀匹配","url":"/admin","remarks":"r"}`
+				return `{"id":"` + id + `","host_code":"` + hostOf(changeHost) + `","compare_type":"前缀匹配","url":"/admin","remarks":"r"}`
 			},
-			wantType: enums.ChanTypeBlockURL,
-			countContent: func(t *testing.T, content interface{}) int {
-				list, ok := content.([]model.URLBlockList)
-				if !ok {
-					t.Fatalf("Content 类型应为 []model.URLBlockList，实际 %T", content)
-				}
-				return len(list)
-			},
+			wantType:     enums.ChanTypeBlockURL,
+			checkContent: sliceChecker[model.URLBlockList](),
 		},
 		{
 			name:   "URL白名单",
 			tables: []interface{}{&model.URLAllowList{}},
 			seed: func(t *testing.T) string {
-				if err := wafUrlAllowService.AddApi(request.WafAllowUrlAddReq{HostCode: "hostA", CompareType: "前缀匹配", Url: "/health"}); err != nil {
-					t.Fatalf("种子新增失败: %v", err)
-				}
-				return seedIdOf(t, &model.URLAllowList{}, "host_code=? and url=?", "hostA", "/health")
+				id := uuid.GenUUID()
+				return seedRow(t, &model.URLAllowList{BaseOrm: newTestBase(id), HostCode: "hostA", CompareType: "前缀匹配", Url: "/health"}, id)
 			},
 			handler: new(WafAllowUrlApi).ModifyAllowUrlApi,
 			editBody: func(id string, changeHost bool) string {
-				host := "hostA"
-				if changeHost {
-					host = "hostB"
-				}
-				return `{"id":"` + id + `","host_code":"` + host + `","compare_type":"前缀匹配","url":"/health","remarks":"r"}`
+				return `{"id":"` + id + `","host_code":"` + hostOf(changeHost) + `","compare_type":"前缀匹配","url":"/health","remarks":"r"}`
 			},
-			wantType: enums.ChanTypeAllowURL,
-			countContent: func(t *testing.T, content interface{}) int {
-				list, ok := content.([]model.URLAllowList)
+			wantType:     enums.ChanTypeAllowURL,
+			checkContent: sliceChecker[model.URLAllowList](),
+		},
+		{
+			name:   "隐私保护URL",
+			tables: []interface{}{&model.LDPUrl{}},
+			seed: func(t *testing.T) string {
+				id := uuid.GenUUID()
+				return seedRow(t, &model.LDPUrl{BaseOrm: newTestBase(id), HostCode: "hostA", CompareType: "前缀匹配", Url: "/ldp"}, id)
+			},
+			handler: new(WafLdpUrlApi).ModifyLdpUrlApi,
+			editBody: func(id string, changeHost bool) string {
+				return `{"id":"` + id + `","host_code":"` + hostOf(changeHost) + `","compare_type":"前缀匹配","url":"/ldp","remarks":"r"}`
+			},
+			wantType:     enums.ChanTypeLdp,
+			checkContent: sliceChecker[model.LDPUrl](),
+		},
+		{
+			name:   "HTTP认证",
+			tables: []interface{}{&model.HttpAuthBase{}},
+			seed: func(t *testing.T) string {
+				id := uuid.GenUUID()
+				return seedRow(t, &model.HttpAuthBase{BaseOrm: newTestBase(id), HostCode: "hostA", UserName: "u1", Password: "p1"}, id)
+			},
+			handler: new(WafHttpAuthBaseApi).ModifyApi,
+			editBody: func(id string, changeHost bool) string {
+				return `{"id":"` + id + `","host_code":"` + hostOf(changeHost) + `","user_name":"u1","password":"p1"}`
+			},
+			wantType:     enums.ChanTypeHttpauth,
+			checkContent: sliceChecker[model.HttpAuthBase](),
+		},
+		{
+			name:   "缓存规则",
+			tables: []interface{}{&model.CacheRule{}},
+			seed: func(t *testing.T) string {
+				id := uuid.GenUUID()
+				return seedRow(t, &model.CacheRule{BaseOrm: newTestBase(id), HostCode: "hostA", RuleName: "c1",
+					RuleType: 1, RuleContent: ".jpg", ParamType: 1, CacheTime: 60, Priority: 1, RequestMethod: "GET"}, id)
+			},
+			handler: new(WafCacheRuleApi).ModifyApi,
+			editBody: func(id string, changeHost bool) string {
+				return `{"id":"` + id + `","host_code":"` + hostOf(changeHost) + `","rule_name":"c1","rule_type":1,` +
+					`"rule_content":".jpg","param_type":1,"cache_time":60,"priority":1,"request_method":"GET","remarks":"r"}`
+			},
+			wantType:     enums.ChanTypeCacheRule,
+			checkContent: sliceChecker[model.CacheRule](),
+		},
+		{
+			name:   "网页防篡改",
+			tables: []interface{}{&model.TamperRule{}},
+			seed: func(t *testing.T) string {
+				id := uuid.GenUUID()
+				return seedRow(t, &model.TamperRule{BaseOrm: newTestBase(id), HostCode: "hostA", Url: "/index.html",
+					RuleName: "t1", IsEnable: 1, IgnoreQuery: 1}, id)
+			},
+			handler: new(WafTamperRuleApi).ModifyApi,
+			editBody: func(id string, changeHost bool) string {
+				return `{"id":"` + id + `","host_code":"` + hostOf(changeHost) + `","url":"/index.html","rule_name":"t1",` +
+					`"is_enable":1,"ignore_query":1,"remarks":"r"}`
+			},
+			wantType:     enums.ChanTypeTamperRule,
+			checkContent: sliceChecker[model.TamperRule](),
+		},
+		{
+			name:   "路径规则",
+			tables: []interface{}{&model.HostPathRule{}},
+			seed: func(t *testing.T) string {
+				id := uuid.GenUUID()
+				return seedRow(t, &model.HostPathRule{BaseOrm: newTestBase(id), HostCode: "hostA", RuleName: "p1",
+					Path: "/api", MatchType: 1, Priority: 100, TargetType: 1, RemoteHost: "127.0.0.1", RemotePort: 8080}, id)
+			},
+			handler: new(WafHostPathRuleApi).ModifyApi,
+			editBody: func(id string, changeHost bool) string {
+				return `{"id":"` + id + `","host_code":"` + hostOf(changeHost) + `","rule_name":"p1","path":"/api",` +
+					`"match_type":1,"priority":100,"target_type":1,"remote_host":"127.0.0.1","remote_port":8080,"remarks":"r"}`
+			},
+			wantType:     enums.ChanTypeHostPathRule,
+			checkContent: sliceChecker[model.HostPathRule](),
+		},
+		{
+			name:   "CC防护",
+			tables: []interface{}{&model.AntiCC{}},
+			seed: func(t *testing.T) string {
+				id := uuid.GenUUID()
+				return seedRow(t, &model.AntiCC{BaseOrm: newTestBase(id), HostCode: "hostA",
+					Rate: 10, Limit: 100, LockIPMinutes: 5, LimitMode: "rate"}, id)
+			},
+			handler: new(WafAntiCCApi).ModifyAntiCCApi,
+			editBody: func(id string, changeHost bool) string {
+				return `{"id":"` + id + `","host_code":"` + hostOf(changeHost) + `","rate":10,"limit":100,` +
+					`"lock_ip_minutes":5,"limit_mode":"rate","remarks":"r"}`
+			},
+			wantType: enums.ChanTypeAnticc,
+			// CC 防护每站只有一条，Content 是结构体而不是切片：
+			// 旧网站的配置被移走后查不到记录，引擎收到零值 AntiCC 就会关掉该站的 CC 防护。
+			checkContent: func(t *testing.T, hostCode string, content interface{}, wantCount int) {
+				t.Helper()
+				bean, ok := content.(model.AntiCC)
 				if !ok {
-					t.Fatalf("Content 类型应为 []model.URLAllowList，实际 %T", content)
+					t.Fatalf("%s 的 Content 类型应为 model.AntiCC，实际 %T", hostCode, content)
 				}
-				return len(list)
+				if wantCount > 0 && bean.Id == "" {
+					t.Errorf("%s 应收到真实的 CC 配置，实际是零值", hostCode)
+				}
+				if wantCount == 0 && bean.Id != "" {
+					t.Errorf("%s 的 CC 配置已移走，应收到零值以关闭防护，实际 Id=%s", hostCode, bean.Id)
+				}
 			},
+		},
+		{
+			name:   "负载均衡",
+			tables: []interface{}{&model.LoadBalance{}},
+			seed: func(t *testing.T) string {
+				id := uuid.GenUUID()
+				return seedRow(t, &model.LoadBalance{BaseOrm: newTestBase(id), HostCode: "hostA",
+					Remote_ip: "127.0.0.1", Remote_port: 8080, Weight: 1}, id)
+			},
+			handler: new(WafLoadBalanceApi).ModifyApi,
+			editBody: func(id string, changeHost bool) string {
+				return `{"id":"` + id + `","host_code":"` + hostOf(changeHost) + `","remote_ip":"127.0.0.1","remote_port":8080,"weight":1,"remarks":"r"}`
+			},
+			wantType: enums.ChanTypeLoadBalance,
+			// 负载均衡的通知不带内容，引擎收到后清空该站已建的反向代理并懒重建
+			checkContent: nil,
 		},
 	}
 }
@@ -281,9 +390,6 @@ func TestModifyApi_ChangeHost_ShouldNotifyOldAndNewHost(t *testing.T) {
 			if newMsg.Type != tc.wantType {
 				t.Errorf("新网站通知类型应为 %d，实际 %d", tc.wantType, newMsg.Type)
 			}
-			if n := tc.countContent(t, newMsg.Content); n != 1 {
-				t.Errorf("新网站 hostB 的名单应有 1 条，实际 %d 条", n)
-			}
 
 			oldMsg := findMsg(msgs, "hostA")
 			if oldMsg == nil {
@@ -292,8 +398,10 @@ func TestModifyApi_ChangeHost_ShouldNotifyOldAndNewHost(t *testing.T) {
 			if oldMsg.Type != tc.wantType {
 				t.Errorf("旧网站通知类型应为 %d，实际 %d", tc.wantType, oldMsg.Type)
 			}
-			if n := tc.countContent(t, oldMsg.Content); n != 0 {
-				t.Errorf("旧网站 hostA 的名单应已清空（0 条），实际 %d 条", n)
+
+			if tc.checkContent != nil {
+				tc.checkContent(t, "新网站 hostB", newMsg.Content, 1)
+				tc.checkContent(t, "旧网站 hostA", oldMsg.Content, 0)
 			}
 		})
 	}
@@ -330,12 +438,9 @@ func TestModifyApi_SameHost_ShouldNotifyOnce(t *testing.T) {
 func TestDelAllBlockIpApi_ScopedByHost(t *testing.T) {
 	setupNotifyTestEnv(t, &model.IPBlockList{})
 
-	if err := wafIpBlockService.AddApi(request.WafBlockIpAddReq{HostCode: "hostA", Ip: "1.1.1.1"}); err != nil {
-		t.Fatalf("种子新增失败: %v", err)
-	}
-	if err := wafIpBlockService.AddApi(request.WafBlockIpAddReq{HostCode: "hostB", Ip: "2.2.2.2"}); err != nil {
-		t.Fatalf("种子新增失败: %v", err)
-	}
+	idA, idB := uuid.GenUUID(), uuid.GenUUID()
+	seedRow(t, &model.IPBlockList{BaseOrm: newTestBase(idA), HostCode: "hostA", Ip: "1.1.1.1"}, idA)
+	seedRow(t, &model.IPBlockList{BaseOrm: newTestBase(idB), HostCode: "hostB", Ip: "2.2.2.2"}, idB)
 	drainChanMsg()
 
 	rec := doJSONPost(t, new(WafBlockIpApi).DelAllBlockIpApi, `{"host_code":"hostA"}`)
@@ -352,4 +457,88 @@ func TestDelAllBlockIpApi_ScopedByHost(t *testing.T) {
 	if countB != 1 {
 		t.Errorf("只清空 hostA 时 hostB 的记录必须保留，实际剩 %d 条（越权删除）", countB)
 	}
+}
+
+// notifyHelperExemptHandlers 允许直接调用单参数 NotifyWaf 的编辑类处理函数白名单。
+// 只有「确定不会把记录换到另一个网站」的接口才能进来，加之前先想清楚：
+// 一旦这个接口能改 host_code，直接调用 NotifyWaf 就会复现 issue #898。
+var notifyHelperExemptHandlers = map[string]string{
+	// 编辑的就是网站本身，不存在「换到另一个网站」；且它的 NotifyWaf 已自行接收旧 Host 做对比
+	"ModifyHostApi": "编辑网站自身，非按网站分组的子配置",
+}
+
+// TestEditHandlersMustUseNotifyHelper 源码级护栏：
+// 所有绑定 request.*EditReq 的编辑接口，都必须通过 notifyWafHostChanged 通知引擎，
+// 不允许直接调用 w.NotifyWaf(...)——直接调用就等于「只通知新网站」，正是 issue #898 的成因。
+//
+// 这条用例的价值在于覆盖**将来新增**的模块：新写一个按网站分组的配置功能时，
+// 只要照抄了老写法，这里就会红，而不用等用户报障。
+func TestEditHandlersMustUseNotifyHelper(t *testing.T) {
+	fset := token.NewFileSet()
+	pkgs, err := parser.ParseDir(fset, ".", func(fi os.FileInfo) bool {
+		return !strings.HasSuffix(fi.Name(), "_test.go")
+	}, 0)
+	if err != nil {
+		t.Fatalf("解析 api 包源码失败: %v", err)
+	}
+
+	var bad []string
+	for _, pkg := range pkgs {
+		for path, file := range pkg.Files {
+			for _, decl := range file.Decls {
+				fn, ok := decl.(*ast.FuncDecl)
+				if !ok || fn.Body == nil {
+					continue
+				}
+				if !bindsEditReq(fn) {
+					continue
+				}
+				if _, exempt := notifyHelperExemptHandlers[fn.Name.Name]; exempt {
+					continue
+				}
+				ast.Inspect(fn.Body, func(n ast.Node) bool {
+					call, ok := n.(*ast.CallExpr)
+					if !ok {
+						return true
+					}
+					sel, ok := call.Fun.(*ast.SelectorExpr)
+					// 只盯「单参数 NotifyWaf(hostCode)」：无参版本(如敏感词)本就与网站无关，
+					// 多参版本(如网站自身)另有语义，都不在本护栏范围内。
+					if ok && sel.Sel.Name == "NotifyWaf" && len(call.Args) == 1 {
+						bad = append(bad, fmt.Sprintf("%s: %s 在 %s",
+							filepath.Base(path), fn.Name.Name, fset.Position(call.Pos())))
+					}
+					return true
+				})
+			}
+		}
+	}
+
+	if len(bad) > 0 {
+		t.Errorf("下列编辑接口直接调用了 NotifyWaf，编辑时若切换网站会导致旧网站缓存不刷新（issue #898）。\n"+
+			"请改成：编辑前 bean := <service>.GetDetailByIdApi(req.Id)，成功后 notifyWafHostChanged(w.NotifyWaf, bean.HostCode, req.HostCode)\n%s",
+			strings.Join(bad, "\n"))
+	}
+}
+
+// bindsEditReq 判断函数体里是否声明了 var req request.XxxEditReq（即这是一个编辑接口）。
+func bindsEditReq(fn *ast.FuncDecl) bool {
+	found := false
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		vs, ok := n.(*ast.ValueSpec)
+		if !ok || vs.Type == nil {
+			return true
+		}
+		sel, ok := vs.Type.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		pkgIdent, ok := sel.X.(*ast.Ident)
+		if ok && pkgIdent.Name == "request" && strings.HasSuffix(sel.Sel.Name, "EditReq") {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
 }

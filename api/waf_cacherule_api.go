@@ -144,11 +144,13 @@ func (w *WafCacheRuleApi) ModifyApi(c *gin.Context) {
 	var req request.WafCacheRuleEditReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		//编辑前先取旧记录，拿到可能被本次编辑改掉的旧 host_code(issue #898)
+		bean := wafCacheRuleService.GetDetailByIdApi(req.Id)
 		err = wafCacheRuleService.ModifyApi(req)
 		if err != nil {
 			response.FailWithMessage("编辑发生错误"+err.Error(), c)
 		} else {
-			w.NotifyWaf(req.HostCode)
+			notifyWafHostChanged(w.NotifyWaf, bean.HostCode, req.HostCode)
 			response.OkWithMessage("编辑成功", c)
 		}
 	} else {

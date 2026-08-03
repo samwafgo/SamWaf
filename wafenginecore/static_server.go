@@ -613,25 +613,8 @@ func (waf *WafEngine) logStaticFileAccess(path, remoteAddr string, fileSize int6
 	weblog.RISK_LEVEL = 0 // 无风险
 
 	// 按照全局日志记录策略决定是否记录
-	if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "all" {
-		if hostsafe.Host.EXCLUDE_URL_LOG == "" {
-			global.GQEQUE_LOG_DB.Enqueue(weblog)
-		} else {
-			lines := strings.Split(hostsafe.Host.EXCLUDE_URL_LOG, "\n")
-			isRecordLog := true
-			// 检查每一行
-			for _, line := range lines {
-				if strings.HasPrefix(weblog.URL, line) {
-					isRecordLog = false
-				}
-			}
-			if isRecordLog {
-				global.GQEQUE_LOG_DB.Enqueue(weblog)
-			}
-		}
-	} else if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "abnormal" && weblog.ACTION != "放行" {
-		// 对于静态文件成功访问，ACTION是"放行"，所以在abnormal模式下不会记录
-		// 这里保持逻辑一致性，虽然实际上不会执行
+	// abnormal 模式下静态文件成功访问(ACTION=放行)通常不记录，但若命中过自定义规则(RULE 非空)仍要留痕
+	if shouldRecordWebLog(weblog, hostsafe.Host.EXCLUDE_URL_LOG) {
 		global.GQEQUE_LOG_DB.Enqueue(weblog)
 	}
 }

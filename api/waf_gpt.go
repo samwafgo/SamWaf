@@ -44,7 +44,7 @@ rule R<唯一标识> "规则中文描述" salience <优先级数字> {
 }
 说明：
 - R<唯一标识>：规则名，以大写 R 开头，只能由字母和数字组成（不含横线）。
-- salience：优先级，数值越大越先命中。默认写 10；放行类建议写 100 使其优先。
+- salience：优先级，数值越大越优先。站点规则和全局规则一起按 salience 仲裁，同优先级时按 拦截 > 放行 > 仅记录 取。默认写 10；放行类要压过全局拦截规则时写 100。
 - when：条件，为 true 时命中。then：命中后的动作，必须写且只能写一个。
 
 # 可用请求字段（MF 开头，代表当前请求）
@@ -103,7 +103,7 @@ rule R<uniqueId> "rule description" salience <priority> {
 }
 Notes:
 - R<uniqueId>: rule name, starts with uppercase R, letters and digits only (no dash).
-- salience: priority, higher wins first. Use 10 by default; use 100 for allow rules so they take precedence.
+- salience: priority, higher wins. Site rules and global rules are arbitrated together by salience; on a tie the order is deny > allow > log. Use 10 by default; use 100 for allow rules that must override a global deny rule.
 - when: condition; matches when true. then: exactly one action.
 
 # Request fields (MF = current request)

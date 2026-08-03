@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strconv"
 
 	"github.com/hyperjumptech/grule-rule-engine/ast"
@@ -83,6 +84,8 @@ type ruleMatchResult struct {
 	Matched bool
 	Action  utils.RuleActionInfo
 	Title   string
+	// TopSalience 本侧命中规则里的最高优先级，用于和另一侧仲裁
+	TopSalience int
 }
 
 // matchRules 执行一组规则并解析出动作
@@ -114,7 +117,71 @@ func matchRules(ruleHelper *utils.RuleHelper, weblogbean *innerbean.WebLog, titl
 	out.Matched = true
 	out.Action = pickRuleAction(ruleHelper, ruleMatchs)
 	out.Title = titlePrefix + rulestr
+	// grule 的 FetchMatchingRules 已按 salience 降序返回，第一条即最高优先级
+	out.TopSalience = ruleMatchs[0].Salience
 	return out
+}
+
+// arbitrate 在站点规则和全局规则的命中结果之间裁决最终动作
+//
+// salience 只在单个 KnowledgeBase 内排序，而站点和全局是两个独立的规则引擎，
+// 所以跨作用域的优先级必须在这里显式仲裁，否则用户在界面上填的"优先级"跨作用域就是空的。
+//
+//	1. 只有一侧命中 → 用那一侧
+//	2. 两侧都命中 → salience 高的一侧胜出
+//	3. salience 相同 → 按 拦截 > 放行 > 仅记录 取，保证偏安全，也和历史行为一致
+//	   （老配置站点和全局默认都是 salience 10，此时全局拦截依旧压过站点放行）
+//
+// 两侧同为放行且同优先级时，跳过模块取并集、Title 拼接。
+func arbitrate(local, globalR ruleMatchResult) ruleMatchResult {
+	if !local.Matched {
+		return globalR
+	}
+	if !globalR.Matched {
+		return local
+	}
+
+	if local.TopSalience > globalR.TopSalience {
+		return local
+	}
+	if globalR.TopSalience > local.TopSalience {
+		return globalR
+	}
+
+	// 同优先级：按动作强弱兜底
+	rank := map[string]int{
+		utils.RuleActionDeny:  3,
+		utils.RuleActionAllow: 2,
+		utils.RuleActionLog:   1,
+	}
+	if rank[local.Action.Action] > rank[globalR.Action.Action] {
+		return local
+	}
+	if rank[globalR.Action.Action] > rank[local.Action.Action] {
+		return globalR
+	}
+
+	// 动作也相同：合并两侧信息
+	merged := ruleMatchResult{
+		Matched:     true,
+		Action:      utils.RuleActionInfo{Action: local.Action.Action},
+		Title:       local.Title + globalR.Title,
+		TopSalience: local.TopSalience,
+	}
+	if merged.Action.Action == utils.RuleActionAllow {
+		skipSet := make(map[string]bool)
+		for _, m := range local.Action.SkipModules {
+			skipSet[m] = true
+		}
+		for _, m := range globalR.Action.SkipModules {
+			skipSet[m] = true
+		}
+		for m := range skipSet {
+			merged.Action.SkipModules = append(merged.Action.SkipModules, m)
+		}
+		sort.Strings(merged.Action.SkipModules)
+	}
+	return merged
 }
 
 /*
@@ -129,94 +196,45 @@ func (waf *WafEngine) CheckRule(r *http.Request, weblogbean *innerbean.WebLog, f
 		Content:         "",
 	}
 
-	logTitle := ""
-	allowTitle := ""
-	skipSet := make(map[string]bool)
-
 	//规则判断 （局部）
+	localResult := ruleMatchResult{}
 	if hostTarget.Rule != nil {
-		localResult := matchRules(hostTarget.Rule, weblogbean, "")
-		if localResult.Matched {
-			switch localResult.Action.Action {
-			case utils.RuleActionDeny:
-				weblogbean.RISK_LEVEL = 1
-				result.IsBlock = true
-				result.Title = localResult.Title
-				result.Content = "您的访问被阻止触发规则"
-				return result
-			case utils.RuleActionAllow:
-				allowTitle = localResult.Title
-				for _, m := range localResult.Action.SkipModules {
-					skipSet[m] = true
-				}
-				//放行且跳过后续所有检测，全局规则也不用再看了
-				if localResult.Action.SkipAll() {
-					result.JumpGuardResult = true
-					result.IsRuleAllow = true
-					result.SkipModules = []string{utils.RuleSkipAll}
-					result.Title = allowTitle
-					return result
-				}
-			case utils.RuleActionLog:
-				weblogbean.RISK_LEVEL = 1
-				logTitle = localResult.Title
-			}
-		}
+		localResult = matchRules(hostTarget.Rule, weblogbean, "")
 	}
 
 	//规则判断 （全局网站）
+	//两侧都要跑完再仲裁：局部先命中就 return 的话，全局那条优先级更高的规则永远没机会生效
+	globalResult := ruleMatchResult{}
 	globalHost := waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME]
 	if globalHost != nil && globalHost.Host.GUARD_STATUS == 1 && globalHost.Rule != nil {
-		globalResult := matchRules(globalHost.Rule, weblogbean, "【全局】")
-		if globalResult.Matched {
-			switch globalResult.Action.Action {
-			case utils.RuleActionDeny:
-				//全局拦截优先级最高，可以覆盖局部的放行/仅记录
-				weblogbean.RISK_LEVEL = 1
-				result.IsBlock = true
-				result.Title = globalResult.Title
-				result.Content = "您的访问被阻止触发规则"
-				return result
-			case utils.RuleActionAllow:
-				if allowTitle == "" {
-					allowTitle = globalResult.Title
-				} else {
-					allowTitle = allowTitle + globalResult.Title
-				}
-				for _, m := range globalResult.Action.SkipModules {
-					skipSet[m] = true
-				}
-				if globalResult.Action.SkipAll() {
-					result.JumpGuardResult = true
-					result.IsRuleAllow = true
-					result.SkipModules = []string{utils.RuleSkipAll}
-					result.Title = allowTitle
-					return result
-				}
-			case utils.RuleActionLog:
-				weblogbean.RISK_LEVEL = 1
-				if logTitle == "" {
-					logTitle = globalResult.Title
-				} else {
-					logTitle = logTitle + globalResult.Title
-				}
-			}
-		}
+		globalResult = matchRules(globalHost.Rule, weblogbean, "【全局】")
 	}
 
-	//放行优先于仅记录
-	if allowTitle != "" {
-		result.IsRuleAllow = true
-		result.Title = allowTitle
-		for m := range skipSet {
-			result.SkipModules = append(result.SkipModules, m)
-		}
+	final := arbitrate(localResult, globalResult)
+	if !final.Matched {
 		return result
 	}
-	if logTitle != "" {
+
+	switch final.Action.Action {
+	case utils.RuleActionDeny:
+		weblogbean.RISK_LEVEL = 1
+		result.IsBlock = true
+		result.Title = final.Title
+		result.Content = "您的访问被阻止触发规则"
+	case utils.RuleActionAllow:
+		result.IsRuleAllow = true
+		result.Title = final.Title
+		if final.Action.SkipAll() {
+			//放行且跳过后续所有检测，直通后端
+			result.JumpGuardResult = true
+			result.SkipModules = []string{utils.RuleSkipAll}
+		} else {
+			result.SkipModules = final.Action.SkipModules
+		}
+	case utils.RuleActionLog:
+		weblogbean.RISK_LEVEL = 1
 		result.IsLogOnly = true
-		result.Title = logTitle
-		return result
+		result.Title = final.Title
 	}
 	return result
 }

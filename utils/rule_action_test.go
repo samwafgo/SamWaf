@@ -259,6 +259,75 @@ func TestBuildGrlSkeleton_KeepsLength(t *testing.T) {
 	}
 }
 
+// ---------- 优先级解析 ----------
+
+func TestExtractRuleSalience(t *testing.T) {
+	cases := []struct {
+		name     string
+		ruleText string
+		want     int
+	}{
+		{
+			name: "正常解析",
+			ruleText: `rule Rabc123 "拦截" salience 90 {
+    when MF.URL == "/admin"
+    then RF.Deny();
+}`,
+			want: 90,
+		},
+		{
+			name: "salience为0",
+			ruleText: `rule Rabc123 "拦截" salience 0 {
+    when MF.URL == "/admin"
+    then RF.Deny();
+}`,
+			want: 0,
+		},
+		{
+			name: "字符串字面量里的假优先级不该被解析",
+			ruleText: `rule Rabc123 "拦截" salience 10 {
+    when MF.URL.Contains("salience 999") == true
+    then RF.Deny();
+}`,
+			want: 10,
+		},
+		{
+			name: "注释里的假优先级不该被解析",
+			ruleText: `// salience 999
+rule Rabc123 "拦截" salience 10 {
+    when MF.URL == "/admin"
+    then RF.Deny();
+}`,
+			want: 10,
+		},
+		{
+			name:     "解析不出来返回0",
+			ruleText: `这不是规则`,
+			want:     0,
+		},
+		{
+			name: "多条规则取第一条",
+			ruleText: `rule Rone "放行" salience 100 {
+    when MF.SRC_IP == "1.1.1.1"
+    then RF.Allow();
+}
+rule Rtwo "拦截" salience 10 {
+    when MF.URL == "/admin"
+    then RF.Deny();
+}`,
+			want: 100,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := ExtractRuleSalience(tc.ruleText); got != tc.want {
+				t.Errorf("期望 %d 实际 %d", tc.want, got)
+			}
+		})
+	}
+}
+
 // ---------- 多条规则 ----------
 
 func TestExtractRuleActions_MultipleRules(t *testing.T) {

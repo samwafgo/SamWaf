@@ -90,11 +90,13 @@ func (w *WafHostPathRuleApi) ModifyApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 		return
 	}
+	//编辑前先取旧记录，拿到可能被本次编辑改掉的旧 host_code(issue #898)
+	bean := wafHostPathRuleService.GetDetailByIdApi(req.Id)
 	if err := wafHostPathRuleService.ModifyApi(req); err != nil {
 		response.FailWithMessage("编辑发生错误"+err.Error(), c)
 		return
 	}
-	w.NotifyWaf(req.HostCode)
+	notifyWafHostChanged(w.NotifyWaf, bean.HostCode, req.HostCode)
 	response.OkWithMessage("编辑成功", c)
 }
 

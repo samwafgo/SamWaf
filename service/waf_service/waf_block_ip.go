@@ -24,29 +24,47 @@ func (receiver *WafBlockIpService) AddApi(req request.WafBlockIpAddReq) error {
 			CREATE_TIME: customtype.JsonTime(time.Now()),
 			UPDATE_TIME: customtype.JsonTime(time.Now()),
 		},
-		HostCode: req.HostCode,
-		Ip:       req.Ip,
-		Remarks:  req.Remarks,
+		HostCode:  req.HostCode,
+		Ip:        req.Ip,
+		Remarks:   req.Remarks,
+		IpType:    req.IpType,
+		GroupCode: req.GroupCode,
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
 	return nil
 }
 
+// CheckIsExistApi 判重。唯一性由 (host_code, ip_type, ip, group_code) 共同决定：
+// 同一站点重复引用同一个 IP 组也算重复。
+// ip_type 用 IN ('', 'ip') 兼容存量行的空串。
 func (receiver *WafBlockIpService) CheckIsExistApi(req request.WafBlockIpAddReq) error {
-	return global.GWAF_LOCAL_DB.First(&model.IPBlockList{}, "host_code = ? and ip= ?", req.HostCode,
-		req.Ip).Error
+	if req.IpType == model.IPEntryTypeGroup {
+		return global.GWAF_LOCAL_DB.First(&model.IPBlockList{},
+			"host_code = ? and ip_type = ? and group_code = ?", req.HostCode, model.IPEntryTypeGroup, req.GroupCode).Error
+	}
+	return global.GWAF_LOCAL_DB.First(&model.IPBlockList{},
+		"host_code = ? and ip = ? and (ip_type is null or ip_type in (?, ?))",
+		req.HostCode, req.Ip, "", model.IPEntryTypeIP).Error
 }
 func (receiver *WafBlockIpService) ModifyApi(req request.WafBlockIpEditReq) error {
-	var ipWhite model.IPBlockList
-	global.GWAF_LOCAL_DB.Where("host_code = ? and ip= ?", req.HostCode,
-		req.Ip).Find(&ipWhite)
-	if ipWhite.Id != "" && ipWhite.Ip != req.Ip {
+	// 同一站点下不能出现重复条目（排除自身）
+	var dup model.IPBlockList
+	if req.IpType == model.IPEntryTypeGroup {
+		global.GWAF_LOCAL_DB.Where("host_code = ? and ip_type = ? and group_code = ? and id <> ?",
+			req.HostCode, model.IPEntryTypeGroup, req.GroupCode, req.Id).Find(&dup)
+	} else {
+		global.GWAF_LOCAL_DB.Where("host_code = ? and ip = ? and (ip_type is null or ip_type in (?, ?)) and id <> ?",
+			req.HostCode, req.Ip, "", model.IPEntryTypeIP, req.Id).Find(&dup)
+	}
+	if dup.Id != "" {
 		return errors.New("当前网站和IP已经存在")
 	}
 	ipWhiteMap := map[string]interface{}{
 		"host_code":   req.HostCode,
 		"Ip":          req.Ip,
 		"Remarks":     req.Remarks,
+		"ip_type":     req.IpType,
+		"group_code":  req.GroupCode,
 		"UPDATE_TIME": customtype.JsonTime(time.Now()),
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.IPBlockList{}).Where("id = ?", req.Id).Updates(ipWhiteMap).Error
@@ -88,12 +106,22 @@ func (receiver *WafBlockIpService) GetListApi(req request.WafBlockIpSearchReq) (
 		}
 		whereField = whereField + " ip =? "
 	}
+	//按引用的IP组筛选：ip 是精确匹配，组引用行的 ip 为空，用 ip 条件永远查不到
+	if len(req.GroupCode) > 0 {
+		if len(whereField) > 0 {
+			whereField = whereField + " and "
+		}
+		whereField = whereField + " group_code =? "
+	}
 	//where字段赋值
 	if len(req.HostCode) > 0 {
 		whereValues = append(whereValues, req.HostCode)
 	}
 	if len(req.Ip) > 0 {
 		whereValues = append(whereValues, req.Ip)
+	}
+	if len(req.GroupCode) > 0 {
+		whereValues = append(whereValues, req.GroupCode)
 	}
 
 	global.GWAF_LOCAL_DB.Model(&model.IPBlockList{}).Where(whereField, whereValues...).Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&list)

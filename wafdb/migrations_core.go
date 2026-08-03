@@ -1416,6 +1416,92 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return tx.Migrator().DropTable(&model.CDNProvider{})
 			},
 		},
+		// 迁移: 创建 IP 组与组内条目表
+		// IP 组是可跨站点复用的 IP 集合（不带 host_code），黑/白名单条目与自定义规则都能引用；
+		// 组内容变更走 ipset 全局原子快照实时生效，不需要给每个引用站点单独下发。
+		{
+			ID: "202608030001_add_ip_group_tables",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202608030001: 创建 ip_group / ip_group_item 表")
+				if err := tx.AutoMigrate(&model.IPGroup{}, &model.IPGroupItem{}); err != nil {
+					return fmt.Errorf("创建IP组表失败: %w", err)
+				}
+				// 组短码在租户内唯一（组是租户级资源，不带 host_code）
+				if err := safeCreateIndex(tx, "ip_group", "uni_ip_group_code",
+					"CREATE UNIQUE INDEX IF NOT EXISTS uni_ip_group_code ON ip_group (user_code, tenant_id, group_code)"); err != nil {
+					zlog.Warn("创建索引 uni_ip_group_code 失败", "error", err.Error())
+				}
+				// 重建组匹配集时按 group_code 聚合读取
+				if err := safeCreateIndex(tx, "ip_group_item", "idx_ip_group_item_group",
+					"CREATE INDEX IF NOT EXISTS idx_ip_group_item_group ON ip_group_item (group_code)"); err != nil {
+					zlog.Warn("创建索引 idx_ip_group_item_group 失败", "error", err.Error())
+				}
+				// 同组内同一条目只允许一行（新表无存量重复，不需要先清洗）
+				if err := safeCreateIndex(tx, "ip_group_item", "uni_ip_group_item",
+					"CREATE UNIQUE INDEX IF NOT EXISTS uni_ip_group_item ON ip_group_item (user_code, tenant_id, group_code, ip)"); err != nil {
+					zlog.Warn("创建索引 uni_ip_group_item 失败", "error", err.Error())
+				}
+				zlog.Info("IP组表创建成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202608030001: 删除 IP 组表")
+				return tx.Migrator().DropTable(&model.IPGroupItem{}, &model.IPGroup{})
+			},
+		},
+		// 迁移: 黑/白名单表加「条目类型 + 引用组短码」两列，并把 ip 列扩容到 128
+		// 扩容原因：ip 现在还能写通配符与区间，IPv6 区间最长 79 字符，原 size:64 会被截断
+		// （SQLite 静默截断、MySQL 严格模式直接报错）。
+		{
+			ID: "202608030002_add_ip_list_group_ref_columns",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202608030002: 为 IP 黑/白名单表添加 ip_type / group_code 字段并扩容 ip 列")
+				targets := []struct {
+					model interface{}
+					name  string
+				}{
+					{&model.IPBlockList{}, "IP黑名单"},
+					{&model.IPAllowList{}, "IP白名单"},
+				}
+				// 列名 -> 结构体字段名（AddColumn 用字段名更稳，HasColumn 用列名）
+				cols := []struct{ column, field string }{
+					{"ip_type", "IpType"},
+					{"group_code", "GroupCode"},
+				}
+				for _, t := range targets {
+					for _, c := range cols {
+						if tx.Migrator().HasColumn(t.model, c.column) {
+							continue
+						}
+						if err := tx.Migrator().AddColumn(t.model, c.field); err != nil {
+							return fmt.Errorf("添加 %s.%s 字段失败: %w", t.name, c.column, err)
+						}
+					}
+					// AlterColumn 走的是扩容（64 → 128），不会丢数据；失败不阻断迁移，
+					// 因为 SQLite 本身不限制 varchar 长度，只有 MySQL/PG 需要真正扩容。
+					if err := tx.Migrator().AlterColumn(t.model, "Ip"); err != nil {
+						zlog.Warn("扩容 "+t.name+" 的 ip 列失败(不影响 SQLite，MySQL/PG 请关注)", "error", err.Error())
+					}
+				}
+				// 不回填 ip_type：留空即代表「单条IP」，判定处一律只判 == "group"。
+				// 回填会在大表上产生一次全表 UPDATE，收益为零。
+				zlog.Info("IP黑/白名单组引用字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202608030002: 删除 IP 黑/白名单组引用字段")
+				for _, m := range []interface{}{&model.IPBlockList{}, &model.IPAllowList{}} {
+					for _, f := range []string{"IpType", "GroupCode"} {
+						if tx.Migrator().HasColumn(m, f) {
+							if err := tx.Migrator().DropColumn(m, f); err != nil {
+								zlog.Warn("删除字段失败", "error", err.Error())
+							}
+						}
+					}
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

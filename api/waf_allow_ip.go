@@ -30,6 +30,14 @@ func (w *WafAllowIpApi) AddApi(c *gin.Context) {
 	var req request.WafAllowIpAddReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		// 归一并校验条目类型（单条IP/网段/通配/区间 或 引用IP组）
+		ipType, ip, groupCode, verr := normalizeIPEntry(ipEntryInput{IpType: req.IpType, Ip: req.Ip, GroupCode: req.GroupCode})
+		if verr != nil {
+			response.FailWithMessage(verr.Error(), c)
+			return
+		}
+		req.IpType, req.Ip, req.GroupCode = ipType, ip, groupCode
+
 		err = wafIpAllowService.CheckIsExistApi(req)
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 			err = wafIpAllowService.AddApi(req)
@@ -142,6 +150,13 @@ func (w *WafAllowIpApi) ModifyAllowIpApi(c *gin.Context) {
 	var req request.WafAllowIpEditReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		ipType, ip, groupCode, verr := normalizeIPEntry(ipEntryInput{IpType: req.IpType, Ip: req.Ip, GroupCode: req.GroupCode})
+		if verr != nil {
+			response.FailWithMessage(verr.Error(), c)
+			return
+		}
+		req.IpType, req.Ip, req.GroupCode = ipType, ip, groupCode
+
 		//编辑前先取旧记录，拿到可能被本次编辑改掉的旧 host_code(issue #898)
 		bean := wafIpAllowService.GetDetailByIdApi(req.Id)
 		err = wafIpAllowService.ModifyApi(req)

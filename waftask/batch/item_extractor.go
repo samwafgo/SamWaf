@@ -17,20 +17,28 @@ type ItemExtractor interface {
 // IPExtractor IP提取器
 type IPExtractor struct{}
 
+// 匹配IPv4地址或IPv4网段
+var ipv4Regex = regexp.MustCompile(`\b(?:\d{1,3}\.){3}\d{1,3}(?:/\d{1,2})?\b`)
+
+// 匹配IPv6地址或IPv6网段 (简化版本)
+var ipv6Regex = regexp.MustCompile(`\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}(?:/\d{1,3})?\b`)
+
 // ExtractItem 从行中提取IP地址
 func (e *IPExtractor) ExtractItem(line string) string {
-	// 匹配IPv4地址或IPv4网段
-	ipv4Regex := regexp.MustCompile(`\b(?:\d{1,3}\.){3}\d{1,3}(?:/\d{1,2})?\b`)
+	trimmed := strings.TrimSpace(line)
 
-	// 匹配IPv6地址或IPv6网段 (简化版本)
-	ipv6Regex := regexp.MustCompile(`\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}(?:/\d{1,3})?\b`)
+	// 整行本身就是一个合法的 IP 模式(单IP/CIDR/通配符/区间)时原样返回。
+	// 这一步必须在正则之前：正则对 "1.2.3.4-1.2.3.99" 只会截出 "1.2.3.4"，
+	// 而截出来的单 IP 恰好又能通过校验，结果是用户导入一个区间、库里静默变成一个 IP，
+	// 全程没有任何报错——比直接拒绝更糟。
+	if ok, _ := utils.IsValidIPPattern(trimmed); ok {
+		return trimmed
+	}
 
-	// 先尝试匹配IPv4
+	// 整行不是纯 IP 模式（例如带注释、带前后缀的日志行），再退回正则抽取
 	if match := ipv4Regex.FindString(line); match != "" {
 		return match
 	}
-
-	// 再尝试匹配IPv6
 	if match := ipv6Regex.FindString(line); match != "" {
 		return match
 	}
@@ -38,9 +46,10 @@ func (e *IPExtractor) ExtractItem(line string) string {
 	return line // 如果没有匹配到，返回原始行
 }
 
-// ValidateItem 验证IP地址是否有效
+// ValidateItem 验证IP是否有效。语法范围与手工录入的黑/白名单一致
+// （单IP / CIDR / 通配符 / 区间），保证同一个写法在两个入口行为相同。
 func (e *IPExtractor) ValidateItem(item string) bool {
-	validRet, _ := utils.IsValidIPOrNetwork(item)
+	validRet, _ := utils.IsValidIPPattern(item)
 	return validRet
 }
 

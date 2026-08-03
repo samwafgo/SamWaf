@@ -8,6 +8,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
+	"SamWaf/utils"
 	"errors"
 	"time"
 )
@@ -147,7 +148,17 @@ func (receiver *WafRuleService) GetListApi(wafRuleSearchReq request.WafRuleSearc
 	global.GWAF_LOCAL_DB.Model(&model.Rules{}).Where(whereField, whereValues...).Limit(wafRuleSearchReq.PageSize).Offset(wafRuleSearchReq.PageSize * (wafRuleSearchReq.PageIndex - 1)).Find(&rules)
 	global.GWAF_LOCAL_DB.Model(&model.Rules{}).Where(whereField, whereValues...).Count(&total)
 
+	fillRuleSalience(rules)
 	return rules, total, nil
+}
+
+// fillRuleSalience 给列表数据补上优先级
+// 优先级只存在于规则文本(GRL)里，没有数据库列；手工模式和界面模式的规则文本都带 salience，
+// 所以统一从文本解析，避免为了展示一个字段去加列 + 写迁移 + 回填存量数据
+func fillRuleSalience(rules []model.Rules) {
+	for i := range rules {
+		rules[i].Salience = utils.ExtractRuleSalience(rules[i].RuleContent)
+	}
 }
 
 func (receiver *WafRuleService) GetListByHostCodeApi(wafRuleSearchReq request.WafRuleSearchReq) ([]model.Rules, int64, error) {
@@ -159,6 +170,7 @@ func (receiver *WafRuleService) GetListByHostCodeApi(wafRuleSearchReq request.Wa
 	global.GWAF_LOCAL_DB.Where("host_code = ? and rule_status <> 999",
 		wafRuleSearchReq.HostCode).Model(&model.Rules{}).Count(&total)
 
+	fillRuleSalience(rules)
 	return rules, total, nil
 }
 

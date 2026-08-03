@@ -1170,23 +1170,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 				weblogfrist.TASK_FLAG = 1
 
 				// 记录日志
-				if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "all" {
-					if waf.rt().HostTarget[host].Host.EXCLUDE_URL_LOG == "" {
-						global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
-					} else {
-						lines := strings.Split(waf.rt().HostTarget[host].Host.EXCLUDE_URL_LOG, "\n")
-						isRecordLog := true
-						// 检查每一行
-						for _, line := range lines {
-							if strings.HasPrefix(weblogfrist.URL, line) {
-								isRecordLog = false
-							}
-						}
-						if isRecordLog {
-							global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
-						}
-					}
-				} else if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "abnormal" && weblogfrist.ACTION != "放行" {
+				if shouldRecordWebLog(weblogfrist, waf.rt().HostTarget[host].Host.EXCLUDE_URL_LOG) {
 					global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
 				}
 			}
@@ -1257,22 +1241,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 					weblogfrist.BackendCheckCost = time.Now().UnixNano()/1e6 - backendCheckStart //响应数据处理时间
 
 					// 记录流式访问日志
-					if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "all" {
-						if waf.rt().HostTarget[host].Host.EXCLUDE_URL_LOG == "" {
-							global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
-						} else {
-							lines := strings.Split(waf.rt().HostTarget[host].Host.EXCLUDE_URL_LOG, "\n")
-							isRecordLog := true
-							for _, line := range lines {
-								if strings.HasPrefix(weblogfrist.URL, line) {
-									isRecordLog = false
-								}
-							}
-							if isRecordLog {
-								global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
-							}
-						}
-					} else if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "abnormal" && weblogfrist.ACTION != "放行" {
+					if shouldRecordWebLog(weblogfrist, waf.rt().HostTarget[host].Host.EXCLUDE_URL_LOG) {
 						global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
 					}
 
@@ -1534,23 +1503,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 						weblogfrist.BackendCheckCost = time.Now().UnixNano()/1e6 - backendCheckStart
 
 						// 记录日志 - 根据配置决定是否记录
-						if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "all" {
-							if waf.rt().HostTarget[host].Host.EXCLUDE_URL_LOG == "" {
-								global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
-							} else {
-								lines := strings.Split(waf.rt().HostTarget[host].Host.EXCLUDE_URL_LOG, "\n")
-								isRecordLog := true
-								for _, line := range lines {
-									if strings.HasPrefix(weblogfrist.URL, line) {
-										isRecordLog = false
-									}
-								}
-								if isRecordLog {
-									global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
-								}
-							}
-						} else if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "abnormal" && weblogfrist.ACTION != "放行" {
-							// 自定义错误页也属于"异常"情况，需要记录
+						if shouldRecordWebLog(weblogfrist, waf.rt().HostTarget[host].Host.EXCLUDE_URL_LOG) {
 							global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
 						}
 
@@ -1566,23 +1519,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 					weblogfrist.STATUS_CODE = resp.StatusCode
 					weblogfrist.TASK_FLAG = 1
 					weblogfrist.BackendCheckCost = time.Now().UnixNano()/1e6 - backendCheckStart //响应数据处理时间
-					if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "all" {
-						if waf.rt().HostTarget[host].Host.EXCLUDE_URL_LOG == "" {
-							global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
-						} else {
-							lines := strings.Split(waf.rt().HostTarget[host].Host.EXCLUDE_URL_LOG, "\n")
-							isRecordLog := true
-							// 检查每一行
-							for _, line := range lines {
-								if strings.HasPrefix(weblogfrist.URL, line) {
-									isRecordLog = false
-								}
-							}
-							if isRecordLog {
-								global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
-							}
-						}
-					} else if global.GWAF_RUNTIME_RECORD_LOG_TYPE == "abnormal" && weblogfrist.ACTION != "放行" {
+					if shouldRecordWebLog(weblogfrist, waf.rt().HostTarget[host].Host.EXCLUDE_URL_LOG) {
 						global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
 					}
 				}

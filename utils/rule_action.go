@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -21,6 +22,8 @@ const (
 
 // ruleSkipModules 允许被跳过的检测模块白名单
 // 注意：跳过只对"排在自定义规则之后"的检测环节生效，具体取决于规则编排模式
+// Allow 和 AllowAll 都同样参与站点/全局的跨作用域仲裁（按 salience 比较），
+// 两者的区别只在于放行之后跳过多大范围的后续检测
 var ruleSkipModules = []string{
 	"BOT",       // 爬虫检测
 	"SQLI",      // SQL注入
@@ -77,6 +80,8 @@ var (
 	ruleThenRegex = regexp.MustCompile(`\bthen\b`)
 	// 动作标记：RF.Allow(...) / RF.AllowAll() / RF.Deny() / RF.Log()
 	ruleActionRegex = regexp.MustCompile(`RF\s*\.\s*(AllowAll|Allow|Deny|Log)\s*\(([^)]*)\)`)
+	// 优先级：rule Rxxx "描述" salience 10 {
+	ruleSalienceRegex = regexp.MustCompile(`\bsalience\s+(\d+)`)
 )
 
 // BuildGrlSkeleton 生成规则文本的"骨架"：把字符串字面量和注释里的内容全部替换成空格，
@@ -361,6 +366,21 @@ func hasSingleAction(skeletonBlock string) bool {
 // CountRuleBlocks 统计规则文本里有几条规则（用于保存时限制"一条规则内容只能有一条规则"）
 func CountRuleBlocks(ruleText string) int {
 	return len(splitRuleBlocks(BuildGrlSkeleton(ruleText)))
+}
+
+// ExtractRuleSalience 提取规则文本里的优先级(salience)，用于列表展示
+// 在骨架上匹配，避免把 MF.URL.Contains("salience 999") 这类字符串字面量里的内容当成真优先级。
+// 一段文本含多条规则时取第一条；解析不出来返回 0。
+func ExtractRuleSalience(ruleText string) int {
+	m := ruleSalienceRegex.FindStringSubmatch(BuildGrlSkeleton(ruleText))
+	if len(m) < 2 {
+		return 0
+	}
+	v, err := strconv.Atoi(m[1])
+	if err != nil {
+		return 0
+	}
+	return v
 }
 
 // ExtractRuleNamesFromText 提取规则文本中所有规则名（含 R 前缀）

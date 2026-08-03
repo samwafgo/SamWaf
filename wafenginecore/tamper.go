@@ -282,12 +282,8 @@ func (waf *WafEngine) enqueueTamperLog(weblog *innerbean.WebLog, excludeURLLog s
 	weblog.TASK_FLAG = 1
 
 	// 防篡改替换属于异常事件，all / abnormal 两种模式都记录
-	if excludeURLLog != "" {
-		for _, line := range strings.Split(excludeURLLog, "\n") {
-			if line != "" && strings.HasPrefix(weblog.URL, line) {
-				return
-			}
-		}
+	if isURLLogExcluded(weblog.URL, excludeURLLog) {
+		return
 	}
 	global.GQEQUE_LOG_DB.Enqueue(weblog)
 }

@@ -34,6 +34,14 @@ func (w *WafBlockIpApi) AddApi(c *gin.Context) {
 		return
 	}
 
+	// 归一并校验条目类型（单条IP/网段/通配/区间 或 引用IP组）
+	ipType, ip, groupCode, verr := normalizeIPEntry(ipEntryInput{IpType: req.IpType, Ip: req.Ip, GroupCode: req.GroupCode})
+	if verr != nil {
+		response.FailWithMessage(verr.Error(), c)
+		return
+	}
+	req.IpType, req.Ip, req.GroupCode = ipType, ip, groupCode
+
 	// 封禁层级：""/waf=WAF应用层(默认) | system=系统防火墙 | both=两者
 	layer := req.TargetLayer
 	if layer == "" {
@@ -42,6 +50,12 @@ func (w *WafBlockIpApi) AddApi(c *gin.Context) {
 
 	// 系统防火墙层封禁
 	if layer == "system" || layer == "both" {
+		// 系统层只认单IP与CIDR，通配符/区间/组引用必须挡在这里，
+		// 否则底层 iptables/netsh 拿到这类字符串会报错或行为未定义
+		if serr := checkSystemLayerSupported(ipType, ip); serr != nil {
+			response.FailWithMessage(serr.Error(), c)
+			return
+		}
 		fwReq := request.WafFirewallIPBlockAddReq{
 			HostCode:  req.HostCode,
 			IP:        req.Ip,
@@ -176,6 +190,13 @@ func (w *WafBlockIpApi) ModifyBlockIpApi(c *gin.Context) {
 	var req request.WafBlockIpEditReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		ipType, ip, groupCode, verr := normalizeIPEntry(ipEntryInput{IpType: req.IpType, Ip: req.Ip, GroupCode: req.GroupCode})
+		if verr != nil {
+			response.FailWithMessage(verr.Error(), c)
+			return
+		}
+		req.IpType, req.Ip, req.GroupCode = ipType, ip, groupCode
+
 		//编辑前先取旧记录，拿到可能被本次编辑改掉的旧 host_code(issue #898)
 		bean := wafIpBlockService.GetDetailByIdApi(req.Id)
 		err = wafIpBlockService.ModifyApi(req)

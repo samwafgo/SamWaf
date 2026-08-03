@@ -16,3 +16,23 @@ func notifyWafHostChanged(notify func(hostCode string), oldHostCode, newHostCode
 		notify(oldHostCode)
 	}
 }
+
+// notifyIPListHosts 批量刷新一组站点的 IP 黑/白名单内存快照。
+//
+// 只在「黑白名单行本身发生增删」时才需要调用（例如删除 IP 组时级联删掉了引用行）。
+// IP 组的内容变更不要走这里——那是 ipset 全局快照的职责，一次原子替换即可，
+// 无论多少站点引用都不必逐站点下发。
+func notifyIPListHosts(hostCodes []string) {
+	if len(hostCodes) == 0 {
+		return
+	}
+	blockApi := &WafBlockIpApi{}
+	allowApi := &WafAllowIpApi{}
+	for _, hostCode := range hostCodes {
+		if hostCode == "" {
+			continue
+		}
+		blockApi.NotifyWaf(hostCode)
+		allowApi.NotifyWaf(hostCode)
+	}
+}

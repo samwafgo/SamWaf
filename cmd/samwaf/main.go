@@ -495,6 +495,10 @@ func (m *wafSystenService) run() {
 	}
 	//初始化路由快照(RCU 空表)，之后 StartWaf→LoadAllHost 通过 copy-on-write 填充
 	globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.InitRouting()
+	//IP组匹配集必须在引擎接管流量之前发布完成：LoadHost 只预抽出组短码，
+	//真正的IP集合来自 ipset 全局快照。这里必须同步调用(不能像威胁情报那样 go 出去)——
+	//威胁情报晚生效只是少拦一点，IP组承载的是用户显式配置的白名单，晚生效就是误拦合法用户。
+	waf_service.WafIPGroupServiceApp.RebuildAllGroupMatchers()
 	http.Handle("/", globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE)
 	globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartWaf()
 
@@ -642,10 +646,14 @@ func (m *wafSystenService) run() {
 				switch msg.Type {
 				case enums.ChanTypeAllowIP:
 					ipWhiteLists := msg.Content.([]model.IPAllowList)
+					// 编译与抽取都在 mutator 外面做：它们是纯函数但可能耗时上百 μs，
+					// 放进 mutator 会拉长路由表写锁的持有时间
 					ipWhiteIndex := wafenginecore.BuildIPAllowIndex(ipWhiteLists)
+					ipWhiteGroupCodes := wafenginecore.ExtractAllowGroupCodes(ipWhiteLists)
 					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.UpdateHost(msg.HostCode, func(h *wafenginmodel.HostSafe) {
 						h.IPWhiteLists = ipWhiteLists
 						h.IPWhiteIndex = ipWhiteIndex
+						h.IPWhiteGroupCodes = ipWhiteGroupCodes
 					})
 					zlog.Debug("远程配置", zap.Any("IPWhiteLists", ipWhiteLists))
 					break
@@ -656,10 +664,13 @@ func (m *wafSystenService) run() {
 					break
 				case enums.ChanTypeBlockIP:
 					ipBlockLists := msg.Content.([]model.IPBlockList)
+					// 同上：编译与抽取放在 mutator 外面，mutator 里只做字段赋值
 					ipBlockIndex := wafenginecore.BuildIPBlockIndex(ipBlockLists)
+					ipBlockGroupCodes := wafenginecore.ExtractBlockGroupCodes(ipBlockLists)
 					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.UpdateHost(msg.HostCode, func(h *wafenginmodel.HostSafe) {
 						h.IPBlockLists = ipBlockLists
 						h.IPBlockIndex = ipBlockIndex
+						h.IPBlockGroupCodes = ipBlockGroupCodes
 					})
 					zlog.Debug("远程配置", zap.Any("IPBlockLists", msg))
 					break

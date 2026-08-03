@@ -24,29 +24,48 @@ func (receiver *WafWhiteIpService) AddApi(wafWhiteIpAddReq request.WafAllowIpAdd
 			CREATE_TIME: customtype.JsonTime(time.Now()),
 			UPDATE_TIME: customtype.JsonTime(time.Now()),
 		},
-		HostCode: wafWhiteIpAddReq.HostCode,
-		Ip:       wafWhiteIpAddReq.Ip,
-		Remarks:  wafWhiteIpAddReq.Remarks,
+		HostCode:  wafWhiteIpAddReq.HostCode,
+		Ip:        wafWhiteIpAddReq.Ip,
+		Remarks:   wafWhiteIpAddReq.Remarks,
+		IpType:    wafWhiteIpAddReq.IpType,
+		GroupCode: wafWhiteIpAddReq.GroupCode,
 	}
 	global.GWAF_LOCAL_DB.Create(wafHost)
 	return nil
 }
 
+// CheckIsExistApi 判重。唯一性由 (host_code, ip_type, ip, group_code) 共同决定：
+// 同一站点重复引用同一个 IP 组也算重复。
+// ip_type 用 IN ('', 'ip') 兼容存量行的空串。
 func (receiver *WafWhiteIpService) CheckIsExistApi(wafWhiteIpAddReq request.WafAllowIpAddReq) error {
-	return global.GWAF_LOCAL_DB.First(&model.IPAllowList{}, "host_code = ? and ip= ?", wafWhiteIpAddReq.HostCode,
-		wafWhiteIpAddReq.Ip).Error
+	if wafWhiteIpAddReq.IpType == model.IPEntryTypeGroup {
+		return global.GWAF_LOCAL_DB.First(&model.IPAllowList{},
+			"host_code = ? and ip_type = ? and group_code = ?",
+			wafWhiteIpAddReq.HostCode, model.IPEntryTypeGroup, wafWhiteIpAddReq.GroupCode).Error
+	}
+	return global.GWAF_LOCAL_DB.First(&model.IPAllowList{},
+		"host_code = ? and ip = ? and (ip_type is null or ip_type in (?, ?))",
+		wafWhiteIpAddReq.HostCode, wafWhiteIpAddReq.Ip, "", model.IPEntryTypeIP).Error
 }
 func (receiver *WafWhiteIpService) ModifyApi(wafWhiteIpEditReq request.WafAllowIpEditReq) error {
-	var ipWhite model.IPAllowList
-	global.GWAF_LOCAL_DB.Where("host_code = ? and ip= ?", wafWhiteIpEditReq.HostCode,
-		wafWhiteIpEditReq.Ip).Find(&ipWhite)
-	if ipWhite.Id != "" && ipWhite.Ip != wafWhiteIpEditReq.Ip {
+	// 同一站点下不能出现重复条目（排除自身）
+	var dup model.IPAllowList
+	if wafWhiteIpEditReq.IpType == model.IPEntryTypeGroup {
+		global.GWAF_LOCAL_DB.Where("host_code = ? and ip_type = ? and group_code = ? and id <> ?",
+			wafWhiteIpEditReq.HostCode, model.IPEntryTypeGroup, wafWhiteIpEditReq.GroupCode, wafWhiteIpEditReq.Id).Find(&dup)
+	} else {
+		global.GWAF_LOCAL_DB.Where("host_code = ? and ip = ? and (ip_type is null or ip_type in (?, ?)) and id <> ?",
+			wafWhiteIpEditReq.HostCode, wafWhiteIpEditReq.Ip, "", model.IPEntryTypeIP, wafWhiteIpEditReq.Id).Find(&dup)
+	}
+	if dup.Id != "" {
 		return errors.New("当前网站和IP已经存在")
 	}
 	ipWhiteMap := map[string]interface{}{
 		"host_code":   wafWhiteIpEditReq.HostCode,
 		"Ip":          wafWhiteIpEditReq.Ip,
 		"Remarks":     wafWhiteIpEditReq.Remarks,
+		"ip_type":     wafWhiteIpEditReq.IpType,
+		"group_code":  wafWhiteIpEditReq.GroupCode,
 		"UPDATE_TIME": customtype.JsonTime(time.Now()),
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.IPAllowList{}).Where("id = ?", wafWhiteIpEditReq.Id).Updates(ipWhiteMap).Error
@@ -88,12 +107,22 @@ func (receiver *WafWhiteIpService) GetListApi(req request.WafAllowIpSearchReq) (
 		}
 		whereField = whereField + " ip =? "
 	}
+	//按引用的IP组筛选：ip 是精确匹配，组引用行的 ip 为空，用 ip 条件永远查不到
+	if len(req.GroupCode) > 0 {
+		if len(whereField) > 0 {
+			whereField = whereField + " and "
+		}
+		whereField = whereField + " group_code =? "
+	}
 	//where字段赋值
 	if len(req.HostCode) > 0 {
 		whereValues = append(whereValues, req.HostCode)
 	}
 	if len(req.Ip) > 0 {
 		whereValues = append(whereValues, req.Ip)
+	}
+	if len(req.GroupCode) > 0 {
+		whereValues = append(whereValues, req.GroupCode)
 	}
 
 	global.GWAF_LOCAL_DB.Model(&model.IPAllowList{}).Where(whereField, whereValues...).Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&ipWhites)

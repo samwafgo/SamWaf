@@ -1,6 +1,10 @@
 package innerbean
 
 import (
+	// ⚠️ 依赖约束：本包只能依赖 ipset 这个叶子包，绝不能 import SamWaf/utils。
+	// utils/rulehelper.go 里有 innerbean.NewRuleFunc()，即 utils → innerbean 已经成立，
+	// 反向引用会形成 import cycle 直接编译不过。
+	"SamWaf/wafenginecore/ipset"
 	"bytes"
 	"net"
 	"strings"
@@ -61,31 +65,46 @@ func (rf *RuleFunc) IPInCIDR(ip, cidr string) bool {
 	return ipNet.Contains(parsedIP)
 }
 
+// IPMatch 判断IP是否匹配一个「IP模式」，一次覆盖全部写法
+// ip: 要检查的IP地址
+// pattern: IP模式，支持以下写法
+//
+//	单IP:      RF.IPMatch(MF.SRC_IP, "1.2.3.4")
+//	CIDR网段:  RF.IPMatch(MF.SRC_IP, "10.0.0.0/8")
+//	IPv4通配:  RF.IPMatch(MF.SRC_IP, "10.10.*.*")   按八位组，* 可在任意位置(10.*.1.* 也合法)
+//	IPv6通配:  RF.IPMatch(MF.SRC_IP, "2001:db8:*:*:*:*:*:*")  必须写满8段，不能与 :: 混用
+//	闭区间:    RF.IPMatch(MF.SRC_IP, "1.2.3.4-1.2.3.99")
+//
+// 返回: true表示匹配。IP 或模式非法时返回 false。
+// 模式解析结果带缓存，每请求求值不会重复解析字符串。
+func (rf *RuleFunc) IPMatch(ip, pattern string) bool {
+	return ipset.MatchPatternStrCached(ip, pattern)
+}
+
+// IPInGroup 判断IP是否在指定的「IP组」内
+// ip: 要检查的IP地址
+// groupCodeOrName: IP组的短码或名称（在 网站防护-IP组 页面维护）
+// 返回: true表示IP在该组内；组不存在时返回 false
+// 使用示例: RF.IPInGroup(MF.SRC_IP, "办公室出口")
+//
+// IP组是可跨站点复用的IP集合，组内容变更后对所有引用方（含本规则）立即生效，无需重启。
+func (rf *RuleFunc) IPInGroup(ip, groupCodeOrName string) bool {
+	return ipset.LookupGroupMatcher(groupCodeOrName).Contains(net.ParseIP(strings.TrimSpace(ip)))
+}
+
 // IPInRanges 判断IP是否在多个范围中的任意一个（类似SQL的IN操作）
 // ip: 要检查的IP地址
-// ranges: IP范围列表，格式为 "startIP-endIP" 或 CIDR格式 "192.168.0.0/24"
+// ranges: IP范围列表，支持 IPMatch 的全部写法（单IP / CIDR / 通配符 / "startIP-endIP" 区间）
 // 返回: true表示IP在任意一个范围内，false表示都不在
-// 使用示例: RF.IPInRanges(MF.SRC_IP, "172.16.0.0-172.20.255.254", "192.168.0.0/24")
+// 使用示例: RF.IPInRanges(MF.SRC_IP, "172.16.0.0-172.20.255.254", "192.168.0.0/24", "10.10.*.*")
+//
+// 行为变化说明：本函数原先对「非 CIDR 也非区间」的项做纯字符串相等比较，
+// 现在改为 IP 语义比较。影响是 "1.2.3.04"、"::ffff:1.2.3.4" 这类等价写法现在能正确命中，
+// 而把非 IP 字符串当参数传入时不再可能命中（原先只有 SRC_IP 恰好等于该串时为 true）。
 func (rf *RuleFunc) IPInRanges(ip string, ranges ...string) bool {
 	for _, r := range ranges {
-		// 检查是否是CIDR格式
-		if strings.Contains(r, "/") {
-			if rf.IPInCIDR(ip, r) {
-				return true
-			}
-		} else if strings.Contains(r, "-") {
-			// 范围格式: startIP-endIP
-			parts := strings.Split(r, "-")
-			if len(parts) == 2 {
-				if rf.IPInRange(ip, strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])) {
-					return true
-				}
-			}
-		} else {
-			// 单个IP精确匹配
-			if ip == strings.TrimSpace(r) {
-				return true
-			}
+		if ipset.MatchPatternStrCached(ip, r) {
+			return true
 		}
 	}
 	return false

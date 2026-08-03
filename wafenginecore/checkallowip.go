@@ -29,7 +29,7 @@ func (waf *WafEngine) CheckAllowIP(r *http.Request, weblogbean *innerbean.WebLog
 	parsedIp := net.ParseIP(clientIp)
 
 	//ip白名单策略（局部）
-	if matchAllowIP(clientIp, parsedIp, hostTarget.IPWhiteIndex, hostTarget.IPWhiteLists) {
+	if matchAllowIP(clientIp, parsedIp, hostTarget.IPWhiteIndex, hostTarget.IPWhiteGroupCodes, hostTarget.IPWhiteLists) {
 		result.JumpGuardResult = true
 		return result
 	}
@@ -37,7 +37,7 @@ func (waf *WafEngine) CheckAllowIP(r *http.Request, weblogbean *innerbean.WebLog
 	//注意：全局网站可能还没登记进路由快照（未初始化/正在重载），必须判空，否则解引用 panic
 	globalHost := waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME]
 	if globalHost != nil && globalHost.Host.GUARD_STATUS == 1 {
-		if matchAllowIP(clientIp, parsedIp, globalHost.IPWhiteIndex, globalHost.IPWhiteLists) {
+		if matchAllowIP(clientIp, parsedIp, globalHost.IPWhiteIndex, globalHost.IPWhiteGroupCodes, globalHost.IPWhiteLists) {
 			result.JumpGuardResult = true
 			return result
 		}
@@ -45,16 +45,24 @@ func (waf *WafEngine) CheckAllowIP(r *http.Request, weblogbean *innerbean.WebLog
 	return result
 }
 
-// matchAllowIP 判定 clientIp 是否命中白名单：优先走编译后的 MatchSet 索引，
-// 索引为 nil(未构建，兼容旧路径)时回退原线性遍历，保证不漏判。
-func matchAllowIP(clientIp string, parsedIp net.IP, index *ipset.MatchSet, list []model.IPAllowList) bool {
+// matchAllowIP 判定 clientIp 是否命中白名单。结构与 matchDenyIP 一致：
+// 「单条」行走编译索引(nil 时回退线性遍历)，「引用 IP 组」的行查 ipset 全局原子快照。
+// 组内容变更只替换快照，本 HostSafe 无需重新发布，所有引用站点同时生效。
+func matchAllowIP(clientIp string, parsedIp net.IP, index *ipset.MatchSet, groupCodes []string, list []model.IPAllowList) bool {
 	if index != nil {
-		return index.Contains(parsedIp)
-	}
-	for i := 0; i < len(list); i++ {
-		if utils.CheckIPInCIDR(clientIp, list[i].Ip) {
+		if index.Contains(parsedIp) {
 			return true
 		}
+	} else {
+		// 旧路径回退。用 MatchIPPattern 而非 CheckIPInCIDR，否则通配符与区间在这条路径上会失效。
+		for i := 0; i < len(list); i++ {
+			if list[i].IpType == model.IPEntryTypeGroup {
+				continue
+			}
+			if utils.MatchIPPattern(clientIp, list[i].Ip) {
+				return true
+			}
+		}
 	}
-	return false
+	return matchIPGroups(groupCodes, parsedIp)
 }

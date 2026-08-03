@@ -1,10 +1,12 @@
 package api
 
 import (
+	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -28,6 +30,13 @@ func (w *WafFirewallIPBlockApi) AddApi(c *gin.Context) {
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
 		response.FailWithMessage("解析失败: "+err.Error(), c)
+		return
+	}
+
+	// 严格校验：本接口直达系统防火墙(iptables/netsh)，只能接受单IP与CIDR。
+	// 通配符、区间这些 WAF 应用层的写法在这里表达不了，必须挡住而不是传给底层命令。
+	if serr := checkSystemLayerSupported(model.IPEntryTypeIP, strings.TrimSpace(req.IP)); serr != nil {
+		response.FailWithMessage(serr.Error(), c)
 		return
 	}
 

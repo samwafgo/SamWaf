@@ -14,6 +14,8 @@ type APIGroup struct {
 	WafAntiCCApi
 	WafIPFailureApi
 	WafBlockIpApi
+	WafIPGroupApi
+	WafIPGroupItemApi
 	WafBlockUrlApi
 	WafAccountApi
 	WafAccountLogApi
@@ -81,6 +83,9 @@ var (
 
 	wafIpBlockService  = waf_service.WafBlockIpServiceApp
 	wafUrlBlockService = waf_service.WafBlockUrlServiceApp
+
+	wafIPGroupService     = waf_service.WafIPGroupServiceApp
+	wafIPGroupItemService = waf_service.WafIPGroupItemServiceApp
 
 	wafAccountService    = waf_service.WafAccountServiceApp
 	wafAccountLogService = waf_service.WafAccountLogServiceApp

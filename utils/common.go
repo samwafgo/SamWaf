@@ -5,6 +5,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/wafenginecore/clientip"
+	"SamWaf/wafenginecore/ipset"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -308,7 +309,40 @@ func CheckIPInCIDR(ip string, ipRange string) bool {
 	}
 }
 
+// MatchIPPattern 判断 ip 是否命中一个「IP 模式」，统一支持
+// 单 IP / CIDR 网段 / 通配符(10.10.*.*、2001:db8:*:*:*:*:*:*) / 闭区间(1.2.3.4-1.2.3.99)。
+//
+// 与 CheckIPInCIDR 的区别：CheckIPInCIDR 只认单 IP 与 CIDR，且非 CIDR 时做的是
+// 纯字符串相等比较。二者不能互换——CheckIPInCIDR 还被「可信代理 IP 列表」
+// (wafenginecore/clientip.go) 使用，那里绝不能接受通配符：
+// 一旦允许 *.*.*.*，任何人都能伪造 XFF 头冒充任意来源 IP。
+//
+// 本函数只用于「用户配置的黑/白名单、IP 组、自定义规则」这类判定场景。
+func MatchIPPattern(ip string, pattern string) bool {
+	return ipset.MatchPatternStrCached(ip, pattern)
+}
+
+// IsValidIPPattern 校验一个「IP 模式」是否合法，返回 (是否合法, 不合法时的中文原因)。
+// 语法范围同 MatchIPPattern。用于黑/白名单与 IP 组条目的写入校验。
+//
+// 注意与 IsValidIPOrNetwork 的分工：后者只认单 IP 与 CIDR，是严格模式，
+// 供系统防火墙下发、威胁情报源解析等「不能出现通配语法」的场景使用，不要混用。
+func IsValidIPPattern(input string) (bool, string) {
+	return ipset.IsValidPattern(input)
+}
+
+// IsCatchAllIPPattern 判断是否为「全通配」写法(*.*.*.* 或 8 段全 * 的 IPv6)。
+//
+// 这类写法语法合法但极易误写：填进白名单等于全站不设防，填进黑名单等于封禁所有人。
+// 写入侧应当拒绝并提示用户改写成显式的 0.0.0.0/0，让意图无歧义。
+func IsCatchAllIPPattern(input string) bool {
+	return ipset.IsCatchAllWildcard(input)
+}
+
 // IsValidIPOrNetwork 检查给定的字符串是否为有效的 IP 地址或 IP 段（CIDR）
+//
+// 严格模式：不接受通配符与区间。系统防火墙(iptables/netsh)下发、
+// 威胁情报源解析等场景必须用本函数；用户可配的黑/白名单请用 IsValidIPPattern。
 func IsValidIPOrNetwork(input string) (bool, string) {
 	// 尝试解析为 IP 地址
 	if ip := net.ParseIP(input); ip != nil {

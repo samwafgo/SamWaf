@@ -84,6 +84,8 @@ func (p *IPAllowProcessor) processAppendBatch(items []string, existMap map[strin
 				HostCode: task.BatchHostCode,
 				Ip:       ip,
 				Remarks:  time.Now().Format("20060102") + "批量导入 任务ID:" + task.Id,
+				// 显式标记为「单条IP」：批量导入不产生 IP 组引用
+				IpType: model.IPEntryTypeIP,
 			})
 		}
 	}
@@ -133,6 +135,8 @@ func (p *IPAllowProcessor) processOverwriteBatch(items []string, existMap map[st
 				HostCode: task.BatchHostCode,
 				Ip:       ip,
 				Remarks:  time.Now().Format("20060102") + "批量导入 任务ID:" + task.Id,
+				// 显式标记为「单条IP」：批量导入不产生 IP 组引用
+				IpType: model.IPEntryTypeIP,
 			})
 		}
 	}

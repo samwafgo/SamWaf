@@ -26,9 +26,15 @@ type HostSafe struct {
 	UrlWhiteLists       []model.URLAllowList     //url 白名单
 	LdpUrlLists         []model.LDPUrl           //url 隐私保护
 
-	IPBlockLists       []model.IPBlockList           //ip 黑名单
-	IPBlockIndex       *ipset.MatchSet               //ip 黑名单编译后的快速索引(手工小名单，可空；nil 时回退 IPBlockLists 线性遍历)
-	IPWhiteIndex       *ipset.MatchSet               //ip 白名单编译后的快速索引(可空；nil 时回退 IPWhiteLists 线性遍历)
+	IPBlockLists []model.IPBlockList //ip 黑名单
+	IPBlockIndex *ipset.MatchSet     //ip 黑名单编译后的快速索引(手工小名单，可空；nil 时回退 IPBlockLists 线性遍历)
+	IPWhiteIndex *ipset.MatchSet     //ip 白名单编译后的快速索引(可空；nil 时回退 IPWhiteLists 线性遍历)
+	// IPBlockGroupCodes / IPWhiteGroupCodes 是本站黑/白名单里引用的 IP 组短码（冷加载与热更新时预抽出，
+	// 避免请求热路径线性扫名单找组引用行）。真正的组内容不放这里，而是查 ipset 的全局原子快照——
+	// 那样改一次组就能让所有引用站点(含全局网站)同时生效，不必逐站点重建 HostSafe。
+	// 与其它字段一样受 RCU 约束：发布后不可就地 append 或改元素，热更新必须整体替换新切片。
+	IPBlockGroupCodes  []string
+	IPWhiteGroupCodes  []string
 	UrlBlockLists      []model.URLBlockList          //url 黑名单
 	LoadBalanceLists   []model.LoadBalance           //负载均衡
 	LoadBalanceRuntime *LoadBalanceRuntime           //负载运行时

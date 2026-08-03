@@ -4,6 +4,7 @@ import (
 	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/model"
+	"SamWaf/wafenginecore/clientip"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -539,6 +540,11 @@ func GetManageClientIP(c *gin.Context) string {
 // GCONFIG_MANAGE_TRUSTED_PROXIES（CIDR 或单 IP，逗号分隔）内。
 // 留空 → 返回 false（不信任任何代理头，安全默认）。
 func isTrustedManageProxy(remoteIP string) bool {
+	// 管理端引用了某 CDN 厂商 → 直连对端属于该厂商中心库最新回源段即视为可信(自动跟随更新)
+	if global.GCONFIG_MANAGE_CDN_PROVIDER != "" &&
+		clientip.IsProviderIP(global.GCONFIG_MANAGE_CDN_PROVIDER, strings.TrimSpace(remoteIP)) {
+		return true
+	}
 	if global.GCONFIG_MANAGE_TRUSTED_PROXIES == "" {
 		return false
 	}

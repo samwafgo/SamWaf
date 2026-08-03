@@ -8,6 +8,7 @@ import (
 	"SamWaf/service/waf_service"
 	"SamWaf/utils"
 	"SamWaf/wafconfig"
+	"SamWaf/wafenginecore/clientip"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
@@ -158,6 +159,54 @@ func (w *WafVpConfigApi) UpdateManageTrustedProxiesApi(c *gin.Context) {
 	} else {
 		response.OkWithMessage("更新管理端可信代理网段成功", c)
 	}
+}
+
+// GetManageCDNProviderApi 获取管理端引用的 CDN 厂商码
+func (w *WafVpConfigApi) GetManageCDNProviderApi(c *gin.Context) {
+	response.OkWithDetailed(gin.H{"provider": global.GCONFIG_MANAGE_CDN_PROVIDER}, "获取成功", c)
+}
+
+// UpdateManageCDNProviderApi 更新管理端引用的 CDN 厂商码(设置后自动信任该厂商中心库最新回源段)
+func (w *WafVpConfigApi) UpdateManageCDNProviderApi(c *gin.Context) {
+	var req request.WafVpConfigManageCDNProviderUpdateReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage("解析请求失败", c)
+		return
+	}
+	provider := strings.TrimSpace(req.Provider)
+	// 留空=清除引用；非空需为已知厂商
+	if provider != "" {
+		if _, ok := clientip.Providers[provider]; !ok {
+			response.FailWithMessage("未知 CDN 厂商: "+provider, c)
+			return
+		}
+	}
+	if err := wafconfig.UpdateManageCDNProvider(provider); err != nil {
+		response.FailWithMessage("更新失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithMessage("更新成功", c)
+}
+
+// GetCDNProviderRangesApi 管理端"CDN厂商快捷填充"：返回某厂商官方回源段 CIDR 列表，
+// 供前端一键填入管理端可信代理网段。Tier B 厂商无公开列表，返回空并提示手填。
+func (w *WafVpConfigApi) GetCDNProviderRangesApi(c *gin.Context) {
+	provider := strings.TrimSpace(c.Query("provider"))
+	if provider == "" {
+		response.FailWithMessage("缺少 provider 参数", c)
+		return
+	}
+	ips, err := waf_service.WafCDNIPServiceApp.GetProviderCIDRs(provider)
+	if err != nil {
+		response.FailWithMessage("获取CDN回源段失败: "+err.Error(), c)
+		return
+	}
+	response.OkWithDetailed(gin.H{
+		"provider": provider,
+		"count":    len(ips),
+		"ranges":   ips,
+		"text":     strings.Join(ips, ","),
+	}, "获取成功", c)
 }
 
 // GetCorsAllowOriginsApi 获取 CORS 跨域来源白名单

@@ -52,6 +52,8 @@ type APIGroup struct {
 	WafNotifySubscriptionApi
 	WafNotifyLogApi
 	WafFirewallIPBlockApi
+	WafThreatIPApi
+	WafCDNIPApi
 	WafPluginApi
 	WafLogFileWriteApi
 	WafIPLocationApi
@@ -132,6 +134,8 @@ var (
 	wafSqlQueryService = waf_service.WafSqlQueryServiceApp
 
 	wafFirewallIPBlockService = waf_service.WafFirewallIPBlockServiceApp
+	wafThreatIPService        = waf_service.WafThreatIPServiceApp
+	wafCDNIPService           = waf_service.WafCDNIPServiceApp
 
 	wafOPlatformKeyService = waf_service.WafOPlatformKeyServiceApp
 	wafOPlatformLogService = waf_service.WafOPlatformLogServiceApp

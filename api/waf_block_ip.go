@@ -29,26 +29,60 @@ type WafBlockIpApi struct {
 func (w *WafBlockIpApi) AddApi(c *gin.Context) {
 	var req request.WafBlockIpAddReq
 	err := c.ShouldBindJSON(&req)
-	if err == nil {
-		err = wafIpBlockService.CheckIsExistApi(req)
-		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
-			err = wafIpBlockService.AddApi(req)
-			if err == nil {
-				w.NotifyWaf(req.HostCode)
-				response.OkWithMessage("添加成功", c)
-			} else {
+	if err != nil {
+		response.FailWithMessage("解析失败", c)
+		return
+	}
 
-				response.FailWithMessage("添加失败", c)
-			}
-			return
-		} else {
-			response.FailWithMessage("当前网站的IP已经存在", c)
+	// 封禁层级：""/waf=WAF应用层(默认) | system=系统防火墙 | both=两者
+	layer := req.TargetLayer
+	if layer == "" {
+		layer = "waf"
+	}
+
+	// 系统防火墙层封禁
+	if layer == "system" || layer == "both" {
+		fwReq := request.WafFirewallIPBlockAddReq{
+			HostCode:  req.HostCode,
+			IP:        req.Ip,
+			Reason:    "手动加入黑名单",
+			BlockType: "manual",
+			Remarks:   req.Remarks,
+		}
+		if ferr := wafFirewallIPBlockService.AddApi(fwReq); ferr != nil {
+			response.FailWithMessage("系统防火墙封禁失败: "+ferr.Error(), c)
 			return
 		}
-
-	} else {
-		response.FailWithMessage("解析失败", c)
+		if layer == "system" {
+			response.OkWithMessage("已在系统防火墙层面封禁", c)
+			return
+		}
 	}
+
+	// WAF 应用层封禁(默认 / both)
+	err = wafIpBlockService.CheckIsExistApi(req)
+	if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
+		if aerr := wafIpBlockService.AddApi(req); aerr != nil {
+			response.FailWithMessage("添加失败", c)
+			return
+		}
+		w.NotifyWaf(req.HostCode)
+		response.OkWithMessage("添加成功", c)
+		return
+	}
+	// WAF 层已存在：若同时已成功加系统层(both)，视为成功；否则提示已存在
+	if layer == "both" {
+		response.OkWithMessage("系统层已封禁；WAF层该IP已存在", c)
+		return
+	}
+	response.FailWithMessage("当前网站的IP已经存在", c)
+}
+
+// GetRecommendLayerApi 返回推荐的封禁层级(供前端"加黑名单"弹窗下拉预选)
+func (w *WafBlockIpApi) GetRecommendLayerApi(c *gin.Context) {
+	hostCode := c.Query("host_code")
+	layer, reason := wafFirewallIPBlockService.RecommendBlockLayer(hostCode)
+	response.OkWithDetailed(gin.H{"layer": layer, "reason": reason}, "获取成功", c)
 }
 
 // GetDetailApi 获取IP黑名单详情

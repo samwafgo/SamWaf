@@ -549,6 +549,13 @@ func (m *wafSystenService) run() {
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_DB_MONITOR, waftask.TaskDatabaseMonitor)
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_FIREWALL_CLEAN_EXPIRED, waftask.TaskFirewallCleanExpired)
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_STATS_DATA_CLEANUP, waftask.TaskStatsDataCleanup)
+	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_THREAT_IP_SYNC, waftask.TaskThreatIPSync)
+
+	// 进程启动重放：把各启用威胁情报渠道的快照重新灌入系统 ipset(内存态重启会丢) 并重建 WAF 并集
+	go waf_service.WafThreatIPServiceApp.RestoreAllOnStartup()
+	// 启动重放 CDN 回源段中心库(从库内快照恢复内存匹配集，不对外拉取)；
+	// 到期自动拉取由定时任务按各厂商节奏 + AutoFetch 开关处理
+	go waf_service.WafCDNIPServiceApp.RestoreAllOnStartup()
 
 	go waftask.TaskShareDbInfo()
 
@@ -635,7 +642,11 @@ func (m *wafSystenService) run() {
 				switch msg.Type {
 				case enums.ChanTypeAllowIP:
 					ipWhiteLists := msg.Content.([]model.IPAllowList)
-					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.UpdateHost(msg.HostCode, func(h *wafenginmodel.HostSafe) { h.IPWhiteLists = ipWhiteLists })
+					ipWhiteIndex := wafenginecore.BuildIPAllowIndex(ipWhiteLists)
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.UpdateHost(msg.HostCode, func(h *wafenginmodel.HostSafe) {
+						h.IPWhiteLists = ipWhiteLists
+						h.IPWhiteIndex = ipWhiteIndex
+					})
 					zlog.Debug("远程配置", zap.Any("IPWhiteLists", ipWhiteLists))
 					break
 				case enums.ChanTypeAllowURL:
@@ -645,7 +656,11 @@ func (m *wafSystenService) run() {
 					break
 				case enums.ChanTypeBlockIP:
 					ipBlockLists := msg.Content.([]model.IPBlockList)
-					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.UpdateHost(msg.HostCode, func(h *wafenginmodel.HostSafe) { h.IPBlockLists = ipBlockLists })
+					ipBlockIndex := wafenginecore.BuildIPBlockIndex(ipBlockLists)
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.UpdateHost(msg.HostCode, func(h *wafenginmodel.HostSafe) {
+						h.IPBlockLists = ipBlockLists
+						h.IPBlockIndex = ipBlockIndex
+					})
 					zlog.Debug("远程配置", zap.Any("IPBlockLists", msg))
 					break
 				case enums.ChanTypeBlockURL:

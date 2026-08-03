@@ -9,6 +9,7 @@ var (
 	GCONFIG_RECORD_PROXY_HEADER         string = ""                  //配置获取IP头信息
 	GCONFIG_MANAGE_PROXY_HEADER         string = ""                  //管理端获取客户端IP头信息（逗号分隔按优先级），留空则直接取网络层IP；仅当直连来源属可信代理时才采信
 	GCONFIG_MANAGE_TRUSTED_PROXIES      string = ""                  //管理端可信代理网段（CIDR/IP，逗号分隔）；仅当直连来源在此网段内才采信上面的代理头，留空=不信任任何代理头
+	GCONFIG_MANAGE_CDN_PROVIDER         string = ""                  //管理端引用的CDN厂商码（管理端也挂CDN时）；设置后GetManageClientIP会额外信任该厂商中心库最新回源段，自动跟随更新
 	GCONFIG_RECORD_AUTO_LOAD_SSL        int64  = 1                   //是否每天凌晨3点自动加载ssl证书
 	GCONFIG_RECORD_KAFKA_ENABLE         int64  = 0                   //kafka 是否激活
 	GCONFIG_RECORD_KAFKA_URL            string = "127.0.0.1:9092"    //kafka url地址

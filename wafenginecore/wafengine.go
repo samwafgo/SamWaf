@@ -290,8 +290,8 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			return
 		}
-		// 取出客户IP
-		ipErr, clientIP, clientPort := waf.getClientIP(r, strings.Split(global.GCONFIG_RECORD_PROXY_HEADER, ",")...)
+		// 取出客户IP（按 host 的真实IP来源模式加固；IPSourceMode 为空时保持旧行为——取配置头最左第一个）
+		ipErr, clientIP, clientPort := waf.getBizClientIP(r, hostTarget.Host)
 		if ipErr != nil {
 			zlog.Error("get client error", ipErr.Error())
 			return

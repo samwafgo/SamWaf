@@ -48,10 +48,11 @@ var sensitiveTableSubstrings = []string{
 	"notifychannel",
 	"http_auth", // http_auth_base_configs（访问密码）
 	"httpauth",
-	"token",  // 任何令牌表
-	"secret", // 任何以 secret 命名的表
-	"config", // system_configs / *config* 键值配置表（可能明文存密钥）
-	"plugin", // waf_plugin_* 插件配置/日志（参数/值/IO 可能含凭证）
+	"token",        // 任何令牌表
+	"secret",       // 任何以 secret 命名的表
+	"config",       // system_configs / *config* 键值配置表（可能明文存密钥）
+	"plugin",       // waf_plugin_* 插件配置/日志（参数/值/IO 可能含凭证）
+	"cdn_provider", // cdn_provider（CDN 厂商认证凭证 SecretId/SecretKey 加密落库，整表不可查）
 }
 
 // allowedSqlOps 结构化条件允许的运算符白名单。

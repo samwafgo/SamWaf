@@ -3,6 +3,7 @@ package wafenginmodel
 import (
 	"SamWaf/model"
 	"SamWaf/utils"
+	"SamWaf/wafenginecore/ipset"
 	"SamWaf/wafenginecore/loadbalance"
 	"SamWaf/wafproxy"
 	"SamWaf/webplugin"
@@ -26,6 +27,8 @@ type HostSafe struct {
 	LdpUrlLists         []model.LDPUrl           //url 隐私保护
 
 	IPBlockLists       []model.IPBlockList           //ip 黑名单
+	IPBlockIndex       *ipset.MatchSet               //ip 黑名单编译后的快速索引(手工小名单，可空；nil 时回退 IPBlockLists 线性遍历)
+	IPWhiteIndex       *ipset.MatchSet               //ip 白名单编译后的快速索引(可空；nil 时回退 IPWhiteLists 线性遍历)
 	UrlBlockLists      []model.URLBlockList          //url 黑名单
 	LoadBalanceLists   []model.LoadBalance           //负载均衡
 	LoadBalanceRuntime *LoadBalanceRuntime           //负载运行时

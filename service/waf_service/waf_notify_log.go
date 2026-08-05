@@ -45,6 +45,49 @@ func (receiver *WafNotifyLogService) AddLog(channelId, channelName, channelType,
 	return global.GWAF_LOCAL_LOG_DB.Create(bean).Error
 }
 
+// AddLogDetail 添加通知日志（结构化入参，支持订阅ID/模板来源等新字段），返回日志ID
+func (receiver *WafNotifyLogService) AddLogDetail(bean model.NotifyLog) (string, error) {
+	bean.BaseOrm = baseorm.BaseOrm{
+		Id:          uuid.GenUUID(),
+		USER_CODE:   global.GWAF_USER_CODE,
+		Tenant_ID:   global.GWAF_TENANT_ID,
+		CREATE_TIME: customtype.JsonTime(time.Now()),
+		UPDATE_TIME: customtype.JsonTime(time.Now()),
+	}
+	if bean.SendTime == "" {
+		bean.SendTime = time.Now().Format("2006-01-02 15:04:05")
+	}
+
+	notifyLogWriteMutex.Lock()
+	defer notifyLogWriteMutex.Unlock()
+	return bean.Id, global.GWAF_LOCAL_LOG_DB.Create(&bean).Error
+}
+
+// AddSuppressLog 记录一条"被抑制"的通知日志
+//
+// 频控引擎保证一个抑制窗口只会调用一次，所以这里不会因为抑制量大而刷库。
+func (receiver *WafNotifyLogService) AddSuppressLog(bean model.NotifyLog) (string, error) {
+	bean.Status = model.NotifyLogStatusSuppress
+	if bean.SuppressCount <= 0 {
+		bean.SuppressCount = 1
+	}
+	return receiver.AddLogDetail(bean)
+}
+
+// UpdateSuppressCount 回填抑制条数（抑制窗口结束时调用）
+func (receiver *WafNotifyLogService) UpdateSuppressCount(id string, count int) error {
+	if id == "" || count <= 0 {
+		return nil
+	}
+	notifyLogWriteMutex.Lock()
+	defer notifyLogWriteMutex.Unlock()
+	return global.GWAF_LOCAL_LOG_DB.Model(&model.NotifyLog{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"SuppressCount": count,
+			"UPDATE_TIME":   customtype.JsonTime(time.Now()),
+		}).Error
+}
+
 // GetListApi 获取列表
 func (receiver *WafNotifyLogService) GetListApi(req request.WafNotifyLogSearchReq) ([]model.NotifyLog, int64, error) {
 	var list []model.NotifyLog

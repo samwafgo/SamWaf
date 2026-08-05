@@ -1587,6 +1587,42 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移: 通知订阅表增加频控与模板列（issue #822 通知精细化配置）
+		// 全部留空 => 继承全局默认 => 与升级前行为一致，所以不需要任何数据回填。
+		{
+			ID: "202608050001_add_notify_subscription_throttle",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202608050001: 为 notify_subscription 表添加频控与模板字段")
+				cols := []struct{ column, field string }{
+					{"throttle_mode", "ThrottleMode"},
+					{"throttle_json", "ThrottleJSON"},
+					{"title_template", "TitleTemplate"},
+					{"content_template", "ContentTemplate"},
+				}
+				for _, c := range cols {
+					if tx.Migrator().HasColumn(&model.NotifySubscription{}, c.column) {
+						zlog.Info("字段已存在，跳过", "column", c.column)
+						continue
+					}
+					if err := tx.Migrator().AddColumn(&model.NotifySubscription{}, c.field); err != nil {
+						return fmt.Errorf("添加 notify_subscription.%s 字段失败: %w", c.column, err)
+					}
+				}
+				zlog.Info("notify_subscription 频控与模板字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202608050001: 删除 notify_subscription 频控与模板字段")
+				for _, field := range []string{"ThrottleMode", "ThrottleJSON", "TitleTemplate", "ContentTemplate"} {
+					if tx.Migrator().HasColumn(&model.NotifySubscription{}, field) {
+						if err := tx.Migrator().DropColumn(&model.NotifySubscription{}, field); err != nil {
+							zlog.Warn("删除字段失败", "field", field, "error", err.Error())
+						}
+					}
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

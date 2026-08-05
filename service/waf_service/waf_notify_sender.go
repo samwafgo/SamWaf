@@ -21,17 +21,28 @@ type WafNotifySenderService struct{}
 
 var WafNotifySenderServiceApp = new(WafNotifySenderService)
 
-// SendNotification 发送通知
-func (receiver *WafNotifySenderService) SendNotification(messageType, title, content string) {
-	// 如果配置了通知标题前缀，则在标题前加上 [前缀] 以区分多实例
-	if global.GWAF_NOTICE_TITLE != "" {
-		title = "[" + global.GWAF_NOTICE_TITLE + "] " + title
+// SendMessageInfo 通知发送主入口：把队列里的消息结构走完整的「结构化→频控→模板→渠道」链路
+func (receiver *WafNotifySenderService) SendMessageInfo(messageInfo interface{}) {
+	ev := receiver.BuildNotifyEvent(messageInfo)
+	if ev.MessageType == "" {
+		zlog.Debug("未识别的通知消息结构，已忽略")
+		return
+	}
+	receiver.SendEvent(ev)
+}
+
+// SendEvent 按订阅逐个判定并投递
+//
+// 频控在这里逐订阅判定（而不是像老实现那样在入队前一刀切），
+// 这样钉钉和飞书可以有完全不同的节奏，且频控 key 不再是可被 payload 变换绕过的规则原文。
+func (receiver *WafNotifySenderService) SendEvent(ev NotifyEvent) {
+	if ev.MessageType == "" {
+		return
 	}
 
-	// 获取订阅
-	subscriptions := WafNotifySubscriptionServiceApp.GetSubscriptionsByMessageType(messageType)
+	subscriptions := WafNotifySubscriptionServiceApp.GetSubscriptionsByMessageType(ev.MessageType)
 	if len(subscriptions) == 0 {
-		zlog.Debug(fmt.Sprintf("没有找到消息类型 %s 的订阅", messageType))
+		zlog.Debug(fmt.Sprintf("没有找到消息类型 %s 的订阅", ev.MessageType))
 		return
 	}
 
@@ -39,9 +50,7 @@ func (receiver *WafNotifySenderService) SendNotification(messageType, title, con
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, 3) // 限制最多3个渠道并发发送
 
-	// 遍历订阅，发送通知
 	for _, subscription := range subscriptions {
-		// 获取渠道信息
 		var channel model.NotifyChannel
 		err := receiver.getChannelById(subscription.ChannelId, &channel)
 		if err != nil {
@@ -49,17 +58,100 @@ func (receiver *WafNotifySenderService) SendNotification(messageType, title, con
 			continue
 		}
 
-		// 发送通知（传入subscription以支持订阅级收件人）
-		wg.Add(1)
-		sem <- struct{}{} // 获取信号量，超过3个会阻塞等待
-		go func(ch model.NotifyChannel, sub model.NotifySubscription) {
-			defer wg.Done()
-			defer func() { <-sem }() // 释放信号量
-			receiver.sendToChannel(ch, sub, messageType, title, content)
-		}(channel, subscription)
+		decision := WafNotifyThrottleServiceApp.Decide(subscription, ev)
+		switch decision.Action {
+		case ThrottleActionSuppress:
+			// 被频控/过滤挡下：不发送，但要留痕，否则用户永远查不到"为什么没收到"
+			receiver.logSuppressed(subscription, channel, ev, decision)
+
+		case ThrottleActionAggregate:
+			NotifyAggregatorApp.Add(subscription, channel, ev, decision)
+
+		default: // send
+			wg.Add(1)
+			sem <- struct{}{}
+			go func(ch model.NotifyChannel, sub model.NotifySubscription, dedupKey string) {
+				defer wg.Done()
+				defer func() { <-sem }()
+				receiver.DispatchEvents(sub, ch, []NotifyEvent{ev}, dedupKey, decision.Effective.AggregateMaxDetail)
+			}(channel, subscription, decision.DedupKey)
+		}
 	}
 
 	wg.Wait() // 等待所有渠道发送完成
+}
+
+// DispatchEvents 渲染并投递（单条或聚合后的多条）
+//
+// 聚合器刷新时也走这里，保证"直发"和"聚合发"共用同一套渲染、前缀、日志逻辑。
+func (receiver *WafNotifySenderService) DispatchEvents(sub model.NotifySubscription, channel model.NotifyChannel,
+	events []NotifyEvent, dedupKey string, maxDetail int) {
+	if len(events) == 0 {
+		return
+	}
+
+	// 结算本次发送之前被压掉的条数：既要写进正文告诉用户"其实发生了很多次"，
+	// 也要回填到那条抑制日志上，让通知日志页显示准确的抑制总数。
+	suppressLogID, suppressedCount := WafNotifyThrottleServiceApp.NoteSent(dedupKey)
+
+	title, content, templateUsed := BuildMergedMessage(sub, channel.Type, events, maxDetail)
+	if suppressedCount > 0 {
+		content += fmt.Sprintf("\n\n> 期间另有 %d 条同类通知被频率控制抑制", suppressedCount)
+	}
+
+	// 如果配置了通知标题前缀，则在标题前加上 [前缀] 以区分多实例
+	if global.GWAF_NOTICE_TITLE != "" {
+		title = "[" + global.GWAF_NOTICE_TITLE + "] " + title
+	}
+
+	receiver.sendToChannel(channel, sub, events[0].MessageType, title, content, templateUsed)
+
+	if suppressLogID != "" && suppressedCount > 0 {
+		if err := WafNotifyLogServiceApp.UpdateSuppressCount(suppressLogID, suppressedCount); err != nil {
+			zlog.Debug("回填抑制条数失败", "error", err.Error())
+		}
+	}
+}
+
+// SendNotification 发送通知（兼容入口：只有标题正文、没有结构化变量的调用方仍可使用）
+func (receiver *WafNotifySenderService) SendNotification(messageType, title, content string) {
+	ev := newNotifyEvent(messageType, title, content)
+	receiver.SendEvent(ev)
+}
+
+// logSuppressed 记录一条被抑制的通知
+//
+// 关键约束：抑制日志本身不能刷库。写不写由频控引擎决定（一个抑制窗口只写一条），
+// 压掉一万条也只会产生 2 次数据库写入。
+func (receiver *WafNotifySenderService) logSuppressed(sub model.NotifySubscription, channel model.NotifyChannel,
+	ev NotifyEvent, decision ThrottleDecision) {
+	action := WafNotifyThrottleServiceApp.OnSuppress(decision.DedupKey)
+
+	if action.FinalizeLogID != "" && action.FinalizeCount > 0 {
+		if err := WafNotifyLogServiceApp.UpdateSuppressCount(action.FinalizeLogID, action.FinalizeCount); err != nil {
+			zlog.Debug("回填抑制条数失败", "error", err.Error())
+		}
+	}
+	if !action.WriteNew {
+		return
+	}
+
+	logID, err := WafNotifyLogServiceApp.AddSuppressLog(model.NotifyLog{
+		ChannelId:      channel.Id,
+		ChannelName:    channel.Name,
+		ChannelType:    channel.Type,
+		MessageType:    ev.MessageType,
+		MessageTitle:   ev.DefaultTitle,
+		MessageContent: ev.DefaultContent,
+		SubscriptionId: sub.Id,
+		SuppressReason: decision.Reason,
+		SuppressCount:  1,
+	})
+	if err != nil {
+		zlog.Debug("记录抑制日志失败", "error", err.Error())
+		return
+	}
+	WafNotifyThrottleServiceApp.SetSuppressLogID(decision.DedupKey, logID)
 }
 
 // getChannelById 根据ID获取渠道
@@ -67,13 +159,43 @@ func (receiver *WafNotifySenderService) getChannelById(channelId string, channel
 	return global.GWAF_LOCAL_DB.Where("id = ? and "+dialect.Q("status")+" = ?", channelId, 1).First(channel).Error
 }
 
-// sendToChannel 发送到具体渠道
-func (receiver *WafNotifySenderService) sendToChannel(channel model.NotifyChannel, subscription model.NotifySubscription, messageType, title, content string) {
-	var err error
+// sendToChannel 发送到具体渠道并记录日志
+func (receiver *WafNotifySenderService) sendToChannel(channel model.NotifyChannel, subscription model.NotifySubscription, messageType, title, content, templateUsed string) {
+	recipients, err := receiver.deliverToChannel(channel, subscription, title, content)
+
 	status := 1
 	errorMsg := ""
-	recipients := "" // 用于记录实际使用的收件人
+	if err != nil {
+		status = 0
+		errorMsg = err.Error()
+		zlog.Error(fmt.Sprintf("发送通知失败: %v", err))
+	}
 
+	// 记录日志
+	_, logErr := WafNotifyLogServiceApp.AddLogDetail(model.NotifyLog{
+		ChannelId:      channel.Id,
+		ChannelName:    channel.Name,
+		ChannelType:    channel.Type,
+		MessageType:    messageType,
+		MessageTitle:   title,
+		MessageContent: content,
+		Recipients:     recipients, // 传递收件人信息
+		Status:         status,
+		ErrorMsg:       errorMsg,
+		SubscriptionId: subscription.Id,
+		TemplateUsed:   templateUsed,
+	})
+	if logErr != nil {
+		zlog.Error(fmt.Sprintf("记录通知日志失败: %v", logErr))
+	}
+}
+
+// deliverToChannel 只负责把消息投递到渠道，返回实际收件人与错误
+//
+// 从 sendToChannel 里拆出来，是为了让「订阅级测试发送」能拿到真实错误反馈给管理端 ——
+// issue #822 的标题就是"通知管理无法调试"，测试发送必须走完全相同的投递链路。
+func (receiver *WafNotifySenderService) deliverToChannel(channel model.NotifyChannel,
+	subscription model.NotifySubscription, title, content string) (recipients string, err error) {
 	switch channel.Type {
 	case "dingtalk":
 		if ok, reason := utils.IsSafeOutboundURL(channel.WebhookURL); !ok {
@@ -133,28 +255,53 @@ func (receiver *WafNotifySenderService) sendToChannel(channel model.NotifyChanne
 	default:
 		err = fmt.Errorf("不支持的通知类型: %s", channel.Type)
 	}
+	return recipients, err
+}
 
+// SendTestToSubscription 订阅级测试发送
+//
+// 用样例数据 + 当前（可能尚未保存的）模板走真实投递链路，绕过频控与过滤 ——
+// 调试时用户要看的就是"这条通知发出去到底长什么样"，被频控挡住反而更困惑。
+func (receiver *WafNotifySenderService) SendTestToSubscription(sub model.NotifySubscription,
+	channel model.NotifyChannel, titleTemplate, contentTemplate string) error {
+	ev := SampleNotifyEvent(sub.MessageType)
+
+	// 用传入的模板覆盖库里的，这样"编辑中还没保存"也能测
+	testSub := sub
+	testSub.TitleTemplate = titleTemplate
+	testSub.ContentTemplate = contentTemplate
+
+	title, content, templateUsed := RenderNotifyMessage(testSub, channel.Type, ev)
+	title = "【测试】" + title
+	if global.GWAF_NOTICE_TITLE != "" {
+		title = "[" + global.GWAF_NOTICE_TITLE + "] " + title
+	}
+	content += "\n\n> 本条为通知订阅测试消息，不代表真实事件"
+
+	recipients, err := receiver.deliverToChannel(channel, testSub, title, content)
+
+	status := 1
+	errorMsg := ""
 	if err != nil {
 		status = 0
 		errorMsg = err.Error()
-		zlog.Error(fmt.Sprintf("发送通知失败: %v", err))
 	}
-
-	// 记录日志
-	logErr := WafNotifyLogServiceApp.AddLog(
-		channel.Id,
-		channel.Name,
-		channel.Type,
-		messageType,
-		title,
-		content,
-		recipients, // 传递收件人信息
-		status,
-		errorMsg,
-	)
-	if logErr != nil {
-		zlog.Error(fmt.Sprintf("记录通知日志失败: %v", logErr))
+	if _, logErr := WafNotifyLogServiceApp.AddLogDetail(model.NotifyLog{
+		ChannelId:      channel.Id,
+		ChannelName:    channel.Name,
+		ChannelType:    channel.Type,
+		MessageType:    sub.MessageType,
+		MessageTitle:   title,
+		MessageContent: content,
+		Recipients:     recipients,
+		Status:         status,
+		ErrorMsg:       errorMsg,
+		SubscriptionId: sub.Id,
+		TemplateUsed:   templateUsed,
+	}); logErr != nil {
+		zlog.Debug("记录测试通知日志失败", "error", logErr.Error())
 	}
+	return err
 }
 
 // FormatUserLoginMessage 格式化用户登录消息

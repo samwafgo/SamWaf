@@ -14,8 +14,28 @@ type NotifySubscription struct {
 	MessageType string `gorm:"size:100" json:"message_type"` // 消息类型：user_login, attack_info, weekly_report等
 	Recipients  string `gorm:"type:text" json:"recipients"`  // 收件人列表（逗号分隔，主要用于邮件类型）留空则使用渠道默认收件人
 	Status      int    `json:"status"`                       // 状态：1启用，0禁用
-	FilterJSON  string `gorm:"type:text" json:"filter_json"` // 过滤条件（JSON格式）
+	FilterJSON  string `gorm:"type:text" json:"filter_json"` // 过滤条件（JSON格式，见 NotifyFilterConfig）
 	Remarks     string `gorm:"size:500" json:"remarks"`      // 备注
+
+	// ===== 频率控制（issue #822）=====
+	// 默认 inherit + 空 JSON，等价于升级前的固定行为；用户不配置就什么都不变。
+	ThrottleMode string `gorm:"size:20" json:"throttle_mode"`   // 频控模式：inherit/realtime/aggregate/cooldown
+	ThrottleJSON string `gorm:"type:text" json:"throttle_json"` // 频控细项（JSON格式，见 NotifyThrottleConfig）
+
+	// ===== 消息模板（issue #822）=====
+	// 留空则使用内置默认格式，渲染失败也会自动降级回内置格式，保证告警不会因为模板写错而丢失。
+	TitleTemplate   string `gorm:"size:500" json:"title_template"`    // 自定义标题模板
+	ContentTemplate string `gorm:"type:text" json:"content_template"` // 自定义正文模板
+}
+
+// GetThrottleConfig 取解析后的频控配置
+func (s NotifySubscription) GetThrottleConfig() NotifyThrottleConfig {
+	return ParseNotifyThrottleConfig(s.ThrottleJSON)
+}
+
+// GetFilterConfig 取解析后的过滤条件
+func (s NotifySubscription) GetFilterConfig() NotifyFilterConfig {
+	return ParseNotifyFilterConfig(s.FilterJSON)
 }
 
 // 消息类型常量

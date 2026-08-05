@@ -1,6 +1,7 @@
 package waf_service
 
 import (
+	"SamWaf/common/zlog"
 	"crypto/hmac"
 	"crypto/sha1"
 	"crypto/sha256"
@@ -25,24 +26,34 @@ var cdnAuthHTTPClient = &http.Client{Timeout: 30 * time.Second}
 // ---------------- 腾讯云 EdgeOne：DescribeOriginACL(TC3-HMAC-SHA256) ----------------
 
 // fetchTencentEdgeOneCIDRs 调用腾讯云 EdgeOne DescribeOriginACL 拉取回源 IP 段(EntireAddresses IPv4/IPv6)。
-// extraParam JSON: {"zone_id":"zone-xxx","region":""}
+// extraParam JSON: {"zone_id":"zone-xxx","edition":"cn|intl","region":""}
+//
+//	edition=cn(默认)   中国站(cloud.tencent.com)，接口域名 teo.tencentcloudapi.com
+//	edition=intl       国际站(edgeone.ai / tencentcloud.com)，接口域名 teo.intl.tencentcloudapi.com
+//
+// 两站账号与密钥各自独立，选错站点会返回 AuthFailure.SecretIdNotFound。
 func fetchTencentEdgeOneCIDRs(secretId, secretKey, extraParam string) ([]string, error) {
 	var extra struct {
-		ZoneId string `json:"zone_id"`
-		Region string `json:"region"`
+		ZoneId  string `json:"zone_id"`
+		Edition string `json:"edition"`
+		Region  string `json:"region"`
 	}
 	_ = json.Unmarshal([]byte(strings.TrimSpace(extraParam)), &extra)
 
 	const (
-		host    = "teo.tencentcloudapi.com"
 		service = "teo"
 		action  = "DescribeOriginACL"
 		version = "2022-09-01"
 	)
-	payload := "{}"
-	if strings.TrimSpace(extra.ZoneId) != "" {
-		payload = fmt.Sprintf(`{"ZoneId":"%s"}`, extra.ZoneId)
+	host := "teo.tencentcloudapi.com"
+	if strings.EqualFold(strings.TrimSpace(extra.Edition), "intl") {
+		host = "teo.intl.tencentcloudapi.com"
 	}
+	if strings.TrimSpace(extra.ZoneId) == "" {
+		return nil, fmt.Errorf("EdgeOne 需在扩展参数填写 zone_id(站点ID，形如 zone-xxxx)才能查询回源IP段")
+	}
+	payloadObj, _ := json.Marshal(map[string]string{"ZoneId": strings.TrimSpace(extra.ZoneId)})
+	payload := string(payloadObj)
 
 	now := time.Now().UTC()
 	timestamp := fmt.Sprintf("%d", now.Unix())
@@ -91,15 +102,17 @@ func fetchTencentEdgeOneCIDRs(secretId, secretKey, extraParam string) ([]string,
 		return nil, err
 	}
 
+	type originACL struct {
+		EntireAddresses struct {
+			IPv4 []string `json:"IPv4"`
+			IPv6 []string `json:"IPv6"`
+		} `json:"EntireAddresses"`
+	}
 	var resp struct {
 		Response struct {
 			OriginACLInfo struct {
-				CurrentOriginACL struct {
-					EntireAddresses struct {
-						IPv4 []string `json:"IPv4"`
-						IPv6 []string `json:"IPv6"`
-					} `json:"EntireAddresses"`
-				} `json:"CurrentOriginACL"`
+				CurrentOriginACL originACL `json:"CurrentOriginACL"`
+				NextOriginACL    originACL `json:"NextOriginACL"`
 			} `json:"OriginACLInfo"`
 			Error *struct {
 				Code    string `json:"Code"`
@@ -113,8 +126,42 @@ func fetchTencentEdgeOneCIDRs(secretId, secretKey, extraParam string) ([]string,
 	if resp.Response.Error != nil {
 		return nil, fmt.Errorf("腾讯云API错误 %s: %s", resp.Response.Error.Code, resp.Response.Error.Message)
 	}
-	ips := append([]string{}, resp.Response.OriginACLInfo.CurrentOriginACL.EntireAddresses.IPv4...)
-	ips = append(ips, resp.Response.OriginACLInfo.CurrentOriginACL.EntireAddresses.IPv6...)
+	cur := resp.Response.OriginACLInfo.CurrentOriginACL
+	next := resp.Response.OriginACLInfo.NextOriginACL
+
+	// Current + Next 合并入库：腾讯云在回源段变更前会先在 NextOriginACL 给出新段，
+	// 并要求 14 个自然日内完成放行，逾期不保 SLA。提前把新段一起认成可信来源，
+	// 变更生效时不会踩点掉线；旧段在下一次拉取(Next 转正、旧段消失)时自然淘汰。
+	ips := make([]string, 0, 32)
+	seen := make(map[string]struct{}, 32)
+	appendUniq := func(list []string) int {
+		added := 0
+		for _, ip := range list {
+			ip = strings.TrimSpace(ip)
+			if ip == "" {
+				continue
+			}
+			if _, dup := seen[ip]; dup {
+				continue
+			}
+			seen[ip] = struct{}{}
+			ips = append(ips, ip)
+			added++
+		}
+		return added
+	}
+	appendUniq(cur.EntireAddresses.IPv4)
+	appendUniq(cur.EntireAddresses.IPv6)
+	nextAdded := appendUniq(next.EntireAddresses.IPv4)
+	nextAdded += appendUniq(next.EntireAddresses.IPv6)
+
+	if len(ips) == 0 {
+		return nil, fmt.Errorf("EdgeOne 返回回源IP段为空：请先在 EdgeOne 控制台 站点 > 安全防护 > 源站防护 中开启该功能，并确认 zone_id 填写正确")
+	}
+	if nextAdded > 0 {
+		zlog.Info("EdgeOne 检测到待生效回源段(NextOriginACL)，已提前合并放行",
+			"zone_id", strings.TrimSpace(extra.ZoneId), "new_count", nextAdded, "total", len(ips))
+	}
 	return ips, nil
 }
 

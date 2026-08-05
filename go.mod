@@ -34,7 +34,7 @@ require (
 	github.com/quic-go/quic-go v0.57.0
 	github.com/redis/go-redis/v9 v9.19.0
 	github.com/samwafgo/ahocorasick v1.0.0
-	github.com/samwafgo/cap_go_server v1.0.0
+	github.com/samwafgo/cap_go_server v1.0.1
 	github.com/samwafgo/go-wxsqlite3 v1.0.2
 	github.com/samwafgo/sqlitedriver v1.0.2
 	github.com/shirou/gopsutil/v4 v4.26.6

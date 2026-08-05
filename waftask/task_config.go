@@ -114,6 +114,12 @@ func setConfigIntValue(name string, value int64, change int) {
 	case "ssl_ip_expire_day":
 		global.GCONFIG_RECORD_SSL_IP_EXPIRE_DAY = value
 		break
+	case "ssl_expire_auto_sync_host":
+		if value != 0 {
+			value = 1
+		}
+		global.GCONFIG_SSL_EXPIRE_AUTO_SYNC_HOST = value
+		break
 	case "connect_time_out":
 		global.GCONFIG_RECORD_CONNECT_TIME_OUT = value
 		break
@@ -453,6 +459,7 @@ func TaskLoadSetting(initLoad bool) {
 	updateConfigIntItem(initLoad, "ssl", "sslorder_expire_day", global.GCONFIG_RECORD_SSLOrder_EXPIRE_DAY, "自动续期检测小于多少天开始发起自动申请 默认30天", "int", "", configMap)
 	updateConfigStringItem(initLoad, "ssl", "ssl_ip_cert_ip", global.GCONFIG_RECORD_SSL_IP_CERT_IP, "获取IP证书时的IP地址（为IP证书申请使用，留空则不使用）", "string", "", configMap)
 	updateConfigIntItem(initLoad, "ssl", "ssl_ip_expire_day", global.GCONFIG_RECORD_SSL_IP_EXPIRE_DAY, "IP证书自动续期检测小于多少天开始发起自动申请 默认3天", "int", "", configMap)
+	updateConfigIntItem(initLoad, "ssl", "ssl_expire_auto_sync_host", global.GCONFIG_SSL_EXPIRE_AUTO_SYNC_HOST, "SSL证书过期检测前是否自动同步已配置的SSL主机到检测列表（1同步 0不同步，默认1；关闭后过期检测只检测列表里已有的域名，手动点【同步主机】仍可用）", "options", "0|不同步,1|同步", configMap)
 	updateConfigIntItem(initLoad, "ssl", "sslhttp_check", global.GCONFIG_RECORD_SSLHTTP_CHECK, "证书文件验证方式是否要严控后端.well-known 响应代码必须是404 301 302 ，默认1控制 0 不控制", "int", "", configMap)
 	updateConfigStringItem(initLoad, "ssl", "ssl_min_version", global.GCONFIG_RECORD_SSLMinVerson, "SSL最低版本(支持TLS 1.0,TLS 1.1,TLS 1.2,TLS 1.3)，修改后重启一下", "options", "TLS 1.0|TLS 1.0,TLS 1.1|TLS 1.1,TLS 1.2|TLS 1.2,TLS 1.3|TLS 1.3", configMap)
 	updateConfigStringItem(initLoad, "ssl", "ssl_max_version", global.GCONFIG_RECORD_SSLMaxVerson, "SSL最大版本(支持TLS 1.0,TLS 1.1,TLS 1.2,TLS 1.3)，修改后重启一下", "options", "TLS 1.0|TLS 1.0,TLS 1.1|TLS 1.1,TLS 1.2|TLS 1.2,TLS 1.3|TLS 1.3", configMap)

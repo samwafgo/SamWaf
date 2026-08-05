@@ -108,6 +108,7 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 		UploadSecurityJSON:        wafHostAddReq.UploadSecurityJSON,
 		IPMode:                    wafHostAddReq.IPMode,
 		DisableHTTP2:              wafHostAddReq.DisableHTTP2,
+		AccessJSON:                wafHostAddReq.AccessJSON,
 	}
 	global.GWAF_LOCAL_DB.Create(wafHost)
 	return wafHost.Code, nil
@@ -128,6 +129,17 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 	}
 	if webHost.GLOBAL_HOST == 1 {
 		return errors.New("全局网站不允许单独编辑")
+	}
+	// 改域名同样能把认证中心悬空——效果和删站点一模一样（所有站点失去登录入口），
+	// 只是更隐蔽。这里只拦「改之前托管着认证中心、改之后不再托管」这一种情况，
+	// 认证中心站点的其它字段（后端地址、证书……）照常可改。
+	oldHost := receiver.GetDetailByCodeApi(wafHostEditReq.CODE)
+	if used, centerHost := WafAccessConfigServiceApp.IsHostUsedAsCenter(oldHost); used {
+		after := model.Hosts{Host: wafHostEditReq.Host, BindMoreHost: wafHostEditReq.BindMoreHost}
+		if stillUsed, _ := WafAccessConfigServiceApp.IsHostUsedAsCenter(after); !stillUsed {
+			return errors.New("该站点正被统一访问认证用作认证中心（" + centerHost +
+				"），改掉域名后所有站点都将失去登录入口。请先到【统一访问认证-认证配置】改用其它域名")
+		}
 	}
 	hostMap := map[string]interface{}{
 		"Host": wafHostEditReq.Host,
@@ -178,6 +190,7 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 		"UploadSecurityJSON":        wafHostEditReq.UploadSecurityJSON,
 		"IPMode":                    wafHostEditReq.IPMode,
 		"DisableHTTP2":              wafHostEditReq.DisableHTTP2,
+		"AccessJSON":                wafHostEditReq.AccessJSON,
 	}
 	err := global.GWAF_LOCAL_DB.Debug().Model(model.Hosts{}).Where("CODE=?", wafHostEditReq.CODE).Updates(hostMap).Error
 
@@ -271,6 +284,13 @@ func (receiver *WafHostService) DelHostApi(req request.WafHostDelReq) (model.Hos
 	if err != nil {
 		return model.Hosts{}, err
 	}
+	// 认证中心站点删不得。统一访问认证只有「先跳到认证中心登录」这一条路，
+	// 中心站点没了就等于所有站点同时失去登录入口 —— 要么全站锁死，要么访问控制静默失效，
+	// 两种都不该由一次删站点静悄悄地造成。让用户先去改认证配置，把意图说清楚。
+	if used, centerHost := WafAccessConfigServiceApp.IsHostUsedAsCenter(webhost); used {
+		return model.Hosts{}, errors.New("该站点正被统一访问认证用作认证中心（" + centerHost +
+			"），删除后所有站点都将失去登录入口。请先到【统一访问认证-认证配置】改用其它域名")
+	}
 	err = global.GWAF_LOCAL_DB.Where("CODE = ?", req.CODE).Delete(model.Hosts{}).Error
 	//删除规则
 	err = global.GWAF_LOCAL_DB.Where("Host_Code = ?", req.CODE).Delete(model.Rules{}).Error
@@ -288,6 +308,16 @@ func (receiver *WafHostService) DelHostApi(req request.WafHostDelReq) (model.Hos
 	err = global.GWAF_LOCAL_DB.Where("Host_Code = ?", req.CODE).Delete(model.URLAllowList{}).Error
 	//删除用户名和密码访问
 	err = global.GWAF_LOCAL_DB.Where("Host_Code = ?", req.CODE).Delete(model.HttpAuthBase{}).Error
+
+	// 统一访问认证的残留清理。这三件事必须一起做，否则站点删了配置还在到处生效：
+	//   ① 该站点上已签发的子令牌作废（站点若被同名重建，旧 Cookie 不该还能用）
+	//   ② 从所有访问账号的授权站点列表里摘掉这个短码（列表空掉的账号会被禁用，
+	//      因为"空=全部站点"，直接留空等于把受限账号提权成全站可访问）
+	//   ③ 重新发布运行时配置（认证中心站点删不掉，这里只是兜底对齐）
+	WafAccessSessionServiceApp.RevokeByHostCode(req.CODE)
+	WafAccessAccountServiceApp.RemoveHostCode(req.CODE)
+	WafAccessConfigServiceApp.SyncAfterHostChanged()
+
 	return webhost, err
 }
 func (receiver *WafHostService) ModifyGuardStatusApi(req request.WafHostGuardStatusReq) error {

@@ -20,6 +20,17 @@ var (
 	GCONFIG_RECORD_LOGIN_MAX_ERROR_TIME int64  = 3                   //登录周期里错误最大次数
 	GCONFIG_RECORD_LOGIN_LIMIT_MINTUTES int64  = 1                   //登录错误记录周期 单位分钟最小1
 
+	// 统一访问认证(Access 模式)
+	// 开启后，被 WAF 代理的站点默认都要先登录才能访问；站点可用 access_json 的三态单独强制开/关。
+	// 默认 0（关闭）—— 存量用户升级后行为完全不变，这一点不能改。
+	GCONFIG_ACCESS_ENABLE            int64 = 0  // 统一访问认证总开关 1开启 0关闭
+	GCONFIG_ACCESS_AUDIT_RETAIN_DAYS int64 = 90 // 访问认证审计日志保留天数
+	// GCONFIG_ACCESS_FORCE_DISABLE 是自救开关，只能从 conf/config.yml 的 security.access_force_disable
+	// 或环境变量 SAMWAF_ACCESS_DISABLE 设置，管理端改不了。
+	// 存在的意义：用户把管理端也反代进了 WAF 并开启 Access，一旦配错就会把自己彻底锁在外面，
+	// 那时管理端已经进不去，只剩「改配置文件 + 重启」这一条路。
+	GCONFIG_ACCESS_FORCE_DISABLE bool = false
+
 	//是否进行系统统计数据推送
 	GCONFIG_ENABLE_SYSTEM_STATS_PUSH int64 = 1 // 是否启用系统统计数据推送 1启用 0禁用
 

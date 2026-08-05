@@ -15,4 +15,18 @@ const (
 	CACHE_FILE_INFO      = "CACHE_FILE_INFO"      //文件信息
 	CACHE_IP_FAILURE_PRE = "CACHE_IP_FAILURE_PRE" //IP失败记录前缀
 	CACHE_REPLAY_NONCE   = "CACHE_REPLAY_NONCE_"  // 防重放 nonce 前缀
+
+	// —— 统一访问认证(Access 模式) ——
+	// 令牌与会话的真相源是数据库，缓存只是热路径加速。
+	// 正向缓存 TTL 有 60 秒硬上限(model.AccessDefaultCachePosTTL)，
+	// 这同时也是「管理端踢下线」的最坏生效延迟，不要为了性能把它调大。
+	CACHE_ACCESS_TOKEN   = "CACHE_ACCESS_TOKEN_"   //子令牌校验通过的正向缓存，键后缀是 token_code(sha256hex)
+	CACHE_ACCESS_SESSION = "CACHE_ACCESS_SESSION_" //中心会话校验通过的正向缓存，键后缀是 session_code
+	CACHE_ACCESS_BAD     = "CACHE_ACCESS_BAD_"     //无效令牌负向缓存，挡住拿废弃 Cookie 反复打库的请求
+	CACHE_ACCESS_FAIL    = "CACHE_ACCESS_FAIL_"    //登录失败计数，IP 与账号名两个维度分别计数
+	CACHE_ACCESS_LOCK    = "CACHE_ACCESS_LOCK_"    //失败锁定标记
+	CACHE_ACCESS_STAGE   = "CACHE_ACCESS_STAGE_"   //OTP 两步登录的中间态票据
+	CACHE_ACCESS_OTPFAIL = "CACHE_ACCESS_OTPFAIL_" //OTP 失败计数，防 TOTP 爆破
+	CACHE_ACCESS_AUDIT   = "CACHE_ACCESS_AUDIT_"   //审计节流标记，防止 denied 事件把审计表刷爆
+	CACHE_ACCESS_NOTIFY  = "CACHE_ACCESS_NOTIFY_"  //通知节流标记，审计表扛得住高频，用户的钉钉/邮箱扛不住
 )

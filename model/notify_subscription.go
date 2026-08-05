@@ -28,4 +28,8 @@ const (
 	MSG_TYPE_SSL_EXPIRE       = "ssl_expire"       // SSL证书过期
 	MSG_TYPE_SYSTEM_ERROR     = "system_error"     // 系统错误
 	MSG_TYPE_IP_BAN           = "ip_ban"           // IP封禁
+	// 统一访问认证刻意拆成两个类型：登录成功是日常告知，异常是安全告警。
+	// 合成一个的话，只想收告警的人会被每一次正常登录打扰，最后干脆退订，告警也就收不到了。
+	MSG_TYPE_ACCESS_LOGIN    = "access_login"    // 统一访问认证-登录成功
+	MSG_TYPE_ACCESS_ABNORMAL = "access_abnormal" // 统一访问认证-异常告警
 )

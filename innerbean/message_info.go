@@ -132,6 +132,24 @@ type IPBanMessageInfo struct {
 	Time             string `json:"time"`              // 封禁时间
 }
 
+/*
+*
+统一访问认证事件（登录成功 / 安全异常）
+*/
+type AccessMessageInfo struct {
+	BaseMessageInfo
+	Event       string `json:"event"`        // 事件码，见 model.AccessEvent*
+	EventName   string `json:"event_name"`   // 事件中文名
+	AccountName string `json:"account_name"` // 访问账号（未认证事件可能为空）
+	Host        string `json:"host"`         // 被访问的域名
+	Url         string `json:"url"`          // 被访问的地址
+	Ip          string `json:"ip"`           // 来源IP
+	Location    string `json:"location"`     // IP归属地
+	Message     string `json:"message"`      // 事件详情
+	Time        string `json:"time"`         // 发生时间
+	Abnormal    bool   `json:"abnormal"`     // true=安全告警 false=日常告知，决定走哪个订阅类型
+}
+
 func (r RuleMessageInfo) ToFormat() map[string]*wechat.DataItem {
 	Data := map[string]*wechat.DataItem{}
 	Data["domain"] = &wechat.DataItem{

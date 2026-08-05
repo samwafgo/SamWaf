@@ -232,6 +232,8 @@ func (receiver *WafNotifySenderService) FormatMessageByType(messageInfo interfac
 		return receiver.FormatSystemErrorMessageFromBean(msg)
 	case innerbean.IPBanMessageInfo:
 		return receiver.FormatIPBanMessageFromBean(msg)
+	case innerbean.AccessMessageInfo:
+		return receiver.FormatAccessMessageFromBean(msg)
 	default:
 		return "", "", ""
 	}
@@ -266,6 +268,44 @@ func (receiver *WafNotifySenderService) FormatUserLoginMessageFromBean(msg inner
 	messageType := "user_login" // 用户登录类型
 	title, content := receiver.FormatUserLoginMessage(msg.Username, msg.Ip, msg.Time)
 	return messageType, title, content
+}
+
+// FormatAccessMessageFromBean 格式化统一访问认证事件（从Bean）
+//
+// 登录成功与异常告警走两个不同的 messageType：用户可以只订阅告警而不被日常登录打扰。
+// 正文里把「账号 + 域名 + IP + 归属地」都摆出来 —— 收到告警的人第一反应就是
+// 「谁、从哪儿、动了哪个站」，缺一样就得回管理端翻审计日志。
+func (receiver *WafNotifySenderService) FormatAccessMessageFromBean(msg innerbean.AccessMessageInfo) (string, string, string) {
+	messageType := model.MSG_TYPE_ACCESS_LOGIN
+	title := "统一访问认证登录通知"
+	if msg.Abnormal {
+		messageType = model.MSG_TYPE_ACCESS_ABNORMAL
+		title = "统一访问认证异常告警"
+	}
+
+	account := msg.AccountName
+	if account == "" {
+		account = "-"
+	}
+	location := msg.Location
+	if strings.TrimSpace(location) == "" {
+		location = "未知"
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "**事件:** %s\n\n**账号:** %s\n\n**来源IP:** %s\n\n**归属地:** %s",
+		msg.EventName, account, msg.Ip, location)
+	if msg.Host != "" {
+		fmt.Fprintf(&b, "\n\n**访问域名:** %s", msg.Host)
+	}
+	if msg.Url != "" {
+		fmt.Fprintf(&b, "\n\n**访问地址:** %s", msg.Url)
+	}
+	if msg.Message != "" {
+		fmt.Fprintf(&b, "\n\n**详情:** %s", msg.Message)
+	}
+	fmt.Fprintf(&b, "\n\n**时间:** %s", msg.Time)
+	return messageType, title, b.String()
 }
 
 // FormatAttackInfoMessageFromBean 格式化攻击信息消息（从Bean）

@@ -504,6 +504,45 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 				return tx.Where("task_method = ?", enums.TASK_THREAT_IP_SYNC).Delete(&model.Task{}).Error
 			},
 		},
+		// 迁移: 统一访问认证的数据清理任务
+		// 10 分钟一次：票据只活 60 秒，清理频率太低会让 access_ticket 表在高频 SSO 场景下堆积。
+		{
+			ID: "202608040003_add_access_clean_task",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202608040003: 创建统一访问认证清理任务")
+
+				var count int64
+				tx.Model(&model.Task{}).Where("task_method = ?", enums.TASK_ACCESS_CLEAN).Count(&count)
+				if count > 0 {
+					zlog.Info("统一访问认证清理任务已存在，跳过", "task_method", enums.TASK_ACCESS_CLEAN)
+					return nil
+				}
+
+				task := model.Task{
+					BaseOrm: baseorm.BaseOrm{
+						Id:          uuid.GenUUID(),
+						USER_CODE:   global.GWAF_USER_CODE,
+						Tenant_ID:   global.GWAF_TENANT_ID,
+						CREATE_TIME: customtype.JsonTime(time.Now()),
+						UPDATE_TIME: customtype.JsonTime(time.Now()),
+					},
+					TaskName:   "每10分钟清理统一访问认证的过期会话/令牌/票据与审计日志",
+					TaskUnit:   enums.TASK_MIN,
+					TaskValue:  10,
+					TaskAt:     "",
+					TaskMethod: enums.TASK_ACCESS_CLEAN,
+				}
+				if err := tx.Create(&task).Error; err != nil {
+					return fmt.Errorf("创建统一访问认证清理任务失败: %w", err)
+				}
+				zlog.Info("统一访问认证清理任务创建成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202608040003: 删除统一访问认证清理任务")
+				return tx.Where("task_method = ?", enums.TASK_ACCESS_CLEAN).Delete(&model.Task{}).Error
+			},
+		},
 	})
 
 	// 执行迁移

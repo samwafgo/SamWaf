@@ -55,6 +55,8 @@ func ProcessMessageDequeEngine() {
 					handleSystemErrorMessage(msg)
 				case innerbean.IPBanMessageInfo:
 					handleIPBanMessage(msg)
+				case innerbean.AccessMessageInfo:
+					handleAccessMessage(msg)
 				case innerbean.ExportResultMessageInfo:
 					exportResult := msg
 					//发送websocket
@@ -316,6 +318,29 @@ func handleAttackInfoMessage(msg innerbean.AttackInfoMessageInfo) {
 	// 2. 发送到 WebSocket（实时推送）
 	wsContent := fmt.Sprintf("检测到 %s 攻击，来源IP: %s", msg.AttackType, msg.Ip)
 	sendToWebSocket("攻击告警", wsContent, nil, "Info")
+}
+
+// handleAccessMessage 处理统一访问认证事件（登录成功 / 安全异常）
+//
+// 不走通知聚合器：能到这里的事件已经在审计侧过了「事件白名单 + 同事件同IP 5分钟节流」
+// 两道闸，量本来就极小；再聚合只会让安全告警晚几十秒到，得不偿失。
+func handleAccessMessage(msg innerbean.AccessMessageInfo) {
+	// 1. 发送到通知订阅系统。登录成功与异常告警是两个独立的订阅类型，
+	//    见 model.MSG_TYPE_ACCESS_LOGIN / MSG_TYPE_ACCESS_ABNORMAL 的注释
+	messageType, title, content := waf_service.WafNotifySenderServiceApp.FormatAccessMessageFromBean(msg)
+	waf_service.WafNotifySenderServiceApp.SendNotification(messageType, title, content)
+
+	// 2. 发送到 WebSocket（管理端在线时实时弹出）
+	level := "Info"
+	if msg.Abnormal {
+		level = "Warning"
+	}
+	who := msg.AccountName
+	if who == "" {
+		who = "-"
+	}
+	wsContent := fmt.Sprintf("%s：账号 %s，来源 %s %s", msg.EventName, who, msg.Ip, msg.Location)
+	sendToWebSocket("统一访问认证", wsContent, nil, level)
 }
 
 // handleWeeklyReportMessage 处理周报消息

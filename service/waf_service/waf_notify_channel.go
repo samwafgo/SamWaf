@@ -13,6 +13,7 @@ import (
 	"SamWaf/wafnotify/email"
 	"SamWaf/wafnotify/feishu"
 	"SamWaf/wafnotify/serverchan"
+	"SamWaf/wafnotify/webhook"
 	"SamWaf/wafnotify/wechatwork"
 	"errors"
 	"time"
@@ -168,9 +169,35 @@ func (receiver *WafNotifyChannelService) TestChannelApi(req request.WafNotifyCha
 			return err
 		}
 		return notifier.SendMarkdown(title, content)
+	case "webhook":
+		notifier, err := webhook.NewWebhookNotifier(channel.ConfigJSON)
+		if err != nil {
+			return err
+		}
+		return notifier.Send(webhook.Message{
+			Title:           title,
+			Content:         content,
+			Time:            time.Now().Format("2006-01-02 15:04:05"),
+			MessageType:     model.MSG_TYPE_OPERATION_NOTICE,
+			MessageTypeName: GetMessageTypeName(model.MSG_TYPE_OPERATION_NOTICE),
+			Severity:        GetMessageTypeSeverity(model.MSG_TYPE_OPERATION_NOTICE),
+			ServerName:      global.GWAF_CUSTOM_SERVER_NAME,
+		})
 	default:
 		return errors.New("不支持的通知类型")
 	}
+}
+
+// ValidateChannelConfig 渠道配置校验（新增/编辑保存前调用）
+//
+// webhook 渠道的地址、方法、请求头都是用户自由填写的，保存时就把非法配置挡掉，
+// 否则用户要等到真正触发告警、去翻通知日志才知道配错了。
+func ValidateChannelConfig(channelType, configJSON string) error {
+	if channelType == "webhook" {
+		_, err := webhook.ParseConfig(configJSON)
+		return err
+	}
+	return nil
 }
 
 // GetAllChannels 获取所有启用的通知渠道

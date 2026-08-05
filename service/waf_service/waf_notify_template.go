@@ -108,6 +108,11 @@ func escapeForChannel(channelType, s string) string {
 	switch channelType {
 	case "email":
 		return html.EscapeString(s)
+	case "webhook":
+		// 通用 Webhook 的对端格式未知（可能是 JSON 字段、纯文本、也可能是别的），
+		// 在这里做 Markdown 转义只会把反斜杠原样发给对方；真正的转义按 Content-Type
+		// 在 wafnotify/webhook 渲染报文时做。
+		return s
 	default:
 		return escapeMarkdown(s)
 	}

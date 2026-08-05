@@ -11,11 +11,29 @@ import (
 	"SamWaf/wafnotify/email"
 	"SamWaf/wafnotify/feishu"
 	"SamWaf/wafnotify/serverchan"
+	"SamWaf/wafnotify/webhook"
 	"SamWaf/wafnotify/wechatwork"
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 )
+
+// buildWebhookMessage 组装通用 Webhook 的模板变量
+//
+// 只给「标题/正文 + 几个公共维度」：更细的字段（域名、攻击IP…）由订阅级模板渲染进正文，
+// 两层模板各管一段，不在渠道层重复一遍变量表。
+func buildWebhookMessage(messageType, title, content string) webhook.Message {
+	return webhook.Message{
+		Title:           title,
+		Content:         content,
+		Time:            time.Now().Format("2006-01-02 15:04:05"),
+		MessageType:     messageType,
+		MessageTypeName: GetMessageTypeName(messageType),
+		Severity:        GetMessageTypeSeverity(messageType),
+		ServerName:      global.GWAF_CUSTOM_SERVER_NAME,
+	}
+}
 
 type WafNotifySenderService struct{}
 
@@ -161,7 +179,7 @@ func (receiver *WafNotifySenderService) getChannelById(channelId string, channel
 
 // sendToChannel 发送到具体渠道并记录日志
 func (receiver *WafNotifySenderService) sendToChannel(channel model.NotifyChannel, subscription model.NotifySubscription, messageType, title, content, templateUsed string) {
-	recipients, err := receiver.deliverToChannel(channel, subscription, title, content)
+	recipients, err := receiver.deliverToChannel(channel, subscription, messageType, title, content)
 
 	status := 1
 	errorMsg := ""
@@ -195,7 +213,7 @@ func (receiver *WafNotifySenderService) sendToChannel(channel model.NotifyChanne
 // 从 sendToChannel 里拆出来，是为了让「订阅级测试发送」能拿到真实错误反馈给管理端 ——
 // issue #822 的标题就是"通知管理无法调试"，测试发送必须走完全相同的投递链路。
 func (receiver *WafNotifySenderService) deliverToChannel(channel model.NotifyChannel,
-	subscription model.NotifySubscription, title, content string) (recipients string, err error) {
+	subscription model.NotifySubscription, messageType, title, content string) (recipients string, err error) {
 	switch channel.Type {
 	case "dingtalk":
 		if ok, reason := utils.IsSafeOutboundURL(channel.WebhookURL); !ok {
@@ -252,6 +270,14 @@ func (receiver *WafNotifySenderService) deliverToChannel(channel model.NotifyCha
 		} else {
 			err = notifier.SendMarkdown(title, content)
 		}
+	case "webhook":
+		// 地址/方法/请求头/报文模板全在 ConfigJSON 里，SSRF 校验在 notifier 内部做（构造与发送各一次）
+		notifier, notifierErr := webhook.NewWebhookNotifier(channel.ConfigJSON)
+		if notifierErr != nil {
+			err = notifierErr
+		} else {
+			err = notifier.Send(buildWebhookMessage(messageType, title, content))
+		}
 	default:
 		err = fmt.Errorf("不支持的通知类型: %s", channel.Type)
 	}
@@ -278,7 +304,7 @@ func (receiver *WafNotifySenderService) SendTestToSubscription(sub model.NotifyS
 	}
 	content += "\n\n> 本条为通知订阅测试消息，不代表真实事件"
 
-	recipients, err := receiver.deliverToChannel(channel, testSub, title, content)
+	recipients, err := receiver.deliverToChannel(channel, testSub, sub.MessageType, title, content)
 
 	status := 1
 	errorMsg := ""

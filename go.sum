@@ -389,6 +389,7 @@ github.com/samwafgo/ahocorasick v1.0.0 h1:/PMXeYaV1lumsPdueT11aubJ95DcvYzIHyBiMx
 github.com/samwafgo/ahocorasick v1.0.0/go.mod h1:PCU/JDpXAk9IACzdN5W1+AI5JiiByZGrG2pj4YnxzIc=
 github.com/samwafgo/cap_go_server v1.0.0 h1:1LnITCKtYaw0X3KM4FGT9mh+3RDsyMGHefwXN+JKZjc=
 github.com/samwafgo/cap_go_server v1.0.0/go.mod h1:PbMuR/mvf5D2vqj6nZDIFuBhYWCQCq4VnKPQstZS2gc=
+github.com/samwafgo/cap_go_server v1.0.1 h1:8eDw2pnTeIbdLqYx1+tuqdKttvc/2gPGzIXjQkt1XbM=
 github.com/samwafgo/cap_go_server v1.0.1/go.mod h1:PbMuR/mvf5D2vqj6nZDIFuBhYWCQCq4VnKPQstZS2gc=
 github.com/samwafgo/go-wxsqlite3 v1.0.2 h1:ipwEiHq2+jL1qAO01BrPVAXiV6Z+vKBinbKF6rGpIyM=
 github.com/samwafgo/go-wxsqlite3 v1.0.2/go.mod h1:Q72tT7m3Twc1yNqJHmwl3nKR26mgFlguzSnxSAFiLJU=

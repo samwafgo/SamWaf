@@ -56,6 +56,29 @@ func TestIPExtractor_Regression(t *testing.T) {
 	}
 }
 
+// IP组条目必须挡住全通配写法：组可能被白名单引用，
+// 源里混进一条 *.*.*.* 就等于全站放行，而手工录入(validateGroupItemIP)本来就是拒绝的。
+func TestIPGroupExtractor_RejectCatchAll(t *testing.T) {
+	e := &IPGroupExtractor{}
+	for _, raw := range []string{"*.*.*.*", "*", "*:*:*:*:*:*:*:*"} {
+		if e.ValidateItem(e.ExtractItem(raw)) {
+			t.Errorf("全通配写法 %q 不应进入IP组", raw)
+		}
+	}
+	// 显式的 0.0.0.0/0 是用户明确表达的全匹配，与手工录入一致，允许
+	for _, raw := range []string{"0.0.0.0/0", "1.2.3.4", "10.0.0.0/8", "10.10.*.*", "1.2.3.4-1.2.3.99"} {
+		if !e.ValidateItem(e.ExtractItem(raw)) {
+			t.Errorf("%q 应当被IP组接受", raw)
+		}
+	}
+}
+
+func TestGetExtractor_IPGroup(t *testing.T) {
+	if _, ok := GetExtractor("ipgroup").(*IPGroupExtractor); !ok {
+		t.Fatal("ipgroup 类型必须使用 IPGroupExtractor")
+	}
+}
+
 // 带前后缀的日志行仍走正则抽取（这是原有能力，不能因为新增前置判断而丢掉）
 func TestIPExtractor_FallbackRegex(t *testing.T) {
 	e := &IPExtractor{}

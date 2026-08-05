@@ -24,6 +24,16 @@ type BatchProcessor interface {
 	NotifyEngine(task model.BatchTask)
 }
 
+// BatchFinalizer 可选接口：所有批次都跑完之后回调一次。
+//
+// 给「必须看完整份源才能决定」的收尾用（例如覆盖模式下删除源里已经不存在的旧条目）。
+// sourceComplete 表示这份源是否被完整读完（扫描无错误）——半截数据绝不能拿去做删除，
+// 否则一次网络抖动就能把组清空：被白名单引用时是全站失去豁免，被黑名单引用时是瞬间放行。
+// 返回值语义与 ProcessBatch 一致：true 表示数据有变化，需要通知引擎。
+type BatchFinalizer interface {
+	Finalize(task model.BatchTask, progress *BatchProgress, sourceComplete bool) bool
+}
+
 // BatchProcessorConfig 批量处理器配置
 type BatchProcessorConfig struct {
 	BatchSize int    // 批处理大小
@@ -150,6 +160,19 @@ func ProcessBatchTask(task model.BatchTask, processor BatchProcessor, config Bat
 			progress.InsertedItems, progress.UpdatedItems))
 	}
 
+	// 先判定源是否被完整读完，收尾动作（如全量同步的删除）依赖这个信号
+	scanErr := scanner.Err()
+	if scanErr != nil {
+		zlog.Error(innerLogName, fmt.Sprintf("扫描文件时发生错误: %s", scanErr.Error()))
+	}
+
+	// 收尾回调（可选实现）
+	if finalizer, ok := processor.(BatchFinalizer); ok {
+		if finalizer.Finalize(task, progress, scanErr == nil) {
+			hasAffectInfo = true
+		}
+	}
+
 	if hasAffectInfo {
 		// 通知引擎进行实时生效
 		processor.NotifyEngine(task)
@@ -158,11 +181,6 @@ func ProcessBatchTask(task model.BatchTask, processor BatchProcessor, config Bat
 	// 输出最终处理结果
 	zlog.Info(innerLogName, fmt.Sprintf("批量处理完成，总计处理: %d，插入: %d，更新: %d",
 		progress.ProcessedItems, progress.InsertedItems, progress.UpdatedItems))
-
-	// 检查扫描错误
-	if err := scanner.Err(); err != nil {
-		zlog.Error(innerLogName, fmt.Sprintf("扫描文件时发生错误: %s", err.Error()))
-	}
 }
 
 // countLinesWithExtractor 使用提取器计算文件总行数和有效行数

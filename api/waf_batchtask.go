@@ -83,7 +83,7 @@ func (s *WafBatchTaskApi) ModifyBatchTaskApi(c *gin.Context) {
 	if err == nil {
 		err = wafBatchTaskService.ModifyApi(req)
 		if err != nil {
-			response.FailWithMessage("编辑发生错误", c)
+			response.FailWithMessage("编辑发生错误:"+err.Error(), c)
 		} else {
 
 			response.OkWithMessage("编辑成功", c)
@@ -105,6 +105,9 @@ func (s *WafBatchTaskApi) ManualBatchTaskApi(c *gin.Context) {
 			break
 		case enums.BATCHTASK_IPDENY:
 			waftask.IPDenyBatch(bean)
+			break
+		case enums.BATCHTASK_IPGROUP:
+			waftask.IPGroupBatch(bean)
 			break
 		case enums.BATCHTASK_SENSITIVE:
 			waftask.SensitiveBatch(bean)

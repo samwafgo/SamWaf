@@ -21,6 +21,11 @@ type ThreatIPChannel struct {
 	LastCount    int    `json:"last_count"`                  // 上次快照收录条数
 	LastStatus   string `gorm:"size:255" json:"last_status"` // 上次同步结果：ok 或错误摘要
 	Remarks      string `gorm:"size:500" json:"remarks"`     // 备注
+
+	// 以下为运行时内存态字段(gorm:"-" 不落库，无需迁移)，仅供列表接口回显"同步中"，
+	// 让前端能在后台拉取期间给出反馈并自动轮询，而不是点完什么都看不到。
+	Syncing       bool  `gorm:"-" json:"syncing"`         // 该渠道当前是否有同步在进行
+	SyncStartedAt int64 `gorm:"-" json:"sync_started_at"` // 本次同步开始时间戳(秒)，Syncing 为 false 时无意义
 }
 
 // TableName 表名

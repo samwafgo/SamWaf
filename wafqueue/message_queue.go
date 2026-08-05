@@ -3,7 +3,6 @@ package wafqueue
 import (
 	"SamWaf/common/uuid"
 	"SamWaf/common/zlog"
-	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model"
@@ -12,7 +11,7 @@ import (
 	"SamWaf/wafsec"
 	"encoding/json"
 	"fmt"
-	"strings"
+	"sync"
 	"time"
 )
 
@@ -21,8 +20,8 @@ import (
 处理消息队列信息
 */
 func ProcessMessageDequeEngine() {
-	// 启动通知聚合器定时刷新（在时间窗口内按消息类型合并通知，避免通知轰炸）
-	go gNotifyAgg.StartFlushLoop()
+	// 启动订阅级通知聚合器（按「订阅 × 去重key」分桶，窗口取各订阅自己的配置）
+	waf_service.NotifyAggregatorApp.StartFlushLoop(global.GWAF_QUEUE_SHUTDOWN_SIGNAL)
 
 	for {
 		select {
@@ -179,73 +178,59 @@ func ProcessMessageDequeEngine() {
 	}
 }
 
-// ========== 通知频率抑制（递增冷却策略） ==========
+// ========== 通知防雪崩总闸 ==========
 //
-// 策略说明（参考 Prometheus AlertManager 的 group_interval 思路）：
-//   - 首次出现：立即发送
-//   - 发送后进入冷却期，冷却期内同规则通知被抑制
-//   - 冷却时间逐级递增：1分钟 → 5分钟 → 15分钟（封顶）
-//   - 30分钟内无新通知则冷却级别自动重置，恢复灵敏度
+// 历史包袱说明（issue #822）：
+// 这里原本是唯一的频率控制点，用「规则原文」当 key 做 1min→5min→15min 递增冷却。
+// 两个问题让它形同虚设：
+//   1. 攻击方变换 payload，规则原文就变，每个新串都算"首次出现→立即发送"，冷却被绕过；
+//   2. 所有渠道共用一把锁，没法做到"飞书只收严重告警、邮件收全量"。
 //
-// 通知时间线示例（持续攻击场景）：
-//   T=0s    → 首次攻击，立即通知，冷却1min
-//   T=1min  → 冷却结束，仍有攻击则通知，冷却5min
-//   T=6min  → 冷却结束，仍有攻击则通知，冷却15min
-//   T=21min → 冷却结束，仍有攻击则通知，保持15min冷却
-//   ...
-//   攻击停止30min → 冷却级别归零，下次攻击从1min冷却重新开始
+// 现在真正的频率控制下沉到了订阅维度（service/waf_service/waf_notify_throttle.go），
+// 这里只保留一道粗粒度总闸，作用仅剩一个：CC 期间事件洪水时保护队列与 goroutine，
+// 阈值刻意放宽，正常业务量不会碰到它。
 
-// notifyCooldownIntervals 冷却时间梯度
-var notifyCooldownIntervals = []time.Duration{
-	1 * time.Minute,  // Level 0: 首次发送后冷却1分钟
-	5 * time.Minute,  // Level 1: 第二次发送后冷却5分钟
-	15 * time.Minute, // Level 2+: 之后每次冷却15分钟（封顶）
+const (
+	notifyGateWindow    = time.Second // 限速窗口
+	notifyGateMaxPerSec = 50          // 每种消息类型每秒最多放行多少条事件
+)
+
+type notifyGateBucket struct {
+	windowStart time.Time
+	count       int
+	dropped     int
 }
 
-// getCooldownDuration 根据冷却级别获取对应的冷却时间
-func getCooldownDuration(level int) time.Duration {
-	if level < 0 {
-		level = 0
-	}
-	if level >= len(notifyCooldownIntervals) {
-		return notifyCooldownIntervals[len(notifyCooldownIntervals)-1]
-	}
-	return notifyCooldownIntervals[level]
-}
+var (
+	notifyGateMu      sync.Mutex
+	notifyGateBuckets = make(map[string]*notifyGateBucket)
+)
 
-// checkCanSend 通知频率抑制：基于递增冷却策略判断是否允许发送
-func checkCanSend(key string) bool {
-	// SSL证书相关的消息（包括申请和续期）都直接发送，不受频率限制
-	if strings.HasPrefix(key, "SSL证书") {
-		return true
+// checkCanSend 防雪崩总闸：按消息类型限速，超出部分直接丢弃（只记 debug 日志，不落库）
+func checkCanSend(messageType string) bool {
+	now := time.Now()
+
+	notifyGateMu.Lock()
+	defer notifyGateMu.Unlock()
+
+	b, ok := notifyGateBuckets[messageType]
+	if !ok {
+		b = &notifyGateBucket{windowStart: now}
+		notifyGateBuckets[messageType] = b
 	}
-
-	cooldownKey := enums.CACHE_NOTICE_PRE + key
-	levelKey := enums.CACHE_NOTICE_PRE + key + "_lv"
-
-	// 冷却期内 → 直接抑制
-	if global.GCACHE_WAFCACHE.IsKeyExist(cooldownKey) {
+	if now.Sub(b.windowStart) >= notifyGateWindow {
+		if b.dropped > 0 {
+			zlog.Debug(fmt.Sprintf("通知总闸丢弃事件: 类型=%s 丢弃=%d", messageType, b.dropped))
+		}
+		b.windowStart = now
+		b.count = 0
+		b.dropped = 0
+	}
+	if b.count >= notifyGateMaxPerSec {
+		b.dropped++
 		return false
 	}
-
-	// 冷却期已过（或首次出现）→ 允许发送
-	// 获取当前冷却级别（key不存在时默认为0）
-	level := 0
-	if lv, err := global.GCACHE_WAFCACHE.GetInt(levelKey); err == nil {
-		level = lv
-	}
-
-	// 根据冷却级别确定本次冷却时长
-	cooldownDuration := getCooldownDuration(level)
-
-	// 设置冷却标记（使用 RenewTime 确保从当前时刻开始计时）
-	global.GCACHE_WAFCACHE.SetWithTTlRenewTime(cooldownKey, 1, cooldownDuration)
-
-	// 提升冷却级别（30分钟无新通知则自动重置到初始级别，恢复灵敏度）
-	global.GCACHE_WAFCACHE.SetWithTTlRenewTime(levelKey, level+1, 30*time.Minute)
-
-	zlog.Debug(fmt.Sprintf("通知频率控制: key=%s, level=%d, cooldown=%v", key, level, cooldownDuration))
-
+	b.count++
 	return true
 }
 
@@ -253,14 +238,12 @@ func checkCanSend(key string) bool {
 
 // handleRuleMessage 处理规则触发消息
 func handleRuleMessage(msg innerbean.RuleMessageInfo) {
-	isCanSend := checkCanSend(msg.RuleInfo)
-	if !isCanSend {
+	if !checkCanSend(model.MSG_TYPE_RULE_TRIGGER) {
 		return
 	}
 
-	// 1. 加入通知聚合器（定时合并发送，避免通知轰炸）
-	messageType, title, content := waf_service.WafNotifySenderServiceApp.FormatRuleMessage(msg)
-	gNotifyAgg.Add(notifyEntry{MessageType: messageType, Title: title, Content: content})
+	// 1. 交给通知订阅系统（逐订阅做频控/过滤/模板，见 waf_notify_throttle.go）
+	waf_service.WafNotifySenderServiceApp.SendMessageInfo(msg)
 
 	// 2. 保留原有的通知方式（兼容旧系统）
 	if global.GWAF_NOTICE_ENABLE {
@@ -277,14 +260,12 @@ func handleRuleMessage(msg innerbean.RuleMessageInfo) {
 
 // handleOperatorMessage 处理操作消息
 func handleOperatorMessage(msg innerbean.OperatorMessageInfo) {
-	isCanSend := checkCanSend(msg.OperaType)
-	if !isCanSend {
+	if !checkCanSend(model.MSG_TYPE_OPERATION_NOTICE) {
 		return
 	}
 
-	// 1. 加入通知聚合器
-	messageType, title, content := waf_service.WafNotifySenderServiceApp.FormatOperatorMessage(msg)
-	gNotifyAgg.Add(notifyEntry{MessageType: messageType, Title: title, Content: content})
+	// 1. 交给通知订阅系统
+	waf_service.WafNotifySenderServiceApp.SendMessageInfo(msg)
 
 	// 2. 保留原有的通知方式
 	utils.NotifyHelperApp.SendNoticeInfo(msg)
@@ -296,8 +277,7 @@ func handleOperatorMessage(msg innerbean.OperatorMessageInfo) {
 // handleUserLoginMessage 处理用户登录消息
 func handleUserLoginMessage(msg innerbean.UserLoginMessageInfo) {
 	// 1. 发送到新的通知订阅系统
-	messageType, title, content := waf_service.WafNotifySenderServiceApp.FormatUserLoginMessageFromBean(msg)
-	waf_service.WafNotifySenderServiceApp.SendNotification(messageType, title, content)
+	waf_service.WafNotifySenderServiceApp.SendMessageInfo(msg)
 
 	// 2. 发送到 WebSocket
 	wsContent := fmt.Sprintf("用户 %s 从 %s 登录", msg.Username, msg.Ip)
@@ -306,14 +286,12 @@ func handleUserLoginMessage(msg innerbean.UserLoginMessageInfo) {
 
 // handleAttackInfoMessage 处理攻击信息消息
 func handleAttackInfoMessage(msg innerbean.AttackInfoMessageInfo) {
-	isCanSend := checkCanSend(msg.AttackType)
-	if !isCanSend {
+	if !checkCanSend(model.MSG_TYPE_ATTACK_INFO) {
 		return
 	}
 
-	// 1. 加入通知聚合器
-	messageType, title, content := waf_service.WafNotifySenderServiceApp.FormatAttackInfoMessageFromBean(msg)
-	gNotifyAgg.Add(notifyEntry{MessageType: messageType, Title: title, Content: content})
+	// 1. 交给通知订阅系统
+	waf_service.WafNotifySenderServiceApp.SendMessageInfo(msg)
 
 	// 2. 发送到 WebSocket（实时推送）
 	wsContent := fmt.Sprintf("检测到 %s 攻击，来源IP: %s", msg.AttackType, msg.Ip)
@@ -327,8 +305,7 @@ func handleAttackInfoMessage(msg innerbean.AttackInfoMessageInfo) {
 func handleAccessMessage(msg innerbean.AccessMessageInfo) {
 	// 1. 发送到通知订阅系统。登录成功与异常告警是两个独立的订阅类型，
 	//    见 model.MSG_TYPE_ACCESS_LOGIN / MSG_TYPE_ACCESS_ABNORMAL 的注释
-	messageType, title, content := waf_service.WafNotifySenderServiceApp.FormatAccessMessageFromBean(msg)
-	waf_service.WafNotifySenderServiceApp.SendNotification(messageType, title, content)
+	waf_service.WafNotifySenderServiceApp.SendMessageInfo(msg)
 
 	// 2. 发送到 WebSocket（管理端在线时实时弹出）
 	level := "Info"
@@ -346,8 +323,7 @@ func handleAccessMessage(msg innerbean.AccessMessageInfo) {
 // handleWeeklyReportMessage 处理周报消息
 func handleWeeklyReportMessage(msg innerbean.WeeklyReportMessageInfo) {
 	// 1. 发送到新的通知订阅系统
-	messageType, title, content := waf_service.WafNotifySenderServiceApp.FormatWeeklyReportMessageFromBean(msg)
-	waf_service.WafNotifySenderServiceApp.SendNotification(messageType, title, content)
+	waf_service.WafNotifySenderServiceApp.SendMessageInfo(msg)
 
 	// 2. 发送到 WebSocket
 	wsContent := fmt.Sprintf("周期: %s, 总请求: %d, 拦截: %d", msg.WeekRange, msg.TotalRequests, msg.BlockedRequests)
@@ -358,8 +334,7 @@ func handleWeeklyReportMessage(msg innerbean.WeeklyReportMessageInfo) {
 func handleSSLExpireMessage(msg innerbean.SSLExpireMessageInfo) {
 	// SSL证书消息总是发送（不受频率限制）
 	// 1. 发送到新的通知订阅系统
-	messageType, title, content := waf_service.WafNotifySenderServiceApp.FormatSSLExpireMessageFromBean(msg)
-	waf_service.WafNotifySenderServiceApp.SendNotification(messageType, title, content)
+	waf_service.WafNotifySenderServiceApp.SendMessageInfo(msg)
 
 	// 2. 发送到 WebSocket
 	wsContent := fmt.Sprintf("域名 %s 的SSL证书将在 %d 天后过期", msg.Domain, msg.DaysLeft)
@@ -369,8 +344,7 @@ func handleSSLExpireMessage(msg innerbean.SSLExpireMessageInfo) {
 // handleSystemErrorMessage 处理系统错误消息
 func handleSystemErrorMessage(msg innerbean.SystemErrorMessageInfo) {
 	// 1. 发送到新的通知订阅系统
-	messageType, title, content := waf_service.WafNotifySenderServiceApp.FormatSystemErrorMessageFromBean(msg)
-	waf_service.WafNotifySenderServiceApp.SendNotification(messageType, title, content)
+	waf_service.WafNotifySenderServiceApp.SendMessageInfo(msg)
 
 	// 2. 发送到 WebSocket
 	wsContent := fmt.Sprintf("系统错误: %s - %s", msg.ErrorType, msg.ErrorMsg)
@@ -379,14 +353,12 @@ func handleSystemErrorMessage(msg innerbean.SystemErrorMessageInfo) {
 
 // handleIPBanMessage 处理IP封禁消息
 func handleIPBanMessage(msg innerbean.IPBanMessageInfo) {
-	isCanSend := checkCanSend(msg.Ip)
-	if !isCanSend {
+	if !checkCanSend(model.MSG_TYPE_IP_BAN) {
 		return
 	}
 
-	// 1. 加入通知聚合器
-	messageType, title, content := waf_service.WafNotifySenderServiceApp.FormatIPBanMessageFromBean(msg)
-	gNotifyAgg.Add(notifyEntry{MessageType: messageType, Title: title, Content: content})
+	// 1. 交给通知订阅系统
+	waf_service.WafNotifySenderServiceApp.SendMessageInfo(msg)
 
 	// 2. 发送到 WebSocket（实时推送）
 	wsContent := fmt.Sprintf("IP %s 已被封禁，原因: %s", msg.Ip, msg.Reason)

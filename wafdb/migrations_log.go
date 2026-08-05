@@ -260,6 +260,43 @@ func RunLogDBMigrations(db *gorm.DB) error {
 				return tx.Migrator().DropTable(&model.AccessAuditLog{})
 			},
 		},
+		// 迁移: notify_log 增加可调试字段（issue #822）
+		// 老表只记"发出去的"，用户问"为什么没收到通知"时完全查不到；
+		// 补上订阅ID/抑制原因/抑制条数/模板来源后，管理端就能直接回答这个问题。
+		{
+			ID: "202608050002_add_notify_log_debug_columns",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202608050002: 为 notify_log 表添加可调试字段")
+				cols := []struct{ column, field string }{
+					{"subscription_id", "SubscriptionId"},
+					{"suppress_reason", "SuppressReason"},
+					{"suppress_count", "SuppressCount"},
+					{"template_used", "TemplateUsed"},
+				}
+				for _, c := range cols {
+					if tx.Migrator().HasColumn(&model.NotifyLog{}, c.column) {
+						zlog.Info("字段已存在，跳过", "column", c.column)
+						continue
+					}
+					if err := tx.Migrator().AddColumn(&model.NotifyLog{}, c.field); err != nil {
+						return fmt.Errorf("添加 notify_log.%s 字段失败: %w", c.column, err)
+					}
+				}
+				zlog.Info("notify_log 可调试字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202608050002: 删除 notify_log 可调试字段")
+				for _, field := range []string{"SubscriptionId", "SuppressReason", "SuppressCount", "TemplateUsed"} {
+					if tx.Migrator().HasColumn(&model.NotifyLog{}, field) {
+						if err := tx.Migrator().DropColumn(&model.NotifyLog{}, field); err != nil {
+							zlog.Warn("删除字段失败", "field", field, "error", err.Error())
+						}
+					}
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

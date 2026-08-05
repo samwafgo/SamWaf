@@ -104,6 +104,62 @@ func (receiver *WafNotifySubscriptionService) DelApi(req request.WafNotifySubscr
 	return global.GWAF_LOCAL_DB.Where("id = ?", req.Id).Delete(&model.NotifySubscription{}).Error
 }
 
+// GetById 按主键取订阅
+func (receiver *WafNotifySubscriptionService) GetById(id string) (model.NotifySubscription, error) {
+	var bean model.NotifySubscription
+	err := global.GWAF_LOCAL_DB.Where("id = ?", id).First(&bean).Error
+	return bean, err
+}
+
+// SaveConfigApi 保存单个订阅的精细化配置（频控/模板/过滤）
+//
+// 刻意与 ModifyApi 分开：ModifyApi 会被前端的开关切换整包提交，
+// 合在一起的话漏传一个字段就会把用户配好的模板清空。
+func (receiver *WafNotifySubscriptionService) SaveConfigApi(id, throttleMode, throttleJSON, filterJSON,
+	titleTemplate, contentTemplate string) error {
+	editMap := map[string]interface{}{
+		"ThrottleMode":    throttleMode,
+		"ThrottleJSON":    throttleJSON,
+		"FilterJSON":      filterJSON,
+		"TitleTemplate":   titleTemplate,
+		"ContentTemplate": contentTemplate,
+		"UPDATE_TIME":     customtype.JsonTime(time.Now()),
+	}
+	return global.GWAF_LOCAL_DB.Model(model.NotifySubscription{}).Where("id = ?", id).Updates(editMap).Error
+}
+
+// SaveConfigPartialApi 按需保存部分配置（批量套用时使用）
+func (receiver *WafNotifySubscriptionService) SaveConfigPartialApi(id string, editMap map[string]interface{}) error {
+	if len(editMap) == 0 {
+		return nil
+	}
+	editMap["UPDATE_TIME"] = customtype.JsonTime(time.Now())
+	return global.GWAF_LOCAL_DB.Model(model.NotifySubscription{}).Where("id = ?", id).Updates(editMap).Error
+}
+
+// GetSubscriptionsByChannelType 取某类渠道下的全部订阅（批量套用配置用）
+func (receiver *WafNotifySubscriptionService) GetSubscriptionsByChannelType(channelType string) []model.NotifySubscription {
+	var subs []model.NotifySubscription
+	var channels []model.NotifyChannel
+	global.GWAF_LOCAL_DB.Where("type = ?", channelType).Find(&channels)
+	if len(channels) == 0 {
+		return subs
+	}
+	ids := make([]string, 0, len(channels))
+	for _, ch := range channels {
+		ids = append(ids, ch.Id)
+	}
+	global.GWAF_LOCAL_DB.Where("channel_id in ?", ids).Find(&subs)
+	return subs
+}
+
+// GetSubscriptionsByMessageTypeAll 取某消息类型的全部订阅（含已禁用，批量套用配置用）
+func (receiver *WafNotifySubscriptionService) GetSubscriptionsByMessageTypeAll(messageType string) []model.NotifySubscription {
+	var subs []model.NotifySubscription
+	global.GWAF_LOCAL_DB.Where("message_type = ?", messageType).Find(&subs)
+	return subs
+}
+
 // GetSubscriptionsByMessageType 根据消息类型获取订阅
 func (receiver *WafNotifySubscriptionService) GetSubscriptionsByMessageType(messageType string) []model.NotifySubscription {
 	var subscriptions []model.NotifySubscription

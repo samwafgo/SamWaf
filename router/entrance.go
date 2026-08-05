@@ -13,6 +13,10 @@ type ApiGroup struct {
 	IPFailureRouter
 	BlockIpRouter
 	IPGroupRouter
+	AccessAccountRouter
+	AccessConfigRouter
+	AccessSessionRouter
+	AccessAuditRouter
 	IPGroupItemRouter
 	BlockUrlRouter
 	AccountRouter

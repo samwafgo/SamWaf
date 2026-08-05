@@ -91,6 +91,9 @@ var capjs embed.FS
 //go:embed exedata/httpauth
 var httpauth embed.FS
 
+//go:embed exedata/access
+var accessAssets embed.FS
+
 // wafSystenService 实现了 service.Service 接口
 type wafSystenService struct{}
 
@@ -322,6 +325,12 @@ func (m *wafSystenService) run() {
 	if err != nil {
 		zlog.Error("httpauth", err.Error())
 	}
+
+	// 统一访问认证(Access 模式)登录页资源释放
+	err = wafinit.CheckAndReleaseDataset(accessAssets, utils.GetCurrentDir()+"/data/access", "access")
+	if err != nil {
+		zlog.Error("access", err.Error())
+	}
 	//TODO 准备释放最新spider bot
 
 	//初始化cache
@@ -499,6 +508,11 @@ func (m *wafSystenService) run() {
 	//真正的IP集合来自 ipset 全局快照。这里必须同步调用(不能像威胁情报那样 go 出去)——
 	//威胁情报晚生效只是少拦一点，IP组承载的是用户显式配置的白名单，晚生效就是误拦合法用户。
 	waf_service.WafIPGroupServiceApp.RebuildAllGroupMatchers()
+	//统一访问认证配置同理必须在引擎接管流量之前同步发布：
+	//访问控制晚生效就是一段裸奔窗口，而这个功能的全部意义就是不让人裸奔。
+	//快照未发布时 accessgate.Get() 返回"全部关闭"的兜底配置(误放行而非误拦)，
+	//所以这一行的作用是把真实策略尽早顶上去。
+	waf_service.WafAccessConfigServiceApp.PublishConfig()
 	http.Handle("/", globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE)
 	globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartWaf()
 
@@ -554,6 +568,7 @@ func (m *wafSystenService) run() {
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_FIREWALL_CLEAN_EXPIRED, waftask.TaskFirewallCleanExpired)
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_STATS_DATA_CLEANUP, waftask.TaskStatsDataCleanup)
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_THREAT_IP_SYNC, waftask.TaskThreatIPSync)
+	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_ACCESS_CLEAN, waftask.TaskAccessClean)
 
 	// 进程启动重放：把各启用威胁情报渠道的快照重新灌入系统 ipset(内存态重启会丢) 并重建 WAF 并集
 	go waf_service.WafThreatIPServiceApp.RestoreAllOnStartup()

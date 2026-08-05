@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title id="page-title">身份验证</title>
+
+  <style>
+    html, body {
+      width: 100%;
+      height: 100%;
+      padding: 0;
+      margin: 0;
+      color: #3C3C3C;
+      background: #EBF3FB;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: system, -apple-system, "BlinkMacSystemFont",
+      ".SFNSText-Regular", "San Francisco", "Roboto", "Segoe UI",
+      "Helvetica Neue", "Lucida Grande", "Ubuntu", "arial", sans-serif;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 0;
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .lang-switch {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 5px 10px;
+      cursor: pointer;
+      font-size: 14px;
+      color: #3C3C3C;
+    }
+
+    .lang-switch:hover {
+      background: #f5f5f5;
+    }
+
+    .info-message {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .info-message h2 {
+      margin: 0 0 10px 0;
+      font-size: 24px;
+      color: #3C3C3C;
+    }
+
+    .info-message p {
+      margin: 0;
+      font-size: 14px;
+      color: #666;
+    }
+
+    .login-form {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      width: 100%;
+      max-width: 350px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group.hidden {
+      display: none;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 14px;
+      color: #3C3C3C;
+      font-weight: 500;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      box-sizing: border-box;
+      transition: border-color 0.3s;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: #0052d9;
+    }
+
+    .submit-btn {
+      width: 100%;
+      padding: 12px;
+      background: #0052d9;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.3s;
+      font-weight: 500;
+    }
+
+    .submit-btn:hover {
+      background: #0043b0;
+    }
+
+    .submit-btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    .error-message {
+      color: #ed4630;
+      text-align: center;
+      font-size: 14px;
+      margin-top: 15px;
+      display: none;
+    }
+
+    .error-message.show {
+      display: block;
+    }
+
+    .toast {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-size: 14px;
+      z-index: 1000;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .toast.show {
+      opacity: 1;
+    }
+
+    .toast.success {
+      background: #f0f9eb;
+      border: 1px solid #dcf9cc;
+      color: #5eaa2f;
+      box-shadow: 1px 1px 10px #e0e0e0;
+    }
+
+    .toast.error {
+      background: #fef0f0;
+      border: 1px solid #fcd6d6;
+      color: #ed4630;
+      box-shadow: 1px 1px 10px #e0e0e0;
+    }
+  </style>
+</head>
+<body>
+<button id="lang-switch" class="lang-switch">English</button>
+
+<div class="container">
+  <div class="info-message">
+    <h2 id="info-title">身份验证</h2>
+    <p id="info-text">请输入您的账号和密码以继续访问</p>
+  </div>
+
+  <div class="login-form">
+    <form id="login-form">
+      <!-- rq 是后端签名后的回跳凭据，原样回传即可；前端不解析、也无法伪造 -->
+      <input type="hidden" id="rq" value="__SAMWAF_RQ__" />
+
+      <div class="form-group" id="group-username">
+        <label for="username" id="username-label">用户名</label>
+        <input type="text" id="username" name="username" autocomplete="username" />
+      </div>
+      <div class="form-group" id="group-password">
+        <label for="password" id="password-label">密码</label>
+        <input type="password" id="password" name="password" autocomplete="current-password" />
+      </div>
+      <div class="form-group hidden" id="group-otp">
+        <label for="otpcode" id="otp-label">动态验证码</label>
+        <input type="text" id="otpcode" name="otpcode" inputmode="numeric" autocomplete="one-time-code"
+               maxlength="6" placeholder="000000" />
+      </div>
+
+      <button type="submit" class="submit-btn" id="submit-btn">登录</button>
+      <div class="error-message" id="error-message"></div>
+    </form>
+  </div>
+</div>
+
+<script>
+  const i18n = {
+    'zh': {
+      title: '身份验证',
+      infoTitle: '身份验证',
+      infoText: '请输入您的账号和密码以继续访问',
+      otpTitle: '两步验证',
+      otpText: '请输入验证器应用中的 6 位动态验证码',
+      usernameLabel: '用户名',
+      passwordLabel: '密码',
+      otpLabel: '动态验证码',
+      submitBtn: '登录',
+      verifyBtn: '验证',
+      verifying: '验证中...',
+      errorMessage: '用户名或密码错误',
+      loginSuccess: '验证成功，页面即将跳转...',
+      validationError: '验证异常',
+      switchLang: 'English'
+    },
+    'en': {
+      title: 'Authentication',
+      infoTitle: 'Authentication',
+      infoText: 'Please enter your username and password to continue',
+      otpTitle: 'Two-Step Verification',
+      otpText: 'Enter the 6-digit code from your authenticator app',
+      usernameLabel: 'Username',
+      passwordLabel: 'Password',
+      otpLabel: 'Verification code',
+      submitBtn: 'Sign in',
+      verifyBtn: 'Verify',
+      verifying: 'Verifying...',
+      errorMessage: 'Incorrect username or password',
+      loginSuccess: 'Verified, redirecting...',
+      validationError: 'Validation error',
+      switchLang: '中文'
+    }
+  };
+
+  // stage 非空表示已进入两步验证的第二步
+  let stageToken = '';
+
+  const langManager = (function () {
+    function setCookie(name, value, days) {
+      let expires = "";
+      if (days) {
+        const date = new Date();
+        date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+        expires = "; expires=" + date.toUTCString();
+      }
+      document.cookie = name + "=" + (value || "") + expires + "; path=/";
+    }
+
+    function getCookie(name) {
+      const nameEQ = name + "=";
+      const ca = document.cookie.split(';');
+      for (let i = 0; i < ca.length; i++) {
+        let c = ca[i];
+        while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+        if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+      }
+      return null;
+    }
+
+    function detectBrowserLang() {
+      const browserLang = navigator.language || navigator.userLanguage;
+      return browserLang.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+    }
+
+    let currentLang = getCookie('samwaf_lang') || detectBrowserLang();
+
+    function setLanguage(lang) {
+      currentLang = lang;
+      setCookie('samwaf_lang', lang, 30);
+      applyLanguage();
+      return currentLang;
+    }
+
+    function getCurrentLang() {
+      return currentLang;
+    }
+
+    function getText(key) {
+      return i18n[currentLang][key] || i18n['en'][key] || key;
+    }
+
+    function applyLanguage() {
+      const otpMode = stageToken !== '';
+      document.getElementById('page-title').textContent = getText('title');
+      document.getElementById('lang-switch').textContent = getText('switchLang');
+      document.getElementById('info-title').textContent = getText(otpMode ? 'otpTitle' : 'infoTitle');
+      document.getElementById('info-text').textContent = getText(otpMode ? 'otpText' : 'infoText');
+      document.getElementById('username-label').textContent = getText('usernameLabel');
+      document.getElementById('password-label').textContent = getText('passwordLabel');
+      document.getElementById('otp-label').textContent = getText('otpLabel');
+      document.getElementById('submit-btn').textContent = getText(otpMode ? 'verifyBtn' : 'submitBtn');
+    }
+
+    return {setLanguage, getCurrentLang, getText, applyLanguage};
+  })();
+
+  function showToast(message, type) {
+    const existingToast = document.querySelector('.toast');
+    if (existingToast) {
+      existingToast.remove();
+    }
+    const toast = document.createElement('div');
+    toast.className = 'toast ' + (type || 'success');
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(function () {
+      toast.classList.add('show');
+    }, 100);
+    setTimeout(function () {
+      toast.classList.remove('show');
+      setTimeout(function () {
+        if (toast.parentNode) {
+          toast.parentNode.removeChild(toast);
+        }
+      }, 300);
+    }, 2000);
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('error-message');
+    el.textContent = msg;
+    el.classList.add('show');
+  }
+
+  function hideError() {
+    document.getElementById('error-message').classList.remove('show');
+  }
+
+  // 切换到两步验证界面：隐藏账号密码，只留动态码输入框
+  function enterOtpMode(stage, message) {
+    stageToken = stage;
+    document.getElementById('group-username').classList.add('hidden');
+    document.getElementById('group-password').classList.add('hidden');
+    document.getElementById('group-otp').classList.remove('hidden');
+    langManager.applyLanguage();
+    if (message) {
+      showToast(message, 'success');
+    }
+    document.getElementById('otpcode').focus();
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    langManager.applyLanguage();
+    document.getElementById('username').focus();
+  });
+
+  document.getElementById('lang-switch').addEventListener('click', function () {
+    langManager.setLanguage(langManager.getCurrentLang() === 'zh' ? 'en' : 'zh');
+  });
+
+  document.getElementById('login-form').addEventListener('submit', async function (e) {
+    e.preventDefault();
+
+    const submitBtn = document.getElementById('submit-btn');
+    hideError();
+    submitBtn.disabled = true;
+    submitBtn.textContent = langManager.getText('verifying');
+
+    const inOtp = stageToken !== '';
+    const url = inOtp ? '/samwaf_access/otp' : '/samwaf_access/validate';
+    const payload = inOtp
+      ? {stage: stageToken, code: document.getElementById('otpcode').value}
+      : {
+        username: document.getElementById('username').value,
+        password: document.getElementById('password').value,
+        rq: document.getElementById('rq').value
+      };
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      const result = await response.json();
+
+      if (result.success && result.need_otp) {
+        submitBtn.disabled = false;
+        enterOtpMode(result.stage, result.message);
+        return;
+      }
+
+      if (result.success) {
+        showToast(langManager.getText('loginSuccess'), 'success');
+        // 用 replace 而不是 href：不给浏览器留下"后退回登录页"的历史项
+        setTimeout(function () {
+          window.location.replace(result.redirect || '/');
+        }, 600);
+        return;
+      }
+
+      showError(result.message || langManager.getText('errorMessage'));
+      submitBtn.disabled = false;
+      langManager.applyLanguage();
+
+      if (response.status === 429) {
+        // 被锁定：禁用按钮，等锁定窗口过去后自动刷新重置状态
+        submitBtn.disabled = true;
+        setTimeout(function () {
+          window.location.reload();
+        }, 180000);
+        return;
+      }
+      if (inOtp) {
+        document.getElementById('otpcode').value = '';
+        document.getElementById('otpcode').focus();
+      } else {
+        document.getElementById('password').value = '';
+        document.getElementById('password').focus();
+      }
+    } catch (error) {
+      showToast(langManager.getText('validationError') + ': ' + error.message, 'error');
+      submitBtn.disabled = false;
+      langManager.applyLanguage();
+    }
+  });
+</script>
+</body>
+</html>

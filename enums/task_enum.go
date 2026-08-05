@@ -25,4 +25,5 @@ const (
 	TASK_FIREWALL_CLEAN_EXPIRED       = "task_firewall_clean_expired"       //清理过期防火墙IP封禁规则
 	TASK_STATS_DATA_CLEANUP           = "task_stats_data_cleanup"           //清理统计数据（按保留策略）
 	TASK_THREAT_IP_SYNC               = "task_threat_ip_sync"               //威胁情报IP订阅同步
+	TASK_ACCESS_CLEAN                 = "task_access_clean"                 //统一访问认证：清理过期会话/令牌/票据与审计日志
 )

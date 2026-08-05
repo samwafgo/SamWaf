@@ -194,6 +194,11 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 			router.ApiGroupApp.InitBlockUrlRouter(securityAdminGroup)
 			router.ApiGroupApp.InitSensitiveRouter(securityAdminGroup)
 			router.ApiGroupApp.InitWafOwaspRouter(securityAdminGroup)
+			// 统一访问认证：账号、策略配置、在线会话都是访问控制决策，属安全管理员域
+			// （它的审计日志归审计管理员，见下方 auditAdminGroup）
+			router.ApiGroupApp.InitAccessAccountRouter(securityAdminGroup)
+			router.ApiGroupApp.InitAccessConfigRouter(securityAdminGroup)
+			router.ApiGroupApp.InitAccessSessionRouter(securityAdminGroup)
 		}
 
 		// === 审计管理员域：操作/账号审计日志（只读，独立审计其余两员）===
@@ -202,6 +207,9 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		{
 			router.ApiGroupApp.InitSysLogRouter(auditAdminGroup)
 			router.ApiGroupApp.InitAccountLogRouter(auditAdminGroup)
+			// 统一访问认证的审计日志：谁在什么时间从哪个IP登录了哪个站点。
+			// 放审计域而不是安全域，正是为了让安全管理员的动作也能被独立审计。
+			router.ApiGroupApp.InitAccessAuditRouter(auditAdminGroup)
 		}
 
 		// === 系统管理员域：系统配置 ===

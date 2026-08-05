@@ -7,6 +7,7 @@ import (
 	"SamWaf/iplocation"
 	"SamWaf/model"
 	"SamWaf/model/request"
+	"SamWaf/service/waf_service"
 	"SamWaf/wafipban"
 	"SamWaf/wafnotify/logfilewriter"
 	"SamWaf/wafowasp"
@@ -76,6 +77,15 @@ func setConfigIntValue(name string, value int64, change int) {
 		break
 	case "login_limit_mintutes":
 		global.GCONFIG_RECORD_LOGIN_LIMIT_MINTUTES = value
+		break
+	case "access_enable":
+		global.GCONFIG_ACCESS_ENABLE = value
+		// 总开关是运行时快照的一部分，改完必须重新发布，否则要等下次配置保存才生效。
+		// 这里也是"改错了能自救"的关键路径：管理端把开关拨回 0，最迟一个刷新周期就恢复。
+		waf_service.WafAccessConfigServiceApp.PublishConfig()
+		break
+	case "access_audit_retain_days":
+		global.GCONFIG_ACCESS_AUDIT_RETAIN_DAYS = value
 		break
 	case "enable_owasp":
 		global.GCONFIG_RECORD_ENABLE_OWASP = value
@@ -435,6 +445,9 @@ func TaskLoadSetting(initLoad bool) {
 	updateConfigIntItem(initLoad, "system", "ai_enable", global.GCONFIG_AI_ENABLE, "启动AI智能检测总开关（1启动 0关闭，需先在AI模型管理上传模型包并在站点开启）", "int", "", configMap)
 	updateConfigStringItem(initLoad, "system", "ai_mode", global.GCONFIG_AI_MODE, "AI检测工作模式：observe(仅记录/观察) block(达拦截阈值则拦截)", "options", "observe|仅记录,block|拦截", configMap)
 	updateConfigIntItem(initLoad, "system", "rule_chain_mode", global.GCONFIG_RULE_CHAIN_MODE, "自定义规则在检测链中的位置（0默认：排在CC之后；1规则优先：排在黑名单之后、Bot/SQLI/XSS等之前，此时规则的放行动作才能跳过这些检测）", "int", "", configMap)
+
+	updateConfigIntItem(initLoad, "access", "access_enable", global.GCONFIG_ACCESS_ENABLE, "统一访问认证总开关：开启后所有被WAF代理的站点默认都需先登录才能访问（可在站点里单独强制开/关，也可配置免认证路径与IP组）。请先在【统一访问认证-访问账号】里建好账号再开启", "options", "0|关闭,1|开启", configMap)
+	updateConfigIntItem(initLoad, "access", "access_audit_retain_days", global.GCONFIG_ACCESS_AUDIT_RETAIN_DAYS, "统一访问认证审计日志保留天数，默认90天", "int", "", configMap)
 
 	updateConfigIntItem(initLoad, "ssl", "enable_http_80", global.GCONFIG_RECORD_ENABLE_HTTP_80, "启动80端口服务（为自动申请证书使用 HTTP文件验证类型需要，DNS验证不需要）", "int", "", configMap)
 	updateConfigIntItem(initLoad, "ssl", "sslorder_expire_day", global.GCONFIG_RECORD_SSLOrder_EXPIRE_DAY, "自动续期检测小于多少天开始发起自动申请 默认30天", "int", "", configMap)

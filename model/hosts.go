@@ -61,6 +61,7 @@ type Hosts struct {
 	IPRealHeader   string `gorm:"size:64" json:"ip_real_header"`     //header/cdn_preset 模式指定的真实IP头，如 CF-Connecting-IP
 	IPTrustProxies string `gorm:"type:text" json:"ip_trust_proxies"` //可信代理网段(CIDR/IP，逗号分隔)，用于 xff_depth 跳过可信 hop
 	CDNProvider    string `gorm:"size:32" json:"cdn_provider"`       //cdn_preset 模式选择的 CDN 厂商: cloudflare|fastly|cloudfront|edgeone|aliyun|akamai
+	AccessJSON     string `gorm:"type:text" json:"access_json"`      //统一访问认证(Access模式)站点级配置 json（三态开关/路径白名单）
 }
 
 type HostsDefense struct {
@@ -317,6 +318,50 @@ func ParseUploadSecurityConfig(jsonStr string) UploadSecurityConfig {
 	}
 	if c.MaxSizeKB <= 0 {
 		c.MaxSizeKB = 10240
+	}
+	return c
+}
+
+// 站点级 Access 三态。判定实现只有一处，在 wafenginecore/accessgate.IsAccessEnabled。
+const (
+	AccessModeInherit = 0 // 继承全局总开关（默认）
+	AccessModeForceOn = 1 // 强制开启：全局关也要认证（单站点试点、只保护后台）
+	AccessModeForceOff = 2 // 强制关闭：全局开也放行（对外公开的站点）
+)
+
+// HostAccessConfig 是统一访问认证的站点级配置。
+//
+// 全局配置在 model.AccessConfig（单行表），这里只放「这个站点要不要参与、有哪些例外」。
+// 三态的存在是为了让全局开关真正可用：没有 ForceOff，用户就不敢开全局；
+// 没有 ForceOn，用户想只保护一个后台站点就得先开全局再逐个关掉其余站点。
+type HostAccessConfig struct {
+	Mode             int    `json:"mode"`                //0继承全局(默认) 1强制开启 2强制关闭
+	ExcludePaths     string `json:"exclude_paths"`       //本站免认证路径前缀，换行分隔
+	RequireOtp       int    `json:"require_otp"`         //0继承全局 1本站强制 2本站豁免
+	UnauthAction     string `json:"unauth_action"`       //""继承全局 auto|redirect|401
+	AllowIPGroupCode string `json:"allow_ip_group_code"` //本站额外的免认证 IP 组
+}
+
+// ParseAccessConfig 解析站点级 Access 配置。
+//
+// 空字符串与解析失败都返回 Mode=0（继承全局）。这一点是升级兼容的关键：
+// 存量站点的 access_json 列是 NULL/""，必须落在「继承」而不是「强制开」，
+// 否则用户升级到新版本的瞬间全站要求登录。
+func ParseAccessConfig(jsonStr string) HostAccessConfig {
+	c := HostAccessConfig{Mode: AccessModeInherit}
+	if jsonStr == "" {
+		return c
+	}
+	if err := json.Unmarshal([]byte(jsonStr), &c); err != nil {
+		return HostAccessConfig{Mode: AccessModeInherit}
+	}
+	if c.Mode < AccessModeInherit || c.Mode > AccessModeForceOff {
+		c.Mode = AccessModeInherit
+	}
+	switch c.UnauthAction {
+	case "", AccessUnauthAuto, AccessUnauthRedirect, AccessUnauth401:
+	default:
+		c.UnauthAction = ""
 	}
 	return c
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/viper"
 	"math/big"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -265,6 +266,21 @@ func LoadAndInitConfig() {
 	} else {
 		config.Set("security.ssl_bind_cert_id", global.GWAF_SSL_BIND_CERT_ID)
 		configChanged = true
+	}
+
+	//配置和提取统一访问认证的强制关闭开关（自救用）
+	//
+	//它只能从配置文件或环境变量设置，管理端故意不提供入口：这个开关的适用场景恰恰是
+	//「用户把管理端也反代进了 WAF 并开启了 Access，配错后自己都进不去管理端」——
+	//那时唯一能操作的就是配置文件。环境变量走 SAMWAF_ACCESS_DISABLE=1，容器场景更方便。
+	if config.IsSet("security.access_force_disable") {
+		global.GCONFIG_ACCESS_FORCE_DISABLE = config.GetBool("security.access_force_disable")
+	} else {
+		config.Set("security.access_force_disable", global.GCONFIG_ACCESS_FORCE_DISABLE)
+		configChanged = true
+	}
+	if v := strings.TrimSpace(os.Getenv("SAMWAF_ACCESS_DISABLE")); v == "1" || strings.EqualFold(v, "true") {
+		global.GCONFIG_ACCESS_FORCE_DISABLE = true
 	}
 
 	//配置和提取安全路径入口开关

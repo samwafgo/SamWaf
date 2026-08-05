@@ -228,6 +228,38 @@ func RunLogDBMigrations(db *gorm.DB) error {
 				return safeDropIndex(tx, "web_logs", "idx_web_logs_ai_score_day")
 			},
 		},
+		// 迁移: 创建统一访问认证审计日志表
+		// 放 log 库而不是 core 库：它与 account_logs 同属审计流水，生命周期一致（按天清理）。
+		// 而 wafdb/log_shard.go 的日志分库只搬 web_logs 一张表，本表不会因分库变得不可见。
+		{
+			ID: "202608040002_add_access_audit_log",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202608040002: 创建统一访问认证审计日志表")
+				if err := tx.AutoMigrate(&model.AccessAuditLog{}); err != nil {
+					return fmt.Errorf("创建 access_audit_log 表失败: %w", err)
+				}
+				// 管理端最常见的查询是「按时间倒序看某类事件」
+				if err := safeCreateIndex(tx, "access_audit_log", "idx_access_audit_day_event",
+					"CREATE INDEX IF NOT EXISTS idx_access_audit_day_event ON access_audit_log (day, event)"); err != nil {
+					zlog.Warn("创建索引 idx_access_audit_day_event 失败", "error", err.Error())
+				}
+				// 排查「某个账号/某个IP干了什么」
+				if err := safeCreateIndex(tx, "access_audit_log", "idx_access_audit_account",
+					"CREATE INDEX IF NOT EXISTS idx_access_audit_account ON access_audit_log (account_name)"); err != nil {
+					zlog.Warn("创建索引 idx_access_audit_account 失败", "error", err.Error())
+				}
+				if err := safeCreateIndex(tx, "access_audit_log", "idx_access_audit_ip",
+					"CREATE INDEX IF NOT EXISTS idx_access_audit_ip ON access_audit_log (client_ip)"); err != nil {
+					zlog.Warn("创建索引 idx_access_audit_ip 失败", "error", err.Error())
+				}
+				zlog.Info("access_audit_log 表创建成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202608040002: 删除统一访问认证审计日志表")
+				return tx.Migrator().DropTable(&model.AccessAuditLog{})
+			},
+		},
 	})
 
 	// 执行迁移

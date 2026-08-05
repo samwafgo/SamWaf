@@ -49,6 +49,7 @@ type WafHostAddReq struct {
 	UploadSecurityJSON        string `json:"upload_security_json"`         //文件上传内容检测配置 json
 	IPMode                    string `json:"ip_mode"`                      //IP提取模式: "nic" 网卡模式 或 "proxy" 代理模式
 	DisableHTTP2              int    `json:"disable_http2"`                //对外HTTP/2开关 0启用 1关闭(该站点只走http/1.1,兼容原生WebSocket客户端)
+	AccessJSON                string `json:"access_json"`                  //统一访问认证(Access模式)站点级配置 json
 }
 
 type WafHostDelReq struct {
@@ -106,6 +107,7 @@ type WafHostEditReq struct {
 	UploadSecurityJSON        string `json:"upload_security_json"`         //文件上传内容检测配置 json
 	IPMode                    string `json:"ip_mode"`                      //IP提取模式: "nic" 网卡模式 或 "proxy" 代理模式
 	DisableHTTP2              int    `json:"disable_http2"`                //对外HTTP/2开关 0启用 1关闭(该站点只走http/1.1,兼容原生WebSocket客户端)
+	AccessJSON                string `json:"access_json"`                  //统一访问认证(Access模式)站点级配置 json
 }
 type WafHostGuardStatusReq struct {
 	CODE         string `json:"code"`

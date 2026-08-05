@@ -1502,6 +1502,91 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移: 统一访问认证(Access 模式) —— 账号/会话/子令牌/票据/全局配置 五张表
+		// 对标 Cloudflare Access：开启后访问任何被代理的站点都要先登录，登录一次可放行多个站点。
+		// 会话与子令牌落库而不是只放缓存，是为了「重启不掉线」和「管理端能看到谁在线并踢下线」。
+		{
+			ID: "202608040001_add_access_tables",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202608040001: 创建统一访问认证相关表")
+				if err := tx.AutoMigrate(&model.AccessAccount{}, &model.AccessSession{},
+					&model.AccessToken{}, &model.AccessTicket{}, &model.AccessConfig{}); err != nil {
+					return fmt.Errorf("创建统一访问认证表失败: %w", err)
+				}
+				// 登录名在租户内唯一
+				if err := safeCreateIndex(tx, "access_account", "uni_access_account_name",
+					"CREATE UNIQUE INDEX IF NOT EXISTS uni_access_account_name ON access_account (user_code, tenant_id, account_name)"); err != nil {
+					zlog.Warn("创建索引 uni_access_account_name 失败", "error", err.Error())
+				}
+				// session_code / token_code / ticket_code 都是 sha256hex，全局唯一即可，
+				// 不带 user_code：它们是引擎热路径的查询键，多一列比较就多一分出错空间。
+				if err := safeCreateIndex(tx, "access_session", "uni_access_session_code",
+					"CREATE UNIQUE INDEX IF NOT EXISTS uni_access_session_code ON access_session (session_code)"); err != nil {
+					zlog.Warn("创建索引 uni_access_session_code 失败", "error", err.Error())
+				}
+				if err := safeCreateIndex(tx, "access_session", "idx_access_session_account",
+					"CREATE INDEX IF NOT EXISTS idx_access_session_account ON access_session (account_code, status)"); err != nil {
+					zlog.Warn("创建索引 idx_access_session_account 失败", "error", err.Error())
+				}
+				if err := safeCreateIndex(tx, "access_token", "uni_access_token_code",
+					"CREATE UNIQUE INDEX IF NOT EXISTS uni_access_token_code ON access_token (token_code)"); err != nil {
+					zlog.Warn("创建索引 uni_access_token_code 失败", "error", err.Error())
+				}
+				// 踢下线要按会话批量摘子令牌
+				if err := safeCreateIndex(tx, "access_token", "idx_access_token_session",
+					"CREATE INDEX IF NOT EXISTS idx_access_token_session ON access_token (session_code)"); err != nil {
+					zlog.Warn("创建索引 idx_access_token_session 失败", "error", err.Error())
+				}
+				// 清理任务按 status+expire_time 扫
+				if err := safeCreateIndex(tx, "access_token", "idx_access_token_expire",
+					"CREATE INDEX IF NOT EXISTS idx_access_token_expire ON access_token (status, expire_time)"); err != nil {
+					zlog.Warn("创建索引 idx_access_token_expire 失败", "error", err.Error())
+				}
+				if err := safeCreateIndex(tx, "access_ticket", "uni_access_ticket_code",
+					"CREATE UNIQUE INDEX IF NOT EXISTS uni_access_ticket_code ON access_ticket (ticket_code)"); err != nil {
+					zlog.Warn("创建索引 uni_access_ticket_code 失败", "error", err.Error())
+				}
+				if err := safeCreateIndex(tx, "access_ticket", "idx_access_ticket_expire",
+					"CREATE INDEX IF NOT EXISTS idx_access_ticket_expire ON access_ticket (expire_time)"); err != nil {
+					zlog.Warn("创建索引 idx_access_ticket_expire 失败", "error", err.Error())
+				}
+				zlog.Info("统一访问认证表创建成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202608040001: 删除统一访问认证表")
+				return tx.Migrator().DropTable(&model.AccessTicket{}, &model.AccessToken{},
+					&model.AccessSession{}, &model.AccessConfig{}, &model.AccessAccount{})
+			},
+		},
+		// 迁移: 站点表增加 access_json 列（站点级三态 + 路径白名单）
+		// 只改结构体不写迁移的话，存量 MySQL 库会直接报 1054 Unknown column。
+		{
+			ID: "202608040004_add_hosts_access_json",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202608040004: 为 hosts 表添加 access_json 字段")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "access_json") {
+					zlog.Info("access_json 字段已存在，跳过")
+					return nil
+				}
+				if err := tx.Migrator().AddColumn(&model.Hosts{}, "AccessJSON"); err != nil {
+					return fmt.Errorf("添加 hosts.access_json 字段失败: %w", err)
+				}
+				// 不回填任何值：空字符串经 model.ParseAccessConfig 解析即为 Mode=0(继承全局)，
+				// 而全局总开关默认关闭，所以存量站点升级后行为完全不变。
+				zlog.Info("hosts.access_json 字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202608040004: 删除 hosts.access_json 字段")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "AccessJSON") {
+					if err := tx.Migrator().DropColumn(&model.Hosts{}, "AccessJSON"); err != nil {
+						zlog.Warn("删除字段失败", "error", err.Error())
+					}
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

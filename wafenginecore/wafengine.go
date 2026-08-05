@@ -745,6 +745,18 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		}
 
+		// ── 统一访问认证(Access 模式) ──
+		// 位置是被四个约束同时钉死的，挪动前请确认都还成立：
+		//   1. 必须早于下面的 web 缓存与静态站点服务，否则未认证的人能直接拿到缓存正文/本地文件
+		//   2. 必须在 GUARD_STATUS 判定块之外——"关闭防御"关的是攻击检测，不该把访问控制一起关掉
+		//   3. 必须晚于自动跳 HTTPS(上方)，先跳到 https 再种 Cookie，Secure 属性才有意义
+		//   4. 必须晚于 CC 封禁与环路检测，别把登录页发给已被封禁的 IP
+		// 同理它显式不看 LogOnlyMode：仅记录模式是给攻击检测用的，
+		// 把访问控制静默降级成"只记录不拦截"会让用户以为站点受保护、实际却是敞开的。
+		if waf.DoAccessGate(w, r, hostTarget, &weblogbean, clientIP) == accessHandled {
+			return
+		}
+
 		if cacheConfig.IsEnableCache == 1 && !strings.HasPrefix(weblogbean.URL, global.GSSL_HTTP_CHANGLE_PATH) {
 			cacheResp := wafwebcache.LoadWebDataFormCache(w, r, hostTarget, cacheConfig, &weblogbean)
 			if cacheResp != nil {

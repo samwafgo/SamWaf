@@ -53,6 +53,23 @@ func (e *IPExtractor) ValidateItem(item string) bool {
 	return validRet
 }
 
+// IPGroupExtractor IP组条目提取器。
+//
+// 抽取逻辑与黑/白名单完全一致，只多挡一层「全通配」：组可能被白名单引用，
+// 源里混进一条 *.*.*.* 就等于全站放行，而手工录入(validateGroupItemIP)本来就是拒绝的，
+// 两个入口必须同样严格。
+type IPGroupExtractor struct {
+	IPExtractor
+}
+
+// ValidateItem 在 IP 合法性之外额外拒绝全通配写法
+func (e *IPGroupExtractor) ValidateItem(item string) bool {
+	if utils.IsCatchAllIPPattern(item) {
+		return false
+	}
+	return e.IPExtractor.ValidateItem(item)
+}
+
 // DefaultExtractor 默认提取器，不做特殊处理
 type DefaultExtractor struct{}
 
@@ -84,6 +101,8 @@ func GetExtractor(batchType string) ItemExtractor {
 	switch batchType {
 	case "ipallow", "ipdeny":
 		return &IPExtractor{}
+	case "ipgroup":
+		return &IPGroupExtractor{}
 	case "sensitive":
 		return &SensitiveExtractor{}
 	default:

@@ -38,6 +38,9 @@ func BatchTask() {
 		case enums.BATCHTASK_IPDENY:
 			IPDenyBatch(batchTask)
 			break
+		case enums.BATCHTASK_IPGROUP:
+			IPGroupBatch(batchTask)
+			break
 		case enums.BATCHTASK_SENSITIVE:
 			SensitiveBatch(batchTask)
 			break
@@ -63,6 +66,17 @@ func IPDenyBatch(task model.BatchTask) {
 	config := batch.BatchProcessorConfig{
 		BatchSize: 1000,
 		LogPrefix: "BatchTask-IPDenyBatch",
+	}
+	batch.ProcessBatchTask(task, processor, config)
+}
+
+// IPGroupBatch IP组条目批量处理。
+// 处理器持有跨批次状态(覆盖模式的差集)，所以每次执行都要新建实例，不能复用。
+func IPGroupBatch(task model.BatchTask) {
+	processor := &batch.IPGroupProcessor{}
+	config := batch.BatchProcessorConfig{
+		BatchSize: 1000,
+		LogPrefix: "BatchTask-IPGroupBatch",
 	}
 	batch.ProcessBatchTask(task, processor, config)
 }

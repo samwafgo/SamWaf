@@ -185,8 +185,10 @@ func SSLExpireCheck() {
 	defer func() {
 		global.GWAF_RUNTIME_SSL_EXPIRE_CHECK = false
 	}()
-	SyncHostToSslCheck()
 	innerLogName := "SSLExpireCheck"
+	if global.GCONFIG_SSL_EXPIRE_AUTO_SYNC_HOST == 1 {
+		SyncHostToSslCheck()
+	}
 	zlog.Info(innerLogName, "准备进行SSL证书过期检测")
 	sslExpires, cnt, err := wafSslExpireService.GetAllList()
 	if err != nil {

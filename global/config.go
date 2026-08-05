@@ -52,17 +52,20 @@ var (
 	//规则优先模式下，规则的放行动作(RF.Allow)才能跳过 Bot/SQLI/XSS/扫描/RCE/目录穿越/CC 这些检测
 	GCONFIG_RULE_CHAIN_MODE int64 = 0
 
-	GCONFIG_OWASP_BLOCK_THRESHOLD      int64  = 7         //OWASP 入站 anomaly score 阈值(官方默认 5,我们宽松到 7)
-	GCONFIG_RECORD_ENABLE_HTTP_80      int64  = 0         //启动80端口服务（为自动申请证书使用 HTTP文件验证类型，DNS验证不需要）
-	GCONFIG_RECORD_SSLOrder_EXPIRE_DAY int64  = 30        // 提前多少天进行自动申请
-	GCONFIG_RECORD_SSL_IP_CERT_IP      string = ""        // 获取IP证书时的IP地址
-	GCONFIG_RECORD_SSL_IP_EXPIRE_DAY   int64  = 3         // IP证书提前多少天进行自动申请
-	GCONFIG_RECORD_SSLHTTP_CHECK       int64  = 0         // ssl申请文件验证类型 是否校验原始路径HTTP响应代码 1 校验 0 不校验
-	GCONFIG_RECORD_SSLMinVerson        string = "TLS 1.2" // ssl最低版本
-	GCONFIG_RECORD_SSLMaxVerson        string = "TLS 1.3" // ssl最大版本
-	GCONFIG_RECORD_CONNECT_TIME_OUT    int64  = 30        // 连接超时 默认30s
-	GCONFIG_RECORD_KEEPALIVE_TIME_OUT  int64  = 30        // 保持活动超时 默认30s
-	GCONFIG_RECORD_DRAIN_TIMEOUT       int64  = 30        // 升级/停止时连接优雅排空超时(秒) 默认30s，超时仍未排空的连接将被强制关闭
+	GCONFIG_OWASP_BLOCK_THRESHOLD      int64  = 7  //OWASP 入站 anomaly score 阈值(官方默认 5,我们宽松到 7)
+	GCONFIG_RECORD_ENABLE_HTTP_80      int64  = 0  //启动80端口服务（为自动申请证书使用 HTTP文件验证类型，DNS验证不需要）
+	GCONFIG_RECORD_SSLOrder_EXPIRE_DAY int64  = 30 // 提前多少天进行自动申请
+	GCONFIG_RECORD_SSL_IP_CERT_IP      string = "" // 获取IP证书时的IP地址
+	GCONFIG_RECORD_SSL_IP_EXPIRE_DAY   int64  = 3  // IP证书提前多少天进行自动申请
+	GCONFIG_RECORD_SSLHTTP_CHECK       int64  = 0  // ssl申请文件验证类型 是否校验原始路径HTTP响应代码 1 校验 0 不校验
+	//SSL过期检测任务开始前，是否自动把已配置的SSL主机同步进过期检测列表 1同步(默认) 0不同步
+	//关掉之后过期检测只查用户自己在列表里维护的域名，不会再被主机配置自动塞回来（手动点【同步主机】按钮仍然可用）
+	GCONFIG_SSL_EXPIRE_AUTO_SYNC_HOST int64  = 1
+	GCONFIG_RECORD_SSLMinVerson       string = "TLS 1.2" // ssl最低版本
+	GCONFIG_RECORD_SSLMaxVerson       string = "TLS 1.3" // ssl最大版本
+	GCONFIG_RECORD_CONNECT_TIME_OUT   int64  = 30        // 连接超时 默认30s
+	GCONFIG_RECORD_KEEPALIVE_TIME_OUT int64  = 30        // 保持活动超时 默认30s
+	GCONFIG_RECORD_DRAIN_TIMEOUT      int64  = 30        // 升级/停止时连接优雅排空超时(秒) 默认30s，超时仍未排空的连接将被强制关闭
 	//GCONFIG_RECORD_PATCH_VERSION_CORE  int64 = 20250106 // 核心数据库补丁日期
 	//GCONFIG_RECORD_PATCH_VERSION_LOG   int64 = 20250106 // 日志数据库补丁日期
 	GCONFIG_RECORD_ALL_SRC_BYTE_INFO int64 = 0 //记录原始信息(默认不开启)

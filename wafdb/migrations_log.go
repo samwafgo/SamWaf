@@ -297,6 +297,26 @@ func RunLogDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移: 创建管理端登录历史表（登录提醒 + 登录历史查询）
+		{
+			ID: "202608060001_add_login_history_table",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202608060001: 创建登录历史表")
+				if err := tx.AutoMigrate(
+					&model.LoginHistory{},
+				); err != nil {
+					return fmt.Errorf("创建登录历史表失败: %w", err)
+				}
+				zlog.Info("登录历史表创建成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202608060001: 删除登录历史表")
+				return tx.Migrator().DropTable(
+					&model.LoginHistory{},
+				)
+			},
+		},
 	})
 
 	// 执行迁移

@@ -23,6 +23,7 @@ type APIGroup struct {
 	WafBlockUrlApi
 	WafAccountApi
 	WafAccountLogApi
+	WafLoginHistoryApi
 	WafLoginApi
 	WafSysLogApi
 	WafWebSocketApi
@@ -95,9 +96,10 @@ var (
 	wafAccessAuditService   = waf_service.WafAccessAuditServiceApp
 	wafIPGroupItemService   = waf_service.WafIPGroupItemServiceApp
 
-	wafAccountService    = waf_service.WafAccountServiceApp
-	wafAccountLogService = waf_service.WafAccountLogServiceApp
-	wafTokenInfoService  = waf_service.WafTokenInfoServiceApp
+	wafAccountService      = waf_service.WafAccountServiceApp
+	wafAccountLogService   = waf_service.WafAccountLogServiceApp
+	wafLoginHistoryService = waf_service.WafLoginHistoryServiceApp
+	wafTokenInfoService    = waf_service.WafTokenInfoServiceApp
 
 	wafSysLogService       = waf_service.WafSysLogServiceApp
 	wafSystemConfigService = waf_service.WafSystemConfigServiceApp

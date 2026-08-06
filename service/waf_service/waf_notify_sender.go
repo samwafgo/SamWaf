@@ -437,10 +437,30 @@ func (receiver *WafNotifySenderService) FormatOperatorMessage(msg innerbean.Oper
 }
 
 // FormatUserLoginMessageFromBean 格式化用户登录消息（从Bean）
+//
+// 来源变化（换 IP / 换归属地）走独立的 manage_login_abnormal 类型：
+// 正文里把上次的 IP、归属地、时间一并摆出来，收到告警的人不用再去翻登录历史就能判断是不是自己。
 func (receiver *WafNotifySenderService) FormatUserLoginMessageFromBean(msg innerbean.UserLoginMessageInfo) (string, string, string) {
-	messageType := "user_login" // 用户登录类型
+	if msg.Abnormal {
+		return model.MSG_TYPE_MANAGE_LOGIN_ABNORMAL,
+			"管理端登录来源变化告警",
+			buildManageLoginAbnormalContent(msg.Username, msg.Ip, msg.Time, msg.LastIp, msg.LastLocation, msg.LastTime)
+	}
+	messageType := model.MSG_TYPE_USER_LOGIN // 用户登录类型
 	title, content := receiver.FormatUserLoginMessage(msg.Username, msg.Ip, msg.Time)
 	return messageType, title, content
+}
+
+// buildManageLoginAbnormalContent 拼「本次 vs 上次」的告警正文
+func buildManageLoginAbnormalContent(username, ip, loginTime, lastIp, lastLocation, lastTime string) string {
+	fallback := func(s string) string {
+		if strings.TrimSpace(s) == "" {
+			return "未知"
+		}
+		return s
+	}
+	return fmt.Sprintf("**用户:** %s\n\n**本次登录IP:** %s\n\n**本次登录时间:** %s\n\n**上次登录IP:** %s\n\n**上次归属地:** %s\n\n**上次登录时间:** %s\n\n本次登录来源与上次不一致，若非本人操作请立即修改密码。",
+		username, ip, loginTime, fallback(lastIp), fallback(lastLocation), fallback(lastTime))
 }
 
 // FormatAccessMessageFromBean 格式化统一访问认证事件（从Bean）

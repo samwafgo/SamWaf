@@ -21,6 +21,7 @@ type ApiGroup struct {
 	BlockUrlRouter
 	AccountRouter
 	AccountLogRouter
+	LoginHistoryRouter
 	LoginOutRouter
 	SysLogRouter
 	WebSocketRouter

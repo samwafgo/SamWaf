@@ -293,6 +293,25 @@ func (receiver *WafAccountService) GetInfoByLoginApi(req request.WafLoginReq) mo
 	return bean
 }
 
+// UpdateLastLoginInfo 登录成功后刷新账号上的「上次登录」信息
+//
+// 存在 core 库的 account 表上，而不是只依赖日志库的 login_history：
+// 日志库会被数据保留策略清理，清完之后老账号不能被当成「首次登录」而漏掉来源变化提醒。
+// 失败只记日志不返回错误：这是提醒功能的附属数据，不该让它把登录流程带崩。
+func (receiver *WafAccountService) UpdateLastLoginInfo(loginAccount, ip, area, loginTime string) {
+	if loginAccount == "" {
+		return
+	}
+	err := global.GWAF_LOCAL_DB.Model(model.Account{}).Where("login_account = ?", loginAccount).Updates(map[string]interface{}{
+		"last_login_ip":   ip,
+		"last_login_area": area,
+		"last_login_time": loginTime,
+	}).Error
+	if err != nil {
+		zlog.Warn("更新账号上次登录信息失败", "error", err.Error())
+	}
+}
+
 /*
 *
 通过登录account获取账号信息

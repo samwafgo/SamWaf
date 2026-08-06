@@ -280,6 +280,11 @@ func handleUserLoginMessage(msg innerbean.UserLoginMessageInfo) {
 	waf_service.WafNotifySenderServiceApp.SendMessageInfo(msg)
 
 	// 2. 发送到 WebSocket
+	if msg.Abnormal {
+		wsContent := fmt.Sprintf("用户 %s 从 %s 登录，与上次(%s %s)来源不一致", msg.Username, msg.Ip, msg.LastIp, msg.LastLocation)
+		sendToWebSocket("登录来源变化", wsContent, nil, "Warning")
+		return
+	}
 	wsContent := fmt.Sprintf("用户 %s 从 %s 登录", msg.Username, msg.Ip)
 	sendToWebSocket("用户登录", wsContent, nil, "Info")
 }

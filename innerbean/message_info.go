@@ -72,6 +72,13 @@ type UserLoginMessageInfo struct {
 	Username string `json:"username"` // 用户名
 	Ip       string `json:"ip"`       // 登录IP
 	Time     string `json:"time"`     // 登录时间
+
+	// 登录来源变化告警（本次 IP 或归属地与该账号上次登录不一致）
+	// 走独立的消息类型 manage_login_abnormal，让只想收告警的人不被每次正常登录打扰。
+	Abnormal     bool   `json:"abnormal"`      // 是否与上次登录来源不一致
+	LastIp       string `json:"last_ip"`       // 上次登录IP
+	LastLocation string `json:"last_location"` // 上次登录归属地
+	LastTime     string `json:"last_time"`     // 上次登录时间
 }
 
 /*

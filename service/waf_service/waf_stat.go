@@ -13,6 +13,7 @@ import (
 	"github.com/shirou/gopsutil/v4/host"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -606,15 +607,34 @@ func (receiver *WafStatService) StatHomeRumtimeSysinfo() []response2.WafNameValu
 		Value: time.Unix(0,
 			global.GWAF_MEASURE_PROCESS_DEQUEENGINE.ReadData()*int64(time.Millisecond)).Format("2006-01-02 15:04:05")})
 	data = append(data, response2.WafNameValue{Name: "Goroutine数量", Value: fmt.Sprintf("%v", runtime.NumGoroutine())})
+	osDetail := utils.GetOSDetail()
 	data = append(data, response2.WafNameValue{Name: "系统类型", Value: fmt.Sprintf("%v", runtime.GOOS)})
 	data = append(data, response2.WafNameValue{Name: "系统架构", Value: fmt.Sprintf("%v", runtime.GOARCH)})
-	data = append(data, response2.WafNameValue{Name: "编译器版本", Value: fmt.Sprintf("%v", runtime.Version())})
-	data = append(data, response2.WafNameValue{Name: "Win7内核", Value: func() string {
-		if global.GWAF_RUNTIME_WIN7_VERSION == "true" {
-			return "是"
+	// 具体操作系统发行版及版本，如 Ubuntu 24.04.1 LTS / Microsoft Windows Server 2012 R2 Standard
+	if osDetail.OSName != "" {
+		data = append(data, response2.WafNameValue{Name: "操作系统", Value: osDetail.OSName})
+	}
+	if osDetail.KernelVersion != "" {
+		kernel := osDetail.KernelVersion
+		if osDetail.KernelArch != "" {
+			kernel = kernel + " (" + osDetail.KernelArch + ")"
 		}
-		return "否"
-	}()})
+		data = append(data, response2.WafNameValue{Name: "内核版本", Value: kernel})
+	}
+	// 运行环境：容器/K8s/WSL/虚拟化，只有识别到才展示
+	if env := describeRuntimeEnv(osDetail); env != "" {
+		data = append(data, response2.WafNameValue{Name: "运行环境", Value: env})
+	}
+	data = append(data, response2.WafNameValue{Name: "编译器版本", Value: fmt.Sprintf("%v", runtime.Version())})
+	// Win7内核只在 Windows 下才有意义，其它系统不展示
+	if osDetail.IsWindows {
+		data = append(data, response2.WafNameValue{Name: "Win7内核", Value: func() string {
+			if global.GWAF_RUNTIME_WIN7_VERSION == "true" {
+				return "是"
+			}
+			return "否"
+		}()})
+	}
 	// 获取开机时间
 	boottime, _ := host.BootTime()
 	ntime := time.Now().Unix()
@@ -631,6 +651,8 @@ func (receiver *WafStatService) StatHomeRumtimeSysinfo() []response2.WafNameValu
 
 	data = append(data, response2.WafNameValue{
 		Name: "系统已运行时长", Value: fmt.Sprintf("%v 天 %v 时 %v 分 %v 秒", days, hours, minutes, seconds)})
+	data = append(data, response2.WafNameValue{
+		Name: "程序已运行时长", Value: utils.FormatDurationCN(int64(time.Since(global.GWAF_RUNTIME_PROCESS_START_TIME).Seconds()))})
 
 	data = append(data, response2.WafNameValue{Name: "软件版本", Value: fmt.Sprintf("%v", global.GWAF_RELEASE_VERSION_NAME)})
 	data = append(data, response2.WafNameValue{Name: "软件版本Code", Value: fmt.Sprintf("%v", global.GWAF_RELEASE_VERSION)})
@@ -642,4 +664,22 @@ func (receiver *WafStatService) StatHomeRumtimeSysinfo() []response2.WafNameValu
 	data = append(data, response2.WafNameValue{Name: "当前隧道端口使用列表", Value: fmt.Sprintf("%v", global.GWAF_RUNTIME_CURRENT_TUNNELPORT)})
 
 	return data
+}
+
+// describeRuntimeEnv 把容器/K8s/WSL/虚拟化信息拼成一句可读描述，都没识别到就返回空字符串
+func describeRuntimeEnv(detail utils.OSDetail) string {
+	var parts []string
+	if detail.Container != "" {
+		parts = append(parts, "容器("+detail.Container+")")
+	}
+	if detail.InKubernetes {
+		parts = append(parts, "Kubernetes")
+	}
+	if detail.IsWSL {
+		parts = append(parts, "WSL")
+	}
+	if detail.Virtualization != "" {
+		parts = append(parts, "虚拟化("+detail.Virtualization+")")
+	}
+	return strings.Join(parts, " / ")
 }

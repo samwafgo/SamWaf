@@ -16,6 +16,7 @@ func (receiver *WebSysInfoRouter) InitSysInfoRouter(group *gin.RouterGroup) {
 	router := group.Group("")
 	router.GET("/api/v1/sysinfo/version", api.SysVersionApi)
 	router.GET("/api/v1/sysinfo/checkversion", api.CheckVersionApi)
+	router.GET("/api/v1/sysinfo/runtimeinfo", api.SysRuntimeInfoApi)
 	// N7：自升级/回滚属高危系统操作，仅系统管理员(或超管)可执行
 	router.GET("/api/v1/sysinfo/update", middleware.RequireRole(enums.ROLE_SYSTEM_ADMIN), api.UpdateApi)
 	router.GET("/api/v1/sysinfo/announcement", api.GetAnnouncementApi)

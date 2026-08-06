@@ -2,6 +2,9 @@ package request
 
 type WafGptSendReq struct {
 	History [][]string `json:"history"` // 定义结构体
+	// Scene 对话场景，决定用哪套系统提示词：
+	// security_log 日志安全分析 / owasp_rule OWASP规则解读 / general 通用问答（默认）
+	Scene string `json:"scene"`
 }
 
 // WafGptRuleReq AI 生成自定义规则请求

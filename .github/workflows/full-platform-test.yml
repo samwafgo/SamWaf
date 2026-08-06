@@ -61,25 +61,39 @@ jobs:
           cp dist/samwaf_linux_arm64_*/SamWafLinuxArm64 out/
           ls -lh out
 
+      - name: Write CI test build marker
+        run: |
+          # goreleaser 的 ldflags 用 {{.Tag}}，snapshot 下就是 HEAD 可达的最新 tag，
+          # 版本号本身不会触发连续升级；这里补一份包内说明，标明是测试构建。
+          export VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo unknown)
+          export VERSION_NAME="$(date +'%Y%m%d')（goreleaser snapshot 构建，程序内版本名不带 citest 前缀，以本文件为准）"
+          OUT_DIR=out bash .github/scripts/write-citest-marker.sh
+
       - name: Upload SamWafLinux64
         uses: actions/upload-artifact@v4
         with:
           name: SamWafLinux64
-          path: out/SamWafLinux64
+          path: |
+            out/SamWafLinux64
+            out/README-CITEST.txt
           retention-days: 3
 
       - name: Upload SamWaf64.exe
         uses: actions/upload-artifact@v4
         with:
           name: SamWaf64
-          path: out/SamWaf64.exe
+          path: |
+            out/SamWaf64.exe
+            out/README-CITEST.txt
           retention-days: 3
 
       - name: Upload SamWafLinuxArm64
         uses: actions/upload-artifact@v4
         with:
           name: SamWafLinuxArm64
-          path: out/SamWafLinuxArm64
+          path: |
+            out/SamWafLinuxArm64
+            out/README-CITEST.txt
           retention-days: 3
 
   # ============ 2. Linux amd64 启动冒烟 ============
@@ -270,9 +284,20 @@ jobs:
         env:
           CGO_ENABLED: 1
           MACOSX_DEPLOYMENT_TARGET: "10.15"
+          GH_TOKEN: ${{ github.token }}
         run: |
-          CURRENT_TAG="citest-${{ github.run_number }}"
-          BUILDTIME=$(date +'%Y%m%d')
+          # 版本号对齐 GitHub Releases 上的最新版本：避免测试者下载后被
+          # "先升正式版、再升测试版"连续推着升级（旧值 citest-<run_number> 还不是合法 semver，
+          # 会被 semver.Compare 当成最小版本，必定触发升级）。
+          CURRENT_TAG=$(curl -sSL -H "Authorization: Bearer $GH_TOKEN" \
+            https://api.github.com/repos/samwafgo/SamWaf/releases/latest | jq -r '.tag_name // empty') || true
+          if [ -z "$CURRENT_TAG" ]; then CURRENT_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true); fi
+          if [ -z "$CURRENT_TAG" ]; then CURRENT_TAG="v1.0.0"; fi
+          # 版本名带 citest- 前缀作为"仅供单独测试"的标记（只用于展示，不参与版本比较）
+          BUILDTIME="citest-$(date +'%Y%m%d')-run${{ github.run_number }}-$(git rev-parse --short HEAD)"
+          echo "version=${CURRENT_TAG} versionName=${BUILDTIME}"
+          echo "VERSION=${CURRENT_TAG}" >> $GITHUB_ENV
+          echo "VERSION_NAME=${BUILDTIME}" >> $GITHUB_ENV
 
           echo "Building macOS AMD64..."
           GOOS=darwin GOARCH=amd64 go build \
@@ -333,6 +358,9 @@ jobs:
         run: |
           find /tmp/smoke-arm64 /tmp/smoke-amd64 -name '*.log' -type f 2>/dev/null | while read f; do echo "===== $f ====="; cat "$f"; done
 
+      - name: Write CI test build marker
+        run: OUT_DIR=dist bash .github/scripts/write-citest-marker.sh
+
       - name: Upload macOS binaries
         uses: actions/upload-artifact@v4
         with:
@@ -340,6 +368,7 @@ jobs:
           path: |
             dist/SamWafDarwinAmd64
             dist/SamWafDarwinArm64
+            dist/README-CITEST.txt
           retention-days: 3
 
   # ============ 6. Win7/Win2008R2 专用版编译（补丁版 Go 1.25） ============
@@ -391,16 +420,29 @@ jobs:
           CC: x86_64-w64-mingw32-gcc
           CXX: x86_64-w64-mingw32-g++
           CGO_CFLAGS: -Wno-unused-variable -Wno-implicit-function-declaration
+          GH_TOKEN: ${{ github.token }}
         run: |
-          CURRENT_TAG="citest-${{ github.run_number }}"
-          BUILDTIME=$(date +'%Y%m%d')
+          # 同 macOS 任务：版本号对齐线上最新发布版本，版本名带 citest- 测试标记
+          CURRENT_TAG=$(curl -sSL -H "Authorization: Bearer $GH_TOKEN" \
+            https://api.github.com/repos/samwafgo/SamWaf/releases/latest | jq -r '.tag_name // empty') || true
+          if [ -z "$CURRENT_TAG" ]; then CURRENT_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true); fi
+          if [ -z "$CURRENT_TAG" ]; then CURRENT_TAG="v1.0.0"; fi
+          BUILDTIME="citest-$(date +'%Y%m%d')-run${{ github.run_number }}-$(git rev-parse --short HEAD)"
+          echo "version=${CURRENT_TAG} versionName=${BUILDTIME}"
+          echo "VERSION=${CURRENT_TAG}" >> $GITHUB_ENV
+          echo "VERSION_NAME=${BUILDTIME}" >> $GITHUB_ENV
           go build -ldflags="-X SamWaf/global.GWAF_RUNTIME_WIN7_VERSION=true -X SamWaf/global.GWAF_RELEASE=true -X SamWaf/global.GWAF_RELEASE_VERSION_NAME=${BUILDTIME} -X SamWaf/global.GWAF_RELEASE_VERSION=${CURRENT_TAG} -s -w -extldflags '-static'" -o ./release/SamWaf64ForWin7Win8Win2008.exe ./cmd/samwaf/main.go
+
+      - name: Write CI test build marker
+        run: OUT_DIR=release bash .github/scripts/write-citest-marker.sh
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: SamWaf64ForWin7Win8Win2008
-          path: release/SamWaf64ForWin7Win8Win2008.exe
+          path: |
+            release/SamWaf64ForWin7Win8Win2008.exe
+            release/README-CITEST.txt
           retention-days: 3
 
   # ============ 7. Win7 专用版在 windows-2022 上近似冒烟（2008R2 无托管镜像） ============

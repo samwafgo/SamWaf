@@ -63,6 +63,8 @@ var (
 	GWAF_RUNTIME_CURRENT_TUNNELPORT              string = "" //当前程序所占用隧道端口
 	GWAF_RUNTIME_CURRENT_EXPORT_DB_LOG_FILE_PATH string = "" //生成的日志导出文件路径
 
+	GWAF_RUNTIME_PROCESS_START_TIME time.Time = time.Now() //当前进程启动时间(包加载即赋值)
+
 	GWAF_RUNTIME_SSL_EXPIRE_CHECK bool = false //SSL过期检测是否正在运行
 	GWAF_RUNTIME_SSL_SYNC_HOST    bool = false //主机同步信息到过期检测是否正在运行
 	/**

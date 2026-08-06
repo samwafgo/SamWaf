@@ -1,6 +1,7 @@
 package api
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/model/common/response"
@@ -293,6 +294,75 @@ func (w *WafGPTApi) SaveGptConfigApi(c *gin.Context) {
 	response.OkWithMessage("保存成功", c)
 }
 
+// ============ 对话场景与系统提示词 ============
+// AI 助手是多入口共用的：日志详情点"AI分析"、OWASP 规则解读、右下角自由提问。
+// 以前不管从哪来都硬套"信息安全专家 + 风险等级/风险类型/风险说明"这套格式，
+// 结果随便问一句也被套成风险报告。这里按场景分开，前端发 scene，后端选提示词。
+const (
+	GptSceneSecurityLog = "security_log" // 日志详情：分析这条请求的安全风险
+	GptSceneOwaspRule   = "owasp_rule"   // OWASP CRS 规则解读
+	GptSceneGeneral     = "general"      // 通用问答（默认）
+)
+
+const gptSystemPromptSecurityLog = `你是一位信息安全专家，正在分析 SamWaf（Web 应用防火墙）记录到的一条 HTTP 请求。请判断这条请求是否存在攻击特征，输出如下格式：
+
+风险等级: 0-100
+风险类型:某种注入，跨站等
+风险说明:对风险的阐释`
+
+// gptDocRefs 官方资料索引。
+// 注意：对话走的是标准 chat/completions，没有联网/检索工具，模型打不开任何网页。
+// 所以这里不是"让它去搜"，而是给它一份**准确的地址清单**，让它把用户导向官方文档和 issues，
+// 同时明确禁止它编造链接或假装读过页面——否则模型很容易凭空造出 /guide/XXX.html。
+const gptDocRefs = `
+
+# 官方资料（你没有联网能力，只能引用下面列出的地址；禁止编造其它链接，也不要声称自己读过页面内容）
+- 文档站首页：https://doc.samwaf.com/
+- 功能文档地址格式：https://doc.samwaf.com/guide/<页面名>.html（英文界面把 /guide/ 换成 /en/guide/）
+- 可用的页面名（只能从这里挑，拿不准就只给文档站首页）：
+  Host 网站配置 | Rule 防护规则 | CC CC防护 | Owasp OWASP规则集 | AIDetection AI智能检测 |
+  IPBlack IP黑名单 | IPWhite IP白名单 | IPGroup IP组 | ThreatIP 威胁情报IP订阅 | FirewallIPBlock 防火墙IP封禁 |
+  UrlBlack URL限制访问 | UrlWhite URL白名单 | Sensitive 敏感词 | Ldp URL隐私防护 | Spider 爬虫识别 |
+  SSL SSL证书管理 | CDNIP CDN回源IP | Tunnel 隧道防护 | CacheRule 缓存规则 | Application 应用管理 |
+  AttackLog 风险日志 | VisitLog 访问日志 | Analysis 数据分析 | BlockingPage 自定义拦截页 |
+  NotifyChannel 通知渠道 | NotifySubscription 通知订阅 | NotifyLog 通知日志 |
+  HttpAuthBase 网站访问认证 | AccessConfig 认证配置 | AccessAccount 访问账号 | AccessSession 在线会话 | AccessAudit 认证审计 |
+  Account 账号管理 | Otp 双因素认证 | SystemConfig 系统配置 | VpConfig 参数设置 | PrivateInfo 密钥管理 |
+  OpenPlatform 开放平台 | SqlQuery SQL查询 | Task 任务管理 | BatchTask 批量任务 | DataRetention 数据保留策略 |
+  IPLocation IP数据库 | FileManage 文件管理 | RuntimeInfo 运行信息 | SysLog 系统日志 | OneKeyMod 一键修改
+- 常见问题：https://doc.samwaf.com/faq/
+- 安装与升级：https://doc.samwaf.com/quickstart/ 、https://doc.samwaf.com/quickstart/Update.html
+- 已知问题与反馈：https://github.com/samwafgo/SamWaf/issues
+  引导用户自己检索时，给出可直接点击的搜索地址：https://github.com/samwafgo/SamWaf/issues?q=is%3Aissue+关键词（多个关键词用 + 连接）
+
+引用规则：
+1. 回答涉及某个具体功能时，在结尾附上对应文档页链接。
+2. 用户描述的现象像 bug、或你不确定当前版本是否支持，就直说"建议到 issues 搜一下，没有就提一个"，并给出上面的 issues 搜索地址。
+3. 只给地址，不要转述你没有的页面内容，也不要编造文档里的章节名或配置项名称。`
+
+const gptSystemPromptOwaspRule = `你是 OWASP ModSecurity 核心规则集(CRS)专家，正在帮用户读懂 SamWaf 里的一条 CRS 规则。请用简洁中文说明：
+1. 这条规则想拦什么攻击；
+2. 匹配条件的含义（变量、操作符、转换函数分别起什么作用）；
+3. 常见误报场景；
+4. 如果确认是误报，建议怎么处理（加白名单、调整阈值/等级、或对该规则单独放行）。
+不要输出与规则无关的内容。` + gptDocRefs
+
+const gptSystemPromptGeneral = `你是 SamWaf（一款开源轻量级 Web 应用防火墙）的智能助手，熟悉 Web 安全、网站防护、反向代理、SSL 证书、WAF 规则与告警等话题。
+请直接回答用户的问题：用与用户提问相同的语言（默认中文），简洁作答，必要时分点说明；不知道就说不知道，不要编造 SamWaf 不存在的功能。
+不要给回答强行套用固定模板或风险评分格式，除非用户明确要求。` + gptDocRefs
+
+// gptSystemPromptByScene 按场景取系统提示词，未知场景一律按通用问答处理
+func gptSystemPromptByScene(scene string) string {
+	switch strings.TrimSpace(strings.ToLower(scene)) {
+	case GptSceneSecurityLog:
+		return gptSystemPromptSecurityLog
+	case GptSceneOwaspRule:
+		return gptSystemPromptOwaspRule
+	default:
+		return gptSystemPromptGeneral
+	}
+}
+
 // 新增用于解析流式响应的结构体
 type StreamResponse struct {
 	ID                string         `json:"id"`
@@ -322,6 +392,20 @@ type TokenUsage struct {
 	TotalTokens      int `json:"total_tokens"`
 }
 
+// buildDeltaPayload 组装一条加密后的 SSE 消息体
+func buildDeltaPayload(content string, role string) (string, error) {
+	encryptStr, _ := wafsec.AesEncrypt([]byte(content), global.GWAF_COMMUNICATION_KEY)
+	msg := Delta{
+		Content: encryptStr,
+		Role:    &role,
+	}
+	payload, err := json.Marshal(msg)
+	if err != nil {
+		return "", err
+	}
+	return string(payload), nil
+}
+
 // SendDeltaMessage 发送信息
 func SendDeltaMessage(messageChan chan<- string, content string, role ...string) {
 	// 设置默认角色为 assistant
@@ -329,23 +413,25 @@ func SendDeltaMessage(messageChan chan<- string, content string, role ...string)
 	if len(role) > 0 {
 		r = role[0]
 	}
-	encryptStr, _ := wafsec.AesEncrypt([]byte(content), global.GWAF_COMMUNICATION_KEY)
-	// 创建消息结构
-	msg := Delta{
-		Content: encryptStr,
-		Role:    &r,
-	}
-
-	// 序列化并发送
-	if payload, err := json.Marshal(msg); err == nil {
-		messageChan <- string(payload)
+	if payload, err := buildDeltaPayload(content, r); err == nil {
+		messageChan <- payload
 	}
 }
 func (w *WafGPTApi) ChatApi(c *gin.Context) {
 
 	var req request.WafGptSendReq
 	err := c.ShouldBindJSON(&req)
-	if err == nil {
+	if err != nil {
+		// 以前这里静默返回，前端表现是"点了发送但气泡一直空着"，很难排查。
+		// 注意 StreamMiddleware 已经把 Content-Type 定成 text/event-stream 了，
+		// 这时候再 c.JSON 前端也当流读，所以错误也顺着 SSE 回，气泡里能直接看到。
+		zlog.Error("GPT对话请求解析失败:" + err.Error())
+		if payload, buildErr := buildDeltaPayload("对话请求解析失败："+err.Error(), "assistant"); buildErr == nil {
+			c.SSEvent("message", payload)
+		}
+		return
+	}
+	{
 		// 创建一个取消信号通道，用于触发异常退出
 		stopChan := make(chan bool)
 		messageChan := make(chan string)
@@ -355,11 +441,18 @@ func (w *WafGPTApi) ChatApi(c *gin.Context) {
 			defer close(stopChan)
 			defer close(messageChan)
 
-			// 构造基础消息数组
+			// 未配置密钥时不去请求空地址，直接回一条可读提示，前端也会在打开助手时先检测并引导配置
+			if !IsGPTConfigured() {
+				SendDeltaMessage(messageChan, "尚未配置AI密钥，请点击【AI 参数设置】填写接口地址/模型/密钥后再使用。", "assistant")
+				stopChan <- true
+				return
+			}
+
+			// 构造基础消息数组：系统提示词按场景取（日志分析/规则解读/通用问答）
 			messages := []model.GptMessage{
 				{
-					Content: "你是一位信息安全专家,输出如下格式：\n\n风险等级: 0-100\n风险类型:某种注入，跨站等\n风险说明:对风险的阐释",
-					Role:    "user",
+					Content: gptSystemPromptByScene(req.Scene),
+					Role:    "system",
 				},
 			}
 			// 将History内容转换为消息并追加

@@ -27,6 +27,10 @@ func (w *WafNotifyChannelApi) AddApi(c *gin.Context) {
 	var req request.WafNotifyChannelAddReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		if cfgErr := waf_service.ValidateChannelConfig(req.Type, req.ConfigJSON); cfgErr != nil {
+			response.FailWithMessage(cfgErr.Error(), c)
+			return
+		}
 		err = wafNotifyChannelService.CheckIsExistApi(req)
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 			err = wafNotifyChannelService.AddApi(req)
@@ -133,6 +137,10 @@ func (w *WafNotifyChannelApi) ModifyApi(c *gin.Context) {
 	var req request.WafNotifyChannelEditReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		if cfgErr := waf_service.ValidateChannelConfig(req.Type, req.ConfigJSON); cfgErr != nil {
+			response.FailWithMessage(cfgErr.Error(), c)
+			return
+		}
 		err = wafNotifyChannelService.ModifyApi(req)
 		if err != nil {
 			response.FailWithMessage("编辑发生错误", c)

@@ -52,4 +52,7 @@ const (
 	// 合成一个的话，只想收告警的人会被每一次正常登录打扰，最后干脆退订，告警也就收不到了。
 	MSG_TYPE_ACCESS_LOGIN    = "access_login"    // 统一访问认证-登录成功
 	MSG_TYPE_ACCESS_ABNORMAL = "access_abnormal" // 统一访问认证-异常告警
+	// 管理端登录来源变化：同理和 user_login 拆开，日常登录归 user_login，
+	// 换 IP/换归属地这种「可能是别人登进来了」的事件单独一类，方便只订阅它。
+	MSG_TYPE_MANAGE_LOGIN_ABNORMAL = "manage_login_abnormal" // 管理端登录-来源变化告警
 )

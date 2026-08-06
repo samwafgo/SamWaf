@@ -251,6 +251,13 @@ var notifyTypeVars = map[string][]NotifyTemplateVar{
 		{Name: "Username", Desc: "用户名", Example: "admin"},
 		{Name: "Ip", Desc: "登录IP", Example: "192.168.1.10"},
 	},
+	model.MSG_TYPE_MANAGE_LOGIN_ABNORMAL: {
+		{Name: "Username", Desc: "用户名", Example: "admin"},
+		{Name: "Ip", Desc: "本次登录IP", Example: "1.2.3.4 (广东深圳)"},
+		{Name: "LastIp", Desc: "上次登录IP", Example: "192.168.1.10"},
+		{Name: "LastLocation", Desc: "上次登录归属地", Example: "内网IP"},
+		{Name: "LastTime", Desc: "上次登录时间", Example: "2026-08-05 09:12:30"},
+	},
 	model.MSG_TYPE_WEEKLY_REPORT: {
 		{Name: "TotalRequests", Desc: "总请求数", Example: "120000"},
 		{Name: "BlockedRequests", Desc: "拦截请求数", Example: "356"},
@@ -334,6 +341,9 @@ func buildSampleDefaultMessage(messageType string, vars map[string]string) (stri
 	case model.MSG_TYPE_USER_LOGIN:
 		title, content := s.FormatUserLoginMessage(vars["Username"], vars["Ip"], vars["Time"])
 		return title, content
+	case model.MSG_TYPE_MANAGE_LOGIN_ABNORMAL:
+		return "管理端登录来源变化告警",
+			buildManageLoginAbnormalContent(vars["Username"], vars["Ip"], vars["Time"], vars["LastIp"], vars["LastLocation"], vars["LastTime"])
 	case model.MSG_TYPE_ATTACK_INFO:
 		title, content := s.FormatAttackInfoMessage(vars["AttackType"], vars["Url"], vars["Ip"], vars["Time"])
 		return title, content

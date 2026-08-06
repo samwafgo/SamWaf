@@ -46,6 +46,8 @@ var notifyMessageTypeName = map[string]string{
 	model.MSG_TYPE_IP_BAN:           "IP封禁",
 	model.MSG_TYPE_ACCESS_LOGIN:     "统一访问认证-登录成功",
 	model.MSG_TYPE_ACCESS_ABNORMAL:  "统一访问认证-异常告警",
+
+	model.MSG_TYPE_MANAGE_LOGIN_ABNORMAL: "管理端登录-来源变化",
 }
 
 // notifyMessageTypeSeverity 消息类型默认严重级别
@@ -63,6 +65,8 @@ var notifyMessageTypeSeverity = map[string]string{
 	model.MSG_TYPE_IP_BAN:           model.SeverityWarn,
 	model.MSG_TYPE_ACCESS_LOGIN:     model.SeverityInfo,
 	model.MSG_TYPE_ACCESS_ABNORMAL:  model.SeverityCritical,
+
+	model.MSG_TYPE_MANAGE_LOGIN_ABNORMAL: model.SeverityCritical,
 }
 
 // GetMessageTypeName 取消息类型中文名
@@ -100,6 +104,7 @@ func AllMessageTypes() []string {
 		model.MSG_TYPE_OPERATION_NOTICE,
 		model.MSG_TYPE_ACCESS_LOGIN,
 		model.MSG_TYPE_ACCESS_ABNORMAL,
+		model.MSG_TYPE_MANAGE_LOGIN_ABNORMAL,
 	}
 }
 
@@ -160,6 +165,11 @@ func (receiver *WafNotifySenderService) BuildNotifyEvent(messageInfo interface{}
 		ev.Vars["Server"] = msg.Server
 		if msg.Time != "" {
 			ev.Vars["Time"] = msg.Time
+		}
+		if msg.Abnormal {
+			ev.Vars["LastIp"] = msg.LastIp
+			ev.Vars["LastLocation"] = msg.LastLocation
+			ev.Vars["LastTime"] = msg.LastTime
 		}
 		ev.DedupParts[model.DedupKeyIp] = msg.Ip
 		return ev

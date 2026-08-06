@@ -207,6 +207,8 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		{
 			router.ApiGroupApp.InitSysLogRouter(auditAdminGroup)
 			router.ApiGroupApp.InitAccountLogRouter(auditAdminGroup)
+			// 管理端登录历史：谁在什么时间从哪个IP登录了管理端，与账号审计同域
+			router.ApiGroupApp.InitLoginHistoryRouter(auditAdminGroup)
 			// 统一访问认证的审计日志：谁在什么时间从哪个IP登录了哪个站点。
 			// 放审计域而不是安全域，正是为了让安全管理员的动作也能被独立审计。
 			router.ApiGroupApp.InitAccessAuditRouter(auditAdminGroup)

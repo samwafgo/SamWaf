@@ -13,6 +13,12 @@ type Account struct {
 	NeedChangePassword int    `json:"need_change_password"`           //是否需要强制改密 1需要 0否（首次登录/被重置后置1）
 	PwdUpdateTime      string `gorm:"size:32" json:"pwd_update_time"` //上次改密时间(2006-01-02 15:04:05)，用于有效期判断
 	Remarks            string `gorm:"size:500" json:"remarks"`        //备注
+	// 上次登录信息：登录成功后提示「本次IP/归属地，与上次是否一致」。
+	// 存在 core 库而不是只靠日志库的 login_history，是因为日志库会被数据保留策略清理，
+	// 清完之后不能让老账号被当成「首次登录」。
+	LastLoginIp   string `gorm:"size:64" json:"last_login_ip"`    //上次登录IP
+	LastLoginArea string `gorm:"size:255" json:"last_login_area"` //上次登录IP归属地
+	LastLoginTime string `gorm:"size:32" json:"last_login_time"`  //上次登录时间(2006-01-02 15:04:05)
 }
 
 type AccountLog struct {

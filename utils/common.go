@@ -247,6 +247,52 @@ func GetCountry(ip string) []string {
 	return []string{"未知", "", "", "", ""}
 }
 
+// FormatIPLocation 把 IP 解析成一行可读的归属地文本（国家 省份 城市 运营商）
+//
+// GetCountry 返回 [国家, 区域, 省份, 城市, ISP]，这里丢掉"区域"（华东/华南这类太粗，
+// 和省份并排显示反而冗余），其余去空去重后拼成一行 —— 直接 strings.Join 会拼出
+// "中国,,,,"这种带空段的串，不能给人看。
+func FormatIPLocation(ip string) string {
+	parts := GetCountry(ip)
+	var seg []string
+	seen := map[string]bool{}
+	for i, p := range parts {
+		if i == 1 { // 跳过"区域"
+			continue
+		}
+		v := strings.TrimSpace(p)
+		if v == "" || v == "0" || seen[v] {
+			continue
+		}
+		seen[v] = true
+		seg = append(seg, v)
+	}
+	if len(seg) == 0 {
+		return "未知"
+	}
+	return strings.Join(seg, " ")
+}
+
+// TruncateString 按字符数截断字符串（按 rune 切，避免把中文/UA 里的多字节字符切成乱码）
+func TruncateString(s string, max int) string {
+	if max <= 0 {
+		return ""
+	}
+	r := []rune(s)
+	if len(r) <= max {
+		return s
+	}
+	return string(r[:max])
+}
+
+// BoolToInt 布尔转 0/1，用于落库的标志位字段
+func BoolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
 // CloseIPDatabase 关闭IP数据库
 func CloseIPDatabase() {
 	if global.GIPLOCATION_MANAGER != nil {

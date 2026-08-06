@@ -1623,6 +1623,41 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移: 账号表增加上次登录信息列（登录后提示「本次IP/归属地，与上次是否一致」）
+		// 三列都留空 => 首次登录判定 => 只提示本次信息不报"不一致"，存量账号升级后不会被误报异地登录。
+		{
+			ID: "202608060001_add_account_last_login",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202608060001: 为 account 表添加上次登录信息字段")
+				cols := []struct{ column, field string }{
+					{"last_login_ip", "LastLoginIp"},
+					{"last_login_area", "LastLoginArea"},
+					{"last_login_time", "LastLoginTime"},
+				}
+				for _, c := range cols {
+					if tx.Migrator().HasColumn(&model.Account{}, c.column) {
+						zlog.Info("字段已存在，跳过", "column", c.column)
+						continue
+					}
+					if err := tx.Migrator().AddColumn(&model.Account{}, c.field); err != nil {
+						return fmt.Errorf("添加 account.%s 字段失败: %w", c.column, err)
+					}
+				}
+				zlog.Info("account 上次登录信息字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202608060001: 删除 account 上次登录信息字段")
+				for _, field := range []string{"LastLoginIp", "LastLoginArea", "LastLoginTime"} {
+					if tx.Migrator().HasColumn(&model.Account{}, field) {
+						if err := tx.Migrator().DropColumn(&model.Account{}, field); err != nil {
+							zlog.Warn("删除字段失败", "field", field, "error", err.Error())
+						}
+					}
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

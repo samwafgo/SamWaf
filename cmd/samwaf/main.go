@@ -23,6 +23,7 @@ import (
 	"SamWaf/wafdb"
 	"SamWaf/wafenginecore"
 	"SamWaf/wafenginecore/wafcaptcha"
+	"SamWaf/wafhostguard"
 	"SamWaf/wafinit"
 	"SamWaf/wafipban"
 	"SamWaf/wafipc"
@@ -381,6 +382,12 @@ func (m *wafSystenService) run() {
 
 	// 初始化ip ban
 	wafipban.InitIPBanManager(global.GCACHE_WAFCACHE)
+	// 主机登录失败计数器：与上面共用同一个缓存，但 key 前缀独立。
+	// 不共用 keyspace 是因为上面那套计数会被自定义规则的 MF.GetIPFailureCount 读取，
+	// 混入 SSH/RDP 的失败会静默改变用户已有 WAF 规则的语义。
+	wafipban.InitHostLoginFailureManager(global.GCACHE_WAFCACHE)
+	// 把事件落库能力注入主机防护引擎（反向注入避免 service 与 wafhostguard 循环依赖）
+	waf_service.WafHostGuardServiceApp.InitEventSink()
 
 	//提前初始化
 	global.GDATA_CURRENT_LOG_DB_MAP = map[string]*gorm.DB{}
@@ -569,6 +576,7 @@ func (m *wafSystenService) run() {
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_STATS_DATA_CLEANUP, waftask.TaskStatsDataCleanup)
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_THREAT_IP_SYNC, waftask.TaskThreatIPSync)
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_ACCESS_CLEAN, waftask.TaskAccessClean)
+	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_HOSTGUARD_CLEAN_EXPIRED, waftask.TaskHostGuardCleanExpired)
 
 	// 进程启动重放：把各启用威胁情报渠道的快照重新灌入系统 ipset(内存态重启会丢) 并重建 WAF 并集
 	go waf_service.WafThreatIPServiceApp.RestoreAllOnStartup()
@@ -587,6 +595,9 @@ func (m *wafSystenService) run() {
 	// cron 任务调度同样是单例（避免新旧 Worker 重复执行定时任务）；takeover 模式延迟到 ACTIVATE 再启动。
 	if !global.GWAF_RUNTIME_IS_TAKEOVER {
 		globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler.Start()
+		// 主机登录防护的日志采集同样是独占单例：两个进程同时 tail 同一份 auth.log，
+		// 同一条失败会被计两次，而 memory 缓存下两边计数器互不可见，阈值等于被腰斩。
+		wafhostguard.Start()
 		// 独占单例已在本函数内联启动完毕，这里把 activateOnce 消费掉，
 		// 使后续任何 ACTIVATE 都成为空操作。Supervisor 重启后"原地认领"存活 Worker 时
 		// 会补发一次 ACTIVATE（它无从判断该 Worker 当初是否已接管过单例），
@@ -1023,6 +1034,14 @@ func (m *wafSystenService) stopSamWaf() {
 	// 给任务一些时间完成当前工作
 	time.Sleep(200 * time.Millisecond)
 	zlog.Info("SamWaf Tasks notified")
+
+	// 主机登录防护要早于 cron 与关库停：Stop 里要等事件源交还 fd / journalctl 子进程 /
+	// Windows 事件订阅句柄，还要把缓冲里的事件与待同步的封禁集合落地。
+	// 停晚了就会出现"旧 Worker 还在读日志、新 Worker 也开始读"的重复计数。
+	zlog.Info("Shutdown SamWaf HostGuard...")
+	wafhostguard.Stop()
+	waf_service.WafHostGuardServiceApp.FlushEvents()
+	zlog.Info("Shutdown SamWaf HostGuard finished")
 
 	zlog.Info("Shutdown SamWaf Cron...")
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler.Stop()
@@ -1465,6 +1484,9 @@ func activateSingletons() {
 		if globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler != nil {
 			globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler.Start()
 		}
+		// 主机登录防护的日志采集也必须等旧 Worker 彻底退出后才启动，
+		// 否则两个进程同时读同一份 auth.log，失败次数被重复计入，阈值等于打了对折。
+		wafhostguard.Start()
 	})
 }
 

@@ -8,6 +8,7 @@ import (
 	"SamWaf/model/common/response"
 	"SamWaf/service/waf_service"
 	"SamWaf/utils"
+	"SamWaf/wafhostguard"
 	"fmt"
 	"strings"
 	"time"
@@ -134,6 +135,11 @@ func Auth() gin.HandlerFunc {
 					c.Abort()
 					return
 				}
+
+				// 记录"当前正在使用管理端的IP"，供主机防爆破豁免。
+				// 这是防误封的最后一道保险：只要你还在用管理端，你的出口IP就永远进不了封禁名单，
+				// 哪怕白名单一个字都没配。放在这里是因为走到这说明令牌、指纹、IP绑定都已校验通过。
+				wafhostguard.TouchAdminIP(currentIP)
 
 				//刷新token时间
 				if global.GWAF_RELEASE == "false" {

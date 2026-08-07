@@ -49,6 +49,55 @@ func (fw *FireWallEngine) RestoreIPSet(setName string, ips []string) error {
 	return nil
 }
 
+// SupportsIncrementalIPSet macOS 支持：pfctl -T add/delete 原生就是增量操作
+func (fw *FireWallEngine) SupportsIncrementalIPSet() bool { return true }
+
+// SupportsPortScopedSet macOS 不支持端口级封禁。
+// pf 的匹配规则写在 /etc/pf.conf 里(见 SetupPFRule 的提示)，由用户手工维护，
+// 我们只往 table 里灌地址、不去改用户的规则文件。想限端口请用户自己在 pf.conf 的
+// block 规则上加 `port {22, 3389}`。
+func (fw *FireWallEngine) SupportsPortScopedSet() bool { return false }
+
+// ApplyIPSetPortScope macOS 空实现，调用方应先判 SupportsPortScopedSet 并提示用户
+func (fw *FireWallEngine) ApplyIPSetPortScope(setName string, tcpPorts []int) error { return nil }
+
+// AddToIPSet 向 pf table 增量添加
+func (fw *FireWallEngine) AddToIPSet(setName string, ips []string) error {
+	return fw.incrementalPFTable(setName, ips, "add")
+}
+
+// DelFromIPSet 从 pf table 增量删除
+func (fw *FireWallEngine) DelFromIPSet(setName string, ips []string) error {
+	return fw.incrementalPFTable(setName, ips, "delete")
+}
+
+// incrementalPFTable 走 stdin 批量传入，避免 IP 数量多时超出命令行长度
+func (fw *FireWallEngine) incrementalPFTable(setName string, ips []string, op string) error {
+	if len(ips) == 0 {
+		return nil
+	}
+	var b strings.Builder
+	for _, raw := range ips {
+		ip := strings.TrimSpace(raw)
+		if ip == "" {
+			continue
+		}
+		b.WriteString(ip)
+		b.WriteByte('\n')
+	}
+	if b.Len() == 0 {
+		return nil
+	}
+	table := pfTableName(setName)
+	cmd := exec.Command("pfctl", "-t", table, "-T", op, "-f", "-")
+	cmd.Stdin = strings.NewReader(b.String())
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("pfctl %s 表 %s 失败: %v, 输出: %s", op, table, err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 // FlushIPSet 清空 pf table
 func (fw *FireWallEngine) FlushIPSet(setName string) error {
 	cmd := exec.Command("pfctl", "-t", pfTableName(setName), "-T", "flush")

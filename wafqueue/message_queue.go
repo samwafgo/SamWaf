@@ -11,6 +11,7 @@ import (
 	"SamWaf/wafsec"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -368,6 +369,14 @@ func handleIPBanMessage(msg innerbean.IPBanMessageInfo) {
 	// 2. 发送到 WebSocket（实时推送）
 	wsContent := fmt.Sprintf("IP %s 已被封禁，原因: %s", msg.Ip, msg.Reason)
 	sendToWebSocket("IP封禁通知", wsContent, nil, "Info")
+
+	// 3. 主机防爆破的封禁额外推一条带 HostGuard 命令字的消息，
+	//    让「远程防爆破」页面能即时刷新而不必等用户手动点。
+	//    单独用一个命令字而不是复用 Info：Info 是通用弹窗通知，
+	//    页面刷新逻辑挂上去会让所有通知都触发一次无谓的接口请求。
+	if strings.Contains(msg.OperaType, "主机远程登录爆破") {
+		sendToWebSocket("主机防爆破封禁", wsContent, msg, "HostGuard")
+	}
 }
 
 // sendToWebSocket 统一的 WebSocket 发送函数

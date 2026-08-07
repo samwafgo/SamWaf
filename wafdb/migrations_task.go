@@ -543,6 +543,46 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 				return tx.Where("task_method = ?", enums.TASK_ACCESS_CLEAN).Delete(&model.Task{}).Error
 			},
 		},
+		// 迁移: 主机防爆破的到期解封任务
+		// 1 分钟一次：阶梯最短一级只有 5 分钟，沿用防火墙那个 5 分钟粒度的话，
+		// 用户会看到"明明写着封5分钟，实际封了10分钟"。
+		{
+			ID: "202608070003_add_hostguard_clean_task",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202608070003: 创建主机防爆破解封任务")
+
+				var count int64
+				tx.Model(&model.Task{}).Where("task_method = ?", enums.TASK_HOSTGUARD_CLEAN_EXPIRED).Count(&count)
+				if count > 0 {
+					zlog.Info("主机防爆破解封任务已存在，跳过", "task_method", enums.TASK_HOSTGUARD_CLEAN_EXPIRED)
+					return nil
+				}
+
+				task := model.Task{
+					BaseOrm: baseorm.BaseOrm{
+						Id:          uuid.GenUUID(),
+						USER_CODE:   global.GWAF_USER_CODE,
+						Tenant_ID:   global.GWAF_TENANT_ID,
+						CREATE_TIME: customtype.JsonTime(time.Now()),
+						UPDATE_TIME: customtype.JsonTime(time.Now()),
+					},
+					TaskName:   "每1分钟解封主机防爆破中已到期的IP",
+					TaskUnit:   enums.TASK_MIN,
+					TaskValue:  1,
+					TaskAt:     "",
+					TaskMethod: enums.TASK_HOSTGUARD_CLEAN_EXPIRED,
+				}
+				if err := tx.Create(&task).Error; err != nil {
+					return fmt.Errorf("创建主机防爆破解封任务失败: %w", err)
+				}
+				zlog.Info("主机防爆破解封任务创建成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202608070003: 删除主机防爆破解封任务")
+				return tx.Where("task_method = ?", enums.TASK_HOSTGUARD_CLEAN_EXPIRED).Delete(&model.Task{}).Error
+			},
+		},
 	})
 
 	// 执行迁移

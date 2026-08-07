@@ -8,6 +8,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/request"
 	"SamWaf/service/waf_service"
+	"SamWaf/wafhostguard"
 	"SamWaf/wafipban"
 	"SamWaf/wafnotify/logfilewriter"
 	"SamWaf/wafowasp"
@@ -183,6 +184,52 @@ func setConfigIntValue(name string, value int64, change int) {
 	case "ip_failure_ban_lock_time":
 		global.GCONFIG_IP_FAILURE_BAN_LOCK_TIME = value
 		break
+	case "host_guard_enabled":
+		global.GCONFIG_HOST_GUARD_ENABLED = value
+		// 开关切换不需要重启进程：0→1 启动日志采集，1→0 停止采集并释放 fd/子进程/系统句柄。
+		// 这也是四层自救里的 L1——把开关拨回 0，最迟一个配置刷新周期就不再产生新封禁。
+		wafhostguard.Reload()
+		break
+	case "host_guard_find_time":
+		global.GCONFIG_HOST_GUARD_FIND_TIME = value
+		break
+	case "host_guard_max_retry":
+		global.GCONFIG_HOST_GUARD_MAX_RETRY = value
+		break
+	case "host_guard_offender_reset_day":
+		global.GCONFIG_HOST_GUARD_OFFENDER_RESET_DAY = value
+		break
+	case "host_guard_count_soft_fail":
+		global.GCONFIG_HOST_GUARD_COUNT_SOFT_FAIL = value
+		break
+	case "host_guard_auto_lan":
+		global.GCONFIG_HOST_GUARD_AUTO_LAN = value
+		wafhostguard.InvalidateWhitelist()
+		break
+	case "host_guard_debounce_sec":
+		global.GCONFIG_HOST_GUARD_DEBOUNCE_SEC = value
+		break
+	case "host_guard_max_ban_entries":
+		global.GCONFIG_HOST_GUARD_MAX_BAN_ENTRIES = value
+		break
+	case "host_guard_ban_rate_limit":
+		global.GCONFIG_HOST_GUARD_BAN_RATE_LIMIT = value
+		break
+	case "host_guard_subnet_aggregate":
+		global.GCONFIG_HOST_GUARD_SUBNET_AGGREGATE = value
+		break
+	case "host_guard_subnet_threshold":
+		global.GCONFIG_HOST_GUARD_SUBNET_THRESHOLD = value
+		break
+	case "host_guard_notify":
+		global.GCONFIG_HOST_GUARD_NOTIFY = value
+		break
+	case "host_conn_enabled":
+		global.GCONFIG_HOST_CONN_ENABLED = value
+		break
+	case "host_conn_cache_sec":
+		global.GCONFIG_HOST_CONN_CACHE_SEC = value
+		break
 	case "check_beta_version":
 		global.GCONFIG_CHECK_BETA_VERSION = value
 		break
@@ -312,6 +359,47 @@ func setConfigStringValue(name string, value string, change int) {
 		global.GCONFIG_IP_FAILURE_STATUS_CODES = value
 		// 重新加载状态码配置
 		wafipban.GetIPFailureManager().ReloadStatusCodes()
+		break
+	case "host_guard_mode":
+		if value != "block" {
+			value = "observe"
+		}
+		global.GCONFIG_HOST_GUARD_MODE = value
+		break
+	case "host_guard_whitelist":
+		global.GCONFIG_HOST_GUARD_WHITELIST = value
+		// 白名单是防误封的主力，改完必须立刻重建，不能等下一个刷新周期
+		wafhostguard.InvalidateWhitelist()
+		break
+	case "host_guard_log_paths":
+		global.GCONFIG_HOST_GUARD_LOG_PATHS = value
+		// 日志路径变了要换事件源，重启采集
+		wafhostguard.Reload()
+		break
+	case "host_guard_ssh_ports":
+		global.GCONFIG_HOST_GUARD_SSH_PORTS = value
+		wafhostguard.InvalidatePorts()
+		// 端口变了，端口级封禁的规则也要跟着换
+		wafhostguard.GetBanExecutor().ApplyPortScope()
+		break
+	case "host_guard_rdp_ports":
+		global.GCONFIG_HOST_GUARD_RDP_PORTS = value
+		wafhostguard.InvalidatePorts()
+		wafhostguard.GetBanExecutor().ApplyPortScope()
+		break
+	case "host_guard_port_scope":
+		if value != "detected" {
+			value = "all"
+		}
+		global.GCONFIG_HOST_GUARD_PORT_SCOPE = value
+		// 封禁范围要立刻重建引用规则，否则要等下次重启才生效
+		wafhostguard.GetBanExecutor().ApplyPortScope()
+		break
+	case "host_guard_exec_mode":
+		if value != "ipset" && value != "rule" {
+			value = "auto"
+		}
+		global.GCONFIG_HOST_GUARD_EXEC_MODE = value
 		break
 	case "zerossl_access_key":
 		global.GCONFIG_ZEROSSL_ACCESS_KEY = value
@@ -507,6 +595,31 @@ func TaskLoadSetting(initLoad bool) {
 	updateConfigStringItem(initLoad, "security", "ip_failure_status_codes", global.GCONFIG_IP_FAILURE_STATUS_CODES, "失败状态码配置，支持多个用|分隔，也支持正则表达式，例如：401|403|404|444|429|503 或 ^4[0-9]{2}$", "string", "", configMap)
 	updateConfigIntItem(initLoad, "security", "ip_failure_ban_enabled", global.GCONFIG_IP_FAILURE_BAN_ENABLED, "是否启用IP失败封禁（1启用 0禁用）", "options", "0|禁用,1|启用", configMap)
 	updateConfigIntItem(initLoad, "security", "ip_failure_ban_lock_time", global.GCONFIG_IP_FAILURE_BAN_LOCK_TIME, "IP失败封禁锁定时间（单位：分钟，默认10分钟）", "int", "", configMap)
+
+	// 主机远程登录爆破防护(SSH/RDP)。封禁时长不在这里配，由「封禁阶梯」表接管(5分→15分→60分→1天→永久)
+	updateConfigIntItem(initLoad, "hostguard", "host_guard_enabled", global.GCONFIG_HOST_GUARD_ENABLED, "主机远程登录爆破防护总开关（保护SamWaf所在机器自身的SSH/RDP。启用前请先确认白名单已包含你的管理IP，否则可能把自己锁在门外）", "options", "0|禁用,1|启用", configMap)
+	updateConfigStringItem(initLoad, "hostguard", "host_guard_mode", global.GCONFIG_HOST_GUARD_MODE, "工作模式：observe=只记录不封禁（建议先跑一周确认无误封），block=达到阈值即调用系统防火墙封禁", "options", "observe|观察模式,block|封禁模式", configMap)
+	updateConfigIntItem(initLoad, "hostguard", "host_guard_find_time", global.GCONFIG_HOST_GUARD_FIND_TIME, "失败统计窗口（单位：分钟，默认10分钟）", "int", "", configMap)
+	updateConfigIntItem(initLoad, "hostguard", "host_guard_max_retry", global.GCONFIG_HOST_GUARD_MAX_RETRY, "统计窗口内失败次数达到该值即触发处置（默认8次）", "int", "", configMap)
+	updateConfigIntItem(initLoad, "hostguard", "host_guard_offender_reset_day", global.GCONFIG_HOST_GUARD_OFFENDER_RESET_DAY, "累犯记忆期（单位：天，默认7天）：超过这么久没再犯，下次封禁从第1级重新开始", "int", "", configMap)
+	updateConfigIntItem(initLoad, "hostguard", "host_guard_count_soft_fail", global.GCONFIG_HOST_GUARD_COUNT_SOFT_FAIL, "软失败是否计入阈值（preauth断连/用户名枚举/PAM失败行）。前者由端口扫描与健康探针大量产生，后两者会与密码失败行成对出现导致阈值腰斩，默认不计入", "options", "0|不计入,1|计入", configMap)
+	updateConfigStringItem(initLoad, "hostguard", "host_guard_whitelist", global.GCONFIG_HOST_GUARD_WHITELIST, "永不封禁的IP/网段白名单，逗号分隔，支持单IP/CIDR/通配符/区间（如 1.2.3.4,10.0.0.0/8,192.168.1.*）", "string", "", configMap)
+	updateConfigIntItem(initLoad, "hostguard", "host_guard_auto_lan", global.GCONFIG_HOST_GUARD_AUTO_LAN, "是否自动豁免本机所有网卡IP、环回地址与常见内网段（10/8、172.16/12、192.168/16、fc00::/7、100.64/10、169.254/16）", "options", "0|不豁免,1|自动豁免", configMap)
+	updateConfigStringItem(initLoad, "hostguard", "host_guard_log_paths", global.GCONFIG_HOST_GUARD_LOG_PATHS, "自定义系统认证日志路径（逗号分隔），留空则自动探测 /var/log/secure、/var/log/auth.log，都没有则用 journalctl。容器部署请把宿主机日志只读挂载进来并在此指定路径", "string", "", configMap)
+	updateConfigStringItem(initLoad, "hostguard", "host_guard_ssh_ports", global.GCONFIG_HOST_GUARD_SSH_PORTS, "SSH实际监听端口（逗号分隔），留空自动发现。注意：爆破检测本身不依赖端口，改过默认端口也能正常工作，此项仅用于端口级封禁与连接看板高亮", "string", "", configMap)
+	updateConfigStringItem(initLoad, "hostguard", "host_guard_rdp_ports", global.GCONFIG_HOST_GUARD_RDP_PORTS, "RDP实际监听端口（逗号分隔），留空自动发现", "string", "", configMap)
+	updateConfigStringItem(initLoad, "hostguard", "host_guard_port_scope", global.GCONFIG_HOST_GUARD_PORT_SCOPE, "封禁范围：all=封全端口（更安全），detected=只封SSH/RDP端口（误封时杀伤面更小）", "options", "all|全端口,detected|仅SSH/RDP端口", configMap)
+	updateConfigStringItem(initLoad, "hostguard", "host_guard_exec_mode", global.GCONFIG_HOST_GUARD_EXEC_MODE, "封禁执行方式：auto=平台自适应（推荐），ipset=强制走集合，rule=强制逐条防火墙规则（调试用）", "options", "auto|自动,ipset|集合,rule|逐条规则", configMap)
+	updateConfigIntItem(initLoad, "hostguard", "host_guard_debounce_sec", global.GCONFIG_HOST_GUARD_DEBOUNCE_SEC, "Windows封禁同步去抖窗口（单位：秒，默认30）。Windows无ipset只能全量重建规则，去抖可避免频繁封禁时反复重建；Linux/macOS走增量不受此影响", "int", "", configMap)
+	updateConfigIntItem(initLoad, "hostguard", "host_guard_max_ban_entries", global.GCONFIG_HOST_GUARD_MAX_BAN_ENTRIES, "封禁集合容量上限（默认10000）。超限时优先淘汰剩余时间最短的临时封禁，永久封禁不淘汰", "int", "", configMap)
+	updateConfigIntItem(initLoad, "hostguard", "host_guard_ban_rate_limit", global.GCONFIG_HOST_GUARD_BAN_RATE_LIMIT, "每分钟最多新增封禁数（默认200），防止分布式爆破把封禁集合瞬间打满", "int", "", configMap)
+	updateConfigIntItem(initLoad, "hostguard", "host_guard_subnet_aggregate", global.GCONFIG_HOST_GUARD_SUBNET_AGGREGATE, "网段聚合封禁：同一/24网段内被封IP数达到阈值时，升级为封禁整个网段。对僵尸网络有效但误伤面大（可能封掉整个机房/运营商段），默认关闭", "options", "0|禁用,1|启用", configMap)
+	updateConfigIntItem(initLoad, "hostguard", "host_guard_subnet_threshold", global.GCONFIG_HOST_GUARD_SUBNET_THRESHOLD, "网段聚合触发阈值（同一/24内被封IP数，默认10）", "int", "", configMap)
+	updateConfigIntItem(initLoad, "hostguard", "host_guard_notify", global.GCONFIG_HOST_GUARD_NOTIFY, "触发封禁时是否发送通知（复用「IP封禁」消息类型，可在通知订阅里配置渠道与频控）", "options", "0|不通知,1|通知", configMap)
+
+	// 远程连接看板
+	updateConfigIntItem(initLoad, "hostguard", "host_conn_enabled", global.GCONFIG_HOST_CONN_ENABLED, "远程连接看板开关（展示当前连接到本机的所有TCP连接）", "options", "0|禁用,1|启用", configMap)
+	updateConfigIntItem(initLoad, "hostguard", "host_conn_cache_sec", global.GCONFIG_HOST_CONN_CACHE_SEC, "连接快照缓存秒数（默认3秒）。Linux下采集需要遍历/proc建立inode到进程的映射，连接数上万时开销明显，建议不低于3秒", "int", "", configMap)
 
 	// 版本更新相关配置
 	updateConfigIntItem(initLoad, "system", "check_beta_version", global.GCONFIG_CHECK_BETA_VERSION, "是否检测beta版本更新（1启用 0禁用）", "options", "0|禁用,1|启用", configMap)

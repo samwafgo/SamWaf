@@ -29,4 +29,14 @@ const (
 	CACHE_ACCESS_OTPFAIL = "CACHE_ACCESS_OTPFAIL_" //OTP 失败计数，防 TOTP 爆破
 	CACHE_ACCESS_AUDIT   = "CACHE_ACCESS_AUDIT_"   //审计节流标记，防止 denied 事件把审计表刷爆
 	CACHE_ACCESS_NOTIFY  = "CACHE_ACCESS_NOTIFY_"  //通知节流标记，审计表扛得住高频，用户的钉钉/邮箱扛不住
+
+	// —— 主机远程登录爆破防护(SSH/RDP) ——
+	// 失败计数刻意不复用 CACHE_IP_FAILURE_PRE：那个 keyspace 会被自定义规则的
+	// MF.GetIPFailureCount(minutes) 读取，把 SSH 失败混进去会静默改变用户已有 WAF 规则的语义
+	// (一个只爆破 SSH 的 IP 会让 HTTP 规则误命中)。
+	CACHE_HOST_LOGIN_FAIL_PRE   = "CACHE_HOST_LOGIN_FAIL_"   //主机登录失败计数，键后缀是 source:ip
+	CACHE_HOST_GUARD_BANNED_PRE = "CACHE_HOST_GUARD_BANNED_" //已封禁去重标记，TTL 取封禁时长，防同一 IP 短时间重复下发
+	CACHE_HOST_GUARD_ADMIN_PRE  = "CACHE_HOST_GUARD_ADMIN_"  //活跃管理会话 IP，防误封的最后一道保险
+	CACHE_HOST_GUARD_RATE       = "CACHE_HOST_GUARD_RATE"    //每分钟新增封禁数，挡分布式爆破把封禁集合瞬间打满
+	CACHE_HOST_CONN_SNAPSHOT    = "CACHE_HOST_CONN_SNAPSHOT" //远程连接快照，Linux 采集要遍历 /proc，必须带 TTL 缓存
 )

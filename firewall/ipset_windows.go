@@ -7,7 +7,9 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -50,6 +52,62 @@ func setShardRuleName(setName string, seq int) string {
 // EnsureIPSet Windows 无需预建集合，空实现(规则在 RestoreIPSet 时创建)
 func (fw *FireWallEngine) EnsureIPSet(setName string) error { return nil }
 
+// SupportsIncrementalIPSet Windows 不支持增量。
+//
+// 分片规则模型里，一个逻辑集合被拆成若干条 netsh 规则，每条的 remoteip= 是一长串逗号
+// 分隔的地址。要"删掉其中一个 IP"就得知道它在哪个分片、把那条规则整个重写，还得处理
+// 删空后的分片回收——复杂度和出错面都远超收益。调用方应改用"去抖后全量 RestoreIPSet"。
+func (fw *FireWallEngine) SupportsIncrementalIPSet() bool { return false }
+
+// AddToIPSet Windows 不支持增量，调用方必须先判 SupportsIncrementalIPSet
+func (fw *FireWallEngine) AddToIPSet(setName string, ips []string) error {
+	return errIncrementalUnsupported
+}
+
+// DelFromIPSet Windows 不支持增量，调用方必须先判 SupportsIncrementalIPSet
+func (fw *FireWallEngine) DelFromIPSet(setName string, ips []string) error {
+	return errIncrementalUnsupported
+}
+
+var errIncrementalUnsupported = fmt.Errorf("当前系统(Windows)的防火墙不支持集合增量增删，请改用全量重建")
+
+// SupportsPortScopedSet Windows 支持：netsh 规则本来就能带 localport
+func (fw *FireWallEngine) SupportsPortScopedSet() bool { return true }
+
+// portScope 记录各集合的端口范围。Windows 没有"独立的引用规则"可改，
+// 端口是写在分片规则自身上的，所以只能记下来、在下次 RestoreIPSet 重建时带上。
+var portScope sync.Map // setName -> string(逗号分隔端口)
+
+// ApplyIPSetPortScope 设置集合的封禁端口范围。
+//
+// Windows 下**只记录不重建**：端口写在分片规则自身上，而这个包是无状态的，
+// 手里没有当前该封哪些 IP。要让新范围立刻作用到已生效的封禁，
+// 必须由持有集合镜像的调用方(wafhostguard.BanExecutor)在调完本方法后
+// 再触发一次全量 RestoreIPSet —— 见 BanExecutor.ApplyPortScope。
+func (fw *FireWallEngine) ApplyIPSetPortScope(setName string, tcpPorts []int) error {
+	spec := formatPortList(tcpPorts)
+	if spec == "" {
+		portScope.Delete(setName)
+	} else {
+		portScope.Store(setName, spec)
+	}
+	return nil
+}
+
+// formatPortList netsh 的 localport 接受逗号分隔列表
+func formatPortList(ports []int) string {
+	if len(ports) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(ports))
+	for _, p := range ports {
+		if p > 0 && p <= 65535 {
+			parts = append(parts, strconv.Itoa(p))
+		}
+	}
+	return strings.Join(parts, ",")
+}
+
 // RestoreIPSet 全量重建：先删旧分片规则，再按长度分片重建为若干 netsh block 规则
 func (fw *FireWallEngine) RestoreIPSet(setName string, ips []string) error {
 	// 先清旧
@@ -65,6 +123,13 @@ func (fw *FireWallEngine) RestoreIPSet(setName string, ips []string) error {
 		ruleName := setShardRuleName(setName, seq)
 		args := []string{"advfirewall", "firewall", "add", "rule",
 			"name=" + ruleName, "dir=in", "action=block", "remoteip=" + shard}
+		// 设置过端口范围就只封那几个端口(主机防爆破的"仅SSH/RDP端口"模式)，
+		// 误封时业务端口不受影响
+		if spec, ok := portScope.Load(setName); ok {
+			if s, _ := spec.(string); s != "" {
+				args = append(args, "protocol=TCP", "localport="+s)
+			}
+		}
 		cmd := exec.Command("netsh", args...)
 		if err, output := fw.executeCommand(cmd); err != nil {
 			return fmt.Errorf("添加分片规则 %s 失败: %v, 输出: %s", ruleName, err, output)

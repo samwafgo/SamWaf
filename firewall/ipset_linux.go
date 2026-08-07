@@ -108,6 +108,79 @@ func (fw *FireWallEngine) ensureDropRule(iptablesBin, setName string) {
 	fw.runFirewallCmd(iptablesBin, "-I", "INPUT", "1", "-m", "set", "--match-set", setName, "src", "-j", "DROP")
 }
 
+// SupportsPortScopedSet 报告本平台能否把集合的封禁范围限制在指定端口上。
+// Linux 支持：iptables 的 multiport 匹配可以直接写进那条 match-set 引用规则里。
+func (fw *FireWallEngine) SupportsPortScopedSet() bool { return true }
+
+// ApplyIPSetPortScope 调整集合引用规则的作用端口。
+//
+// ports 为空表示恢复成"封全端口"。用途是让主机防爆破可以只封 SSH/RDP 端口——
+// 一旦误封，被挡住的只是远程登录，Web、数据库、业务端口都还通着，
+// 排查和自救的余地大得多。
+//
+// 实现上是"先删掉该集合已有的全部 INPUT 引用规则，再按新范围插一条"，
+// 而不是叠加：叠加会在反复改端口后留下一串旧规则，其中任何一条命中都照样 DROP，
+// 用户会看到"明明改成只封22了，怎么全端口还是不通"。
+func (fw *FireWallEngine) ApplyIPSetPortScope(setName string, tcpPorts []int) error {
+	if err := validateSetName(setName); err != nil {
+		return err
+	}
+	if err := fw.EnsureIPSet(setName); err != nil {
+		return err
+	}
+	fw.applyPortScopeOne("iptables", setName, tcpPorts)
+	if hasIP6tables() {
+		fw.applyPortScopeOne("ip6tables", v6SetName(setName), tcpPorts)
+	}
+	return nil
+}
+
+// applyPortScopeOne 对单个集合(v4 或 v6)重建引用规则
+func (fw *FireWallEngine) applyPortScopeOne(iptablesBin, setName string, tcpPorts []int) {
+	// 反复 -D 直到删不动为止：同一条规则可能因历史操作存在多份
+	base := []string{"-D", "INPUT", "-m", "set", "--match-set", setName, "src", "-j", "DROP"}
+	for i := 0; i < 16; i++ {
+		if _, err := fw.runFirewallCmd(iptablesBin, base...); err != nil {
+			break
+		}
+	}
+	portSpec := formatMultiport(tcpPorts)
+	if portSpec != "" {
+		withPorts := []string{"-D", "INPUT", "-p", "tcp", "-m", "multiport", "--dports", portSpec,
+			"-m", "set", "--match-set", setName, "src", "-j", "DROP"}
+		for i := 0; i < 16; i++ {
+			if _, err := fw.runFirewallCmd(iptablesBin, withPorts...); err != nil {
+				break
+			}
+		}
+	}
+
+	if portSpec == "" {
+		fw.runFirewallCmd(iptablesBin, "-I", "INPUT", "1", "-m", "set", "--match-set", setName, "src", "-j", "DROP")
+		return
+	}
+	fw.runFirewallCmd(iptablesBin, "-I", "INPUT", "1", "-p", "tcp", "-m", "multiport", "--dports", portSpec,
+		"-m", "set", "--match-set", setName, "src", "-j", "DROP")
+}
+
+// formatMultiport 把端口列表拼成 multiport 参数。
+// multiport 最多支持 15 个端口，超出的截断——SSH/RDP 场景下不可能超。
+func formatMultiport(ports []int) string {
+	if len(ports) == 0 {
+		return ""
+	}
+	if len(ports) > 15 {
+		ports = ports[:15]
+	}
+	parts := make([]string, 0, len(ports))
+	for _, p := range ports {
+		if p > 0 && p <= 65535 {
+			parts = append(parts, fmt.Sprintf("%d", p))
+		}
+	}
+	return strings.Join(parts, ",")
+}
+
 // RestoreIPSet 用给定 IP/CIDR 列表全量原子重建集合(v4/v6 自动分流)。
 // 采用 `ipset restore` 单次 fork：create 临时交换集合→逐条 add→swap 原子替换→destroy 临时集合。
 func (fw *FireWallEngine) RestoreIPSet(setName string, ips []string) error {
@@ -153,6 +226,45 @@ func (fw *FireWallEngine) ipsetRestore(payload string) error {
 		return fmt.Errorf("ipset restore 失败: %v, 输出: %s", err, strings.TrimSpace(string(out)))
 	}
 	return nil
+}
+
+// SupportsIncrementalIPSet 报告本平台是否支持集合的增量增删。
+// Linux 支持：`ipset restore` 可以只灌 add/del 行，一次 fork 搞定，不需要重建整个集合。
+// 这对主机防爆破很关键——那边是"来一个封一个"，用 RestoreIPSet 全量重建会把开销放大成 O(n)。
+func (fw *FireWallEngine) SupportsIncrementalIPSet() bool { return true }
+
+// AddToIPSet 向集合增量添加 IP/CIDR(v4/v6 自动分流)，-exist 保证重复添加不报错
+func (fw *FireWallEngine) AddToIPSet(setName string, ips []string) error {
+	return fw.incrementalIPSet(setName, ips, "add")
+}
+
+// DelFromIPSet 从集合增量删除 IP/CIDR，-exist 保证删不存在的项不报错
+func (fw *FireWallEngine) DelFromIPSet(setName string, ips []string) error {
+	return fw.incrementalIPSet(setName, ips, "del")
+}
+
+// incrementalIPSet 拼 restore 脚本做批量增量操作
+func (fw *FireWallEngine) incrementalIPSet(setName string, ips []string, op string) error {
+	if len(ips) == 0 {
+		return nil
+	}
+	if err := fw.EnsureIPSet(setName); err != nil {
+		return err
+	}
+	v4, v6 := splitByIPVersion(ips)
+	var b strings.Builder
+	for _, ip := range v4 {
+		fmt.Fprintf(&b, "%s %s %s\n", op, setName, ip)
+	}
+	if hasIP6tables() {
+		for _, ip := range v6 {
+			fmt.Fprintf(&b, "%s %s %s\n", op, v6SetName(setName), ip)
+		}
+	}
+	if b.Len() == 0 {
+		return nil
+	}
+	return fw.ipsetRestore(b.String())
 }
 
 // FlushIPSet 清空集合内容(保留集合与引用规则)

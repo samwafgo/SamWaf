@@ -128,4 +128,35 @@ var (
 	GCONFIG_LOG_FILE_WRITE_MAX_DAYS    int64  = 30                // 保留天数
 	GCONFIG_LOG_FILE_WRITE_COMPRESS    int64  = 0                 // 是否压缩历史文件 (0关闭 1开启)
 
+	// 主机远程登录爆破防护(SSH/RDP)
+	// 保护的是 SamWaf 所在这台机器自身，与 WAF 引擎(保护 Web 站点)是两件事。
+	// 默认关闭且默认观察模式 —— 这类功能一旦误封就是"自己 SSH 进不去"，不能开箱即封。
+	GCONFIG_HOST_GUARD_ENABLED            int64  = 0         // 主机防爆破总开关 1启用 0禁用
+	GCONFIG_HOST_GUARD_MODE               string = "observe" // 工作模式 observe(只记录不封禁) / block(达阈值即封)
+	GCONFIG_HOST_GUARD_FIND_TIME          int64  = 10        // 失败统计窗口(分钟)
+	GCONFIG_HOST_GUARD_MAX_RETRY          int64  = 8         // 窗口内失败达该次数触发处置
+	GCONFIG_HOST_GUARD_OFFENDER_RESET_DAY int64  = 7         // 累犯记忆期(天)，超过则下次封禁从第1级重新开始
+	GCONFIG_HOST_GUARD_COUNT_SOFT_FAIL    int64  = 0         // 软失败(preauth断连/用户名枚举/PAM行)是否计入阈值 1计入 0不计入
+	GCONFIG_HOST_GUARD_WHITELIST          string = ""        // 永不封禁的IP/网段，逗号分隔，支持单IP/CIDR/通配符/区间
+	GCONFIG_HOST_GUARD_AUTO_LAN           int64  = 1         // 是否自动豁免本机网卡IP、环回与常见内网段 1豁免 0不豁免
+	GCONFIG_HOST_GUARD_LOG_PATHS          string = ""        // 自定义认证日志路径(逗号分隔)，留空自动探测；容器部署的逃生口
+	GCONFIG_HOST_GUARD_SSH_PORTS          string = ""        // SSH实际端口(逗号分隔)，留空自动发现
+	GCONFIG_HOST_GUARD_RDP_PORTS          string = ""        // RDP实际端口(逗号分隔)，留空自动发现
+	GCONFIG_HOST_GUARD_PORT_SCOPE         string = "all"     // 封禁范围 all(全端口，更安全) / detected(只封SSH/RDP端口)
+	GCONFIG_HOST_GUARD_EXEC_MODE          string = "auto"    // 执行方式 auto(平台自适应) / ipset(强制集合) / rule(强制逐条规则)
+	GCONFIG_HOST_GUARD_DEBOUNCE_SEC       int64  = 30        // Windows 去抖合并窗口(秒)，Linux/macOS 走增量不受影响
+	GCONFIG_HOST_GUARD_MAX_BAN_ENTRIES    int64  = 10000     // 封禁集合容量上限，超限先淘汰剩余时间最短的临时封禁(永久封不淘汰)
+	GCONFIG_HOST_GUARD_BAN_RATE_LIMIT     int64  = 200       // 每分钟最多新增封禁数，防分布式爆破把集合瞬间打满
+	GCONFIG_HOST_GUARD_SUBNET_AGGREGATE   int64  = 0         // 网段聚合开关，同/24内被封数达阈值则升级封整段。误伤面大，默认关
+	GCONFIG_HOST_GUARD_SUBNET_THRESHOLD   int64  = 10        // 网段聚合触发阈值
+	GCONFIG_HOST_GUARD_NOTIFY             int64  = 1         // 触发封禁时是否发通知(复用「IP封禁」消息类型)
+	// GCONFIG_HOST_GUARD_FORCE_DISABLE 是自救开关，只能从 conf/config.yml 的
+	// security.host_guard_force_disable 或环境变量 SAMWAF_HOSTGUARD_DISABLE 设置，管理端改不了。
+	// 存在的意义：白名单配错把自己的管理IP也封进 iptables 后，SSH 和管理端会同时进不去，
+	// 那时只剩物理控制台/云厂商VNC，能操作的只有配置文件。
+	GCONFIG_HOST_GUARD_FORCE_DISABLE bool = false
+
+	// 远程连接看板
+	GCONFIG_HOST_CONN_ENABLED   int64 = 1 // 连接看板开关 1启用 0禁用
+	GCONFIG_HOST_CONN_CACHE_SEC int64 = 3 // 连接快照缓存秒数(Linux采集需遍历/proc，建议不低于3)
 )

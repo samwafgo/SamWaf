@@ -317,6 +317,38 @@ func RunLogDBMigrations(db *gorm.DB) error {
 				)
 			},
 		},
+		// 迁移: 创建主机远程登录(SSH/RDP)失败事件表
+		// 放 log 库是因为它随攻击量线性增长，属于可按保留策略清理的观测数据。
+		{
+			ID: "202608070001_add_host_login_event_table",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202608070001: 创建主机登录失败事件表")
+				if err := tx.AutoMigrate(&model.HostLoginEvent{}); err != nil {
+					return fmt.Errorf("创建主机登录失败事件表失败: %w", err)
+				}
+				// (ip, event_time)：单IP攻击历史下钻
+				if err := safeCreateIndex(tx, "host_login_event", "idx_hle_ip_time",
+					"CREATE INDEX IF NOT EXISTS idx_hle_ip_time ON host_login_event(ip, event_time)"); err != nil {
+					zlog.Warn("创建索引 idx_hle_ip_time 失败", "error", err.Error())
+				}
+				// (source, event_time)：按来源分页 + 时间范围
+				if err := safeCreateIndex(tx, "host_login_event", "idx_hle_src_time",
+					"CREATE INDEX IF NOT EXISTS idx_hle_src_time ON host_login_event(source, event_time)"); err != nil {
+					zlog.Warn("创建索引 idx_hle_src_time 失败", "error", err.Error())
+				}
+				// (event_time)：全局时间范围与保留期清理
+				if err := safeCreateIndex(tx, "host_login_event", "idx_hle_event_time",
+					"CREATE INDEX IF NOT EXISTS idx_hle_event_time ON host_login_event(event_time)"); err != nil {
+					zlog.Warn("创建索引 idx_hle_event_time 失败", "error", err.Error())
+				}
+				zlog.Info("主机登录失败事件表创建成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202608070001: 删除主机登录失败事件表")
+				return tx.Migrator().DropTable(&model.HostLoginEvent{})
+			},
+		},
 	})
 
 	// 执行迁移

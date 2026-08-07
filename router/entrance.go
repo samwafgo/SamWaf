@@ -57,6 +57,8 @@ type ApiGroup struct {
 	NotifySubscriptionRouter
 	NotifyLogRouter
 	FirewallIPBlockRouter
+	HostGuardRouter
+	HostConnRouter
 	ThreatIPRouter
 	CDNIPRouter
 	PluginRouter

@@ -1658,6 +1658,72 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移: 主机防爆破(SSH/RDP)三张表 —— 封禁账本 / 攻击者档案 / 阶梯配置
+		// 阶梯默认播种 5 级(5分→15分→60分→1天→永久)，用户可在页面上增删改。
+		{
+			ID: "202608070002_add_host_guard_tables",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202608070002: 创建主机防爆破相关表")
+				if err := tx.AutoMigrate(
+					&model.HostGuardBan{},
+					&model.HostGuardOffender{},
+					&model.HostGuardBanLadder{},
+				); err != nil {
+					return fmt.Errorf("创建主机防爆破表失败: %w", err)
+				}
+
+				// (status, expire_time)：解封任务每分钟按这两列查，单列索引各只覆盖一半谓词
+				if err := safeCreateIndex(tx, "host_guard_ban", "idx_hgb_status_expire",
+					"CREATE INDEX IF NOT EXISTS idx_hgb_status_expire ON host_guard_ban(status, expire_time)"); err != nil {
+					zlog.Warn("创建索引 idx_hgb_status_expire 失败", "error", err.Error())
+				}
+				// (ip, status)：判断某IP当前是否已被封
+				if err := safeCreateIndex(tx, "host_guard_ban", "idx_hgb_ip_status",
+					"CREATE INDEX IF NOT EXISTS idx_hgb_ip_status ON host_guard_ban(ip, status)"); err != nil {
+					zlog.Warn("创建索引 idx_hgb_ip_status 失败", "error", err.Error())
+				}
+				// (start_time)：封禁列表按时间倒序分页
+				if err := safeCreateIndex(tx, "host_guard_ban", "idx_hgb_start_time",
+					"CREATE INDEX IF NOT EXISTS idx_hgb_start_time ON host_guard_ban(start_time)"); err != nil {
+					zlog.Warn("创建索引 idx_hgb_start_time 失败", "error", err.Error())
+				}
+				// 档案按 IP 查(阶梯决策每次封禁都要查一次，必须走索引)
+				if err := safeCreateIndex(tx, "host_guard_offender", "idx_hgo_ip",
+					"CREATE INDEX IF NOT EXISTS idx_hgo_ip ON host_guard_offender(ip)"); err != nil {
+					zlog.Warn("创建索引 idx_hgo_ip 失败", "error", err.Error())
+				}
+
+				// 播种默认阶梯：先计数，避免重复执行(老库回滚重跑时)把阶梯播成两份
+				var count int64
+				tx.Model(&model.HostGuardBanLadder{}).Count(&count)
+				if count > 0 {
+					zlog.Info("封禁阶梯已存在，跳过播种", "count", count)
+					return nil
+				}
+				for _, ladder := range model.DefaultBanLadders() {
+					ladder.BaseOrm = baseorm.BaseOrm{
+						Id:          uuid.GenUUID(),
+						USER_CODE:   global.GWAF_USER_CODE,
+						Tenant_ID:   global.GWAF_TENANT_ID,
+						CREATE_TIME: customtype.JsonTime(time.Now()),
+						UPDATE_TIME: customtype.JsonTime(time.Now()),
+					}
+					if err := tx.Create(&ladder).Error; err != nil {
+						return fmt.Errorf("播种封禁阶梯(第%d级)失败: %w", ladder.Level, err)
+					}
+				}
+				zlog.Info("主机防爆破表创建成功，默认阶梯已播种")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202608070002: 删除主机防爆破相关表")
+				return tx.Migrator().DropTable(
+					&model.HostGuardBan{},
+					&model.HostGuardOffender{},
+					&model.HostGuardBanLadder{},
+				)
+			},
+		},
 	})
 
 	// 执行迁移

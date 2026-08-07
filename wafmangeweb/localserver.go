@@ -165,6 +165,8 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitNotifySubscriptionRouter(RouterGroup)
 		router.ApiGroupApp.InitNotifyLogRouter(RouterGroup)
 		router.ApiGroupApp.InitFirewallIPBlockRouter(RouterGroup)
+		router.ApiGroupApp.InitHostGuardRouter(RouterGroup)
+		router.ApiGroupApp.InitHostConnRouter(RouterGroup)
 		router.ApiGroupApp.InitThreatIPRouter(RouterGroup)
 		router.ApiGroupApp.InitCDNIPRouter(RouterGroup)
 		router.ApiGroupApp.InitLogFileWriteRouter(RouterGroup)

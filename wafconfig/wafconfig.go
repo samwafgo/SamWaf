@@ -283,6 +283,22 @@ func LoadAndInitConfig() {
 		global.GCONFIG_ACCESS_FORCE_DISABLE = true
 	}
 
+	//配置和提取主机防爆破的强制关闭开关（自救用）
+	//
+	//同样只能从配置文件或环境变量设置。适用场景：白名单没覆盖到自己的出口IP，
+	//被 iptables/netsh 封掉后 SSH 与管理端会同时进不去，那时只剩物理控制台/云厂商VNC，
+	//能操作的只有配置文件。容器场景走 SAMWAF_HOSTGUARD_DISABLE=1 更方便。
+	//注意：它只阻止「新的」封禁，已经下发的规则仍在，需要手工 ipset del / netsh delete rule 清掉。
+	if config.IsSet("security.host_guard_force_disable") {
+		global.GCONFIG_HOST_GUARD_FORCE_DISABLE = config.GetBool("security.host_guard_force_disable")
+	} else {
+		config.Set("security.host_guard_force_disable", global.GCONFIG_HOST_GUARD_FORCE_DISABLE)
+		configChanged = true
+	}
+	if v := strings.TrimSpace(os.Getenv("SAMWAF_HOSTGUARD_DISABLE")); v == "1" || strings.EqualFold(v, "true") {
+		global.GCONFIG_HOST_GUARD_FORCE_DISABLE = true
+	}
+
 	//配置和提取安全路径入口开关
 	if config.IsSet("security.entry_enable") {
 		global.GWAF_SECURITY_ENTRY_ENABLE = config.GetBool("security.entry_enable")

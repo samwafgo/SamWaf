@@ -126,13 +126,22 @@ func TestMatchPathPrefix(t *testing.T) {
 			t.Fatalf("MatchPathPrefix(%q) = %v, 期望 %v", c.p, got, c.want)
 		}
 	}
-	// 用户自己写了尾斜杠时按前缀比，只放行子树
+	// 用户按目录习惯写的尾斜杠：子树要放行，同前缀的兄弟路径不放行，
+	// 而且「访问目录本身」也必须放行 —— 请求路径进来前已被 path.Clean 去掉尾斜杠，
+	// 按字面比会让 /api/ 这条白名单恰好漏掉 /api/ 这个最常见的访问。
 	slash := []string{"/static/"}
 	if !MatchPathPrefix("/static/a.js", slash) {
 		t.Fatal("/static/ 应放行其子路径")
 	}
+	if !MatchPathPrefix("/static", slash) {
+		t.Fatal("/static/ 应放行目录本身(path.Clean 后就是 /static)")
+	}
 	if MatchPathPrefix("/staticx", slash) {
 		t.Fatal("/static/ 不该放行 /staticx")
+	}
+	// 单个 "/" 是用户显式表达的「整站免认证」，行为保持不变
+	if !MatchPathPrefix("/whatever", []string{"/"}) {
+		t.Fatal(`"/" 应放行所有路径`)
 	}
 	// nil 列表必须安全
 	if MatchPathPrefix("/anything", nil) {

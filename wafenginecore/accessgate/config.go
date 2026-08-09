@@ -146,6 +146,8 @@ func IsAccessEnabled(mode int, globalEnable bool) bool {
 //
 // 匹配的是「路径段边界」而不是裸字符串前缀：写 /api/webhook 会放行
 // /api/webhook 与 /api/webhook/github，但不会放行 /api/webhook_admin。
+// 白名单条目写不写尾斜杠等价（/api 与 /api/ 一个意思），因为用户按目录习惯填的
+// /api/ 若按字面比，反而会漏掉访问目录本身的那个请求。
 // 裸前缀匹配在这里是危险的——白名单是给健康检查、webhook 这类调用方开的口子，
 // 用户想放行的是一棵子树，而不是"所有以这串字符开头的路径"，
 // 后者会让一个 /admin 白名单顺手把 /adminconsole 也放出去。
@@ -159,15 +161,16 @@ func MatchPathPrefix(p string, list []string) bool {
 		if item == "" {
 			continue
 		}
-		if p == item {
+		// 用户习惯把目录写成 /api/，但 p 已被 path.Clean 去掉尾斜杠，
+		// 直接按字符串比会让 /api/ 这条白名单漏掉「访问目录本身」的请求
+		// （/api/ 与 /api 都命中不了，只有 /api/xxx 能过），所以两边都归一化到无尾斜杠。
+		item = strings.TrimRight(item, "/")
+		if item == "" {
+			// 用户显式写了单个 "/"，语义就是整站免认证
 			return true
 		}
-		// item 自带尾斜杠时直接按前缀比；否则补一个斜杠，确保只在段边界上匹配
-		if strings.HasSuffix(item, "/") {
-			if strings.HasPrefix(p, item) {
-				return true
-			}
-		} else if strings.HasPrefix(p, item+"/") {
+		// 补一个斜杠再比前缀，确保只在段边界上匹配
+		if p == item || strings.HasPrefix(p, item+"/") {
 			return true
 		}
 	}

@@ -131,6 +131,7 @@ var (
 	GWAF_CHAN_CLEAR_CC_IP                           = make(chan string, 10)              //清除cc缓存信息IP
 	GWAF_QUEUE_SHUTDOWN_SIGNAL        chan struct{} = make(chan struct{})                // 队列关闭信号
 	GWAF_CHAN_MANAGER_RESTART                       = make(chan int, 1)                  // 管理端重启信号
+	GWAF_CHAN_HTTP3                                 = make(chan int, 1)                  // HTTP/3 开关变更信号(配置热生效)
 
 	GWAF_SHUTDOWN_SIGNAL bool = false // 系统关闭信号
 	/*****CACHE相关*********/
@@ -304,6 +305,18 @@ func IncrementQPS() {
 // IncrementLogQPS 增加日志处理QPS计数 (只增加累积计数)
 func IncrementLogQPS() {
 	atomic.AddUint64(&GWAF_RUNTIME_LOG_PROCESS, 1)
+}
+
+// NotifyHTTP3ConfigChanged 投递一次 HTTP/3 配置变更信号，让引擎重新对齐 QUIC 监听。
+//
+// cap=1 + select/default：连续多次改动只留一次待处理信号(reconcile 本身幂等)；
+// 且在引擎/主循环尚未就绪时(启动期加载配置)也绝不会阻塞调用方 ——
+// 信号会留在缓冲里，等主循环起来后被消费。
+func NotifyHTTP3ConfigChanged() {
+	select {
+	case GWAF_CHAN_HTTP3 <- 1:
+	default:
+	}
 }
 
 // UpdateRealtimeQPS 更新实时QPS (基于差分计算，定时调用)

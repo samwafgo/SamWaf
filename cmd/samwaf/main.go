@@ -895,6 +895,15 @@ func (m *wafSystenService) run() {
 
 			}
 			break
+		case <-global.GWAF_CHAN_HTTP3:
+			// HTTP/3 开关热生效：把所有在线 HTTPS 端口的 QUIC 监听对齐到当前配置。
+			// 必须 go 出去 —— 停 QUIC 要等在途请求排空(最长 drain_timeout)，
+			// 同步做会把整个主消息循环堵住。
+			if globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE != nil {
+				zlog.Info("HTTP/3 配置发生变更，准备重新对齐 QUIC 监听")
+				go globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ReconcileHTTP3()
+			}
+			break
 		case host := <-global.GWAF_CHAN_HOST:
 			// 防护开关热更新(copy-on-write，按 host:port key 定位)
 			globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.UpdateHostByKey(host.Host+":"+strconv.Itoa(host.Port), func(h *wafenginmodel.HostSafe) {

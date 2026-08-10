@@ -40,8 +40,6 @@ import (
 	"time"
 
 	"github.com/pires/go-proxyproto"
-	"github.com/quic-go/quic-go"
-	"github.com/quic-go/quic-go/http3"
 	goahocorasick "github.com/samwafgo/ahocorasick"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
@@ -1758,6 +1756,10 @@ func (waf *WafEngine) StartAllProxyServer() {
 	})
 	waf.EnumAllPortProxyServer()
 
+	// 已在监听的端口 Status==0，StartProxyServer 会直接跳过，所以 http3 开关的变化必须在这里
+	// 单独对齐一次；否则「重启引擎」(ReloadAllHostZeroGap) 也起不来 QUIC(issue #916)。
+	waf.ReconcileHTTP3()
+
 	waf.ReLoadSensitive()
 }
 
@@ -1790,14 +1792,22 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 					zlog.Warn("https recover ", e)
 				}
 			}()
+
+			portStr := strconv.Itoa(innruntime.Port)
+			// h3Holder 必须在两个分支之前创建：HTTPS 重定向模式与普通模式都要支持 HTTP/3。
+			// 老代码把 h3 整块放在 else 里，开了 HTTPS 重定向就静默没有 HTTP/3(issue #916)。
+			// 重定向服务器只是个 TCP listener 包装(把 443 上的明文 HTTP 请求 301 走)，与 QUIC 无关，可以共存。
+			h3Holder := &innerbean.H3Holder{}
+
 			var svr *http.Server
+			var redirectServer *wafhttpserver.RedirectingHTTPSServer
 			// 检查是否启用HTTPS重定向服务器
 			if global.GCONFIG_ENABLE_HTTPS_REDIRECT == 1 {
 				// 使用新的重定向服务器
-				redirectServer := &wafhttpserver.RedirectingHTTPSServer{
+				redirectServer = &wafhttpserver.RedirectingHTTPSServer{
 					Server: &http.Server{
-						Addr:    ":" + strconv.Itoa(innruntime.Port),
-						Handler: waf,
+						Addr:    ":" + portStr,
+						Handler: waf.altSvcHandler(h3Holder, portStr),
 						TLSConfig: &tls.Config{
 							GetCertificate: waf.GetCertificateFunc,
 							MinVersion:     utils.ParseTLSVersion(global.GCONFIG_RECORD_SSLMinVerson),
@@ -1806,13 +1816,39 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 					},
 				}
 				svr = redirectServer.Server
+			} else {
+				svr = &http.Server{
+					Addr: ":" + portStr,
+					// 固定安装 Alt-Svc 包装处理器：内部按 h3Holder 是否活跃决定要不要加 Alt-Svc，
+					// 这样 http3 开关热生效时无需在运行期改写 Handler(会与在途请求竞态)。
+					Handler: waf.altSvcHandler(h3Holder, portStr),
+					TLSConfig: &tls.Config{
+						GetCertificate: waf.GetCertificateFunc,
+						// 按 SNI 逐连接定制 ALPN，实现 per-host 的对外 HTTP/2 开关：
+						// 命中 DisableHTTP2==1 的站点只广告 http/1.1，兼容原生 WebSocket 客户端。
+						GetConfigForClient: waf.GetTLSConfigForClient,
+						MinVersion:         utils.ParseTLSVersion(global.GCONFIG_RECORD_SSLMinVerson),
+						MaxVersion:         utils.ParseTLSVersion(global.GCONFIG_RECORD_SSLMaxVerson),
+					},
+				}
+			}
 
-				serclone, _ := waf.ServerOnline.Get(innruntime.Port)
-				serclone.Svr = svr
-				serclone.Conns = attachConnCounter(svr)
-				serclone.Status = 0
-				waf.ServerOnline.Set(innruntime.Port, serclone)
-				zlog.Info("启动HTTPS重定向服务器" + strconv.Itoa(innruntime.Port))
+			// 只在这里 Set 一次：老代码在 h3 协程里回写 serclone，与外层流程存在竞态、
+			// 可能把 H3 字段覆盖丢失(issue #916)。
+			serclone, _ := waf.ServerOnline.Get(innruntime.Port)
+			serclone.Svr = svr
+			serclone.Conns = attachConnCounter(svr)
+			serclone.H3 = h3Holder
+			serclone.Status = 0
+			waf.ServerOnline.Set(innruntime.Port, serclone)
+
+			// HTTP/3 与 TCP 监听彼此独立：QUIC 起不来也绝不能影响 HTTPS(TCP)
+			if global.GCONFIG_ENABLE_HTTP3 == 1 {
+				waf.startHTTP3(innruntime.Port, h3Holder)
+			}
+
+			if redirectServer != nil {
+				zlog.Info("启动HTTPS重定向服务器" + portStr)
 				// 端口复用监听，使升级重叠期新旧 Worker 同端口并存
 				rln, rerr := wafnet.ReusePortTCPListen(svr.Addr)
 				if rerr != nil {
@@ -1824,89 +1860,7 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 					zlog.Error("[HTTPServer] https redirect server has been close, cause:[%v]", err)
 				}
 			} else {
-				svr = &http.Server{
-					Addr:    ":" + strconv.Itoa(innruntime.Port),
-					Handler: waf,
-					TLSConfig: &tls.Config{
-						GetCertificate: waf.GetCertificateFunc,
-						// 按 SNI 逐连接定制 ALPN，实现 per-host 的对外 HTTP/2 开关：
-						// 命中 DisableHTTP2==1 的站点只广告 http/1.1，兼容原生 WebSocket 客户端。
-						GetConfigForClient: waf.GetTLSConfigForClient,
-						MinVersion:         utils.ParseTLSVersion(global.GCONFIG_RECORD_SSLMinVerson),
-						MaxVersion:         utils.ParseTLSVersion(global.GCONFIG_RECORD_SSLMaxVerson),
-					},
-				}
-				serclone, _ := waf.ServerOnline.Get(innruntime.Port)
-				serclone.Svr = svr
-				serclone.Conns = attachConnCounter(svr)
-				serclone.Status = 0
-				waf.ServerOnline.Set(innruntime.Port, serclone)
-				zlog.Info("启动HTTPS 服务器" + strconv.Itoa(innruntime.Port))
-
-				if global.GCONFIG_ENABLE_HTTP3 == 1 {
-					// h3 用独立 TLSConfig：不挂 h2 的 GetConfigForClient，否则会把 "h3" 从
-					// NextProtos 里剔掉、打断整个 HTTP/3（h3 与 h2 是独立 ALPN，互不影响）。
-					h3TLS := &tls.Config{
-						GetCertificate: waf.GetCertificateFunc,
-						MinVersion:     utils.ParseTLSVersion(global.GCONFIG_RECORD_SSLMinVerson),
-						MaxVersion:     utils.ParseTLSVersion(global.GCONFIG_RECORD_SSLMaxVerson),
-					}
-					h3 := &http3.Server{
-						Addr:      ":" + strconv.Itoa(innruntime.Port),
-						Handler:   waf,
-						TLSConfig: h3TLS,
-					}
-					if global.GCONFIG_ENABLE_HTTP3_BBR == 1 {
-						h3.QUICConfig.Congestion = func() quic.SendAlgorithmWithDebugInfos { return quic.NewBBRv1(nil) }
-					}
-					h3Port := strconv.Itoa(innruntime.Port)
-					svr.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-						// 关了 h2 的站点不广告 h3(Alt-Svc)：原生 WebSocket 客户端同样不能走 h3，
-						// 避免其被诱导升级到 h3 后再次握手失败，让该站点彻底只走 http/1.1。
-						reqDomain := r.Host
-						if idx := strings.IndexByte(reqDomain, ':'); idx >= 0 {
-							reqDomain = reqDomain[:idx]
-						}
-						if !waf.isHTTP2DisabledForServerName(reqDomain, h3Port) {
-							h3.SetQUICHeaders(w.Header())
-						}
-						waf.ServeHTTP(w, r)
-					})
-					go func() {
-						defer func() {
-							e := recover()
-							if e != nil { // 捕获该协程的panic
-								zlog.Warn("https recover ", e)
-							}
-						}()
-						zlog.Info("启动HTTPS 3 服务器" + strconv.Itoa(innruntime.Port))
-						serclone.H3 = h3
-						waf.ServerOnline.Set(innruntime.Port, serclone)
-						// 用端口复用的 UDP PacketConn 启动 HTTP/3，使升级重叠期新旧 Worker 同端口并存
-						pconn, perr := wafnet.ReusePortPacketConn(h3.Addr)
-						if perr != nil {
-							zlog.Error("http3 listen packet fail", perr.Error())
-							return
-						}
-						err := h3.Serve(pconn)
-						if err == http.ErrServerClosed {
-							zlog.Error("[HTTP3Server] https server has been close, cause:[%v]", err)
-						} else {
-							wafSysLog := model.WafSysLog{
-								BaseOrm: baseorm.BaseOrm{
-									Id:          uuid.GenUUID(),
-									USER_CODE:   global.GWAF_USER_CODE,
-									Tenant_ID:   global.GWAF_TENANT_ID,
-									CREATE_TIME: customtype.JsonTime(time.Now()),
-									UPDATE_TIME: customtype.JsonTime(time.Now()),
-								},
-								OpType:    "系统运行错误",
-								OpContent: "HTTPS3端口被占用: " + strconv.Itoa(innruntime.Port) + ",请检查",
-							}
-							global.GQEQUE_LOG_DB.Enqueue(&wafSysLog)
-						}
-					}()
-				}
+				zlog.Info("启动HTTPS 服务器" + portStr)
 
 				ln, err := wafnet.ReusePortTCPListen(svr.Addr)
 				if err != nil {
@@ -2022,6 +1976,11 @@ func (waf *WafEngine) StopProxyServer(v innerbean.ServerRunTime) {
 // gracefulStopServer 优雅关闭单个端口的 HTTP/HTTPS/HTTP3 服务：
 // 先停止接收新连接并等待在途请求处理完(Shutdown)，超时仍未排空则强制 Close。
 func (waf *WafEngine) gracefulStopServer(v innerbean.ServerRunTime, timeout time.Duration) {
+	// 先停 HTTP/3：摘掉 Alt-Svc 后新响应不再把客户端引导到即将关闭的 UDP 端口，
+	// 同时释放 UDP socket(quic-go 不会替我们关它)。
+	if v.H3 != nil {
+		waf.stopHTTP3(v.Port, v.H3)
+	}
 	if v.Svr != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		remain := int64(0)
@@ -2039,13 +1998,6 @@ func (waf *WafEngine) gracefulStopServer(v innerbean.ServerRunTime, timeout time
 			zlog.Info("[GracefulStop] 端口 " + strconv.Itoa(v.Port) + " 已优雅排空 (起始连接数=" + strconv.FormatInt(remain, 10) + ")")
 		}
 		cancel()
-	}
-	if v.H3 != nil {
-		hctx, hcancel := context.WithTimeout(context.Background(), timeout)
-		if err := v.H3.Shutdown(hctx); err != nil {
-			_ = v.H3.Close()
-		}
-		hcancel()
 	}
 }
 

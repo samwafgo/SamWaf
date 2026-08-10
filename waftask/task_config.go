@@ -235,6 +235,12 @@ func setConfigIntValue(name string, value int64, change int) {
 		break
 	case "http3":
 		global.GCONFIG_ENABLE_HTTP3 = value
+		if change == 1 {
+			// 光改全局变量不会让任何端口去监听 UDP：h3 实例只在 StartProxyServer 里建，
+			// 而已在监听的端口(Status==0)会被直接跳过，所以必须显式让引擎重新对齐(issue #916)。
+			// 先赋值再投递，避免消费方读到旧值。
+			global.NotifyHTTP3ConfigChanged()
+		}
 	case "record_log_desensitize":
 		global.GCONFIG_RECORD_LOG_DESENSITIZE = value
 	case "pwd_min_length":
@@ -280,6 +286,10 @@ func setConfigIntValue(name string, value int64, change int) {
 		}
 	case "http3_bbr":
 		global.GCONFIG_ENABLE_HTTP3_BBR = value
+		if change == 1 {
+			// 拥塞算法变了需要重建 QUIC 监听，同样要通知引擎
+			global.NotifyHTTP3ConfigChanged()
+		}
 	default:
 		zlog.Warn("Unknown config item:", name)
 	}
@@ -554,8 +564,8 @@ func TaskLoadSetting(initLoad bool) {
 
 	updateConfigIntItem(initLoad, "network", "connect_time_out", global.GCONFIG_RECORD_CONNECT_TIME_OUT, "连接超时（默认30s）", "int", "", configMap)
 	updateConfigIntItem(initLoad, "network", "keepalive_time_out", global.GCONFIG_RECORD_KEEPALIVE_TIME_OUT, "保持活动超时（默认30s）", "int", "", configMap)
-	updateConfigIntItem(initLoad, "network", "http3", global.GCONFIG_ENABLE_HTTP3, "是否启用http3（1启用 0关闭）", "int", "", configMap)
-	updateConfigIntItem(initLoad, "network", "http3_bbr", global.GCONFIG_ENABLE_HTTP3_BBR, "配置http3是否用BBR(默认NewReno)", "int", "", configMap)
+	updateConfigIntItem(initLoad, "network", "http3", global.GCONFIG_ENABLE_HTTP3, "是否启用HTTP/3(QUIC)。生效前提：①站点必须开启SSL（HTTP/3 只跑在 TLS 上，非HTTPS端口不会监听UDP）；②必须在防火墙/安全组放行对应的【UDP】端口（如 443/udp）。开启后立即生效、无需重启；浏览器通过响应头 Alt-Svc 升级到 h3", "options", "0|关闭,1|开启", configMap)
+	updateConfigIntItem(initLoad, "network", "http3_bbr", global.GCONFIG_ENABLE_HTTP3_BBR, "HTTP/3 拥塞控制算法：0=NewReno(默认) 1=BBR。仅在已启用 HTTP/3 时有意义，修改后会自动重建 QUIC 监听", "options", "0|NewReno,1|BBR", configMap)
 
 	updateConfigIntItem(initLoad, "system", "record_all_src_byte_info", global.GCONFIG_RECORD_ALL_SRC_BYTE_INFO, "启动记录原始请求BODY报文（1启动 0关闭）", "int", "", configMap)
 	updateConfigIntItem(initLoad, "system", "record_log_desensitize", global.GCONFIG_RECORD_LOG_DESENSITIZE, "请求记录是否进行脱敏处理（1开启脱敏 0关闭脱敏）", "options", "0|关闭脱敏,1|开启脱敏", configMap)

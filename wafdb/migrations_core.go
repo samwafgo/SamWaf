@@ -1724,6 +1724,49 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				)
 			},
 		},
+		// 迁移: 修正 http3 / http3_bbr 两个配置项的展示元数据(item_type/options/remarks)。
+		// updateConfigIntItem 只在【行不存在】时插入，永远不会更新已存在行的备注，
+		// 老用户看到的还是「是否启用http3（1启用 0关闭）」，看不出还需要 SSL + 放行 UDP 端口(issue #916)。
+		{
+			ID: "202608080001_update_http3_config_meta",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202608080001: 更新 http3/http3_bbr 配置项说明")
+				fixes := []struct {
+					item       string
+					oldRemarks string
+					newRemarks string
+					options    string
+				}{
+					{
+						item:       "http3",
+						oldRemarks: "是否启用http3（1启用 0关闭）",
+						newRemarks: "是否启用HTTP/3(QUIC)。生效前提：①站点必须开启SSL（HTTP/3 只跑在 TLS 上，非HTTPS端口不会监听UDP）；②必须在防火墙/安全组放行对应的【UDP】端口（如 443/udp）。开启后立即生效、无需重启；浏览器通过响应头 Alt-Svc 升级到 h3",
+						options:    "0|关闭,1|开启",
+					},
+					{
+						item:       "http3_bbr",
+						oldRemarks: "配置http3是否用BBR(默认NewReno)",
+						newRemarks: "HTTP/3 拥塞控制算法：0=NewReno(默认) 1=BBR。仅在已启用 HTTP/3 时有意义，修改后会自动重建 QUIC 监听",
+						options:    "0|NewReno,1|BBR",
+					},
+				}
+				for _, f := range fixes {
+					// 只覆盖仍是出厂默认备注(或为空)的行，避免把用户自己改过的备注冲掉；value 一律不动。
+					// 用裸 Exec 绕开租户 query callback(同 patch_sql.go)；item 是固定字面量，无注入面。
+					if err := tx.Exec(
+						"UPDATE system_configs SET item_type = ?, options = ?, remarks = ? WHERE item = ? AND (remarks = ? OR remarks IS NULL OR remarks = '')",
+						"options", f.options, f.newRemarks, f.item, f.oldRemarks).Error; err != nil {
+						zlog.Warn("更新配置项说明失败", "item", f.item, "error", err.Error())
+					}
+				}
+				zlog.Info("http3 配置项说明更新完成")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				// 纯展示元数据，不影响功能，无需回滚
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

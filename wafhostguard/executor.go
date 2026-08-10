@@ -27,6 +27,15 @@ type BanExecutor struct {
 	current map[string]struct{}
 	fw      firewall.FireWallEngine
 
+	// applyMu 串行化"全量重建"这类防火墙写操作(与 mu 分开：mu 只保护内存镜像，
+	// 持有它的时间必须短，不能跨越动辄数秒的 netsh/ipset 调用)。
+	//
+	// 必须有：ReplayOnStart(启动重放)、FlushPending(去抖定时器、端口范围变更、Stop)
+	// 都会对同一个集合做"清旧 + 全量重建"，而它们分属不同 goroutine。
+	// Windows 上 netsh 的 add 是**追加**不是替换，两次重建交错的结果就是同名分片规则
+	// 一层层叠加(威胁情报模块线上实测同一分片名堆到 7 份)。
+	applyMu sync.Mutex
+
 	dirty      bool          // Windows 路径：集合有变更待同步
 	syncTimer  *time.Timer   // 去抖定时器
 	stopCh     chan struct{} // 关闭信号
@@ -258,6 +267,9 @@ func (e *BanExecutor) markDirty() {
 // FlushPending 立即把待同步的集合全量重建掉。
 // Stop() 时必须调用一次，否则最后一批封禁会随进程退出一起丢失。
 func (e *BanExecutor) FlushPending() error {
+	e.applyMu.Lock()
+	defer e.applyMu.Unlock()
+
 	e.mu.Lock()
 	if !e.dirty {
 		e.mu.Unlock()
@@ -287,6 +299,9 @@ func (e *BanExecutor) ReplayOnStart() error {
 	if global.GWAF_LOCAL_DB == nil {
 		return nil
 	}
+	e.applyMu.Lock()
+	defer e.applyMu.Unlock()
+
 	now := time.Now().Unix()
 	var bans []model.HostGuardBan
 	err := global.GWAF_LOCAL_DB.

@@ -40,6 +40,11 @@ type WafThreatIPService struct {
 // 取 30s：既能容纳"连着点两个渠道同步"这种正常排队，又不会让失败无限期悬着。
 const lockWaitOnDemand = 30 * time.Second
 
+// lockWaitStartupPerChannel 启动重放为**单个渠道**等锁的上限。
+// 取得短：启动重放是"尽力而为"的补偿动作，等不到就跳过(定时同步会重建)，
+// 绝不能反过来把用户的手动同步挤掉。
+const lockWaitStartupPerChannel = 5 * time.Second
+
 // syncTriggerManual / syncTriggerSchedule 同步触发方式，进日志与 last_status 便于区分
 const (
 	syncTriggerManual   = "手动"
@@ -184,27 +189,46 @@ func (r *WafThreatIPService) applyEnableState(code, landTarget string, enable in
 	defer r.unlockSync()
 
 	zlog.Info("威胁情报订阅落地生效开始", "channel", code, "land", landTarget, "enable", enable)
+	ips, sha := r.loadSnapshot(code)
 	if enable == 0 {
-		// 停用：清理系统集合(WAF 并集在下方重建时自动排除该渠道)
+		// 停用：清理系统集合(WAF 并集在下方重建时自动排除该渠道)。
+		// 落地态清空——再启用时必须重新灌，不能因为 landed_sha 还等于内容 sha 就跳过。
 		r.destroySystemSet(code)
+		r.markLandedByCode(code, "", 0)
 	} else if landTarget == model.ThreatLandSystem || landTarget == model.ThreatLandBoth {
 		// 启用且落地含系统层：把快照重新灌回系统集合(重启/停用会丢，需按需回灌)
-		if r.fw.SupportsIPSet() {
-			if ips, _ := r.loadSnapshot(code); len(ips) > 0 {
-				if err := r.fw.RestoreIPSet(setNameForChannel(code), ips); err != nil {
-					zlog.Warn("启用渠道系统层落地失败", "channel", code, "error", err.Error())
-				}
-			}
-		} else {
+		if !r.fw.SupportsIPSet() {
 			zlog.Warn("当前环境不支持 ipset 批量封禁，跳过系统层落地", "channel", code)
+			r.markLandedByCode(code, sha, len(ips)) // 环境性跳过不算失败，见 landSystemLayer 注释
+		} else if len(ips) == 0 {
+			r.markLandedByCode(code, sha, 0)
+		} else if err := r.fw.RestoreIPSet(setNameForChannel(code), ips); err != nil {
+			// 落地失败不写 landed_sha：下一次同步/对账会发现落地态对不上并覆盖式重建
+			zlog.Error(fmt.Sprintf("启用渠道系统层落地失败 channel=%s error=%s", code, err.Error()))
+			r.RebuildWAFUnion()
+			return fmt.Errorf("系统层落地失败(将自动重试): %w", err)
+		} else {
+			r.markLandedByCode(code, sha, len(ips))
 		}
 	} else {
-		// 启用但落地不含系统层：清理可能残留的系统集合
+		// 启用但落地不含系统层：清理可能残留的系统集合；系统层无需落地即视为到位
 		r.destroySystemSet(code)
+		r.markLandedByCode(code, sha, len(ips))
 	}
 	r.RebuildWAFUnion()
 	zlog.Info("威胁情报订阅落地生效完成", "channel", code, "elapsed", time.Since(start).Round(time.Millisecond).String())
 	return nil
+}
+
+// markLandedByCode 按渠道短码更新落地态(编辑保存路径手里只有 code，没有主键 id)
+func (r *WafThreatIPService) markLandedByCode(code, landedSha string, count int) {
+	if err := global.GWAF_LOCAL_DB.Model(&model.ThreatIPChannel{}).Where("code = ?", code).Updates(map[string]interface{}{
+		"LandedSha":   landedSha,
+		"LandedCount": count,
+		"UPDATE_TIME": customtype.JsonTime(time.Now()),
+	}).Error; err != nil {
+		zlog.Warn("威胁情报订阅落地态回写失败", "channel", code, "error", err.Error())
+	}
 }
 
 // destroySystemSet 清理某渠道在系统防火墙上的集合。
@@ -280,13 +304,33 @@ func (r *WafThreatIPService) GetListApi(req request.WafThreatIPChannelSearchReq)
 	err := q.Order("create_time DESC").Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&list).Error
 	// 用快照真实条数覆盖 LastCount，避免状态回写失败/启动重放未回写导致"收录条数"显示 0
 	for i := range list {
-		if c := r.snapshotCount(list[i].Code); c >= 0 {
-			list[i].LastCount = c
+		cnt, sha := r.snapshotMeta(list[i].Code)
+		if cnt >= 0 {
+			list[i].LastCount = cnt
 		}
+		list[i].LandedOK = landedOK(list[i], sha)
 		// 回填内存态"同步中"，前端据此显示进行中并自动轮询
 		list[i].Syncing, list[i].SyncStartedAt = r.syncingOf(list[i].Code)
 	}
 	return list, total, err
+}
+
+// landedOK 判断该渠道的系统防火墙是否已确认落地到当前快照。
+//
+// 以下情况一律算"到位"，避免给用户报无意义的警：
+//   - 落地层不含系统防火墙：本来就不往系统层写
+//   - 还没有任何快照：没什么可落地的
+//
+// 环境不支持 ipset 的情况不用在这里特判——落地流程已经把 LandedSha 记成了内容 sha
+// (见 landSystemLayer 的说明：那不是"落地失败"，是"这台机器就不做系统层")。
+func landedOK(ch model.ThreatIPChannel, snapshotSha string) bool {
+	if ch.LandTarget != model.ThreatLandSystem && ch.LandTarget != model.ThreatLandBoth {
+		return true
+	}
+	if snapshotSha == "" {
+		return true
+	}
+	return ch.LandedSha == snapshotSha
 }
 
 // syncingOf 查某渠道当前是否正在同步，以及本次同步的开始时间戳
@@ -383,11 +427,17 @@ func (r *WafThreatIPService) GetLandedIPs(code, keyword string, pageIndex, pageS
 
 // snapshotCount 取某渠道快照的收录条数(不解压 payload)。无快照返回 -1。
 func (r *WafThreatIPService) snapshotCount(code string) int {
+	c, _ := r.snapshotMeta(code)
+	return c
+}
+
+// snapshotMeta 取某渠道快照的条数与 sha(都在表头，不解压 payload)。无快照返回 (-1, "")。
+func (r *WafThreatIPService) snapshotMeta(code string) (int, string) {
 	var snap model.ThreatIPSnapshot
-	if err := global.GWAF_LOCAL_DB.Select("count").Where("channel_code = ?", code).First(&snap).Error; err != nil {
-		return -1
+	if err := global.GWAF_LOCAL_DB.Select("count", "sha256").Where("channel_code = ?", code).First(&snap).Error; err != nil {
+		return -1, ""
 	}
-	return snap.Count
+	return snap.Count, snap.Sha256
 }
 
 // landMatches 判断渠道落地层是否匹配筛选。land 为空则全匹配。
@@ -454,7 +504,7 @@ func (r *WafThreatIPService) syncChannelWithTrigger(ch model.ThreatIPChannel, tr
 	defer r.inflight.Delete(ch.Code)
 
 	if !r.tryLockSync(lockWaitOnDemand, fmt.Sprintf("渠道[%s]%s同步", ch.Code, trigger)) {
-		msg := fmt.Sprintf("已跳过(%s触发)：等待 %s 仍未轮到，%s", trigger, lockWaitOnDemand, r.busyHint())
+		msg := fmt.Sprintf("已跳过(%s触发)：等待 %s 仍未轮到，%s，请稍后重试", trigger, lockWaitOnDemand, r.busyHint())
 		zlog.Warn("威胁情报订阅同步未能获取同步锁", "channel", ch.Code, "trigger", trigger, "detail", r.busyHint())
 		r.markSyncFail(ch.Id, msg)
 		return errors.New(msg)
@@ -507,49 +557,103 @@ func (r *WafThreatIPService) syncChannelWithTrigger(ch model.ThreatIPChannel, tr
 		r.markSyncFail(ch.Id, "快照编码失败: "+err.Error())
 		return err
 	}
-	if sha == oldSha && oldSha != "" {
-		// 无变化：仅更新同步时间
-		zlog.Info("威胁情报订阅内容无变化，跳过落地", "channel", ch.Code, "count", count,
+	contentSame := sameContent(sha, oldSha)
+	if landingUpToDate(sha, oldSha, ch.LandedSha) {
+		// 内容与落地态都没变，才真的可以什么都不做
+		zlog.Info("威胁情报订阅内容无变化且落地态一致，跳过落地", "channel", ch.Code, "count", count,
 			"elapsed", time.Since(start).Round(time.Millisecond).String())
-		r.markSyncOK(ch.Id, fmt.Sprintf("ok(无变化，%s触发，耗时%s)", trigger, time.Since(start).Round(time.Millisecond)), count)
+		r.markSyncOK(ch.Id, fmt.Sprintf("ok(无变化，%s触发，耗时%s)", trigger, time.Since(start).Round(time.Millisecond)), count, sha)
 		return nil
+	}
+	if contentSame {
+		// 内容没变但落地态对不上(上次落地中断/半截、或从老版本升级上来 landed_sha 为空)：
+		// 不早退，往下走一遍覆盖式重建把系统层拉回一致。
+		zlog.Warn("威胁情报订阅内容无变化但落地态不一致，将覆盖式重建", "channel", ch.Code,
+			"landed_sha", shortSha(ch.LandedSha), "content_sha", shortSha(sha))
 	}
 
 	added, removed := threatip.Diff(oldIPs, newIPs)
 
-	// 保存新快照(替换该渠道旧快照)
-	if err := r.saveSnapshot(ch.Code, payload, sha, count); err != nil {
-		zlog.Error(fmt.Sprintf("威胁情报订阅保存快照失败 channel=%s error=%s", ch.Code, err.Error()))
-		r.markSyncFail(ch.Id, "保存快照失败: "+err.Error())
-		return err
+	// 保存新快照(替换该渠道旧快照)。内容没变时无需重写，省一次大 blob 读写。
+	if !contentSame {
+		if err := r.saveSnapshot(ch.Code, payload, sha, count); err != nil {
+			zlog.Error(fmt.Sprintf("威胁情报订阅保存快照失败 channel=%s error=%s", ch.Code, err.Error()))
+			r.markSyncFail(ch.Id, "保存快照失败: "+err.Error())
+			return err
+		}
 	}
 
 	// 落地系统防火墙(该渠道私有集合，全量重建)
-	if ch.LandTarget == model.ThreatLandSystem || ch.LandTarget == model.ThreatLandBoth {
-		if r.fw.SupportsIPSet() {
-			landStart := time.Now()
-			if err := r.fw.RestoreIPSet(setNameForChannel(ch.Code), newIPs); err != nil {
-				zlog.Warn("威胁情报系统层落地失败", "channel", ch.Code, "error", err.Error())
-			} else {
-				zlog.Info("威胁情报系统层落地完成", "channel", ch.Code, "count", count,
-					"elapsed", time.Since(landStart).Round(time.Millisecond).String())
-			}
-		} else {
-			zlog.Warn("当前环境不支持 ipset 批量封禁，跳过系统层落地", "channel", ch.Code)
-		}
-	} else {
-		// 落地目标不含系统层：清理可能残留的系统集合(系统防火墙不可用时内部会直接跳过)
-		r.destroySystemSet(ch.Code)
-	}
+	landErr := r.landSystemLayer(ch, newIPs, count)
 
-	// 落地 WAF 应用层(重建全局并集)
+	// 落地 WAF 应用层(重建全局并集)。这层是纯内存 + atomic 发布，不存在半截状态。
 	r.RebuildWAFUnion()
 
 	elapsed := time.Since(start).Round(time.Millisecond)
-	r.markSyncOK(ch.Id, fmt.Sprintf("ok(+%d/-%d，丢弃%d，%s触发，耗时%s)", len(added), len(removed), parseRes.Dropped, trigger, elapsed), count)
+	if landErr != nil {
+		// 系统层没落全就**不能算成功**：不刷 LastSyncAt(下个整点定时会再来)，
+		// 也不写 LandedSha(下次即使内容没变也会走覆盖式重建)。
+		msg := fmt.Sprintf("系统层落地失败(内容已更新，将自动重试落地): %s", landErr.Error())
+		zlog.Error(fmt.Sprintf("威胁情报订阅系统层落地失败 channel=%s trigger=%s error=%s", ch.Code, trigger, landErr.Error()))
+		r.markSyncFail(ch.Id, msg)
+		return landErr
+	}
+
+	r.markSyncOK(ch.Id, fmt.Sprintf("ok(+%d/-%d，丢弃%d，%s触发，耗时%s)", len(added), len(removed), parseRes.Dropped, trigger, elapsed), count, sha)
 	zlog.Info("威胁情报订阅同步完成", "channel", ch.Code, "trigger", trigger, "count", count,
 		"added", len(added), "removed", len(removed), "elapsed", elapsed.String())
 	return nil
+}
+
+// landSystemLayer 把这份 IP 列表落地到系统防火墙。
+// 返回 nil 表示"已确认落地到位"，调用方据此写 LandedSha。
+//
+// 注意"环境不支持 ipset"返回 nil 而不是错误：那不是"这次落地失败"，是"这台机器就不做系统层"。
+// 当成失败的话，LastSyncAt 永远不刷新，定时任务会每小时重新联网拉一次全量，对订阅源很不友好。
+func (r *WafThreatIPService) landSystemLayer(ch model.ThreatIPChannel, ips []string, count int) error {
+	if ch.LandTarget != model.ThreatLandSystem && ch.LandTarget != model.ThreatLandBoth {
+		// 落地目标不含系统层：清理可能残留的系统集合(系统防火墙不可用时内部会直接跳过)
+		r.destroySystemSet(ch.Code)
+		return nil
+	}
+	if !r.fw.SupportsIPSet() {
+		zlog.Warn("当前环境不支持 ipset 批量封禁，跳过系统层落地", "channel", ch.Code)
+		return nil
+	}
+	landStart := time.Now()
+	if err := r.fw.RestoreIPSet(setNameForChannel(ch.Code), ips); err != nil {
+		return err
+	}
+	zlog.Info("威胁情报系统层落地完成", "channel", ch.Code, "count", count,
+		"elapsed", time.Since(landStart).Round(time.Millisecond).String())
+	return nil
+}
+
+// sameContent 本次拉到的内容与库里快照是否相同。
+// snapshotSha 为空表示"从没存过快照"，此时一律按"内容变了"处理，必须走完整落地流程。
+func sameContent(contentSha, snapshotSha string) bool {
+	return contentSha == snapshotSha && snapshotSha != ""
+}
+
+// landingUpToDate 判断是否可以完全跳过落地：**内容态与落地态都一致**才行。
+//
+// 这是本模块最容易踩错的一个判据。只看内容 sha 的话会漏掉这条链路：
+// 快照先落库 → 系统层落地中断(只封了一半) → 下次同步拉到相同内容 → 判定"无变化"早退
+// → 永远不再落地，页面却一直显示 ok。加上 landedSha 之后，
+// 落地没成功就永远不会等于内容 sha，下一轮必定重建，直到真的落到位。
+func landingUpToDate(contentSha, snapshotSha, landedSha string) bool {
+	return sameContent(contentSha, snapshotSha) && landedSha == contentSha
+}
+
+// shortSha 日志里只留 sha 前 8 位，够区分且不刷屏；空值显示为"(空)"
+func shortSha(s string) string {
+	if s == "" {
+		return "(空)"
+	}
+	if len(s) > 8 {
+		return s[:8]
+	}
+	return s
 }
 
 // RebuildWAFUnion 由所有"启用且落地含 waf"的渠道快照重建全局威胁情报并集，编译 MatchSet 后原子发布。
@@ -583,24 +687,132 @@ func (r *WafThreatIPService) RebuildWAFUnion() {
 
 // RestoreAllOnStartup 进程启动时重放：把各启用渠道的快照重新灌入系统 ipset(内存态，重启会丢)，
 // 并重建 WAF 并集。由 main 启动流程调用。
+//
+// 需要持 syncMu：本方法在 main 里是裸 goroutine 起的，而紧接着几行就启动了任务调度器，
+// 订阅到期时 task_threat_ip_sync 会立刻触发 SyncChannel，两边会对**同一个系统集合**
+// 同时做"清旧 + 全量重建"。Windows 上 netsh 的 add 是追加不是替换，交错的结果就是
+// 同名分片规则一层层叠加(线上实测同一分片名堆到 7 份)。
+//
+// 但锁只能**逐渠道**拿：整个循环持锁的话，几个大渠道就能把锁占住好几分钟，
+// 用户这期间点"立即同步"只会看到"等待 30s 仍未轮到，启动重放"。
+// 再叠加 IPSetUpToDate 快速跳过，正常启动这里几乎不会碰锁。
 func (r *WafThreatIPService) RestoreAllOnStartup() {
+	start := time.Now()
 	var channels []model.ThreatIPChannel
 	global.GWAF_LOCAL_DB.Where("enable = 1").Find(&channels)
 	supportsIPSet := r.fw.SupportsIPSet()
+
+	restored, skipped := 0, 0
 	for _, ch := range channels {
-		if ch.LandTarget == model.ThreatLandSystem || ch.LandTarget == model.ThreatLandBoth {
-			if !supportsIPSet {
-				continue
-			}
-			ips, _ := r.loadSnapshot(ch.Code)
-			if len(ips) > 0 {
-				if err := r.fw.RestoreIPSet(setNameForChannel(ch.Code), ips); err != nil {
-					zlog.Warn("启动重放系统层失败", "channel", ch.Code, "error", err.Error())
-				}
-			}
+		if ch.LandTarget != model.ThreatLandSystem && ch.LandTarget != model.ThreatLandBoth {
+			continue
 		}
+		if !supportsIPSet {
+			continue
+		}
+		ips, _ := r.loadSnapshot(ch.Code)
+		if len(ips) == 0 {
+			continue
+		}
+		setName := setNameForChannel(ch.Code)
+		// 系统里已经就是这份内容(Windows 规则持久化)就别重建：省掉上百次 netsh，也不用抢锁
+		if r.fw.IPSetUpToDate(setName, ips) {
+			skipped++
+			continue
+		}
+		if !r.tryLockSync(lockWaitStartupPerChannel, "启动重放渠道["+ch.Code+"]") {
+			zlog.Warn("启动重放跳过该渠道(未获取同步锁)", "channel", ch.Code, "detail", r.busyHint())
+			continue
+		}
+		if err := r.fw.RestoreIPSet(setName, ips); err != nil {
+			// 不写 landed_sha：每小时的落地对账会发现落地态对不上并重试
+			zlog.Error(fmt.Sprintf("启动重放系统层失败 channel=%s error=%s", ch.Code, err.Error()))
+		} else {
+			restored++
+			_, sha := r.loadSnapshot(ch.Code)
+			r.markLanded(ch.Id, sha, len(ips), "") // 启动重放不改"上次状态"，它反映的是上次同步结果
+		}
+		r.unlockSync()
 	}
-	r.RebuildWAFUnion()
+
+	// WAF 内存并集必须建起来，否则应用层威胁情报拦截整个失效。
+	// 拿得到锁就在锁内建(避免与同步任务的重建互相覆盖)；拿不到也照建不误——
+	// 并集发布是 atomic 的，宁可极小概率发布一份稍旧的，也不能让它压根没建。
+	if r.tryLockSync(lockWaitStartupPerChannel, "启动重放重建并集") {
+		r.RebuildWAFUnion()
+		r.unlockSync()
+	} else {
+		r.RebuildWAFUnion()
+	}
+	zlog.Info("威胁情报启动重放完成", "channels", len(channels), "restored", restored,
+		"skipped", skipped, "elapsed", time.Since(start).Round(time.Millisecond).String())
+}
+
+// ReconcileLanding 落地对账：**不联网**，只用库里已有的快照核对系统防火墙是否与之一致，
+// 不一致就按渠道覆盖式重建。由每小时的 task_threat_ip_sync 在 SyncAllDue 之后调用。
+//
+// 为什么必须有这一步：内容 sha 与落地态是两码事。系统层落地可能被中断
+// (Windows 一次重建是几十次独立 netsh，中途失败留下半截规则)、可能被用户手工清理、
+// 可能被组策略刷掉。光看内容 sha 的话，源方内容不变就永远不会再落地，
+// 防火墙里那份残缺状态会一直留着，而页面显示 ok —— 这是"沉默的部分失效"。
+//
+// 对账只针对系统防火墙层：WAF 应用层是纯内存 + atomic 发布，不存在半截状态，
+// 每次 RebuildWAFUnion 都是从快照全量重算。
+func (r *WafThreatIPService) ReconcileLanding() {
+	if !r.fw.SupportsIPSet() {
+		return // 环境本来就不做系统层落地，无账可对
+	}
+	var channels []model.ThreatIPChannel
+	global.GWAF_LOCAL_DB.Where("enable = 1").Find(&channels)
+
+	start := time.Now()
+	checked, repaired, failed := 0, 0, 0
+	for _, ch := range channels {
+		if ch.LandTarget != model.ThreatLandSystem && ch.LandTarget != model.ThreatLandBoth {
+			continue
+		}
+		ips, sha := r.loadSnapshot(ch.Code)
+		if len(ips) == 0 {
+			continue // 还没同步过，没什么可对
+		}
+		checked++
+
+		// 先看系统里的实际状态。Windows 走短 TTL 缓存，一轮对账只枚举一次全部规则。
+		if r.fw.IPSetUpToDate(setNameForChannel(ch.Code), ips) {
+			if ch.LandedSha != sha {
+				// 实际是一致的，只是落地态没记上(从老版本升级上来 landed_sha 为空)。
+				// 只补记，不动"上次状态"——什么都没发生，不该把用户上次看到的结果冲掉。
+				r.markLanded(ch.Id, sha, len(ips), "")
+			}
+			continue
+		}
+
+		zlog.Warn("威胁情报落地对账发现不一致，开始覆盖式重建", "channel", ch.Code,
+			"count", len(ips), "landed_sha", shortSha(ch.LandedSha), "content_sha", shortSha(sha))
+		if !r.tryLockSync(lockWaitStartupPerChannel, fmt.Sprintf("渠道[%s]落地对账", ch.Code)) {
+			zlog.Warn("落地对账跳过该渠道(未获取同步锁)", "channel", ch.Code, "detail", r.busyHint())
+			continue
+		}
+		err := r.fw.RestoreIPSet(setNameForChannel(ch.Code), ips)
+		r.unlockSync()
+
+		if err != nil {
+			failed++
+			zlog.Error(fmt.Sprintf("威胁情报落地对账重建失败 channel=%s error=%s", ch.Code, err.Error()))
+			// 不写 landed_sha，下一轮对账继续尝试；同时让用户在列表上看得见
+			r.markSyncFail(ch.Id, "落地对账重建失败(将自动重试): "+err.Error())
+			continue
+		}
+		repaired++
+		// 必须覆盖"上次状态"：上一条多半是"系统层落地失败…"，修好了还挂着就成了假报错
+		r.markLanded(ch.Id, sha, len(ips), fmt.Sprintf("ok(落地对账已修复，%d条)", len(ips)))
+		zlog.Info("威胁情报落地对账重建完成", "channel", ch.Code, "count", len(ips))
+	}
+
+	if checked > 0 {
+		zlog.Info("威胁情报落地对账完成", "checked", checked, "repaired", repaired, "failed", failed,
+			"elapsed", time.Since(start).Round(time.Millisecond).String())
+	}
 }
 
 // SyncAllDue 定时任务调用：遍历启用渠道，按 IntervalHour 判断是否到期，逐个同步。
@@ -659,13 +871,32 @@ func (r *WafThreatIPService) saveSnapshot(code string, payload []byte, sha strin
 	return global.GWAF_LOCAL_DB.Create(snap).Error
 }
 
-// markSyncOK 同步成功后回写：刷新同步时间、收录条数与状态
-func (r *WafThreatIPService) markSyncOK(id, status string, count int) {
+// markSyncOK 同步成功后回写：刷新同步时间、收录条数、状态，以及**已确认落地**的快照 sha。
+// landedSha 是这次确认落到位的内容 sha —— 它与内容 sha 一致，才允许下次以"无变化"跳过落地。
+func (r *WafThreatIPService) markSyncOK(id, status string, count int, landedSha string) {
 	r.updateSyncFields(id, map[string]interface{}{
-		"LastSyncAt": time.Now().Unix(),
-		"LastCount":  count,
-		"LastStatus": truncateStatus(status),
+		"LastSyncAt":  time.Now().Unix(),
+		"LastCount":   count,
+		"LastStatus":  truncateStatus(status),
+		"LandedSha":   landedSha,
+		"LandedCount": count,
 	})
+}
+
+// markLanded 更新落地态。status 为空表示不动"上次状态"。
+//
+// 刻意**不动 LastSyncAt**：对账没有重新联网拉取，不该冒充一次成功同步。
+// 但 status 该给的时候必须给——修好之后若不覆盖，列表里会一直挂着上一次的
+// "系统层落地失败…"，用户看到的是个已经不成立的报错。
+func (r *WafThreatIPService) markLanded(id, landedSha string, count int, status string) {
+	fields := map[string]interface{}{
+		"LandedSha":   landedSha,
+		"LandedCount": count,
+	}
+	if status != "" {
+		fields["LastStatus"] = truncateStatus(status)
+	}
+	r.updateSyncFields(id, fields)
 }
 
 // markSyncFail 同步失败后回写：只写状态原因。

@@ -4,10 +4,30 @@ package firewall
 
 import (
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
+
+// parseIpsetEntryCount 从 `ipset list -t <name>` 的输出里取 "Number of entries"。
+// ok=false 表示没解析出来(集合不存在、命令失败、格式变了)，调用方应按"需要重建"处理。
+// 放在这个跨平台文件里是为了能在任意平台跑单测——解析本身是纯字符串逻辑。
+func parseIpsetEntryCount(out string) (int, bool) {
+	const key = "Number of entries:"
+	for _, line := range strings.Split(out, "\n") {
+		idx := strings.Index(line, key)
+		if idx < 0 {
+			continue
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(line[idx+len(key):]))
+		if err != nil {
+			return 0, false
+		}
+		return n, true
+	}
+	return 0, false
+}
 
 // splitByIPVersion 把混合 IP/CIDR 列表按版本分流为 v4、v6 两组(供各平台分别灌入对应集合)。
 // 判定优先用 net 解析，无法解析时退化为"含冒号即 v6"。非法项被丢弃。

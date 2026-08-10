@@ -1767,6 +1767,47 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移: 威胁情报渠道表增加"已落地快照"列（落地态与内容态分离）
+		//
+		// 背景：原先只有内容 sha（threat_ip_snapshot.Sha256），它同时承担了"内容变没变"和
+		// "落地成功没有"两个语义。Windows 上一次全量重建是几十次独立 netsh 调用，中途失败会
+		// 留下半截规则，而快照 sha 已经先落库了 —— 下次同步按"内容无变化"早退，永远不再落地，
+		// 页面却显示 ok。分出 landed_sha 后，判据变成"内容没变且落地态==内容态"才跳过。
+		//
+		// 两列留空 => 存量渠道首次同步/对账时会被判定为"落地态未知"，从而做一次覆盖式重建，
+		// 正好把升级前可能残留的半截/重复规则一次性修正，不需要额外的数据回填。
+		{
+			ID: "202608100001_add_threat_ip_channel_landed",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202608100001: 为 threat_ip_channel 表添加已落地快照字段")
+				cols := []struct{ column, field string }{
+					{"landed_sha", "LandedSha"},
+					{"landed_count", "LandedCount"},
+				}
+				for _, c := range cols {
+					if tx.Migrator().HasColumn(&model.ThreatIPChannel{}, c.column) {
+						zlog.Info("字段已存在，跳过", "column", c.column)
+						continue
+					}
+					if err := tx.Migrator().AddColumn(&model.ThreatIPChannel{}, c.field); err != nil {
+						return fmt.Errorf("添加 threat_ip_channel.%s 字段失败: %w", c.column, err)
+					}
+				}
+				zlog.Info("threat_ip_channel 已落地快照字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202608100001: 删除 threat_ip_channel 已落地快照字段")
+				for _, field := range []string{"LandedSha", "LandedCount"} {
+					if tx.Migrator().HasColumn(&model.ThreatIPChannel{}, field) {
+						if err := tx.Migrator().DropColumn(&model.ThreatIPChannel{}, field); err != nil {
+							zlog.Warn("删除字段失败", "field", field, "error", err.Error())
+						}
+					}
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

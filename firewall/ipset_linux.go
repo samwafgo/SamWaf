@@ -6,6 +6,7 @@ import (
 	"SamWaf/common/wafexec"
 	"fmt"
 	"os/exec"
+
 	"strings"
 )
 
@@ -60,6 +61,44 @@ func hasIP6tables() bool {
 // SupportsIPSet 报告当前环境是否可用 ipset 批量封禁(带 30s 缓存，见 available.go)
 func (fw *FireWallEngine) SupportsIPSet() bool {
 	return cachedSupportsIPSet(fw) == nil
+}
+
+// IPSetUpToDate 报告集合内容是否已经就是这份 ip 列表(尽力而为)。
+//
+// 用 `ipset list -t`(terse，只出头部不出成员)拿 "Number of entries" 与期望条数比对，
+// 一次 fork、与集合大小无关，很便宜。用途有二：
+//   - 启动重放：进程重启(非机器重启)时内核集合还在，可直接跳过重灌
+//   - 落地对账：定时核对系统层是否与快照一致，不一致就用快照覆盖式重建
+//
+// 只比条数不比内容：逐条比对十万级集合的代价远超收益，而条数不符已经能覆盖
+// "集合没了 / 灌了一半 / 灌成了别的快照"这些实际会发生的情况。
+// 误判的后果只是多做一次重建(`ipset restore`+`swap` 幂等且原子)，不会出错。
+func (fw *FireWallEngine) IPSetUpToDate(setName string, ips []string) bool {
+	if !fw.SupportsIPSet() {
+		return false
+	}
+	if err := validateSetName(setName); err != nil {
+		return false
+	}
+	v4, v6 := splitByIPVersion(ips)
+	if !fw.setEntryCountEquals(setName, len(v4)) {
+		return false
+	}
+	if hasIP6tables() && !fw.setEntryCountEquals(v6SetName(setName), len(v6)) {
+		return false
+	}
+	return true
+}
+
+// setEntryCountEquals 判断某集合当前条目数是否等于 want。集合不存在/解析不出则返回 false。
+func (fw *FireWallEngine) setEntryCountEquals(setName string, want int) bool {
+	out, err := fw.runFirewallCmd("ipset", "list", "-t", setName)
+	if err != nil {
+		return false // 集合不存在或 ipset 不可用，都当作"需要重建"
+	}
+	// 头部形如 "Number of entries: 13157"，字段名在各版本 ipset 中稳定且为英文
+	n, ok := parseIpsetEntryCount(out)
+	return ok && n == want
 }
 
 // supportsIPSet 实际探测：ipset 二进制存在 + 能创建/销毁临时 set(验证内核模块与权限)

@@ -22,10 +22,23 @@ type ThreatIPChannel struct {
 	LastStatus   string `gorm:"size:255" json:"last_status"` // 上次同步结果：ok 或错误摘要
 	Remarks      string `gorm:"size:500" json:"remarks"`     // 备注
 
+	// LandedSha/LandedCount 记录"**已确认落地到系统防火墙**的那份快照"。
+	//
+	// 必须与 threat_ip_snapshot.Sha256(内容态)分开：一个字段没法同时表达
+	// "内容变没变"和"落地成功没有"。Windows 上一次全量重建是几十次独立 netsh 调用，
+	// 中途失败会留下半截规则；若此时仍按内容 sha 判定"无变化"，就会永远跳过落地，
+	// 页面显示 ok、实际只封了一半，且再也不会自愈。
+	// 有了这两个字段，判据变成"内容没变 **且** 落地态等于内容态"才能跳过。
+	LandedSha   string `gorm:"size:64" json:"landed_sha"` // 已落地快照的 sha256，空=从未确认落地
+	LandedCount int    `json:"landed_count"`              // 已落地的条数
+
 	// 以下为运行时内存态字段(gorm:"-" 不落库，无需迁移)，仅供列表接口回显"同步中"，
 	// 让前端能在后台拉取期间给出反馈并自动轮询，而不是点完什么都看不到。
 	Syncing       bool  `gorm:"-" json:"syncing"`         // 该渠道当前是否有同步在进行
 	SyncStartedAt int64 `gorm:"-" json:"sync_started_at"` // 本次同步开始时间戳(秒)，Syncing 为 false 时无意义
+	// LandedOK 系统防火墙是否已确认落地到当前快照。由服务端比对 LandedSha 与快照 sha 得出，
+	// 不让前端拿条数去猜(落地层不含系统层、环境不支持 ipset 等情况都不该报警)。
+	LandedOK bool `gorm:"-" json:"landed_ok"`
 }
 
 // TableName 表名

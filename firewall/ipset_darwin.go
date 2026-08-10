@@ -17,6 +17,32 @@ func (fw *FireWallEngine) SupportsIPSet() bool {
 	return cachedSupportsIPSet(fw) == nil
 }
 
+// IPSetUpToDate 报告 pf table 内容是否已经就是这份 ip 列表(尽力而为)。
+// 用 `pfctl -t <table> -T show` 数一下条目数与期望比对；表不存在/pf 不可用都返回 false。
+// 只比条数不比内容，理由同 Linux 实现：误判的后果只是多做一次 `pfctl -T replace`(原子且幂等)。
+func (fw *FireWallEngine) IPSetUpToDate(setName string, ips []string) bool {
+	if !fw.SupportsIPSet() {
+		return false
+	}
+	out, err := exec.Command("pfctl", "-t", pfTableName(setName), "-T", "show").CombinedOutput()
+	if err != nil {
+		return false
+	}
+	got := 0
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.TrimSpace(line) != "" {
+			got++
+		}
+	}
+	want := 0
+	for _, raw := range ips {
+		if strings.TrimSpace(raw) != "" {
+			want++
+		}
+	}
+	return got == want
+}
+
 // supportsIPSet macOS 下等同 checkAvailable(pfctl 存在且 pf 启用)
 func (fw *FireWallEngine) supportsIPSet() error {
 	return fw.checkAvailable()

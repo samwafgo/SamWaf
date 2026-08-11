@@ -63,6 +63,7 @@ type APIGroup struct {
 	WafHostConnApi
 	WafThreatIPApi
 	WafCDNIPApi
+	WafIPLookupApi
 	WafPluginApi
 	WafLogFileWriteApi
 	WafIPLocationApi
@@ -155,6 +156,7 @@ var (
 	wafHostConnService        = waf_service.WafHostConnServiceApp
 	wafThreatIPService        = waf_service.WafThreatIPServiceApp
 	wafCDNIPService           = waf_service.WafCDNIPServiceApp
+	wafIPLookupService        = waf_service.WafIPLookupServiceApp
 
 	wafOPlatformKeyService = waf_service.WafOPlatformKeyServiceApp
 	wafOPlatformLogService = waf_service.WafOPlatformLogServiceApp

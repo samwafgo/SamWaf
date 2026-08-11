@@ -62,6 +62,7 @@ type APIGroup struct {
 	WafHostGuardApi
 	WafHostConnApi
 	WafThreatIPApi
+	WafThreatIPExcludeApi
 	WafCDNIPApi
 	WafIPLookupApi
 	WafPluginApi
@@ -156,7 +157,10 @@ var (
 	wafHostConnService        = waf_service.WafHostConnServiceApp
 	wafThreatIPService        = waf_service.WafThreatIPServiceApp
 	wafCDNIPService           = waf_service.WafCDNIPServiceApp
-	wafIPLookupService        = waf_service.WafIPLookupServiceApp
+
+	wafThreatIPExcludeService      = waf_service.WafThreatIPExcludeServiceApp
+	wafThreatIPExcludeAuditService = waf_service.WafThreatIPExcludeAuditApp
+	wafIPLookupService             = waf_service.WafIPLookupServiceApp
 
 	wafOPlatformKeyService = waf_service.WafOPlatformKeyServiceApp
 	wafOPlatformLogService = waf_service.WafOPlatformLogServiceApp

@@ -122,6 +122,56 @@ func IsWhitelisted(ip string) (bool, string) {
 	return false, ""
 }
 
+// AutoExcludeItem 一条可枚举的"自己人"地址/网段。
+//
+// IsWhitelisted 只回答"这个 IP 是不是自己人"，而威胁情报误报排除需要反过来
+// **枚举**出所有自己人，才能在把情报写进系统防火墙之前先把它们剔掉。
+type AutoExcludeItem struct {
+	Entry    string // IP 或 CIDR
+	Reason   string // WhiteReasonXxx
+	Volatile bool   // 是否易变源：易变源命中后需要固化落库，否则 sha 会随 TTL 反复抖动
+}
+
+// AutoExcludeSources 枚举全部"自己人"地址与网段，供威胁情报误报排除使用。
+//
+// 与 IsWhitelisted 共用同一批数据源，保证两个功能对"谁是自己人"的判断永远一致。
+// 唯一的易变源是活跃管理会话 IP（30 分钟 TTL），调用方需要对它做"命中即固化"。
+func AutoExcludeSources() []AutoExcludeItem {
+	out := make([]AutoExcludeItem, 0, 24)
+	add := func(items []string, reason string, volatile bool) {
+		for _, it := range items {
+			if it = strings.TrimSpace(it); it != "" {
+				out = append(out, AutoExcludeItem{Entry: it, Reason: reason, Volatile: volatile})
+			}
+		}
+	}
+	add(loopbackCIDRs, WhiteReasonLoopback, false)
+	add(LocalAddrs(), WhiteReasonLocal, false)
+	if global.GCONFIG_HOST_GUARD_AUTO_LAN == 1 {
+		add(lanCIDRs, WhiteReasonLAN, false)
+	}
+	add(splitList(global.GCONFIG_HOST_GUARD_WHITELIST), WhiteReasonConfig, false)
+	// 管理端白名单默认是 0.0.0.0/0，原样拿来会把整个威胁情报功能架空，必须先剔全网段
+	add(dropCatchAll(splitList(global.GWAF_IP_WHITELIST)), WhiteReasonManage, false)
+	add(ActiveAdminIPs(), WhiteReasonAdminIP, true)
+	return out
+}
+
+// ActiveAdminIPs 列出 30 分钟内使用过管理端的客户端 IP。
+func ActiveAdminIPs() []string {
+	if global.GCACHE_WAFCACHE == nil {
+		return nil
+	}
+	keys := global.GCACHE_WAFCACHE.ListAvailableKeysWithPrefix(enums.CACHE_HOST_GUARD_ADMIN_PRE)
+	out := make([]string, 0, len(keys))
+	for k := range keys {
+		if ip := strings.TrimPrefix(k, enums.CACHE_HOST_GUARD_ADMIN_PRE); ip != "" && net.ParseIP(ip) != nil {
+			out = append(out, ip)
+		}
+	}
+	return out
+}
+
 // adminIPTTL 活跃管理会话 IP 的记忆时长
 const adminIPTTL = 30 * time.Minute
 

@@ -59,5 +59,7 @@ type WafThreatIPLandedSummaryReq struct {
 type WafThreatIPLandedIPReq struct {
 	Code    string `json:"code" binding:"required"` // 渠道短码
 	Keyword string `json:"keyword"`                 // IP 子串过滤(可空)
+	// OnlyExcluded=1 时只列被误报排除名单剔掉的条目，供用户核对排除的实际效果
+	OnlyExcluded int `json:"only_excluded"`
 	request.PageInfo
 }

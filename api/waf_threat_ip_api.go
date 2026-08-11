@@ -115,7 +115,7 @@ func (w *WafThreatIPApi) LandedIPsApi(c *gin.Context) {
 		response.FailWithMessage("解析失败: "+err.Error(), c)
 		return
 	}
-	ips, total := wafThreatIPService.GetLandedIPs(req.Code, req.Keyword, req.PageIndex, req.PageSize)
+	ips, total := wafThreatIPService.GetLandedIPs(req.Code, req.Keyword, req.OnlyExcluded == 1, req.PageIndex, req.PageSize)
 	response.OkWithDetailed(response.PageResult{
 		List:      ips,
 		Total:     total,

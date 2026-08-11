@@ -308,29 +308,86 @@ func (r *WafThreatIPService) GetListApi(req request.WafThreatIPChannelSearchReq)
 		if cnt >= 0 {
 			list[i].LastCount = cnt
 		}
-		list[i].LandedOK = landedOK(list[i], sha)
+		effSha, excluded := r.effectiveMeta(list[i], sha)
+		list[i].ExcludedCount = excluded
+		list[i].LandedOK = landedOK(list[i], effSha)
 		// 回填内存态"同步中"，前端据此显示进行中并自动轮询
 		list[i].Syncing, list[i].SyncStartedAt = r.syncingOf(list[i].Code)
 	}
 	return list, total, err
 }
 
-// landedOK 判断该渠道的系统防火墙是否已确认落地到当前快照。
+// effMetaEntry 某渠道有效集元信息的缓存项
+type effMetaEntry struct {
+	snapSha    string // 算出这份结果时的快照 sha
+	excludeSha string // 算出这份结果时的排除集 sha
+	sha        string
+	excluded   int
+}
+
+var (
+	effMetaMu    sync.Mutex
+	effMetaStore = map[string]effMetaEntry{}
+)
+
+// rememberEffMeta 由**已经算过有效集**的路径(同步/启动重放/落地对账)回填缓存。
+// 这些路径本来就要解压快照并过滤，顺手记一笔，展示接口就永远不必自己算。
+func rememberEffMeta(code, snapshotSha, excludeSha, effSha string, excluded int) {
+	effMetaMu.Lock()
+	effMetaStore[code] = effMetaEntry{snapSha: snapshotSha, excludeSha: excludeSha, sha: effSha, excluded: excluded}
+	effMetaMu.Unlock()
+}
+
+// effectiveMeta 取某渠道有效集的 sha 与被排除条数，供列表页/落地汇总展示。
+//
+// **这个函数只读缓存，绝不自己解压快照。** 它在列表接口里是**每行**调一次的，
+// 一旦允许它按需计算，一次刷新就要解压 N 个渠道的快照并逐条过滤；线上实测叠加
+// 启动重放/落地对账的 netsh 开销后，直接把 /threatip/channel/list 拖到 20s 超时。
+//
+// 缓存未命中(刚启动、还没跑过同步或对账)时退回**已落库的状态**：
+// 拿 landed_sha 当 effSha、last_count-landed_count 当排除条数。
+// 这会让"未完全落地"标签在冷启动的头一分钟内偏向"正常"——这正是我们要的方向，
+// 宁可漏报也不能误报；启动时的对账跑完就会回填真实值。
+func (r *WafThreatIPService) effectiveMeta(ch model.ThreatIPChannel, snapshotSha string) (effSha string, excluded int) {
+	if snapshotSha == "" {
+		return "", 0
+	}
+	excludeSha := WafThreatIPExcludeServiceApp.Get().Sha()
+
+	effMetaMu.Lock()
+	c, ok := effMetaStore[ch.Code]
+	effMetaMu.Unlock()
+	if ok && c.snapSha == snapshotSha && c.excludeSha == excludeSha {
+		return c.sha, c.excluded
+	}
+
+	// 退回落库状态：不做任何 IO，展示接口必须是常数级的
+	fallbackExcluded := ch.LastCount - ch.LandedCount
+	if fallbackExcluded < 0 || ch.LandedSha == "" {
+		fallbackExcluded = 0
+	}
+	if ch.LandedSha == "" {
+		return snapshotSha, 0
+	}
+	return ch.LandedSha, fallbackExcluded
+}
+
+// landedOK 判断该渠道的系统防火墙是否已确认落地到**当前应有的内容**(有效集)。
 //
 // 以下情况一律算"到位"，避免给用户报无意义的警：
 //   - 落地层不含系统防火墙：本来就不往系统层写
 //   - 还没有任何快照：没什么可落地的
 //
-// 环境不支持 ipset 的情况不用在这里特判——落地流程已经把 LandedSha 记成了内容 sha
+// 环境不支持 ipset 的情况不用在这里特判——落地流程已经把 LandedSha 记成了有效集 sha
 // (见 landSystemLayer 的说明：那不是"落地失败"，是"这台机器就不做系统层")。
-func landedOK(ch model.ThreatIPChannel, snapshotSha string) bool {
+func landedOK(ch model.ThreatIPChannel, effSha string) bool {
 	if ch.LandTarget != model.ThreatLandSystem && ch.LandTarget != model.ThreatLandBoth {
 		return true
 	}
-	if snapshotSha == "" {
+	if effSha == "" {
 		return true
 	}
-	return ch.LandedSha == snapshotSha
+	return ch.LandedSha == effSha
 }
 
 // syncingOf 查某渠道当前是否正在同步，以及本次同步的开始时间戳
@@ -350,8 +407,9 @@ type LandedChannelSummary struct {
 	Name          string `json:"name"`
 	LandTarget    string `json:"land_target"`
 	Enable        int    `json:"enable"`
-	Count         int    `json:"count"`           // 实际生效(已落地)条数：启用=快照条数，停用=0(已从防火墙/WAF移除)
+	Count         int    `json:"count"`           // 实际生效(已落地)条数：启用=有效集条数，停用=0(已从防火墙/WAF移除)
 	SnapshotCount int    `json:"snapshot_count"`  // 快照收录条数(不论启用与否，供停用时提示"再启用可回灌")
+	ExcludedCount int    `json:"excluded_count"`  // 被误报排除名单剔掉的条数，解释 Count 为什么比 SnapshotCount 少
 	LastSyncAt    int64  `json:"last_sync_at"`    // 上次同步时间戳(秒)
 	LastStatus    string `json:"last_status"`     // 上次同步结果
 	Syncing       bool   `json:"syncing"`         // 当前是否有同步在进行(内存态)
@@ -368,12 +426,17 @@ func (r *WafThreatIPService) GetLandedSummary(land string) []LandedChannelSummar
 		if !landMatches(ch.LandTarget, land) {
 			continue
 		}
-		snapCnt := r.snapshotCount(ch.Code)
+		snapCnt, snapSha := r.snapshotMeta(ch.Code)
 		if snapCnt < 0 {
 			snapCnt = 0
 		}
-		// 实际落地条数：停用渠道已从防火墙/WAF 移除，落地数应为 0(快照仍保留以便再启用秒回灌)
-		landed := snapCnt
+		// 实际落地条数要扣掉被排除的误报，否则页面数字与防火墙里的真实条数对不上
+		_, excluded := r.effectiveMeta(ch, snapSha)
+		landed := snapCnt - excluded
+		if landed < 0 {
+			landed = 0
+		}
+		// 停用渠道已从防火墙/WAF 移除，落地数应为 0(快照仍保留以便再启用秒回灌)
 		if ch.Enable == 0 {
 			landed = 0
 		}
@@ -385,6 +448,7 @@ func (r *WafThreatIPService) GetLandedSummary(land string) []LandedChannelSummar
 			Enable:        ch.Enable,
 			Count:         landed,
 			SnapshotCount: snapCnt,
+			ExcludedCount: excluded,
 			LastSyncAt:    ch.LastSyncAt,
 			LastStatus:    ch.LastStatus,
 			Syncing:       syncing,
@@ -394,14 +458,42 @@ func (r *WafThreatIPService) GetLandedSummary(land string) []LandedChannelSummar
 	return out
 }
 
-// GetLandedIPs 分页浏览某渠道快照里的 IP/CIDR(只读)。keyword 为子串过滤(可空)。
-// 返回当前页切片与过滤后总数。
-func (r *WafThreatIPService) GetLandedIPs(code, keyword string, pageIndex, pageSize int) ([]string, int64) {
-	ips, _ := r.loadSnapshot(code) // 已排序去重
+// LandedIP 落地 IP 浏览的一行。
+// ExcludedBy/Reason 只在"仅看已排除"模式下有值——用户问的是"这条为什么没进防火墙"，
+// 光给个 IP 列表回答不了，必须指名是哪条排除规则干的。
+type LandedIP struct {
+	IP         string `json:"ip"`
+	ExcludedBy string `json:"excluded_by"` // 命中的排除条目原文
+	Reason     string `json:"reason"`      // 该条目的来源说明(内置自动来源才有)
+}
+
+// GetLandedIPs 分页浏览某渠道的 IP/CIDR(只读)。keyword 为子串过滤(可空)。
+//
+// 默认列的是**有效集**——页面标题是"已落地"，就该和防火墙里实际存在的东西一致，
+// 否则用户排除完还能在这里看到那条 IP，会以为排除没生效。
+// onlyExcluded=true 时反过来只列被排除掉的那些，并带上是被哪条规则排除的。
+func (r *WafThreatIPService) GetLandedIPs(code, keyword string, onlyExcluded bool, pageIndex, pageSize int) ([]LandedIP, int64) {
+	all, _ := r.loadSnapshot(code) // 已排序去重
+	set := WafThreatIPExcludeServiceApp.Get()
+
+	ips := make([]LandedIP, 0, len(all))
+	for _, ip := range all {
+		hit := set.matchEntry(ip)
+		if onlyExcluded {
+			if hit != nil {
+				ips = append(ips, LandedIP{IP: ip, ExcludedBy: hit.Raw, Reason: hit.Reason})
+			}
+			continue
+		}
+		if hit == nil {
+			ips = append(ips, LandedIP{IP: ip})
+		}
+	}
+
 	if keyword = strings.TrimSpace(keyword); keyword != "" {
-		filtered := make([]string, 0, len(ips))
+		filtered := make([]LandedIP, 0, len(ips))
 		for _, ip := range ips {
-			if strings.Contains(ip, keyword) {
+			if strings.Contains(ip.IP, keyword) {
 				filtered = append(filtered, ip)
 			}
 		}
@@ -416,7 +508,7 @@ func (r *WafThreatIPService) GetLandedIPs(code, keyword string, pageIndex, pageS
 	}
 	start := (pageIndex - 1) * pageSize
 	if start >= len(ips) {
-		return []string{}, total
+		return []LandedIP{}, total
 	}
 	end := start + pageSize
 	if end > len(ips) {
@@ -557,24 +649,35 @@ func (r *WafThreatIPService) syncChannelWithTrigger(ch model.ThreatIPChannel, tr
 		r.markSyncFail(ch.Id, "快照编码失败: "+err.Error())
 		return err
 	}
+	// 应用误报排除名单：内容集 → 有效集。落地相关的一切判据从这里往下都只认有效集，
+	// 内容 sha 只继续负责"源内容变没变"。二者混用会导致"落地的是 N-k 条、对账的期望还是 N 条"，
+	// 于是每小时判定不一致、全量重建、且永远对不上。
+	effIPs, effSha, excluded := WafThreatIPExcludeServiceApp.EffectiveIPs(newIPs)
+	rememberEffMeta(ch.Code, sha, WafThreatIPExcludeServiceApp.Get().Sha(), effSha, excluded)
+	if excluded > 0 {
+		zlog.Info("威胁情报订阅已应用误报排除", "channel", ch.Code, "content", count, "excluded", excluded, "effective", len(effIPs))
+	}
+
 	contentSame := sameContent(sha, oldSha)
-	if landingUpToDate(sha, oldSha, ch.LandedSha) {
+	if landingUpToDate(sha, oldSha, ch.LandedSha, effSha) {
 		// 内容与落地态都没变，才真的可以什么都不做
 		zlog.Info("威胁情报订阅内容无变化且落地态一致，跳过落地", "channel", ch.Code, "count", count,
 			"elapsed", time.Since(start).Round(time.Millisecond).String())
-		r.markSyncOK(ch.Id, fmt.Sprintf("ok(无变化，%s触发，耗时%s)", trigger, time.Since(start).Round(time.Millisecond)), count, sha)
+		r.markSyncOK(ch.Id, fmt.Sprintf("ok(无变化，%s触发，耗时%s)%s", trigger, time.Since(start).Round(time.Millisecond), excludedNote(excluded)), count, effSha, len(effIPs))
 		return nil
 	}
 	if contentSame {
-		// 内容没变但落地态对不上(上次落地中断/半截、或从老版本升级上来 landed_sha 为空)：
+		// 内容没变但落地态对不上(上次落地中断/半截、排除名单刚改过、或从老版本升级上来 landed_sha 为空)：
 		// 不早退，往下走一遍覆盖式重建把系统层拉回一致。
 		zlog.Warn("威胁情报订阅内容无变化但落地态不一致，将覆盖式重建", "channel", ch.Code,
-			"landed_sha", shortSha(ch.LandedSha), "content_sha", shortSha(sha))
+			"landed_sha", shortSha(ch.LandedSha), "eff_sha", shortSha(effSha))
 	}
 
 	added, removed := threatip.Diff(oldIPs, newIPs)
 
-	// 保存新快照(替换该渠道旧快照)。内容没变时无需重写，省一次大 blob 读写。
+	// 保存新快照(替换该渠道旧快照)。快照存的是**内容集原文**，不是有效集——
+	// 排除名单随时可能改回去，把过滤结果落库就再也还原不出源到底给了什么。
+	// 内容没变时无需重写，省一次大 blob 读写。
 	if !contentSame {
 		if err := r.saveSnapshot(ch.Code, payload, sha, count); err != nil {
 			zlog.Error(fmt.Sprintf("威胁情报订阅保存快照失败 channel=%s error=%s", ch.Code, err.Error()))
@@ -584,7 +687,7 @@ func (r *WafThreatIPService) syncChannelWithTrigger(ch model.ThreatIPChannel, tr
 	}
 
 	// 落地系统防火墙(该渠道私有集合，全量重建)
-	landErr := r.landSystemLayer(ch, newIPs, count)
+	landErr := r.landSystemLayer(ch, effIPs, len(effIPs))
 
 	// 落地 WAF 应用层(重建全局并集)。这层是纯内存 + atomic 发布，不存在半截状态。
 	r.RebuildWAFUnion()
@@ -599,7 +702,7 @@ func (r *WafThreatIPService) syncChannelWithTrigger(ch model.ThreatIPChannel, tr
 		return landErr
 	}
 
-	r.markSyncOK(ch.Id, fmt.Sprintf("ok(+%d/-%d，丢弃%d，%s触发，耗时%s)", len(added), len(removed), parseRes.Dropped, trigger, elapsed), count, sha)
+	r.markSyncOK(ch.Id, fmt.Sprintf("ok(+%d/-%d，丢弃%d，%s触发，耗时%s)%s", len(added), len(removed), parseRes.Dropped, trigger, elapsed, excludedNote(excluded)), count, effSha, len(effIPs))
 	zlog.Info("威胁情报订阅同步完成", "channel", ch.Code, "trigger", trigger, "count", count,
 		"added", len(added), "removed", len(removed), "elapsed", elapsed.String())
 	return nil
@@ -640,9 +743,22 @@ func sameContent(contentSha, snapshotSha string) bool {
 // 这是本模块最容易踩错的一个判据。只看内容 sha 的话会漏掉这条链路：
 // 快照先落库 → 系统层落地中断(只封了一半) → 下次同步拉到相同内容 → 判定"无变化"早退
 // → 永远不再落地，页面却一直显示 ok。加上 landedSha 之后，
-// 落地没成功就永远不会等于内容 sha，下一轮必定重建，直到真的落到位。
-func landingUpToDate(contentSha, snapshotSha, landedSha string) bool {
-	return sameContent(contentSha, snapshotSha) && landedSha == contentSha
+// 落地没成功就永远不会等于应有的 sha，下一轮必定重建，直到真的落到位。
+//
+// landedSha 比的是 **effSha(有效集)** 而不是内容 sha：源内容没变、但用户改了误报排除名单时，
+// 该落地的东西已经变了，必须重建。effSha 由过滤后的列表算出，排除名单一改它就变，
+// 于是"排除生效"这件事完全不需要额外的失效通知机制，靠既有的对账循环自然完成。
+// 排除名单为空时 effSha == contentSha，存量 landed_sha 保持有效，升级不会触发重建。
+func landingUpToDate(contentSha, snapshotSha, landedSha, effSha string) bool {
+	return sameContent(contentSha, snapshotSha) && landedSha == effSha && effSha != ""
+}
+
+// excludedNote 把"本次排除了多少条"拼进 last_status，让用户在列表上直接看到排除起了作用
+func excludedNote(excluded int) string {
+	if excluded <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("(已排除%d条误报)", excluded)
 }
 
 // shortSha 日志里只留 sha 前 8 位，够区分且不刷屏；空值显示为"(空)"
@@ -661,13 +777,21 @@ func (r *WafThreatIPService) RebuildWAFUnion() {
 	var channels []model.ThreatIPChannel
 	global.GWAF_LOCAL_DB.Where("enable = 1").Find(&channels)
 
+	// 排除名单同样作用于 WAF 层：它的语义是"这个 IP 不是威胁"，
+	// 而不是"这个 IP 别进防火墙"，两层心智必须一致。
+	// 并集本来每次就全量重建、没有 sha 缓存，多一道过滤是白送的。
+	exclude := WafThreatIPExcludeServiceApp.Get()
+
 	uniq := make(map[string]struct{})
+	excluded := 0
 	for _, ch := range channels {
 		if ch.LandTarget != model.ThreatLandWAF && ch.LandTarget != model.ThreatLandBoth {
 			continue
 		}
 		ips, _ := r.loadSnapshot(ch.Code)
-		for _, ip := range ips {
+		res := exclude.Filter(ips)
+		excluded += res.Excluded
+		for _, ip := range res.Effective {
 			uniq[ip] = struct{}{}
 		}
 	}
@@ -681,7 +805,7 @@ func (r *WafThreatIPService) RebuildWAFUnion() {
 	}
 	buildStart := time.Now()
 	ipset.SetGlobalThreatMatcher(ipset.BuildMatchSet(items))
-	zlog.Info("威胁情报 WAF 并集已重建", "total", len(items),
+	zlog.Info("威胁情报 WAF 并集已重建", "total", len(items), "excluded", excluded,
 		"elapsed", time.Since(buildStart).Round(time.Millisecond).String())
 }
 
@@ -714,9 +838,16 @@ func (r *WafThreatIPService) RestoreAllOnStartup() {
 		if len(ips) == 0 {
 			continue
 		}
+		// 重放的必须是**有效集**：直接灌快照原文，会把用户排除掉的误报 IP 每次重启都封回去
+		effIPs, effSha, excluded := WafThreatIPExcludeServiceApp.EffectiveIPs(ips)
+		_, snapSha := r.snapshotMeta(ch.Code)
+		rememberEffMeta(ch.Code, snapSha, WafThreatIPExcludeServiceApp.Get().Sha(), effSha, excluded)
+		if len(effIPs) == 0 {
+			continue
+		}
 		setName := setNameForChannel(ch.Code)
 		// 系统里已经就是这份内容(Windows 规则持久化)就别重建：省掉上百次 netsh，也不用抢锁
-		if r.fw.IPSetUpToDate(setName, ips) {
+		if r.fw.IPSetUpToDate(setName, effIPs) {
 			skipped++
 			continue
 		}
@@ -724,13 +855,12 @@ func (r *WafThreatIPService) RestoreAllOnStartup() {
 			zlog.Warn("启动重放跳过该渠道(未获取同步锁)", "channel", ch.Code, "detail", r.busyHint())
 			continue
 		}
-		if err := r.fw.RestoreIPSet(setName, ips); err != nil {
+		if err := r.fw.RestoreIPSet(setName, effIPs); err != nil {
 			// 不写 landed_sha：每小时的落地对账会发现落地态对不上并重试
 			zlog.Error(fmt.Sprintf("启动重放系统层失败 channel=%s error=%s", ch.Code, err.Error()))
 		} else {
 			restored++
-			_, sha := r.loadSnapshot(ch.Code)
-			r.markLanded(ch.Id, sha, len(ips), "") // 启动重放不改"上次状态"，它反映的是上次同步结果
+			r.markLanded(ch.Id, effSha, len(effIPs), "") // 启动重放不改"上次状态"，它反映的是上次同步结果
 		}
 		r.unlockSync()
 	}
@@ -771,29 +901,42 @@ func (r *WafThreatIPService) ReconcileLanding() {
 		if ch.LandTarget != model.ThreatLandSystem && ch.LandTarget != model.ThreatLandBoth {
 			continue
 		}
-		ips, sha := r.loadSnapshot(ch.Code)
+		ips, _ := r.loadSnapshot(ch.Code)
 		if len(ips) == 0 {
 			continue // 还没同步过，没什么可对
 		}
+		// 期望值必须是**有效集**，与落地时用的完全同源。
+		// 若这里拿快照原文去比对，而落地的是过滤后的 N-k 条，就会每小时判定不一致、
+		// 每小时全量重建、而且永远修不好——期望值和实际值天生对不上。
+		effIPs, effSha, excluded := WafThreatIPExcludeServiceApp.EffectiveIPs(ips)
+		_, snapSha := r.snapshotMeta(ch.Code)
+		rememberEffMeta(ch.Code, snapSha, WafThreatIPExcludeServiceApp.Get().Sha(), effSha, excluded)
+		if len(effIPs) == 0 {
+			continue
+		}
 		checked++
 
-		// 先看系统里的实际状态。Windows 走短 TTL 缓存，一轮对账只枚举一次全部规则。
-		if r.fw.IPSetUpToDate(setNameForChannel(ch.Code), ips) {
-			if ch.LandedSha != sha {
-				// 实际是一致的，只是落地态没记上(从老版本升级上来 landed_sha 为空)。
-				// 只补记，不动"上次状态"——什么都没发生，不该把用户上次看到的结果冲掉。
-				r.markLanded(ch.Id, sha, len(ips), "")
+		// 只问一次防火墙。IPSetUpToDate 在 Windows 上要枚举整张防火墙规则表，
+		// 规则多时单次就是秒级——按渠道各问两遍会把整轮对账拖成分钟级，
+		// 期间 CPU/磁盘被 netsh 占满，管理端接口跟着一起变慢。
+		upToDate := r.fw.IPSetUpToDate(setNameForChannel(ch.Code), effIPs)
+		if upToDate {
+			if ch.LandedSha != effSha {
+				// 系统里其实是对的，只是落地态没记上：只补记，不动"上次状态"——
+				// 什么都没发生，不该把用户上次看到的结果冲掉。
+				r.markLanded(ch.Id, effSha, len(effIPs), "")
 			}
 			continue
 		}
 
 		zlog.Warn("威胁情报落地对账发现不一致，开始覆盖式重建", "channel", ch.Code,
-			"count", len(ips), "landed_sha", shortSha(ch.LandedSha), "content_sha", shortSha(sha))
+			"effective", len(effIPs), "excluded", excluded,
+			"landed_sha", shortSha(ch.LandedSha), "eff_sha", shortSha(effSha))
 		if !r.tryLockSync(lockWaitStartupPerChannel, fmt.Sprintf("渠道[%s]落地对账", ch.Code)) {
 			zlog.Warn("落地对账跳过该渠道(未获取同步锁)", "channel", ch.Code, "detail", r.busyHint())
 			continue
 		}
-		err := r.fw.RestoreIPSet(setNameForChannel(ch.Code), ips)
+		err := r.fw.RestoreIPSet(setNameForChannel(ch.Code), effIPs)
 		r.unlockSync()
 
 		if err != nil {
@@ -805,8 +948,8 @@ func (r *WafThreatIPService) ReconcileLanding() {
 		}
 		repaired++
 		// 必须覆盖"上次状态"：上一条多半是"系统层落地失败…"，修好了还挂着就成了假报错
-		r.markLanded(ch.Id, sha, len(ips), fmt.Sprintf("ok(落地对账已修复，%d条)", len(ips)))
-		zlog.Info("威胁情报落地对账重建完成", "channel", ch.Code, "count", len(ips))
+		r.markLanded(ch.Id, effSha, len(effIPs), fmt.Sprintf("ok(落地对账已修复，%d条)%s", len(effIPs), excludedNote(excluded)))
+		zlog.Info("威胁情报落地对账重建完成", "channel", ch.Code, "count", len(effIPs))
 	}
 
 	if checked > 0 {
@@ -871,15 +1014,17 @@ func (r *WafThreatIPService) saveSnapshot(code string, payload []byte, sha strin
 	return global.GWAF_LOCAL_DB.Create(snap).Error
 }
 
-// markSyncOK 同步成功后回写：刷新同步时间、收录条数、状态，以及**已确认落地**的快照 sha。
-// landedSha 是这次确认落到位的内容 sha —— 它与内容 sha 一致，才允许下次以"无变化"跳过落地。
-func (r *WafThreatIPService) markSyncOK(id, status string, count int, landedSha string) {
+// markSyncOK 同步成功后回写：刷新同步时间、收录条数、状态，以及**已确认落地**的有效集 sha。
+//
+// count 是**内容集**条数(源收录了多少)，landedCount 是**有效集**条数(实际落地了多少)。
+// 两者在有误报排除时会不一样，必须分开记：前者反映订阅源，后者反映防火墙里真实的样子。
+func (r *WafThreatIPService) markSyncOK(id, status string, count int, landedSha string, landedCount int) {
 	r.updateSyncFields(id, map[string]interface{}{
 		"LastSyncAt":  time.Now().Unix(),
 		"LastCount":   count,
 		"LastStatus":  truncateStatus(status),
 		"LandedSha":   landedSha,
-		"LandedCount": count,
+		"LandedCount": landedCount,
 	})
 }
 

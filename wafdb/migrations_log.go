@@ -349,6 +349,29 @@ func RunLogDBMigrations(db *gorm.DB) error {
 				return tx.Migrator().DropTable(&model.HostLoginEvent{})
 			},
 		},
+		// 迁移: 创建威胁情报排除名单审计表
+		// 排除是主动降低防护的操作，删除排除条目后原记录就没了，
+		// 所以"曾经排除过什么、谁排的"必须另留一份只增不改的流水。
+		{
+			ID: "202608110002_add_threat_ip_exclude_audit_table",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202608110002: 创建威胁情报排除名单审计表")
+				if err := tx.AutoMigrate(&model.ThreatIPExcludeAudit{}); err != nil {
+					return fmt.Errorf("创建威胁情报排除审计表失败: %w", err)
+				}
+				// (create_time)：按时间倒序分页 + 保留期清理
+				if err := safeCreateIndex(tx, "threat_ip_exclude_audit", "idx_tiea_create_time",
+					"CREATE INDEX IF NOT EXISTS idx_tiea_create_time ON threat_ip_exclude_audit(create_time)"); err != nil {
+					zlog.Warn("创建索引 idx_tiea_create_time 失败", "error", err.Error())
+				}
+				zlog.Info("威胁情报排除名单审计表创建成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202608110002: 删除威胁情报排除名单审计表")
+				return tx.Migrator().DropTable(&model.ThreatIPExcludeAudit{})
+			},
+		},
 	})
 
 	// 执行迁移

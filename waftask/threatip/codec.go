@@ -15,9 +15,7 @@ import (
 func EncodeSnapshot(ips []string) (payload []byte, sha string, count int, err error) {
 	uniq := sortedUnique(ips)
 	text := strings.Join(uniq, "\n")
-
-	sum := sha256.Sum256([]byte(text))
-	sha = hex.EncodeToString(sum[:])
+	sha = shaOfText(text)
 
 	var buf bytes.Buffer
 	zw := gzip.NewWriter(&buf)
@@ -49,6 +47,20 @@ func DecodeSnapshot(payload []byte) ([]string, error) {
 		return nil, nil
 	}
 	return strings.Split(text, "\n"), nil
+}
+
+// ShaOf 计算一份 IP/CIDR 列表的内容 sha256，算法与 EncodeSnapshot 完全一致
+// （排序去重 → \n 连接 → sha256），因此两者产出的 sha 可以直接互相比较。
+//
+// 误报排除功能靠这一点成立：「有效集 sha」(内容集剔除排除项后)与快照的「内容 sha」
+// 同算法，排除名单为空时二者恒等，存量 landed_sha 升级后仍然有效、不会触发全量重建。
+func ShaOf(ips []string) string {
+	return shaOfText(strings.Join(sortedUnique(ips), "\n"))
+}
+
+func shaOfText(text string) string {
+	sum := sha256.Sum256([]byte(text))
+	return hex.EncodeToString(sum[:])
 }
 
 // sortedUnique 排序去重

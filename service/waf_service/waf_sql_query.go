@@ -61,6 +61,10 @@ var sensitiveTableSubstrings = []string{
 	"access_ticket", // 跨域票据：含回跳地址与会话关联
 	"access_config",
 	"access_audit", // 审计日志有专门的只读接口，不需要也不应该从裸查询通道导出
+	// 威胁情报误报排除：排除名单是"哪些地址被主动放行了"的清单，泄露等于告诉攻击者
+	// 从哪个地址来不会被情报拦；审计流水同理，且它是只增不改的合规证据，
+	// 有专门的只读接口，不该从裸查询通道导出。
+	"threat_ip_exclude",
 }
 
 // allowedSqlOps 结构化条件允许的运算符白名单。

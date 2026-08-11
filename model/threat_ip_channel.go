@@ -36,9 +36,12 @@ type ThreatIPChannel struct {
 	// 让前端能在后台拉取期间给出反馈并自动轮询，而不是点完什么都看不到。
 	Syncing       bool  `gorm:"-" json:"syncing"`         // 该渠道当前是否有同步在进行
 	SyncStartedAt int64 `gorm:"-" json:"sync_started_at"` // 本次同步开始时间戳(秒)，Syncing 为 false 时无意义
-	// LandedOK 系统防火墙是否已确认落地到当前快照。由服务端比对 LandedSha 与快照 sha 得出，
+	// LandedOK 系统防火墙是否已确认落地到当前应有的内容(有效集)。由服务端比对 LandedSha 与有效集 sha 得出，
 	// 不让前端拿条数去猜(落地层不含系统层、环境不支持 ipset 等情况都不该报警)。
 	LandedOK bool `gorm:"-" json:"landed_ok"`
+	// ExcludedCount 本渠道被误报排除名单剔掉的条数(内容集 - 有效集)。
+	// 页面据此显示"已排除 N 条"，让用户知道防火墙里的数字为什么比收录条数少。
+	ExcludedCount int `gorm:"-" json:"excluded_count"`
 }
 
 // TableName 表名

@@ -16,11 +16,14 @@ func TestLandingUpToDate(t *testing.T) {
 	const shaA = "aaaa1111"
 	const shaB = "bbbb2222"
 
+	const shaEff = "cccc3333"
+
 	cases := []struct {
 		name        string
 		contentSha  string // 本次拉取解析出来的内容 sha
 		snapshotSha string // 库里快照的 sha
 		landedSha   string // 已确认落地的 sha
+		effSha      string // 应当落地的内容(内容集剔除误报排除后)的 sha；空表示与 contentSha 相同
 		want        bool   // 是否可以完全跳过落地
 		why         string
 	}{
@@ -54,13 +57,32 @@ func TestLandingUpToDate(t *testing.T) {
 			contentSha: shaA, snapshotSha: "", landedSha: shaA,
 			want: false, why: "快照都没有，落地态不可信，不能据此跳过",
 		},
+		{
+			name:       "内容没变但用户刚改了误报排除-必须重新落地",
+			contentSha: shaA, snapshotSha: shaA, landedSha: shaA, effSha: shaEff,
+			want: false, why: "源内容一个字没变，但该落地的东西变了——排除名单生效全靠这条",
+		},
+		{
+			name:       "排除生效后已按有效集落地-可跳过",
+			contentSha: shaA, snapshotSha: shaA, landedSha: shaEff, effSha: shaEff,
+			want: true, why: "落地态等于有效集，稳态，不该反复重建",
+		},
+		{
+			name:       "有排除但落地态还等于内容sha-必须重新落地",
+			contentSha: shaA, snapshotSha: shaA, landedSha: shaA, effSha: shaEff,
+			want: false, why: "防呆：不能拿内容 sha 去比，否则排除永远不落地",
+		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := landingUpToDate(c.contentSha, c.snapshotSha, c.landedSha); got != c.want {
-				t.Errorf("landingUpToDate(%q,%q,%q) = %v, want %v —— %s",
-					c.contentSha, c.snapshotSha, c.landedSha, got, c.want, c.why)
+			effSha := c.effSha
+			if effSha == "" {
+				effSha = c.contentSha // 没有排除名单时有效集恒等于内容集
+			}
+			if got := landingUpToDate(c.contentSha, c.snapshotSha, c.landedSha, effSha); got != c.want {
+				t.Errorf("landingUpToDate(%q,%q,%q,%q) = %v, want %v —— %s",
+					c.contentSha, c.snapshotSha, c.landedSha, effSha, got, c.want, c.why)
 			}
 		})
 	}
@@ -91,11 +113,11 @@ func TestLandedOK(t *testing.T) {
 	}
 
 	cases := []struct {
-		name        string
-		ch          model.ThreatIPChannel
-		snapshotSha string
-		want        bool
-		why         string
+		name   string
+		ch     model.ThreatIPChannel
+		effSha string // 当前应当落地的内容(有效集)的 sha
+		want   bool
+		why    string
 	}{
 		{"系统层已落地", ch(model.ThreatLandSystem, shaA), shaA, true, "正常稳态"},
 		{"两者已落地", ch(model.ThreatLandBoth, shaA), shaA, true, "正常稳态"},
@@ -103,12 +125,14 @@ func TestLandedOK(t *testing.T) {
 		{"系统层从未确认落地", ch(model.ThreatLandSystem, ""), shaA, false, "老库升级上来，对账会在一小时内补上"},
 		{"仅WAF层-不该报警", ch(model.ThreatLandWAF, ""), shaA, true, "本来就不往系统防火墙写"},
 		{"还没有快照-不该报警", ch(model.ThreatLandSystem, ""), "", true, "从没同步过，没什么可落地的"},
+		{"刚加了排除还没重新落地", ch(model.ThreatLandSystem, shaA), shaB, false,
+			"排除改了 effSha 就变，落地态对不上，该提示用户正在重新落地"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := landedOK(c.ch, c.snapshotSha); got != c.want {
-				t.Errorf("landedOK(land=%s, landedSha=%q, snapshotSha=%q) = %v, want %v —— %s",
-					c.ch.LandTarget, c.ch.LandedSha, c.snapshotSha, got, c.want, c.why)
+			if got := landedOK(c.ch, c.effSha); got != c.want {
+				t.Errorf("landedOK(land=%s, landedSha=%q, effSha=%q) = %v, want %v —— %s",
+					c.ch.LandTarget, c.ch.LandedSha, c.effSha, got, c.want, c.why)
 			}
 		})
 	}

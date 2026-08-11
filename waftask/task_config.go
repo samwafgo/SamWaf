@@ -205,6 +205,12 @@ func setConfigIntValue(name string, value int64, change int) {
 	case "host_guard_auto_lan":
 		global.GCONFIG_HOST_GUARD_AUTO_LAN = value
 		wafhostguard.InvalidateWhitelist()
+		// 内网段豁免同时是威胁情报误报排除集的来源，开关一变要重新落地。
+		// 只在真的变了时做：启动加载(change=0)时排除集本来就会按需构建，
+		// 这里再触发一次对账纯属浪费，还可能赶在防火墙引擎就绪之前。
+		if change == 1 {
+			waf_service.WafThreatIPExcludeServiceApp.NotifySourceChanged()
+		}
 		break
 	case "host_guard_debounce_sec":
 		global.GCONFIG_HOST_GUARD_DEBOUNCE_SEC = value
@@ -380,6 +386,10 @@ func setConfigStringValue(name string, value string, change int) {
 		global.GCONFIG_HOST_GUARD_WHITELIST = value
 		// 白名单是防误封的主力，改完必须立刻重建，不能等下一个刷新周期
 		wafhostguard.InvalidateWhitelist()
+		// 同一份白名单也用来把"自己人"从威胁情报里剔出去，改完要重新落地
+		if change == 1 {
+			waf_service.WafThreatIPExcludeServiceApp.NotifySourceChanged()
+		}
 		break
 	case "host_guard_log_paths":
 		global.GCONFIG_HOST_GUARD_LOG_PATHS = value

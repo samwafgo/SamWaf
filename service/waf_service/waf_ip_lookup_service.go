@@ -82,14 +82,17 @@ func matchedEntryIn(items []string, ip net.IP) string {
 
 // 来源码，与前端组件的图例一一对应
 const (
-	srcIPBlack   = "ip_black"
-	srcIPWhite   = "ip_white"
-	srcIPGroup   = "ip_group"
-	srcThreatIP  = "threat_ip"
-	srcIPFailure = "ip_failure"
-	srcCCBan     = "cc_ban"
-	srcFirewall  = "firewall"
-	srcCDN       = "cdn"
+	srcIPBlack  = "ip_black"
+	srcIPWhite  = "ip_white"
+	srcIPGroup  = "ip_group"
+	srcThreatIP = "threat_ip"
+	// srcThreatExclude 威胁情报误报排除名单。放在结果里是为了回答"为什么它没被拦"——
+	// 只报 block 不报 allow 的话，用户排除完再查会看到一片空白，分不清是不在情报里还是已豁免。
+	srcThreatExclude = "threat_exclude"
+	srcIPFailure     = "ip_failure"
+	srcCCBan         = "cc_ban"
+	srcFirewall      = "firewall"
+	srcCDN           = "cdn"
 )
 
 // normalizeLookupInput 把用户输入归一成一个可查的 IP。
@@ -376,6 +379,24 @@ func (r *WafIPLookupService) groupRefs() map[string]groupRef {
 // 先用引擎那份全局并集(ipset 常数级判定)问一句「在不在」，不在就直接收工；
 // 只有确实命中了才展开各渠道快照去定位是哪一家收录的。
 func (r *WafIPLookupService) matchThreatIP(ip string, parsed net.IP, resp *response2.IPLookupResp) {
+	// 排除名单必须参与进来：查询结果要回答的是"这个 IP 现在会不会被拦"，
+	// 用户排除完再来查却还显示 block，只会让他以为排除没生效。
+	exclude := WafThreatIPExcludeServiceApp.Get()
+
+	// 被豁免的情况要显式报出来，而且必须在"全局并集里没有"这个早退**之前**判——
+	// 排除生效后并集里本来就查不到它了，放在早退之后就永远不会执行。
+	// 不报的话用户看到的是"什么都没查到"，分不清是"不在情报里"还是"在情报里但已豁免"。
+	if hit := exclude.MatchedEntry(parsed); hit != nil {
+		resp.Hits = append(resp.Hits, response2.IPLookupHit{
+			Source:     srcThreatExclude,
+			SourceName: "威胁情报排除名单",
+			Scope:      hit.ScopeText(),
+			Matched:    hit.Raw,
+			Effect:     "allow",
+			Detail:     "该地址已被误报排除名单豁免，威胁情报不会拦截它（其它名单仍可能拦截）",
+		})
+	}
+
 	matcher := ipset.GetGlobalThreatMatcher()
 	if matcher == nil || !matcher.Contains(parsed) {
 		return
@@ -387,6 +408,10 @@ func (r *WafIPLookupService) matchThreatIP(ip string, parsed net.IP, resp *respo
 		return
 	}
 
+	// 缓存 key 必须带上排除集指纹：排除名单变了但快照 sha 没变，
+	// 只按快照 sha 失效的话缓存不会重建，查询结果会一直停留在排除之前。
+	excludeSha := exclude.Sha()
+
 	found := false
 	for _, ch := range channels {
 		// 只读表头拿 sha，命中缓存就完全不用解压
@@ -395,7 +420,7 @@ func (r *WafIPLookupService) matchThreatIP(ip string, parsed net.IP, resp *respo
 			continue
 		}
 		decodeFailed := false
-		set := matcherFor(threatMatchers, ch.Code, meta.Sha256, func() []string {
+		set := matcherFor(threatMatchers, ch.Code, meta.Sha256+"_"+excludeSha, func() []string {
 			var snap model.ThreatIPSnapshot
 			if err := global.GWAF_LOCAL_DB.Where("channel_code = ?", ch.Code).First(&snap).Error; err != nil {
 				return nil
@@ -405,7 +430,7 @@ func (r *WafIPLookupService) matchThreatIP(ip string, parsed net.IP, resp *respo
 				decodeFailed = true
 				return nil
 			}
-			return ips
+			return exclude.Filter(ips).Effective
 		})
 		if decodeFailed {
 			resp.Degraded = append(resp.Degraded, srcThreatIP)
@@ -415,12 +440,14 @@ func (r *WafIPLookupService) matchThreatIP(ip string, parsed net.IP, resp *respo
 			continue
 		}
 
-		// 到这儿才解压一次去定位具体命中的那条规则——命中很罕见，这份开销可以接受
+		// 到这儿才解压一次去定位具体命中的那条规则——命中很罕见，这份开销可以接受。
+		// entry 就是"实际命中的那条原文"，可能是个网段(如 1.2.3.0/24)；
+		// 前端的「排除此项」按钮直接拿它预填，用户不必自己判断该排单 IP 还是整段。
 		entry := ""
 		var snap model.ThreatIPSnapshot
 		if err := global.GWAF_LOCAL_DB.Where("channel_code = ?", ch.Code).First(&snap).Error; err == nil {
 			if ips, derr := threatip.DecodeSnapshot(snap.Payload); derr == nil {
-				entry = matchedEntryIn(ips, parsed)
+				entry = matchedEntryIn(exclude.Filter(ips).Effective, parsed)
 			}
 		}
 		found = true

@@ -1808,6 +1808,26 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移: 创建威胁情报误报排除名单表
+		//
+		// 订阅源是全量快照且每周期整份覆盖，用户手工从防火墙删掉的条目下次同步就回来；
+		// 系统层又是内核丢包，WAF 白名单救不了。所以误报需要一份"每次同步/对账都重新应用"
+		// 的本地排除声明，见 SamWafTechDoc/威胁IP库同步/SamWaf-威胁情报IP误报排除-设计文档.md
+		{
+			ID: "202608110001_add_threat_ip_exclude_table",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202608110001: 创建威胁情报误报排除名单表")
+				if err := tx.AutoMigrate(&model.ThreatIPExclude{}); err != nil {
+					return fmt.Errorf("创建威胁情报排除名单表失败: %w", err)
+				}
+				zlog.Info("威胁情报误报排除名单表创建成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202608110001: 删除威胁情报误报排除名单表")
+				return tx.Migrator().DropTable(&model.ThreatIPExclude{})
+			},
+		},
 	})
 
 	// 执行迁移

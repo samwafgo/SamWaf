@@ -53,6 +53,12 @@ type WebLog struct {
 	IsBalance            int     `json:"is_balance"`                                                        //是否是负载均衡 1 是 0 不是
 	BalanceInfo          string  `gorm:"size:255" json:"balance_info"`                                      //负载均衡IP端口信息
 	AI_SCORE             float64 `json:"ai_score"`                                                          //AI检测得分[0,1]，0表示未经AI检测或未命中；命中(观察/拦截)时记录实际分数
+
+	// GeoUnresolved 本次请求的地区无法判定（没有可用的地区库，或查询失败），
+	// 区别于"查出来是未知"。为 true 时规则引擎会跳过引用了 COUNTRY/PROVINCE/CITY 的规则，
+	// 避免 `MF.COUNTRY != "中国"` 这类规则在 IPv6 地区库缺失时把访客整片误杀。
+	// 仅运行期使用，不落库、不出接口。
+	GeoUnresolved bool `gorm:"-" json:"-"`
 }
 
 // GetHeaderValue 从HEADER字段中提取指定header的值

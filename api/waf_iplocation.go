@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -189,7 +190,7 @@ func (w *WafIPLocationApi) GetIPDBConfigApi(c *gin.Context) {
 	resp := IPDBConfigResp{
 		Ipv4Source: getConfigOrDefault("ip_v4_source", "ip2region"),
 		Ipv4Format: getConfigOrDefault("ip_v4_format", "legacy"),
-		Ipv6Source: getConfigOrDefault("ip_v6_source", "geolite2"),
+		Ipv6Source: getConfigOrDefault("ip_v6_source", "ip2region"),
 		Ipv6Format: getConfigOrDefault("ip_v6_format", "legacy"),
 	}
 	response.OkWithDetailed(resp, "获取成功", c)
@@ -259,7 +260,14 @@ func (w *WafIPLocationApi) SaveIPDBConfigApi(c *gin.Context) {
 
 // UploadIPDBFileApi 上传 IP 数据库文件
 func (w *WafIPLocationApi) UploadIPDBFileApi(c *gin.Context) {
+	// key 是界面上那张表的槽位标识。带了 key 就按槽位定义确定落盘文件名与允许后缀，
+	// 不用再靠扩展名猜用户想传哪个库（.mmdb 到底是 IPv4 还是 IPv6 的，靠猜是猜不准的）。
+	// 不带 key 时退回老的 type+扩展名逻辑，保证老前端/脚本还能用。
+	slotKey := c.PostForm("key")
 	ipType := c.PostForm("type")
+	if slot, ok := iplocation.DatabaseByKey(slotKey); ok && ipType == "" {
+		ipType = slot.UploadType
+	}
 	if ipType != "ipv4" && ipType != "ipv6" && ipType != "ipdb" {
 		response.FailWithMessage("无效的类型参数，必须是 ipv4、ipv6 或 ipdb", c)
 		return
@@ -274,6 +282,11 @@ func (w *WafIPLocationApi) UploadIPDBFileApi(c *gin.Context) {
 	ext := filepath.Ext(file.Filename)
 	if ext != ".xdb" && ext != ".mmdb" && ext != ".ipdb" {
 		response.FailWithMessage("不支持的文件类型，仅支持 .xdb、.mmdb 和 .ipdb 文件", c)
+		return
+	}
+	// 带了 key 就用槽位声明的后缀严格卡一遍，别让用户把 mmdb 传进 ip2region 的槽
+	if slot, ok := iplocation.DatabaseByKey(slotKey); ok && !strings.EqualFold(ext, slot.Accept) {
+		response.FailWithMessage(fmt.Sprintf("【%s】只接受 %s 文件，请确认后重新上传", slot.Desc, slot.Accept), c)
 		return
 	}
 	if ext == ".ipdb" && ipType != "ipdb" {
@@ -329,9 +342,11 @@ func (w *WafIPLocationApi) UploadIPDBFileApi(c *gin.Context) {
 		return
 	}
 
-	// xdb / mmdb 保存路径
+	// xdb / mmdb 保存路径：优先按槽位定义取，退回老的 type+扩展名推断
 	var finalPath string
-	if ipType == "ipv4" {
+	if slot, ok := iplocation.DatabaseByKey(slotKey); ok {
+		finalPath = filepath.Join(dataDir, slot.FileName)
+	} else if ipType == "ipv4" {
 		if ext == ".xdb" {
 			finalPath = filepath.Join(dataDir, "ip2region.xdb")
 		} else {
@@ -410,6 +425,61 @@ func (w *WafIPLocationApi) ReloadIPDBApi(c *gin.Context) {
 	}
 
 	response.OkWithMessage("数据库重新加载成功", c)
+}
+
+// CheckIPDBUpgradeApi 检查可在线下载的 IP 数据库
+//
+// 只有 ip2region 系列（Apache-2.0）能由 SamWaf 转发分发；GeoLite2 与 ipdb 受各自授权限制，
+// 只能由用户自行获取后上传。
+func (w *WafIPLocationApi) CheckIPDBUpgradeApi(c *gin.Context) {
+	dataDir := filepath.Join(utils.GetCurrentDir(), "data")
+	info, err := iplocation.CheckUpgrade(dataDir)
+	if err != nil {
+		// 拿不到远端清单也要把本地状态回给前端（内网环境下这是常态），
+		// 所以带着 info 一起返回，让界面能显示"本地已有哪些库"。
+		response.OkWithDetailed(map[string]interface{}{
+			"info":  info,
+			"error": err.Error(),
+		}, "获取远端升级信息失败，仅返回本地状态", c)
+		return
+	}
+	response.OkWithDetailed(map[string]interface{}{"info": info}, "获取成功", c)
+}
+
+// ApplyIPDBUpgradeApi 启动下载指定的 IP 数据库（异步），下载完成后自动热加载
+//
+// IPv6 库约 35MB，慢网要几分钟，同步等会被网关掐断、用户也只能看个转圈。
+// 这里立刻返回，前端轮询 GetIPDBUpgradeProgressApi 画进度条。
+func (w *WafIPLocationApi) ApplyIPDBUpgradeApi(c *gin.Context) {
+	var req struct {
+		Key string `json:"key" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage("参数解析失败", c)
+		return
+	}
+	dataDir := filepath.Join(utils.GetCurrentDir(), "data")
+	if err := iplocation.StartUpgrade(dataDir, req.Key, reloadManagerByCurrentConfig); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	response.OkWithMessage("已开始下载", c)
+}
+
+// GetIPDBUpgradeProgressApi 查询当前下载进度，供前端轮询
+func (w *WafIPLocationApi) GetIPDBUpgradeProgressApi(c *gin.Context) {
+	response.OkWithDetailed(iplocation.GetProgress(), "获取成功", c)
+}
+
+// CancelIPDBUpgradeApi 取消正在进行的下载
+//
+// 官方源在部分网络下速度很差，用户等不下去时要能停，转而自己从 Gitee/GitHub 下好丢进 data 目录。
+func (w *WafIPLocationApi) CancelIPDBUpgradeApi(c *gin.Context) {
+	if err := iplocation.CancelUpgrade(); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	response.OkWithMessage("已取消下载", c)
 }
 
 // TestIPLookupApi 测试 IP 查询

@@ -356,7 +356,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		header := joinHeader(r.Header)
 
-		region := utils.GetCountry(clientIP)
+		region, geoResolved := utils.GetCountryEx(clientIP)
 
 		currentDay, _ := strconv.Atoi(time.Now().Format("20060102"))
 
@@ -394,6 +394,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			GUEST_IDENTIFICATION: "正常访客", //访客身份识别
 			TimeSpent:            0,
 			NetSrcIp:             utils.GetSourceClientIP(r.RemoteAddr),
+			GeoUnresolved:        !geoResolved,
 			SrcByteBody:          bodyByte,
 			WebLogVersion:        global.GWEBLOG_VERSION,
 			Scheme:               r.Proto,

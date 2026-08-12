@@ -62,7 +62,7 @@ func (m *Manager) Lookup(ipStr string) *IPLocationResult {
 	// 判断是 IPv4 还是 IPv6
 	ip := net.ParseIP(ipStr)
 	if ip == nil {
-		return &IPLocationResult{Country: "无效IP"}
+		return &IPLocationResult{Country: "无效IP", Unresolved: true}
 	}
 
 	// 判断 IP 类型
@@ -80,7 +80,7 @@ func (m *Manager) lookupV4(ipStr string) *IPLocationResult {
 	if m.v4Source == SourceIp2Region && m.v4Searcher != nil {
 		region, err := m.v4Searcher.SearchByStr(ipStr)
 		if err != nil {
-			return &IPLocationResult{Country: "查询失败"}
+			return &IPLocationResult{Country: "查询失败", Unresolved: true}
 		}
 		if region == "" {
 			return &IPLocationResult{Country: "未知"}
@@ -90,7 +90,7 @@ func (m *Manager) lookupV4(ipStr string) *IPLocationResult {
 		ip := net.ParseIP(ipStr)
 		record, err := m.v4GeoReader.Country(ip)
 		if err != nil {
-			return &IPLocationResult{Country: "查询失败"}
+			return &IPLocationResult{Country: "查询失败", Unresolved: true}
 		}
 		countryName := record.Country.Names["zh-CN"]
 		if countryName == "" {
@@ -100,20 +100,23 @@ func (m *Manager) lookupV4(ipStr string) *IPLocationResult {
 	} else if m.v4Source == SourceIpdb && m.ipdbReader != nil {
 		info, err := m.ipdbReader.FindMap(ipStr, "CN")
 		if err != nil {
-			return &IPLocationResult{Country: "查询失败"}
+			return &IPLocationResult{Country: "查询失败", Unresolved: true}
 		}
 		return parseIpdbMap(info)
 	}
 
-	return &IPLocationResult{Country: "未配置"}
+	return &IPLocationResult{Country: "未配置", Unresolved: true}
 }
 
 // lookupV6 查询 IPv6 地址
 func (m *Manager) lookupV6(ipStr string) *IPLocationResult {
+	// IPv6 侧要留意：GeoLite2 去内嵌后，配置仍是 geolite2 但磁盘没有 mmdb 的老用户，
+	// ReloadFromConfig 会把 v6Source 运行时降级成 ip2region；若连 ip2region_v6.xdb 也没有，
+	// 就会落到最后的 Unresolved 分支，由调用方放行，而不是返回一个会被规则误判的国家名。
 	if m.v6Source == SourceIp2Region && m.v6Searcher != nil {
 		region, err := m.v6Searcher.SearchByStr(ipStr)
 		if err != nil {
-			return &IPLocationResult{Country: "查询失败"}
+			return &IPLocationResult{Country: "查询失败", Unresolved: true}
 		}
 		if region == "" {
 			return &IPLocationResult{Country: "未知"}
@@ -123,7 +126,7 @@ func (m *Manager) lookupV6(ipStr string) *IPLocationResult {
 		ip := net.ParseIP(ipStr)
 		record, err := m.v6GeoReader.Country(ip)
 		if err != nil {
-			return &IPLocationResult{Country: "查询失败"}
+			return &IPLocationResult{Country: "查询失败", Unresolved: true}
 		}
 		countryName := record.Country.Names["zh-CN"]
 		if countryName == "" {
@@ -136,12 +139,12 @@ func (m *Manager) lookupV6(ipStr string) *IPLocationResult {
 	} else if m.v6Source == SourceIpdb && m.ipdbReader != nil {
 		info, err := m.ipdbReader.FindMap(ipStr, "CN")
 		if err != nil {
-			return &IPLocationResult{Country: "查询失败"}
+			return &IPLocationResult{Country: "查询失败", Unresolved: true}
 		}
 		return parseIpdbMap(info)
 	}
 
-	return &IPLocationResult{Country: "未配置"}
+	return &IPLocationResult{Country: "未配置", Unresolved: true}
 }
 
 // LoadV4Ip2Region 加载 IPv4 ip2region 数据库
@@ -447,8 +450,14 @@ func readDBFile(dataDir, name string) []byte {
 // 这是 manager 数据源加载的唯一入口：启动后置加载、API 保存、手动 reload 都走这里。
 // format 仅对 ip2region 源有意义，geolite2/ipdb 忽略 format。
 //
-// 加载优先级：dataDir 下的磁盘文件 > 内置数据（ip2region IPv4 / GeoLite2）。
-// 两者皆无（如 IPv6 的 ip2region、ipdb）时跳过该项，保留调用前已加载的后端。
+// 加载优先级：dataDir 下的磁盘文件 > 内置数据（仅 ip2region IPv4）> 同类型的其它可用来源。
+//
+// 注意 GeoLite2 自 v1.3.21 起不再随程序内置（MaxMind 商业再分发授权所限，见
+// SamWafTechDoc/Plan/2026-08-11-GeoLite2去内嵌-实施计划.md）。因此配置写着 geolite2
+// 但磁盘上没有 mmdb 的老用户，这里会做一次**运行时降级**：改用 ip2region 对应的库。
+// 降级只发生在内存里，不回写 sys_config —— 用户之后把 mmdb 放回 data/ 就能自动恢复。
+//
+// 所有来源都不可用时跳过该项，让 lookup 走 Unresolved 分支，由调用方放行。
 func (m *Manager) ReloadFromConfig(dataDir, v4Source, v6Source, v4Format, v6Format string) error {
 	// ipdb 双栈共用，优先处理；ipdb 无内置数据，只能来自上传文件
 	if v4Source == string(SourceIpdb) || v6Source == string(SourceIpdb) {
@@ -462,51 +471,69 @@ func (m *Manager) ReloadFromConfig(dataDir, v4Source, v6Source, v4Format, v6Form
 	}
 
 	// IPv4（非 ipdb 来源）
-	switch v4Source {
-	case string(SourceIp2Region):
+	loadV4Ip2Region := func() (bool, error) {
 		data, builtin := readDBFile(dataDir, "ip2region.xdb"), false
 		if data == nil {
 			data, builtin = builtinIp2RegionV4, true
 		}
-		if len(data) > 0 {
-			if err := m.LoadV4Ip2Region(data, DBFormat(v4Format)); err != nil {
-				return fmt.Errorf("重新加载 IPv4 数据库失败: %w", err)
-			}
-			m.SetV4Builtin(builtin)
+		if len(data) == 0 {
+			return false, nil
+		}
+		if err := m.LoadV4Ip2Region(data, DBFormat(v4Format)); err != nil {
+			return false, fmt.Errorf("重新加载 IPv4 数据库失败: %w", err)
+		}
+		m.SetV4Builtin(builtin)
+		return true, nil
+	}
+
+	switch v4Source {
+	case string(SourceIp2Region):
+		if _, err := loadV4Ip2Region(); err != nil {
+			return err
 		}
 	case string(SourceGeoLite2):
-		data, builtin := readDBFile(dataDir, "GeoLite2-Country.mmdb"), false
-		if data == nil {
-			data, builtin = builtinGeoLite2, true
-		}
-		if len(data) > 0 {
+		// GeoLite2 不再内置，只可能来自用户自己放进 data/ 的 mmdb
+		if data := readDBFile(dataDir, "GeoLite2-Country.mmdb"); data != nil {
 			if err := m.LoadV4GeoLite2(data); err != nil {
 				return fmt.Errorf("重新加载 IPv4 数据库失败: %w", err)
 			}
-			m.SetV4Builtin(builtin)
+			m.SetV4Builtin(false)
+		} else if _, err := loadV4Ip2Region(); err != nil {
+			// 降级：IPv4 恒有内置 ip2region 兜底，不会出现完全没有地区数据的情况
+			return err
 		}
 	}
 
 	// IPv6（非 ipdb 来源）
+	loadV6Ip2Region := func() error {
+		// IPv6 的 ip2region 无内置数据，只能来自 data/ip2region_v6.xdb
+		// （在线下载或用户自行从 Gitee/GitHub 下载放入）
+		data := readDBFile(dataDir, "ip2region_v6.xdb")
+		if data == nil {
+			return nil
+		}
+		if err := m.LoadV6Ip2Region(data, DBFormat(v6Format)); err != nil {
+			return fmt.Errorf("重新加载 IPv6 数据库失败: %w", err)
+		}
+		m.SetV6Builtin(false)
+		return nil
+	}
+
 	switch v6Source {
 	case string(SourceIp2Region):
-		// IPv6 的 ip2region 无内置数据，必须由用户上传 ip2region_v6.xdb
-		if data := readDBFile(dataDir, "ip2region_v6.xdb"); data != nil {
-			if err := m.LoadV6Ip2Region(data, DBFormat(v6Format)); err != nil {
-				return fmt.Errorf("重新加载 IPv6 数据库失败: %w", err)
-			}
-			m.SetV6Builtin(false)
+		if err := loadV6Ip2Region(); err != nil {
+			return err
 		}
 	case string(SourceGeoLite2):
-		data, builtin := readDBFile(dataDir, "GeoLite2-Country.mmdb"), false
-		if data == nil {
-			data, builtin = builtinGeoLite2, true
-		}
-		if len(data) > 0 {
+		if data := readDBFile(dataDir, "GeoLite2-Country.mmdb"); data != nil {
 			if err := m.LoadV6GeoLite2(data); err != nil {
 				return fmt.Errorf("重新加载 IPv6 数据库失败: %w", err)
 			}
-			m.SetV6Builtin(builtin)
+			m.SetV6Builtin(false)
+		} else if err := loadV6Ip2Region(); err != nil {
+			// 降级：老用户配置还是 geolite2，但 mmdb 已不再内置，改吃 ip2region v6。
+			// 两者都没有时静默跳过，lookupV6 走 Unresolved，由规则层放行。
+			return err
 		}
 	}
 

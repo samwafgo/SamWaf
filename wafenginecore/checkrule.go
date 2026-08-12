@@ -79,6 +79,39 @@ func pickRuleAction(ruleHelper *utils.RuleHelper, ruleMatchs []*ast.RuleEntry) u
 	return final
 }
 
+// geoFieldRe 匹配规则里对地区字段的引用。
+//
+// 在 BuildGrlSkeleton 处理过的骨架上匹配，字符串字面量已被抹掉，
+// 所以规则描述里出现"COUNTRY"这种文字不会被误判成条件。
+//
+// 注意不能在 MF 前加 \b：ast.RuleEntry.GrlText 是去掉全部空白后的文本，
+// "when MF.COUNTRY" 会变成 "whenMF.COUNTRY"，n 与 M 之间没有词边界。
+// 末尾的 \b 要保留，用来把 MF.COUNTRYCODE 这类更长的字段排除掉。
+var geoFieldRe = regexp.MustCompile(`MF\s*\.\s*(COUNTRY|PROVINCE|CITY)\b`)
+
+// isGeoRule 规则是否引用了地区字段
+func isGeoRule(grlText string) bool {
+	return geoFieldRe.MatchString(utils.BuildGrlSkeleton(grlText))
+}
+
+// dropGeoRules 在地区不可判定时剔除引用了地区字段的命中规则。
+//
+// 地区封禁没有独立模块，走的是自定义规则，官方模板即 `MF.COUNTRY != "中国" -> RF.Deny()`。
+// 地区库缺失时 COUNTRY 会是"未知"，这个不等式恒成立，会把访客整片误杀。
+// 所以地区不可判定时，地区类规则一律不参与本次判定——拦截、放行、仅记录一视同仁地剔除，
+// 保证语义是"这条规则这次不生效"，而不是"这条规则这次判成了放行"。
+func dropGeoRules(ruleMatchs []*ast.RuleEntry) []*ast.RuleEntry {
+	kept := ruleMatchs[:0:0]
+	for _, v := range ruleMatchs {
+		if isGeoRule(v.GrlText) {
+			zlog.Debug("地区不可判定，跳过地区类规则: ", v.RuleName)
+			continue
+		}
+		kept = append(kept, v)
+	}
+	return kept
+}
+
 // ruleMatchResult 单侧（局部/全局）规则的命中结果
 type ruleMatchResult struct {
 	Matched bool
@@ -98,6 +131,9 @@ func matchRules(ruleHelper *utils.RuleHelper, weblogbean *innerbean.WebLog, titl
 	if err != nil {
 		zlog.Debug("规则 ", err)
 		return out
+	}
+	if weblogbean.GeoUnresolved {
+		ruleMatchs = dropGeoRules(ruleMatchs)
 	}
 	if len(ruleMatchs) == 0 {
 		return out

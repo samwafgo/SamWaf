@@ -18,5 +18,9 @@ func (receiver *IPLocationRouter) InitIPLocationRouter(group *gin.RouterGroup) {
 		router.POST("/upload", apiInstance.UploadIPDBFileApi)
 		router.POST("/reload", apiInstance.ReloadIPDBApi)
 		router.POST("/test", apiInstance.TestIPLookupApi)
+		router.GET("/upgrade/check", apiInstance.CheckIPDBUpgradeApi)
+		router.POST("/upgrade/apply", apiInstance.ApplyIPDBUpgradeApi)
+		router.GET("/upgrade/progress", apiInstance.GetIPDBUpgradeProgressApi)
+		router.POST("/upgrade/cancel", apiInstance.CancelIPDBUpgradeApi)
 	}
 }

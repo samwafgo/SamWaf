@@ -49,8 +49,11 @@ var Providers = map[string]Provider{
 		RangeURLs: []string{"https://ip-ranges.amazonaws.com/ip-ranges.json"},
 	},
 	"edgeone": {
-		// 旧匿名端点 api.edgeone.ai/ips 已下线；自动同步走腾讯云 DescribeOriginACL(需凭证)。
-		Code: "edgeone", Name: "腾讯云 EdgeOne", Header: "EO-Client-IP", Tier: TierAuth, FetchKind: FetchTencent,
+		// 旧匿名端点 api.edgeone.ai/ips 已下线(现返回废弃公告+0.0.0.0/0，绝不可再拉)；
+		// 自动同步走腾讯云 DescribeOriginACL(需凭证，免费版不开放，此时只能手填可信网段)。
+		// 头名用 EO-Connecting-IP：EdgeOne 国内站/国际站回源都默认携带，无需在控制台开任何开关；
+		// EO-Client-IP 是「客户端IP头部」功能的示例名，默认关闭且名字用户可改，不能当默认值。
+		Code: "edgeone", Name: "腾讯云 EdgeOne", Header: "EO-Connecting-IP", Tier: TierAuth, FetchKind: FetchTencent,
 	},
 	"aliyun": {
 		// 阿里云回源段走认证 API DescribeCdnIpInfo/回源IP(需 AccessKey)。

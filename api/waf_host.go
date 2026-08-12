@@ -14,8 +14,10 @@ import (
 	"SamWaf/service/waf_service"
 	"SamWaf/utils"
 	"SamWaf/wafenginecore"
+	"SamWaf/wafenginecore/clientip"
 	"errors"
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 
@@ -24,6 +26,107 @@ import (
 )
 
 type WafHostAPi struct {
+}
+
+// ipSourceConfig 真实客户端IP提取相关配置(api 层校验/规范化的中转结构)
+type ipSourceConfig struct {
+	Mode         string
+	Depth        int
+	Header       string
+	TrustProxies string
+	Provider     string
+}
+
+// validIPSourceModes 真实IP来源模式白名单（""=兼容模式，取 X-Forwarded-For 最左）
+var validIPSourceModes = map[string]struct{}{
+	"": {}, "nic": {}, "header": {}, "xff_depth": {}, "cdn_preset": {},
+}
+
+// checkIPSourceConfig 校验并规范化真实客户端IP提取配置。
+// 前端传来的值一律不可信：模式/厂商码走白名单；头名只允许 HTTP token 字符并限长(防 CRLF 头注入)；
+// 可信网段逐项必须是合法 IP/CIDR。校验通过后就地规范化(去空白、统一分隔符)。
+func checkIPSourceConfig(cfg *ipSourceConfig) error {
+	cfg.Mode = strings.TrimSpace(cfg.Mode)
+	if _, ok := validIPSourceModes[cfg.Mode]; !ok {
+		return errors.New("真实IP来源模式不合法")
+	}
+
+	cfg.Provider = strings.TrimSpace(cfg.Provider)
+	if cfg.Provider != "" {
+		if _, ok := clientip.Providers[cfg.Provider]; !ok {
+			return errors.New("CDN厂商不合法")
+		}
+	}
+
+	cfg.Header = strings.TrimSpace(cfg.Header)
+	if len(cfg.Header) > 64 {
+		return errors.New("真实IP头名长度不能超过64")
+	}
+	for _, ch := range cfg.Header {
+		if !(ch >= 'a' && ch <= 'z') && !(ch >= 'A' && ch <= 'Z') && !(ch >= '0' && ch <= '9') && ch != '-' && ch != '_' {
+			return errors.New("真实IP头名只能包含字母、数字、- 和 _")
+		}
+	}
+
+	if cfg.Depth < 0 || cfg.Depth > 10 {
+		return errors.New("可信代理层数需在 1-10 之间")
+	}
+
+	// 用户常从 CDN 控制台整段粘贴，逐行/分号/中文逗号都统一成英文逗号
+	unified := strings.NewReplacer("\r", ",", "\n", ",", ";", ",", "；", ",", "，", ",").Replace(cfg.TrustProxies)
+	var cleaned []string
+	for _, item := range strings.Split(unified, ",") {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		if strings.Contains(item, "/") {
+			if _, _, err := net.ParseCIDR(item); err != nil {
+				return errors.New("可信代理网段不合法: " + item)
+			}
+		} else if net.ParseIP(item) == nil {
+			return errors.New("可信代理网段不合法: " + item)
+		}
+		cleaned = append(cleaned, item)
+	}
+	cfg.TrustProxies = strings.Join(cleaned, ",")
+
+	switch cfg.Mode {
+	case "header":
+		if cfg.Header == "" {
+			return errors.New("指定HTTP头模式必须填写真实IP头名")
+		}
+	case "cdn_preset":
+		if cfg.Provider == "" {
+			return errors.New("CDN厂商预设模式必须选择CDN厂商")
+		}
+		return checkCDNPresetTrustSource(cfg)
+	}
+	return nil
+}
+
+// checkCDNPresetTrustSource cdn_preset 模式必须至少有一个可信来源可用(中心库回源段 或 手填可信网段)。
+//
+// 缺了它保存下去不是"少一层校验"，而是静默降级成更危险的状态：来源判定恒为 false，
+// 所有请求都回退成网络层 IP —— 也就是 CDN 回源节点的 IP。于是 CC 防护、IP 黑名单、限速
+// 统统作用在回源节点上，一旦触发封禁，封掉的是整个 CDN 节点，表现为全站对所有访客不可用；
+// 且日志里记的全是回源 IP，真实攻击者完全看不见。这种"配了等于没配、还更危险"的组合
+// 宁可拦在保存这一步，也不能让用户以为已经生效。
+func checkCDNPresetTrustSource(cfg *ipSourceConfig) error {
+	if strings.TrimSpace(cfg.TrustProxies) != "" {
+		return nil // 用户手填了回源段，兜底可用
+	}
+	if info := waf_service.WafCDNIPServiceApp.GetProviderInfo(cfg.Provider); info != nil && info.Count > 0 {
+		return nil // 中心库已拉到该厂商回源段
+	}
+	name := cfg.Provider
+	if p, ok := clientip.Providers[cfg.Provider]; ok {
+		name = p.Name
+	}
+	return errors.New("中心库尚未拉取到 [" + name + "] 的回源段，且未填写可信代理网段：" +
+		"这样来源校验会全部失败，WAF 只能取到 CDN 回源节点的IP，一旦触发封禁会误封整个节点导致全站不可访问。" +
+		"请到【CDN回源IP】页开启自动拉取或立即拉取一次；若该厂商不开放回源段API(如 EdgeOne/阿里云免费版)，" +
+		"请把控制台里的回源IP段填到「可信代理网段」")
 }
 
 // AddApi 新增网站防护主机
@@ -40,6 +143,15 @@ func (w *WafHostAPi) AddApi(c *gin.Context) {
 	var req request.WafHostAddReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		ipCfg := ipSourceConfig{Mode: req.IPSourceMode, Depth: req.IPTrustDepth, Header: req.IPRealHeader,
+			TrustProxies: req.IPTrustProxies, Provider: req.CDNProvider}
+		if verr := checkIPSourceConfig(&ipCfg); verr != nil {
+			response.FailWithMessage(verr.Error(), c)
+			return
+		}
+		req.IPSourceMode, req.IPTrustDepth, req.IPRealHeader = ipCfg.Mode, ipCfg.Depth, ipCfg.Header
+		req.IPTrustProxies, req.CDNProvider = ipCfg.TrustProxies, ipCfg.Provider
+
 		//端口从未在本系统加过，检测端口是否被其他应用占用
 		_, svrOk := globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ServerOnline.Get(req.Port)
 		if !svrOk && utils.PortCheck(req.Port) == false {
@@ -316,6 +428,15 @@ func (w *WafHostAPi) ModifyHostApi(c *gin.Context) {
 	var req request.WafHostEditReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		ipCfg := ipSourceConfig{Mode: req.IPSourceMode, Depth: req.IPTrustDepth, Header: req.IPRealHeader,
+			TrustProxies: req.IPTrustProxies, Provider: req.CDNProvider}
+		if verr := checkIPSourceConfig(&ipCfg); verr != nil {
+			response.FailWithMessage(verr.Error(), c)
+			return
+		}
+		req.IPSourceMode, req.IPTrustDepth, req.IPRealHeader = ipCfg.Mode, ipCfg.Depth, ipCfg.Header
+		req.IPTrustProxies, req.CDNProvider = ipCfg.TrustProxies, ipCfg.Provider
+
 		wafHostOld := wafHostService.GetDetailByCodeApi(req.CODE)
 		//端口从未在本系统加过，检测端口是否被其他应用占用
 

@@ -1,6 +1,7 @@
 package wafenginecore
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/utils"
@@ -8,6 +9,8 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 )
 
 // getBizClientIP 业务侧"真实客户端 IP"提取加固版，镜像管理侧 utils.GetManageClientIP 的可信思路。
@@ -18,7 +21,7 @@ import (
 //
 //	""(兼容)   : 旧行为，取配置头最左第一个(可被伪造，仅为不破坏存量)
 //	nic        : 网络层直连 IP(r.RemoteAddr)
-//	header     : 取指定头(IPRealHeader)，不校验来源(已知代理但无回源段时用)
+//	header     : 取指定头(IPRealHeader)；填了可信网段(IPTrustProxies)则必须直连对端命中才信任，留空则不校验
 //	xff_depth  : 从右往左跳过可信代理，取最右非可信 hop
 //	cdn_preset : 仅当直连对端属于该 CDN 厂商回源段(或用户手填可信网段)才信任其真实 IP 头，否则视为伪造回退网络层
 func (waf *WafEngine) getBizClientIP(r *http.Request, host model.Hosts) (error, string, string) {
@@ -26,6 +29,17 @@ func (waf *WafEngine) getBizClientIP(r *http.Request, host model.Hosts) (error, 
 	case "nic":
 		return splitRemoteAddr(r.RemoteAddr)
 	case "header":
+		// 填了可信代理网段就必须校验来源：直连对端不在网段内说明该头是客户端直连伪造的，一律不采信。
+		// 留空 = 保持原有"无条件取头"行为，不破坏已在用该模式的站点。
+		if trusted := strings.TrimSpace(host.IPTrustProxies); trusted != "" {
+			err, netIP, netPort := splitRemoteAddr(r.RemoteAddr)
+			if err != nil {
+				return err, "", ""
+			}
+			if !ipInCIDRList(netIP, trusted) {
+				return nil, netIP, netPort // 来源不可信 → 直接用网络层 IP
+			}
+		}
 		if ip := headerFirstValidIP(r, host.IPRealHeader); ip != "" {
 			return nil, ip, "0"
 		}
@@ -134,8 +148,31 @@ func (waf *WafEngine) extractCDNPreset(r *http.Request, host model.Hosts) (error
 			return nil, ip, "0"
 		}
 	}
+	// 保存时已拦住"两个可信来源都没有"的组合，但中心库可能事后被清空或拉取失败，
+	// 那样这里会静默降级成一直取回源节点 IP。这属于配置问题(而非伪造攻击)，出声提醒。
+	if clientip.GetProviderRanges(host.CDNProvider).Len() == 0 && strings.TrimSpace(host.IPTrustProxies) == "" {
+		warnCDNPresetNoTrustSource(host)
+	}
 	// 来源不可信或头缺失 → 回退网络层(宁可少信任，不可采信伪造)
 	return nil, netIP, "0"
+}
+
+// cdnPresetWarnAt 告警限频：hostCode -> 上次告警的 unix 秒
+var cdnPresetWarnAt sync.Map
+
+// warnCDNPresetNoTrustSource cdn_preset 但一个可信来源都没有时告警。
+// 此时每个请求都会回退网络层 IP，用户往往毫无察觉，直到 CC/黑名单误封整个 CDN 回源节点、
+// 全站访客一起被拦才发现。每站每 10 分钟最多一条，避免高频请求把日志刷爆。
+func warnCDNPresetNoTrustSource(host model.Hosts) {
+	now := time.Now().Unix()
+	if v, ok := cdnPresetWarnAt.Load(host.Code); ok {
+		if last, _ := v.(int64); now-last < 600 {
+			return
+		}
+	}
+	cdnPresetWarnAt.Store(host.Code, now)
+	zlog.Warn("真实IP来源配置失效", "host", host.Host, "cdn_provider", host.CDNProvider,
+		"detail", "中心库无该厂商回源段且未填写可信代理网段，来源校验全部失败，已回退网络层IP(CDN回源节点IP)")
 }
 
 // ipInCIDRList 判断 ip 是否落在逗号分隔的 CIDR/IP 列表内

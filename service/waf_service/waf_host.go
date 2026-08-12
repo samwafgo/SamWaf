@@ -109,6 +109,11 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 		IPMode:                    wafHostAddReq.IPMode,
 		DisableHTTP2:              wafHostAddReq.DisableHTTP2,
 		AccessJSON:                wafHostAddReq.AccessJSON,
+		IPSourceMode:              wafHostAddReq.IPSourceMode,
+		IPTrustDepth:              wafHostAddReq.IPTrustDepth,
+		IPRealHeader:              wafHostAddReq.IPRealHeader,
+		IPTrustProxies:            wafHostAddReq.IPTrustProxies,
+		CDNProvider:               wafHostAddReq.CDNProvider,
 	}
 	global.GWAF_LOCAL_DB.Create(wafHost)
 	return wafHost.Code, nil
@@ -191,6 +196,11 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 		"IPMode":                    wafHostEditReq.IPMode,
 		"DisableHTTP2":              wafHostEditReq.DisableHTTP2,
 		"AccessJSON":                wafHostEditReq.AccessJSON,
+		"IPSourceMode":              wafHostEditReq.IPSourceMode,
+		"IPTrustDepth":              wafHostEditReq.IPTrustDepth,
+		"IPRealHeader":              wafHostEditReq.IPRealHeader,
+		"IPTrustProxies":            wafHostEditReq.IPTrustProxies,
+		"CDNProvider":               wafHostEditReq.CDNProvider,
 	}
 	err := global.GWAF_LOCAL_DB.Debug().Model(model.Hosts{}).Where("CODE=?", wafHostEditReq.CODE).Updates(hostMap).Error
 

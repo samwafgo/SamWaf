@@ -240,11 +240,21 @@ func GetPublicIP() string {
 }
 
 func GetCountry(ip string) []string {
+	region, _ := GetCountryEx(ip)
+	return region
+}
+
+// GetCountryEx 与 GetCountry 相同，但额外返回本次地区是否可判定。
+//
+// 第二个返回值为 false 表示"这次查不出来"（没有可用的地区库，或查询报错），
+// 而不是"查出来是未知"。两者必须区分：IPv6 地区库缺失时若只返回"未知"，
+// `MF.COUNTRY != "中国"` 这类规则会把 IPv6 访客整片误杀，所以调用方需要据此放行。
+func GetCountryEx(ip string) ([]string, bool) {
 	if global.GIPLOCATION_MANAGER != nil {
 		result := global.GIPLOCATION_MANAGER.Lookup(ip)
-		return result.ToSlice() // [国家, 区域, 省份, 城市, ISP]
+		return result.ToSlice(), !result.Unresolved // [国家, 区域, 省份, 城市, ISP]
 	}
-	return []string{"未知", "", "", "", ""}
+	return []string{"未知", "", "", "", ""}, false
 }
 
 // FormatIPLocation 把 IP 解析成一行可读的归属地文本（国家 省份 城市 运营商）

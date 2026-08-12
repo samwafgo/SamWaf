@@ -9,6 +9,9 @@ var (
 )
 
 // SetBuiltinData 注册内置数据库字节，须在任何加载动作之前调用一次。
+//
+// geoLite2 自 1.3.24-beta.6 起由主程序传 nil —— MaxMind 对 GeoLite2 的再分发另有授权要求，
+// 不能编进发行的二进制。保留这个入参是为了让单测仍能构造"有内置 GeoLite2"的场景。
 func SetBuiltinData(ip2RegionV4, geoLite2 []byte) {
 	builtinIp2RegionV4 = ip2RegionV4
 	builtinGeoLite2 = geoLite2
@@ -16,7 +19,7 @@ func SetBuiltinData(ip2RegionV4, geoLite2 []byte) {
 
 // HasBuiltinFile 指定数据文件是否有内置兜底。
 // key 与状态接口 file_exists 的键一致：ip2region_v4 / ip2region_v6 / geolite2 / ipdb。
-// 目前仅内置了 IPv4 的 ip2region.xdb 和 GeoLite2-Country.mmdb。
+// 目前只内置了 IPv4 的 ip2region.xdb；geolite2 已去内嵌，主程序传 nil 后这里恒为 false。
 func HasBuiltinFile(key string) bool {
 	switch key {
 	case "ip2region_v4":

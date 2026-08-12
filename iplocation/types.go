@@ -8,6 +8,12 @@ type IPLocationResult struct {
 	ISP      string // 运营商
 	Region   string // 区域/大洲
 	District string // 区县
+
+	// Unresolved 表示"这次查不出来"，而不是"查出来是未知"。
+	// 对应两种情况：该 IP 类型压根没有可用的数据库后端（如去内嵌后没下载 IPv6 库），
+	// 或者后端查询本身报错。调用方据此决定是否让地区类规则参与判定——
+	// 地区不可判定时必须放行，否则 `MF.COUNTRY != "中国"` 这类规则会把访客整片误杀。
+	Unresolved bool
 }
 
 // ToSlice 返回兼容老格式的 []string: [国家, 区域, 省份, 城市, ISP]

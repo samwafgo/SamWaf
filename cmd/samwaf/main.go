@@ -41,7 +41,6 @@ import (
 	"embed"
 	_ "embed"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -68,8 +67,9 @@ import (
 //go:embed exedata/ip2region.xdb
 var Ip2regionBytes []byte // 当前目录，解析为[]byte类型
 
-//go:embed exedata/GeoLite2-Country.mmdb
-var Ipv6CountryBytes []byte // IPv6国家解析
+// GeoLite2-Country.mmdb 自 1.3.24-beta.6 起不再内嵌，
+// 把它编进发行的二进制等同于再分发。需要 GeoLite2 的用户可自行到 MaxMind 官网下载 mmdb
+// 放进 data/ 目录，程序会照常加载。IPv6 默认改用 ip2region（Apache-2.0，可自由分发）。
 
 //go:embed exedata/ldpconfig.yml
 var ldpConfig string //隐私防护ldp
@@ -159,136 +159,30 @@ func (m *wafSystenService) run() {
 	//初始化步骤[加载ip数据库]
 	// 创建 IP Location Manager
 	global.GIPLOCATION_MANAGER = iplocation.NewManager()
-	// 注册内置数据库，供 manager 在磁盘无文件时兜底加载
-	iplocation.SetBuiltinData(Ip2regionBytes, Ipv6CountryBytes)
+	// 注册内置数据库，供 manager 在磁盘无文件时兜底加载。
+	// GeoLite2 已去内嵌，这里只剩 IPv4 的 ip2region 一份兜底。
+	iplocation.SetBuiltinData(Ip2regionBytes, nil)
 
-	// 根据配置加载 IPv4 数据库：每种来源读各自的文件，磁盘无文件时回落到内置数据
-	if global.GCONFIG_IP_V4_SOURCE == "ip2region" {
-		ip2RegionFilePath := filepath.Join(utils.GetCurrentDir(), "data", "ip2region.xdb")
-		var ipv4Data []byte
-		ipv4FromBuiltin := false
-		if _, err := os.Stat(ip2RegionFilePath); os.IsNotExist(err) {
-			// 使用内置数据
-			ipv4Data = Ip2regionBytes
-			ipv4FromBuiltin = true
-			zlog.Info("Using embedded IPv4 ip2region database, size: ", len(ipv4Data))
-		} else {
-			// 读取外部文件
-			fileBytes, err := ioutil.ReadFile(ip2RegionFilePath)
-			if err != nil {
-				log.Fatalf("Failed to read IP database file ip2region.xdb: %v", err)
-			}
-			ipv4Data = fileBytes
-			zlog.Info("IPv4 database ip2region.xdb loaded from file, size: ", len(ipv4Data), ip2RegionFilePath)
-		}
-
-		err := global.GIPLOCATION_MANAGER.LoadV4Ip2Region(ipv4Data, iplocation.DBFormat(global.GCONFIG_IP_V4_FORMAT))
-		if err != nil {
-			log.Fatalf("Failed to load IPv4 ip2region database: %v", err)
-		}
-		global.GIPLOCATION_MANAGER.SetV4Builtin(ipv4FromBuiltin)
-		zlog.Info("IPv4 ip2region database loaded successfully")
-	} else if global.GCONFIG_IP_V4_SOURCE == "geolite2" {
-		// GeoLite2 读的是 mmdb，与 ip2region.xdb 是两种格式，不能混用同一份字节
-		ipv4GeoLitePath := filepath.Join(utils.GetCurrentDir(), "data", "GeoLite2-Country.mmdb")
-		var ipv4Data []byte
-		ipv4FromBuiltin := false
-		if _, err := os.Stat(ipv4GeoLitePath); os.IsNotExist(err) {
-			// 内置 GeoLite2-Country.mmdb，IPv4/IPv6 共用同一份
-			ipv4Data = Ipv6CountryBytes
-			ipv4FromBuiltin = true
-			zlog.Info("Using embedded IPv4 GeoLite2 database, size: ", len(ipv4Data))
-		} else {
-			fileBytes, err := ioutil.ReadFile(ipv4GeoLitePath)
-			if err != nil {
-				log.Fatalf("Failed to read IPv4 GeoLite2 database file: %v", err)
-			}
-			ipv4Data = fileBytes
-			zlog.Info("IPv4 GeoLite2 database loaded from file, size: ", len(ipv4Data), ipv4GeoLitePath)
-		}
-
-		err := global.GIPLOCATION_MANAGER.LoadV4GeoLite2(ipv4Data)
-		if err != nil {
-			log.Fatalf("Failed to load IPv4 GeoLite2 database: %v", err)
-		}
-		global.GIPLOCATION_MANAGER.SetV4Builtin(ipv4FromBuiltin)
-		zlog.Info("IPv4 GeoLite2 database loaded successfully")
-	} else if global.GCONFIG_IP_V4_SOURCE == "ipdb" {
-		ipdbPath := filepath.Join(utils.GetCurrentDir(), "data", "iplocation.ipdb")
-		if _, err := os.Stat(ipdbPath); err == nil {
-			if err2 := global.GIPLOCATION_MANAGER.LoadIpdb(ipdbPath); err2 != nil {
-				zlog.Warn("Failed to load ipdb database (v4): ", err2)
-			} else {
-				zlog.Info("ipdb database loaded successfully (v4 source)")
-			}
-		} else {
-			zlog.Warn("ipdb database file not found, please upload iplocation.ipdb")
+	// 加载优先级与热重载共用同一份实现（磁盘文件 > 内置数据 > 同类型其它来源降级）。
+	// IP 库属于「有更好、没有也得能跑」的辅助数据：任何加载失败都只告警，
+	// 绝不能阻止 WAF 启动——防护能力不依赖地区库。
+	if err := global.GIPLOCATION_MANAGER.ReloadFromConfig(
+		filepath.Join(utils.GetCurrentDir(), "data"),
+		global.GCONFIG_IP_V4_SOURCE, global.GCONFIG_IP_V6_SOURCE,
+		global.GCONFIG_IP_V4_FORMAT, global.GCONFIG_IP_V6_FORMAT,
+	); err != nil {
+		zlog.Warn("IP地理位置数据库加载失败，地区相关功能将不可用: ", err.Error())
+	}
+	if st := global.GIPLOCATION_MANAGER.GetStatus(); st != nil {
+		zlog.Info(fmt.Sprintf("IP库加载完成 IPv4:%s(内置:%v,%d字节) IPv6:%s(内置:%v,%d字节)",
+			st.IPv4Source, st.IPv4Builtin, st.IPv4FileSize,
+			st.IPv6Source, st.IPv6Builtin, st.IPv6FileSize))
+		if st.IPv6FileSize == 0 {
+			zlog.Warn("IPv6 地区库不可用：IPv6 访客的归属地将显示为未知，且地区类自定义规则对 IPv6 请求不生效。" +
+				"可在【IP库管理】里在线下载，或自行下载 ip2region_v6.xdb 放入 data/ 目录")
 		}
 	}
 
-	// 加载 IPv6 数据库
-	if global.GCONFIG_IP_V6_SOURCE == "ip2region" {
-		// IPv6 ip2region 需要单独的文件
-		ipv6Ip2RegionPath := filepath.Join(utils.GetCurrentDir(), "data", "ip2region_v6.xdb")
-		if _, err := os.Stat(ipv6Ip2RegionPath); err == nil {
-			fileBytes, err := ioutil.ReadFile(ipv6Ip2RegionPath)
-			if err != nil {
-				zlog.Warn("Failed to read IPv6 ip2region database file: ", err)
-			} else {
-				err = global.GIPLOCATION_MANAGER.LoadV6Ip2Region(fileBytes, iplocation.DBFormat(global.GCONFIG_IP_V6_FORMAT))
-				if err != nil {
-					zlog.Warn("Failed to load IPv6 ip2region database: ", err)
-				} else {
-					global.GIPLOCATION_MANAGER.SetV6Builtin(false)
-					zlog.Info("IPv6 ip2region database loaded successfully, size: ", len(fileBytes))
-				}
-			}
-		} else {
-			zlog.Warn("IPv6 ip2region database file not found, please upload ip2region_v6.xdb")
-		}
-	} else if global.GCONFIG_IP_V6_SOURCE == "geolite2" {
-		// IPv6 GeoLite2
-		ipv6GeoLitePath := filepath.Join(utils.GetCurrentDir(), "data", "GeoLite2-Country.mmdb")
-		var ipv6Data []byte
-		ipv6FromBuiltin := false
-		if _, err := os.Stat(ipv6GeoLitePath); os.IsNotExist(err) {
-			// 使用内置数据
-			ipv6Data = Ipv6CountryBytes
-			ipv6FromBuiltin = true
-			zlog.Info("Using embedded IPv6 GeoLite2 database, size: ", len(ipv6Data))
-		} else {
-			// 读取外部文件
-			fileBytes, err := ioutil.ReadFile(ipv6GeoLitePath)
-			if err != nil {
-				log.Fatalf("Failed to read IPv6 GeoLite2 database file: %v", err)
-			}
-			ipv6Data = fileBytes
-			zlog.Info("IPv6 GeoLite2 database loaded from file, size: ", len(ipv6Data), ipv6GeoLitePath)
-		}
-
-		err := global.GIPLOCATION_MANAGER.LoadV6GeoLite2(ipv6Data)
-		if err != nil {
-			log.Fatalf("Failed to load IPv6 GeoLite2 database: %v", err)
-		}
-		global.GIPLOCATION_MANAGER.SetV6Builtin(ipv6FromBuiltin)
-		zlog.Info("IPv6 GeoLite2 database loaded successfully")
-	} else if global.GCONFIG_IP_V6_SOURCE == "ipdb" {
-		// 如果 v4 已经加载了 ipdb，跳过重复加载
-		if !global.GIPLOCATION_MANAGER.IsIpdbLoaded() {
-			ipdbPath := filepath.Join(utils.GetCurrentDir(), "data", "iplocation.ipdb")
-			if _, err := os.Stat(ipdbPath); err == nil {
-				if err2 := global.GIPLOCATION_MANAGER.LoadIpdb(ipdbPath); err2 != nil {
-					zlog.Warn("Failed to load ipdb database (v6): ", err2)
-				} else {
-					zlog.Info("ipdb database loaded successfully (v6 source)")
-				}
-			} else {
-				zlog.Warn("ipdb database file not found, please upload iplocation.ipdb")
-			}
-		} else {
-			zlog.Info("ipdb database already loaded (shared with v4)")
-		}
-	}
 	global.GWAF_DLP_CONFIG = ldpConfig
 	global.GWAF_REG_PUBLIC_KEY = publicKey
 
@@ -354,6 +248,31 @@ func (m *wafSystenService) run() {
 	global.GWAF_MEASURE_PROCESS_DEQUEENGINE = cache.InitWafOnlyLockWrite()
 	// 创建 Snowflake 实例
 	global.GWAF_SNOWFLAKE_GEN = wafsnowflake.NewSnowflake(1609459200000, 1, 1) // 设置epoch时间、机器ID和数据中心ID
+
+	// 注入 IP 库在线下载上下文：iplocation 不能反向依赖 global/utils（会成环），
+	// 所以升级源、SSRF 安全客户端、通知回调都从这里传进去。
+	iplocation.ConfigureUpgrader(iplocation.UpgradeConfig{
+		UpdateVersionURL: global.GUPDATE_VERSION_URL,
+		NewClient:        utils.SafeHTTPClient,
+		ValidateURL:      utils.IsSafeOutboundURL,
+		NotifyFunc: func(success bool, msg string) {
+			if global.GQEQUE_MESSAGE_DB == nil {
+				return
+			}
+			successStr := "false"
+			if success {
+				successStr = "true"
+			}
+			global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.UpdateResultMessageInfo{
+				BaseMessageInfo: innerbean.BaseMessageInfo{
+					OperaType: "IP库下载",
+					Server:    global.GWAF_CUSTOM_SERVER_NAME,
+				},
+				Msg:     msg,
+				Success: successStr,
+			})
+		},
+	})
 
 	// 创建owasp 管理器（支持热重载）
 	global.GWAF_OWASP_MANAGER = wafowasp.NewOwaspManager(utils.GetCurrentDir())

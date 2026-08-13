@@ -2,6 +2,7 @@ package ssl
 
 import (
 	"SamWaf/common/zlog"
+	"SamWaf/wafacme"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -32,12 +33,16 @@ const acmeLogPrefix = "ACME证书: "
 // 另外挑战文件的生命周期只有几秒（校验结束 CleanUp 就删），
 // 用户去目录里翻基本什么都看不到，只能靠日志留痕。
 type loggingWebrootProvider struct {
-	inner *webroot.HTTPProvider
-	root  string
+	inner    *webroot.HTTPProvider
+	root     string
+	hostCode string
 }
 
 // newLoggingWebrootProvider 构造带日志的 webroot provider，申请与续期共用。
-func newLoggingWebrootProvider(root string) (*loggingWebrootProvider, error) {
+//
+// hostCode 用于把 token 登记进 wafacme 注册表：流量侧按 host_code 隔离查表，
+// 命中内存就不用碰磁盘，这是 /.well-known/ 这条公开路径的主要防刷手段。
+func newLoggingWebrootProvider(root, hostCode string) (*loggingWebrootProvider, error) {
 	inner, err := webroot.NewHTTPProvider(root)
 	if err != nil {
 		// lego 这里只会在目录不存在时报错，但它的错误原文不带路径，
@@ -45,7 +50,10 @@ func newLoggingWebrootProvider(root string) (*loggingWebrootProvider, error) {
 		zlog.Error(fmt.Sprintf("%s文件校验目录不可用 路径=%s 错误=%v", acmeLogPrefix, root, err))
 		return nil, err
 	}
-	return &loggingWebrootProvider{inner: inner, root: root}, nil
+	// data 目录 = <root>/../..（root 形如 <程序目录>/data/vhost/<hostCode>），
+	// 跨进程哨兵文件要落在这里
+	wafacme.SetDataDir(filepath.Dir(filepath.Dir(root)))
+	return &loggingWebrootProvider{inner: inner, root: root, hostCode: hostCode}, nil
 }
 
 // challengeFilePath 挑战文件的绝对路径，拼法与 lego 内部保持一致。
@@ -61,6 +69,10 @@ func (p *loggingWebrootProvider) Present(domain, token, keyAuth string) error {
 		zlog.Error(fmt.Sprintf("%s文件校验-挑战文件写入失败 域名=%s 路径=%s 错误=%v", acmeLogPrefix, domain, path, err))
 		return err
 	}
+
+	// 登记进注册表并开启门闩：流量侧从这一刻起才允许为该路径做查表/读盘。
+	// 必须在写盘成功之后登记，避免登记了一个并不存在的 token。
+	wafacme.Present(p.hostCode, token, keyAuth)
 
 	// 写完立刻回读一次：WriteFile 返回成功不等于文件真的躺在那儿
 	// （杀软拦截、权限、同步工具改写目录都碰到过），
@@ -80,6 +92,10 @@ func (p *loggingWebrootProvider) Present(domain, token, keyAuth string) error {
 // CleanUp 删挑战文件（CA 校验后，无论成败都会调用）。
 func (p *loggingWebrootProvider) CleanUp(domain, token, keyAuth string) error {
 	path := p.challengeFilePath(token)
+
+	// 先注销再删文件：反过来的话，两者之间的空档里流量侧会查到 token
+	// 却读不到文件，白白多一次读盘
+	wafacme.CleanUp(p.hostCode, token)
 
 	if err := p.inner.CleanUp(domain, token, keyAuth); err != nil {
 		// 删不掉只是留下一个残留文件，不该影响签发结果，所以只告警不升级成错误。

@@ -96,7 +96,7 @@ func RegistrationSSL(order model.SslOrder, savePath string, caServerAddress stri
 	// need to proxy challenge traffic to port 5002 and 5001.
 	switch order.ApplyMethod {
 	case "http01":
-		provider, err := newLoggingWebrootProvider(savePath)
+		provider, err := newLoggingWebrootProvider(savePath, order.HostCode)
 		if err != nil {
 			return order, err
 		}
@@ -284,7 +284,7 @@ func ReNewSSL(order model.SslOrder, savePath string, caServerAddress string, app
 	if order.ApplyMethod == "http01" {
 		// 续期与申请必须走同一个 provider：否则"申请时看得见、续期时看不见"，
 		// 而续期恰恰是无人值守的那一次，出问题更需要日志。
-		provider, err := newLoggingWebrootProvider(savePath)
+		provider, err := newLoggingWebrootProvider(savePath, order.HostCode)
 		if err != nil {
 			return order, err
 		}

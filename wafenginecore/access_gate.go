@@ -196,23 +196,8 @@ func (waf *WafEngine) DoAccessGate(w http.ResponseWriter, r *http.Request,
 	return accessHandled
 }
 
-// isACMEChallengePath 判断是否是 ACME(HTTP-01) 证书校验请求。
-//
-// cleanPath 必须是已经 path.Clean + 转小写的路径，rawPath 是原始的 r.URL.Path。
-// 两个参数缺一不可：
-//   - 只看 rawPath：/.well-known/acme-challenge/../../admin 会命中前缀被放行，
-//     而点号段原样转发给后端，后端按 RFC 3986 归一化成 /admin —— 整个网关就废了
-//   - 只看 cleanPath：/foo/../.well-known/acme-challenge/x 归一化后会命中前缀，
-//     虽然目标确实落在 challenge 目录里，但这种写法只可能是刻意构造的探测
-//
-// 抽成独立函数是为了让回归测试能直接钉住这个判定本身，
-// 而不是去测 path.Clean 的语义——后者即使有人把实现改回 rawPath 也照样是绿的。
-func isACMEChallengePath(cleanPath, rawPath string) bool {
-	if strings.Contains(rawPath, "..") {
-		return false
-	}
-	return strings.HasPrefix(cleanPath, strings.ToLower(global.GSSL_HTTP_CHANGLE_PATH))
-}
+// isACMEChallengePath 已移到 acme_challenge.go：请求侧快速通道与本网关共用同一份判定，
+// 免得两处各写一份、日后只改了其中一处。
 
 // accessCookieValue 读一个 Cookie 的值，不存在返回空串。
 // 必须在 stripAccessCookies 之前调用 —— 剥离之后请求头里就没有它了。

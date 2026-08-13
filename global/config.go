@@ -57,7 +57,8 @@ var (
 	GCONFIG_RECORD_SSLOrder_EXPIRE_DAY int64  = 30 // 提前多少天进行自动申请
 	GCONFIG_RECORD_SSL_IP_CERT_IP      string = "" // 获取IP证书时的IP地址
 	GCONFIG_RECORD_SSL_IP_EXPIRE_DAY   int64  = 3  // IP证书提前多少天进行自动申请
-	GCONFIG_RECORD_SSLHTTP_CHECK       int64  = 0  // ssl申请文件验证类型 是否校验原始路径HTTP响应代码 1 校验 0 不校验
+	GCONFIG_RECORD_SSLHTTP_CHECK       int64  = 0  // ssl文件验证：本地无挑战文件且后端对该路径返回非404/301/302时是否写告警 1告警 0不告警
+	// 注意：本地有挑战文件时始终优先使用本地文件，与本项无关
 	//SSL过期检测任务开始前，是否自动把已配置的SSL主机同步进过期检测列表 1同步(默认) 0不同步
 	//关掉之后过期检测只查用户自己在列表里维护的域名，不会再被主机配置自动塞回来（手动点【同步主机】按钮仍然可用）
 	GCONFIG_SSL_EXPIRE_AUTO_SYNC_HOST int64  = 1

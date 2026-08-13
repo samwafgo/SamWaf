@@ -412,6 +412,12 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			weblogbean.HOST = "http://" + weblogbean.HOST
 		}
+
+		// ── ACME(HTTP-01) 证书校验快速通道 ──
+		if waf.tryServeACMEChallenge(w, r, &weblogbean) {
+			return
+		}
+
 		formValues := url.Values{}
 		if strings.Contains(r.Header.Get("Content-Type"), "application/x-www-form-urlencoded") {
 			// 解码 x-www-form-urlencoded 数据
@@ -787,66 +793,21 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if staticSiteConfig.IsEnableStaticSite == 1 {
 
 			if strings.HasPrefix(weblogbean.URL, global.GSSL_HTTP_CHANGLE_PATH) {
-				//Challenge /.well-known/acme-challenge/2NKiiETgQdPmmjlM88mH5uo6jM98PrgWwsDslaN8
-				urls := strings.Split(weblogbean.URL, "/")
-				if len(urls) == 4 {
-					challengeFile := urls[3]
-					//检测challengeFile是否合法
-					if !utils.IsValidChallengeFile(challengeFile) {
-						warnACMEChallenge(weblogbean.HOST, weblogbean.HOST_CODE, weblogbean.URL, "", "", 0,
-							"URL 里的 token 不合法（静态站点模式）",
-							"多为扫描器构造的请求，可忽略；若签发时出现，请把完整 URL 反馈给我们")
-						return
-					}
-					//当前路径 data/vhost/domain code 变量下
-					// 需要读取的文件路径
-					filePath := acmeChallengeFilePath(weblogbean.HOST_CODE, challengeFile)
-
-					// 调用读取文件的函数
-					content, err := utils.ReadFile(filePath)
-					if err != nil {
-						zlog.Error("Error reading file: %v", err.Error())
-						warnACMEChallenge(weblogbean.HOST, weblogbean.HOST_CODE, weblogbean.URL, challengeFile, filePath, 0,
-							"静态站点模式下本地校验文件读取失败："+err.Error(),
-							"核对证书是否就在本站点(站点编码)发起；确认申请时该目录下已生成文件")
-						return
-					}
-					if content != "" {
-						// 创建新的Response对象
-						r.Response = &http.Response{
-							StatusCode:    http.StatusOK,
-							Status:        http.StatusText(http.StatusOK),
-							Body:          io.NopCloser(bytes.NewBuffer([]byte(content))),
-							ContentLength: int64(len(content)),
-							Header:        make(http.Header),
-							Proto:         "HTTP/1.1",
-							ProtoMajor:    1,
-							ProtoMinor:    1,
-						}
-						r.Response.Header.Set("Content-Length", strconv.FormatInt(int64(len(content)), 10))
-
-						// 直接写入响应到客户端
-						w.Header().Set("Content-Length", strconv.FormatInt(int64(len(content)), 10))
-						w.WriteHeader(http.StatusOK)
-						w.Write([]byte(content))
-
-						weblogbean.ACTION = "放行"
-						weblogbean.STATUS = r.Response.Status
-						weblogbean.STATUS_CODE = r.Response.StatusCode
-						weblogbean.TASK_FLAG = 1
-						global.GQEQUE_LOG_DB.Enqueue(&weblogbean)
-						infoACMEChallengeHit(weblogbean.HOST, weblogbean.HOST_CODE, weblogbean.URL, filePath, 0)
-						return
-					}
-					// 文件为空：不返回内容，请求继续往下走（保持原有行为），但要留痕
-					warnACMEChallenge(weblogbean.HOST, weblogbean.HOST_CODE, weblogbean.URL, challengeFile, filePath, 0,
-						"静态站点模式下本地校验文件为空",
-						"核对证书是否就在本站点(站点编码)发起；确认申请时该目录下已生成文件")
-				} else {
-					warnACMEChallenge(weblogbean.HOST, weblogbean.HOST_CODE, weblogbean.URL, "", "", 0,
-						"URL 层级与标准挑战路径不符（静态站点模式）",
-						"标准路径形如 /.well-known/acme-challenge/<token>；多为扫描器请求，可忽略")
-				}
+				// ACME 校验：命中的情况已经由前面的快速通道处理并返回了，
+				// 走到这里说明本地没有这个挑战文件。静态站点没有后端可回源，明确回 404：
+				//   - 不能交给 serveStaticFile，否则 CA 拿到的是站点自己的 404 页面
+				//   - 更不能像老实现那样什么都不写就 return（等于空 body 的 200），
+				//     CA 会报 "key authorization mismatch"，比 404 更难查
+				http.Error(w, "404 page not found", http.StatusNotFound)
+				weblogbean.ACTION = "放行"
+				weblogbean.STATUS = http.StatusText(http.StatusNotFound)
+				weblogbean.STATUS_CODE = http.StatusNotFound
+				weblogbean.TASK_FLAG = 1
+				global.GQEQUE_LOG_DB.Enqueue(&weblogbean)
+				warnACMEChallenge(weblogbean.HOST, weblogbean.HOST_CODE, weblogbean.URL, "", "", 0,
+					"静态站点模式下本地无对应的校验文件",
+					"核对证书是否就在本站点(站点编码)发起；确认申请时该目录下已生成文件")
+				return
 			} else {
 				waf.serveStaticFile(w, r, staticSiteConfig, &weblogbean, hostTarget)
 				return
@@ -1397,184 +1358,117 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 				wafwebcache.StoreWebDataCache(resp, waf.rt().HostTarget[host], cacheConfig, weblogfrist)
 			}
 
-			if !isStaticAssist {
+			// ACME 证书校验必须与 isStaticAssist 判定并列，不能嵌套在它内部：
+			// "是不是静态资源"和"是不是证书校验路径"毫不相干，而后端只要回一个带
+			// Accept-Ranges: bytes 的响应（IIS、Apache 指向静态文件的 ErrorDocument 都会带），
+			// isStaticAssist 就为真，整段兜底连同日志会被一起吞掉，
+			// 表现为"证书签不下来而且日志里什么都没有"——这是线上真实工单的成因。
+			if handleACMEChallengeResponse(resp, weblogfrist, backendCheckStart) {
+				// 已按证书校验的规则处理完毕，不再走下面的常规响应处理
+			} else if !isStaticAssist {
 				datetimeNow := time.Now()
 				weblogfrist.TimeSpent = datetimeNow.UnixNano()/1e6 - weblogfrist.UNIX_ADD_TIME
 
-				// 根据配置决定是否检查HTTP响应代码并重定向到本地
-				if strings.HasPrefix(weblogfrist.URL, global.GSSL_HTTP_CHANGLE_PATH) {
-					zlog.Info("acme-challenge", weblogfrist.HOST, weblogfrist.URL)
-					if global.GCONFIG_RECORD_SSLHTTP_CHECK == 0 || resp.StatusCode == 404 || resp.StatusCode == 301 || resp.StatusCode == 302 {
-						//如果远端HTTP01不存在挑战验证文件，那么我们映射到走本地再试一下
-						//或者配置为不检查HTTP响应代码，直接走本地
+				// 检查是否需要应用自定义错误页面（非 ACME Challenge 请求）
+				statusCodeKey := strconv.Itoa(backendStatusCode)
+				var customBlockingPage *model.BlockingPage
+				var useCustomPage bool
 
-						//Challenge /.well-known/acme-challenge/2NKiiETgQdPmmjlM88mH5uo6jM98PrgWwsDslaN8
-						urls := strings.Split(weblogfrist.URL, "/")
-						if len(urls) == 4 {
-							challengeFile := urls[3]
-							//检测challengeFile是否合法
-							if !utils.IsValidChallengeFile(challengeFile) {
-								zlog.Error("challengeFile is invalid", challengeFile)
-								warnACMEChallenge(weblogfrist.HOST, weblogfrist.HOST_CODE, weblogfrist.URL, "", "", resp.StatusCode,
-									"URL 里的 token 不合法（只允许字母、数字、下划线、连字符）",
-									"多为扫描器构造的请求，可忽略；若签发时出现，请把完整 URL 反馈给我们")
-								return nil
-							}
-							//当前路径 data/vhost/domain code 变量下
-							// 需要读取的文件路径
-							filePath := acmeChallengeFilePath(weblogfrist.HOST_CODE, challengeFile)
+				// 优先检查网站级别的自定义错误页面配置
+				if blockingPage, ok := waf.rt().HostTarget[host].BlockingPage[statusCodeKey]; ok {
+					customBlockingPage = &blockingPage
+					useCustomPage = true
+				} else if globalBlockingPage, ok := waf.rt().HostTarget[waf.rt().HostCode[global.GWAF_GLOBAL_HOST_CODE]].BlockingPage[statusCodeKey]; ok {
+					// 检查全局级别的自定义错误页面配置
+					customBlockingPage = &globalBlockingPage
+					useCustomPage = true
+				}
 
-							// 调用读取文件的函数
-							content, err := utils.ReadFile(filePath)
-							if err != nil {
-								zlog.Error("Error reading file: %v", err.Error())
-							}
-							if content == "" {
-								// 后端没有校验文件、本地也没有，等于把后端的 404 原样交给了 CA，签发必然失败。
-								// 这里是两个高频工单的落点，所以要把"该去哪儿找文件"直接写出来。
-								warnACMEChallenge(weblogfrist.HOST, weblogfrist.HOST_CODE, weblogfrist.URL, challengeFile, filePath, resp.StatusCode,
-									"本地校验文件不存在或为空，已把后端响应原样返回给 CA",
-									"1)核对证书是否就在本站点(站点编码)发起 2)确认该域名80端口的流量确实进了SamWaf(在网站日志里搜这个token) 3)确认申请时该目录下已生成文件")
-							}
-							if content != "" {
-								resp.StatusCode = http.StatusOK
-								resp.Status = http.StatusText(http.StatusOK)
-								resp.Body = io.NopCloser(bytes.NewBuffer([]byte(content)))
-								resp.ContentLength = int64(len(content))
-								resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(content)), 10))
-								resp.Header.Del("Content-Encoding")
-								weblogfrist.ACTION = "放行"
-								weblogfrist.STATUS = resp.Status
-								weblogfrist.STATUS_CODE = resp.StatusCode
-								weblogfrist.TASK_FLAG = 1
-								weblogfrist.BackendCheckCost = time.Now().UnixNano()/1e6 - backendCheckStart //响应数据处理时间
-								global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
-								infoACMEChallengeHit(weblogfrist.HOST, weblogfrist.HOST_CODE, weblogfrist.URL, filePath, resp.StatusCode)
-							}
-						} else {
-							// URL 层级与 /.well-known/acme-challenge/<token> 不符，本地校验文件这一环整个没走。
-							// 原实现在这里是静默跳过的，排查时看不出发生过什么。
-							warnACMEChallenge(weblogfrist.HOST, weblogfrist.HOST_CODE, weblogfrist.URL, "", "", resp.StatusCode,
-								"URL 层级与标准挑战路径不符，未尝试本地校验文件",
-								"标准路径形如 /.well-known/acme-challenge/<token>；多为扫描器请求，可忽略")
-						}
-					} else if global.GCONFIG_RECORD_SSLHTTP_CHECK == 1 {
-						// 当配置为检查HTTP响应码且响应不是404/301/302时，记录警告信息
-						zlog.Warn(fmt.Sprintf("ACME Challenge检测：域名 %s 的 URL %s 返回了非预期的状态码 %d，影响证书验证，可在系统配置里面将sslhttp_check设置成0",
-							weblogfrist.HOST, weblogfrist.URL, resp.StatusCode))
-						// 上面那条只说了状态码，用户还是不知道"本地到底有没有校验文件"。
-						// 这两者组合起来才有结论：本地有文件 + 后端返回200 = 后端抢答，把后端那段配置去掉即可。
-						challengeToken := acmeTokenFromURL(weblogfrist.URL)
-						challengeFilePath := ""
-						if challengeToken != "" {
-							challengeFilePath = acmeChallengeFilePath(weblogfrist.HOST_CODE, challengeToken)
-						}
-						warnACMEChallenge(weblogfrist.HOST, weblogfrist.HOST_CODE, weblogfrist.URL, challengeToken, challengeFilePath, resp.StatusCode,
-							"后端对挑战路径返回了非 404/301/302，按 sslhttp_check=1 的策略未采用本地校验文件",
-							"若上面显示本地文件=存在，说明是后端抢答：让后端对该路径返回404(或移除该 location)，也可把系统配置 sslhttp_check 改为 0")
-					}
-				} else {
-					// 检查是否需要应用自定义错误页面（非 ACME Challenge 请求）
-					statusCodeKey := strconv.Itoa(backendStatusCode)
-					var customBlockingPage *model.BlockingPage
-					var useCustomPage bool
-
-					// 优先检查网站级别的自定义错误页面配置
-					if blockingPage, ok := waf.rt().HostTarget[host].BlockingPage[statusCodeKey]; ok {
-						customBlockingPage = &blockingPage
-						useCustomPage = true
-					} else if globalBlockingPage, ok := waf.rt().HostTarget[waf.rt().HostCode[global.GWAF_GLOBAL_HOST_CODE]].BlockingPage[statusCodeKey]; ok {
-						// 检查全局级别的自定义错误页面配置
-						customBlockingPage = &globalBlockingPage
-						useCustomPage = true
+				// 如果找到自定义错误页面配置，则应用
+				if useCustomPage && customBlockingPage != nil {
+					// 先读取后端原始响应内容，用于日志记录
+					var backendOriginalBody []byte
+					if resp.Body != nil && resp.Body != http.NoBody {
+						backendOriginalBody, _ = io.ReadAll(resp.Body)
+						resp.Body.Close()
 					}
 
-					// 如果找到自定义错误页面配置，则应用
-					if useCustomPage && customBlockingPage != nil {
-						// 先读取后端原始响应内容，用于日志记录
-						var backendOriginalBody []byte
-						if resp.Body != nil && resp.Body != http.NoBody {
-							backendOriginalBody, _ = io.ReadAll(resp.Body)
-							resp.Body.Close()
-						}
+					renderData := map[string]interface{}{
+						"SAMWAF_REQ_UUID":       weblogfrist.REQ_UUID,
+						"SAMWAF_BACKEND_STATUS": backendStatus,
+						"SAMWAF_BACKEND_CODE":   backendStatusCode,
+						"SAMWAF_BACKEND_BODY":   string(backendOriginalBody),
+					}
 
-						renderData := map[string]interface{}{
-							"SAMWAF_REQ_UUID":       weblogfrist.REQ_UUID,
-							"SAMWAF_BACKEND_STATUS": backendStatus,
-							"SAMWAF_BACKEND_CODE":   backendStatusCode,
-							"SAMWAF_BACKEND_BODY":   string(backendOriginalBody),
-						}
+					// 渲染自定义模板
+					renderedBytes, err := renderTemplate(customBlockingPage.ResponseContent, renderData)
+					var resBytes []byte
+					if err == nil {
+						resBytes = renderedBytes
+					} else {
+						resBytes = []byte(customBlockingPage.ResponseContent)
+						zlog.Warn(fmt.Sprintf("模板渲染失败: %v, 使用原始内容", err))
+					}
 
-						// 渲染自定义模板
-						renderedBytes, err := renderTemplate(customBlockingPage.ResponseContent, renderData)
-						var resBytes []byte
-						if err == nil {
-							resBytes = renderedBytes
-						} else {
-							resBytes = []byte(customBlockingPage.ResponseContent)
-							zlog.Warn(fmt.Sprintf("模板渲染失败: %v, 使用原始内容", err))
+					// 设置自定义响应码（如果配置了）
+					var customResponseCode int = backendStatusCode
+					if customBlockingPage.ResponseCode != "" {
+						if code, err := strconv.Atoi(customBlockingPage.ResponseCode); err == nil {
+							customResponseCode = code
 						}
+					}
 
-						// 设置自定义响应码（如果配置了）
-						var customResponseCode int = backendStatusCode
-						if customBlockingPage.ResponseCode != "" {
-							if code, err := strconv.Atoi(customBlockingPage.ResponseCode); err == nil {
-								customResponseCode = code
-							}
-						}
-
-						// 清空现有的响应头并设置自定义响应头
-						var headers []map[string]string
-						if err := json.Unmarshal([]byte(customBlockingPage.ResponseHeader), &headers); err == nil {
-							for _, header := range headers {
-								if name, ok := header["name"]; ok {
-									if value, ok := header["value"]; ok && value != "" {
-										resp.Header.Set(name, value)
-									}
+					// 清空现有的响应头并设置自定义响应头
+					var headers []map[string]string
+					if err := json.Unmarshal([]byte(customBlockingPage.ResponseHeader), &headers); err == nil {
+						for _, header := range headers {
+							if name, ok := header["name"]; ok {
+								if value, ok := header["value"]; ok && value != "" {
+									resp.Header.Set(name, value)
 								}
 							}
 						}
-
-						// 更新响应
-						resp.StatusCode = customResponseCode
-						resp.Status = http.StatusText(customResponseCode)
-						resp.Body = io.NopCloser(bytes.NewBuffer(resBytes))
-						resp.ContentLength = int64(len(resBytes))
-						resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(resBytes)), 10))
-
-						// 记录响应Header信息
-						resHeader := joinHeader(resp.Header)
-						weblogfrist.ResHeader = resHeader
-
-						// 记录日志信息
-						weblogfrist.ACTION = "放行"
-						weblogfrist.STATUS = resp.Status
-						weblogfrist.STATUS_CODE = resp.StatusCode
-						weblogfrist.RES_BODY = string(backendOriginalBody)
-
-						weblogfrist.TASK_FLAG = 1
-						weblogfrist.BackendCheckCost = time.Now().UnixNano()/1e6 - backendCheckStart
-
-						// 记录日志 - 根据配置决定是否记录
-						if shouldRecordWebLog(weblogfrist, waf.rt().HostTarget[host].Host.EXCLUDE_URL_LOG) {
-							global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
-						}
-
-						// 应用自定义错误页后直接返回
-						return nil
 					}
 
-					//记录响应Header信息
+					// 更新响应
+					resp.StatusCode = customResponseCode
+					resp.Status = http.StatusText(customResponseCode)
+					resp.Body = io.NopCloser(bytes.NewBuffer(resBytes))
+					resp.ContentLength = int64(len(resBytes))
+					resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(resBytes)), 10))
+
+					// 记录响应Header信息
 					resHeader := joinHeader(resp.Header)
 					weblogfrist.ResHeader = resHeader
+
+					// 记录日志信息
 					weblogfrist.ACTION = "放行"
 					weblogfrist.STATUS = resp.Status
 					weblogfrist.STATUS_CODE = resp.StatusCode
+					weblogfrist.RES_BODY = string(backendOriginalBody)
+
 					weblogfrist.TASK_FLAG = 1
-					weblogfrist.BackendCheckCost = time.Now().UnixNano()/1e6 - backendCheckStart //响应数据处理时间
+					weblogfrist.BackendCheckCost = time.Now().UnixNano()/1e6 - backendCheckStart
+
+					// 记录日志 - 根据配置决定是否记录
 					if shouldRecordWebLog(weblogfrist, waf.rt().HostTarget[host].Host.EXCLUDE_URL_LOG) {
 						global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
 					}
+
+					// 应用自定义错误页后直接返回
+					return nil
+				}
+
+				//记录响应Header信息
+				resHeader := joinHeader(resp.Header)
+				weblogfrist.ResHeader = resHeader
+				weblogfrist.ACTION = "放行"
+				weblogfrist.STATUS = resp.Status
+				weblogfrist.STATUS_CODE = resp.StatusCode
+				weblogfrist.TASK_FLAG = 1
+				weblogfrist.BackendCheckCost = time.Now().UnixNano()/1e6 - backendCheckStart //响应数据处理时间
+				if shouldRecordWebLog(weblogfrist, waf.rt().HostTarget[host].Host.EXCLUDE_URL_LOG) {
+					global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
 				}
 
 			}

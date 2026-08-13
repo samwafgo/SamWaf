@@ -4,9 +4,25 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	Wssocket "github.com/gorilla/websocket"
 	"sync"
 	"time"
+
+	Wssocket "github.com/gorilla/websocket"
+)
+
+// gorilla/websocket 只允许「一个并发 reader + 一个并发 writer」。
+// 历史实现把裸 *websocket.Conn 交给外部（消息队列 / 定时任务 / ping 回显）各写各的，
+// 撞在一起就会触发 "concurrent write to websocket connection" panic。
+//
+// 现在写出口全部收敛到本包：外部只能拿到会话 ID，通过 SendToSession / Broadcast 发送，
+// 内部按连接加锁串行化，并且强制写超时——避免一个卡死的客户端把广播方无限期吊住。
+const (
+	// WriteWait 单次写的最长等待时间。客户端卡死时最多把发送方挂住这么久。
+	WriteWait = 5 * time.Second
+	// PingPeriod 服务端主动发 Ping 的间隔。
+	PingPeriod = 30 * time.Second
+	// PongWait 读超时。超过这个时间既没收到业务消息也没收到 Pong，就认定连接已死。
+	PongWait = 90 * time.Second
 )
 
 type WebSocketConnection struct {
@@ -14,6 +30,26 @@ type WebSocketConnection struct {
 	SessionID string
 	UserKey   string
 	CreatedAt time.Time
+
+	writeMux sync.Mutex // 该连接的写出口互斥锁，禁止并发写
+}
+
+// SafeWriteMessage 串行化写入 + 写超时，是本包对外唯一的数据帧写入方式
+func (wsConn *WebSocketConnection) SafeWriteMessage(messageType int, data []byte) error {
+	wsConn.writeMux.Lock()
+	defer wsConn.writeMux.Unlock()
+
+	if err := wsConn.Conn.SetWriteDeadline(time.Now().Add(WriteWait)); err != nil {
+		return err
+	}
+	return wsConn.Conn.WriteMessage(messageType, data)
+}
+
+// SafePing 发送控制帧 Ping。
+// gorilla 的 WriteControl 允许与其他方法并发调用，所以这里刻意不抢写锁，
+// 否则一次卡住的数据帧写入会把心跳也拖死，反而没法探活。
+func (wsConn *WebSocketConnection) SafePing() error {
+	return wsConn.Conn.WriteControl(Wssocket.PingMessage, nil, time.Now().Add(WriteWait))
 }
 
 type WebSocketOnline struct {
@@ -66,86 +102,100 @@ func (wafWebsocket *WebSocketOnline) AddWebSocket(userKey string, conn *Wssocket
 	return sessionID
 }
 
-// 兼容旧接口：设置WebSocket连接（会关闭同用户的其他连接）
-func (wafWebsocket *WebSocketOnline) SetWebSocket(key string, value *Wssocket.Conn) {
+// getSession 取出会话对象（内部用，外部拿不到裸连接）
+func (wafWebsocket *WebSocketOnline) getSession(sessionID string) *WebSocketConnection {
 	wafWebsocket.Mux.Lock()
 	defer wafWebsocket.Mux.Unlock()
 
-	// 关闭该用户的所有现有连接
-	if sessions, exists := wafWebsocket.UserSessions[key]; exists {
-		for _, sessionID := range sessions {
-			if wsConn, found := wafWebsocket.SocketMap[sessionID]; found {
-				wsConn.Conn.Close()
-				delete(wafWebsocket.SocketMap, sessionID)
-			}
+	return wafWebsocket.SocketMap[sessionID]
+}
+
+// snapshot 复制一份当前在线连接，写入动作在锁外进行，
+// 避免一次慢写把整张表锁住导致新连接注册不进来
+func (wafWebsocket *WebSocketOnline) snapshot() []*WebSocketConnection {
+	wafWebsocket.Mux.Lock()
+	defer wafWebsocket.Mux.Unlock()
+
+	conns := make([]*WebSocketConnection, 0, len(wafWebsocket.SocketMap))
+	for _, wsConn := range wafWebsocket.SocketMap {
+		conns = append(conns, wsConn)
+	}
+	return conns
+}
+
+// HasSession 会话是否还在线
+func (wafWebsocket *WebSocketOnline) HasSession(sessionID string) bool {
+	return wafWebsocket.getSession(sessionID) != nil
+}
+
+// OnlineCount 当前在线连接数
+func (wafWebsocket *WebSocketOnline) OnlineCount() int {
+	wafWebsocket.Mux.Lock()
+	defer wafWebsocket.Mux.Unlock()
+
+	return len(wafWebsocket.SocketMap)
+}
+
+// SendToSession 向指定会话发送消息
+func (wafWebsocket *WebSocketOnline) SendToSession(sessionID string, messageType int, data []byte) error {
+	wsConn := wafWebsocket.getSession(sessionID)
+	if wsConn == nil {
+		return errors.New("未找到会话")
+	}
+	return wsConn.SafeWriteMessage(messageType, data)
+}
+
+// Broadcast 广播给所有在线连接，返回发送成功的连接数。
+// 写失败的连接直接关闭并摘除：死连接留在表里只会让后续每一轮广播都白等一次写超时。
+func (wafWebsocket *WebSocketOnline) Broadcast(messageType int, data []byte) int {
+	successCount := 0
+	for _, wsConn := range wafWebsocket.snapshot() {
+		if wsConn == nil {
+			continue
 		}
-		delete(wafWebsocket.UserSessions, key)
+		if err := wsConn.SafeWriteMessage(messageType, data); err != nil {
+			wafWebsocket.CloseSession(wsConn.SessionID)
+			continue
+		}
+		successCount++
 	}
-
-	// 添加新连接
-	sessionID := wafWebsocket.generateSessionID()
-	wsConn := &WebSocketConnection{
-		Conn:      value,
-		SessionID: sessionID,
-		UserKey:   key,
-		CreatedAt: time.Now(),
-	}
-
-	wafWebsocket.SocketMap[sessionID] = wsConn
-	wafWebsocket.UserSessions[key] = []string{sessionID}
+	return successCount
 }
 
-// 根据会话ID获取WebSocket连接
-func (wafWebsocket *WebSocketOnline) GetWebSocketBySession(sessionID string) *Wssocket.Conn {
-	wafWebsocket.Mux.Lock()
-	defer wafWebsocket.Mux.Unlock()
-
-	if wsConn, found := wafWebsocket.SocketMap[sessionID]; found {
-		return wsConn.Conn
-	}
-	return nil
-}
-
-// 兼容旧接口：根据用户key获取WebSocket连接（返回第一个连接）
-func (wafWebsocket *WebSocketOnline) GetWebSocket(key string) *Wssocket.Conn {
-	wafWebsocket.Mux.Lock()
-	defer wafWebsocket.Mux.Unlock()
-
-	if sessions, exists := wafWebsocket.UserSessions[key]; exists && len(sessions) > 0 {
-		sessionID := sessions[0] // 返回第一个连接
-		if wsConn, found := wafWebsocket.SocketMap[sessionID]; found {
-			return wsConn.Conn
+// PingAll 给所有在线连接发心跳，失败的连接摘除
+func (wafWebsocket *WebSocketOnline) PingAll() {
+	for _, wsConn := range wafWebsocket.snapshot() {
+		if wsConn == nil {
+			continue
+		}
+		if err := wsConn.SafePing(); err != nil {
+			wafWebsocket.CloseSession(wsConn.SessionID)
 		}
 	}
-	return nil
 }
 
-// 获取用户的所有WebSocket连接
-func (wafWebsocket *WebSocketOnline) GetUserWebSockets(userKey string) []*Wssocket.Conn {
-	wafWebsocket.Mux.Lock()
-	defer wafWebsocket.Mux.Unlock()
-
-	var connections []*Wssocket.Conn
-	if sessions, exists := wafWebsocket.UserSessions[userKey]; exists {
-		for _, sessionID := range sessions {
-			if wsConn, found := wafWebsocket.SocketMap[sessionID]; found {
-				connections = append(connections, wsConn.Conn)
-			}
-		}
+// PingSession 给指定会话发心跳
+func (wafWebsocket *WebSocketOnline) PingSession(sessionID string) error {
+	wsConn := wafWebsocket.getSession(sessionID)
+	if wsConn == nil {
+		return errors.New("未找到会话")
 	}
-	return connections
+	return wsConn.SafePing()
 }
 
-func (wafWebsocket *WebSocketOnline) GetAllWebSocket() map[string]*Wssocket.Conn {
+// CloseSession 关闭并摘除指定会话（可重复调用）
+func (wafWebsocket *WebSocketOnline) CloseSession(sessionID string) {
 	wafWebsocket.Mux.Lock()
-	defer wafWebsocket.Mux.Unlock()
-
-	// 创建一个副本，防止外部修改
-	sockets := make(map[string]*Wssocket.Conn)
-	for sessionID, wsConn := range wafWebsocket.SocketMap {
-		sockets[sessionID] = wsConn.Conn
+	wsConn, found := wafWebsocket.SocketMap[sessionID]
+	if found {
+		wafWebsocket.removeSessionLocked(sessionID, wsConn.UserKey)
 	}
-	return sockets
+	wafWebsocket.Mux.Unlock()
+
+	if found {
+		// Close 与其他方法并发调用是安全的，放在锁外做，避免阻塞其他会话
+		wsConn.Conn.Close()
+	}
 }
 
 // 根据会话ID删除WebSocket连接
@@ -158,43 +208,27 @@ func (wafWebsocket *WebSocketOnline) DelWebSocketBySession(sessionID string) err
 		return errors.New("未找到会话")
 	}
 
-	// 从会话映射中删除
-	delete(wafWebsocket.SocketMap, sessionID)
-
-	// 从用户会话列表中删除
-	userKey := wsConn.UserKey
-	if sessions, exists := wafWebsocket.UserSessions[userKey]; exists {
-		newSessions := make([]string, 0)
-		for _, sid := range sessions {
-			if sid != sessionID {
-				newSessions = append(newSessions, sid)
-			}
-		}
-		if len(newSessions) > 0 {
-			wafWebsocket.UserSessions[userKey] = newSessions
-		} else {
-			delete(wafWebsocket.UserSessions, userKey)
-		}
-	}
-
+	wafWebsocket.removeSessionLocked(sessionID, wsConn.UserKey)
 	return nil
 }
 
-// 兼容旧接口：删除用户的所有WebSocket连接
-func (wafWebsocket *WebSocketOnline) DelWebSocket(key string) error {
-	wafWebsocket.Mux.Lock()
-	defer wafWebsocket.Mux.Unlock()
+// removeSessionLocked 从两张表里摘除会话，调用方需持有 Mux
+func (wafWebsocket *WebSocketOnline) removeSessionLocked(sessionID string, userKey string) {
+	delete(wafWebsocket.SocketMap, sessionID)
 
-	sessions, found := wafWebsocket.UserSessions[key]
-	if !found {
-		return errors.New("未找到数据")
+	sessions, exists := wafWebsocket.UserSessions[userKey]
+	if !exists {
+		return
 	}
-
-	// 删除所有会话
-	for _, sessionID := range sessions {
-		delete(wafWebsocket.SocketMap, sessionID)
+	newSessions := make([]string, 0, len(sessions))
+	for _, sid := range sessions {
+		if sid != sessionID {
+			newSessions = append(newSessions, sid)
+		}
 	}
-	delete(wafWebsocket.UserSessions, key)
-
-	return nil
+	if len(newSessions) > 0 {
+		wafWebsocket.UserSessions[userKey] = newSessions
+	} else {
+		delete(wafWebsocket.UserSessions, userKey)
+	}
 }

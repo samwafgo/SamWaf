@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 /*
@@ -58,119 +60,17 @@ func ProcessMessageDequeEngine() {
 				case innerbean.AccessMessageInfo:
 					handleAccessMessage(msg)
 				case innerbean.ExportResultMessageInfo:
-					exportResult := msg
-					//发送websocket
-					for _, ws := range global.GWebSocket.GetAllWebSocket() {
-						if ws != nil {
-							//信息包体进行单独处理
-							msgBody, _ := json.Marshal(model.MsgDataPacket{
-								MessageId:           uuid.GenUUID(),
-								MessageType:         "导出结果",
-								MessageData:         exportResult.Msg,
-								MessageAttach:       nil,
-								MessageDateTime:     time.Now().Format("2006-01-02 15:04:05"),
-								MessageUnReadStatus: true,
-							})
-							encryptStr, _ := wafsec.AesEncrypt(msgBody, global.GWAF_COMMUNICATION_KEY)
-							//写入ws数据
-							msgBytes, err := json.Marshal(model.MsgPacket{
-								MsgCode:       "200",
-								MsgDataPacket: encryptStr,
-								MsgCmdType:    "DOWNLOAD_LOG",
-							})
-							err = ws.WriteMessage(1, msgBytes)
-							if err != nil {
-								zlog.Info("发送websocket错误", err)
-								continue
-							}
-						}
-					}
+					//导出结果
+					sendToWebSocket("导出结果", msg.Msg, nil, "DOWNLOAD_LOG")
 				case innerbean.UpdateResultMessageInfo:
 					//升级结果
-					updatemessage := msg
-					//发送websocket
-					for _, ws := range global.GWebSocket.GetAllWebSocket() {
-						if ws != nil {
-							//信息包体进行单独处理
-							msgBody, _ := json.Marshal(model.MsgDataPacket{
-								MessageId:           uuid.GenUUID(),
-								MessageType:         "升级结果",
-								MessageData:         updatemessage.Msg,
-								MessageAttach:       nil,
-								MessageDateTime:     time.Now().Format("2006-01-02 15:04:05"),
-								MessageUnReadStatus: true,
-							})
-							encryptStr, _ := wafsec.AesEncrypt(msgBody, global.GWAF_COMMUNICATION_KEY)
-							//写入ws数据
-							msgBytes, err := json.Marshal(model.MsgPacket{
-								MsgCode:       "200",
-								MsgDataPacket: encryptStr,
-								MsgCmdType:    "Info",
-							})
-							err = ws.WriteMessage(1, msgBytes)
-							if err != nil {
-								zlog.Info("发送websocket错误", err)
-								continue
-							}
-						}
-					}
+					sendToWebSocket("升级结果", msg.Msg, nil, "Info")
 				case innerbean.OpResultMessageInfo:
 					//操作实时结果
-					updatemessage := msg
-					//发送websocket
-					for _, ws := range global.GWebSocket.GetAllWebSocket() {
-						if ws != nil {
-							//信息包体进行单独处理
-							msgBody, _ := json.Marshal(model.MsgDataPacket{
-								MessageId:           uuid.GenUUID(),
-								MessageType:         "信息通知",
-								MessageData:         updatemessage.Msg,
-								MessageAttach:       nil,
-								MessageDateTime:     time.Now().Format("2006-01-02 15:04:05"),
-								MessageUnReadStatus: true,
-							})
-							encryptStr, _ := wafsec.AesEncrypt(msgBody, global.GWAF_COMMUNICATION_KEY)
-							//写入ws数据
-							msgBytes, err := json.Marshal(model.MsgPacket{
-								MsgCode:       "200",
-								MsgDataPacket: encryptStr,
-								MsgCmdType:    "Info",
-							})
-							err = ws.WriteMessage(1, msgBytes)
-							if err != nil {
-								zlog.Info("发送websocket错误", err)
-								continue
-							}
-						}
-					}
+					sendToWebSocket("信息通知", msg.Msg, nil, "Info")
 				case innerbean.SystemStatsData:
-					statsData := msg
-					//发送websocket
-					for _, ws := range global.GWebSocket.GetAllWebSocket() {
-						if ws != nil {
-							//信息包体进行单独处理
-							msgBody, _ := json.Marshal(model.MsgDataPacket{
-								MessageId:           uuid.GenUUID(),
-								MessageType:         "系统统计信息",
-								MessageData:         "",
-								MessageAttach:       statsData,
-								MessageDateTime:     time.Now().Format("2006-01-02 15:04:05"),
-								MessageUnReadStatus: true,
-							})
-							encryptStr, _ := wafsec.AesEncrypt(msgBody, global.GWAF_COMMUNICATION_KEY)
-							//写入ws数据
-							msgBytes, err := json.Marshal(model.MsgPacket{
-								MsgCode:       "200",
-								MsgDataPacket: encryptStr,
-								MsgCmdType:    "SystemStats",
-							})
-							err = ws.WriteMessage(1, msgBytes)
-							if err != nil {
-								zlog.Info("发送websocket错误", err)
-								continue
-							}
-						}
-					}
+					//系统统计数据
+					sendToWebSocket("系统统计信息", "", msg, "SystemStats")
 				}
 
 			}
@@ -379,29 +279,27 @@ func handleIPBanMessage(msg innerbean.IPBanMessageInfo) {
 	}
 }
 
-// sendToWebSocket 统一的 WebSocket 发送函数
+// sendToWebSocket 统一的 WebSocket 发送函数。
+// 写入必须走 global.GWebSocket.Broadcast：它按连接加锁串行化并带写超时，
+// 直接对裸连接 WriteMessage 会与 ping 回显、定时任务撞成 concurrent write panic。
 func sendToWebSocket(messageType, messageData string, messageAttach interface{}, cmdType string) {
-	for _, ws := range global.GWebSocket.GetAllWebSocket() {
-		if ws != nil {
-			msgBody, _ := json.Marshal(model.MsgDataPacket{
-				MessageId:           uuid.GenUUID(),
-				MessageType:         messageType,
-				MessageData:         messageData,
-				MessageAttach:       messageAttach,
-				MessageDateTime:     time.Now().Format("2006-01-02 15:04:05"),
-				MessageUnReadStatus: true,
-			})
-			encryptStr, _ := wafsec.AesEncrypt(msgBody, global.GWAF_COMMUNICATION_KEY)
-			msgBytes, err := json.Marshal(model.MsgPacket{
-				MsgCode:       "200",
-				MsgDataPacket: encryptStr,
-				MsgCmdType:    cmdType,
-			})
-			err = ws.WriteMessage(1, msgBytes)
-			if err != nil {
-				zlog.Debug("发送websocket错误", err)
-				continue
-			}
-		}
+	msgBody, _ := json.Marshal(model.MsgDataPacket{
+		MessageId:           uuid.GenUUID(),
+		MessageType:         messageType,
+		MessageData:         messageData,
+		MessageAttach:       messageAttach,
+		MessageDateTime:     time.Now().Format("2006-01-02 15:04:05"),
+		MessageUnReadStatus: true,
+	})
+	encryptStr, _ := wafsec.AesEncrypt(msgBody, global.GWAF_COMMUNICATION_KEY)
+	msgBytes, err := json.Marshal(model.MsgPacket{
+		MsgCode:       "200",
+		MsgDataPacket: encryptStr,
+		MsgCmdType:    cmdType,
+	})
+	if err != nil {
+		zlog.Debug("组装websocket报文错误", err)
+		return
 	}
+	global.GWebSocket.Broadcast(websocket.TextMessage, msgBytes)
 }

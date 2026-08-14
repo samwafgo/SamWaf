@@ -244,10 +244,24 @@ func (e *BanExecutor) applyIncremental(add, del []string) error {
 	return firstErr
 }
 
-// markDirty 标脏并启动/重置去抖定时器
+// markDirty 标脏，并确保在 debounce 之内一定会落地。
+//
+// **定时器只在"从干净变脏"时创建一次，后续标脏不再重置它。**
+// 原来的写法每次标脏都 Stop 再重建定时器，是典型的尾沿去抖：
+// 只要新封禁一直在 debounce 间隔内到来，落地时刻就被无限往后推——
+// 而"封禁持续不断地产生"正是遭受爆破的时候，恰恰是最需要立刻生效的时刻。
+// 实测表现就是「通知早就收到了，防火墙里等半天才出现这个 IP」。
+//
+// 改成从首次标脏起算的固定截止时间后，最大延迟严格等于 debounce，与攻击频率无关。
 func (e *BanExecutor) markDirty() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+
+	if e.dirty {
+		// 已经有一轮在等了，搭它的车即可，不要重置截止时间
+		e.dirty = true
+		return
+	}
 	e.dirty = true
 
 	debounce := time.Duration(global.GCONFIG_HOST_GUARD_DEBOUNCE_SEC) * time.Second

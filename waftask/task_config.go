@@ -630,7 +630,7 @@ func TaskLoadSetting(initLoad bool) {
 	updateConfigStringItem(initLoad, "hostguard", "host_guard_rdp_ports", global.GCONFIG_HOST_GUARD_RDP_PORTS, "RDP实际监听端口（逗号分隔），留空自动发现", "string", "", configMap)
 	updateConfigStringItem(initLoad, "hostguard", "host_guard_port_scope", global.GCONFIG_HOST_GUARD_PORT_SCOPE, "封禁范围：all=封全端口（更安全），detected=只封SSH/RDP端口（误封时杀伤面更小）", "options", "all|全端口,detected|仅SSH/RDP端口", configMap)
 	updateConfigStringItem(initLoad, "hostguard", "host_guard_exec_mode", global.GCONFIG_HOST_GUARD_EXEC_MODE, "封禁执行方式：auto=平台自适应（推荐），ipset=强制走集合，rule=强制逐条防火墙规则（调试用）", "options", "auto|自动,ipset|集合,rule|逐条规则", configMap)
-	updateConfigIntItem(initLoad, "hostguard", "host_guard_debounce_sec", global.GCONFIG_HOST_GUARD_DEBOUNCE_SEC, "Windows封禁同步去抖窗口（单位：秒，默认30）。Windows无ipset只能全量重建规则，去抖可避免频繁封禁时反复重建；Linux/macOS走增量不受此影响", "int", "", configMap)
+	updateConfigIntItem(initLoad, "hostguard", "host_guard_debounce_sec", global.GCONFIG_HOST_GUARD_DEBOUNCE_SEC, "Windows封禁同步去抖窗口（单位：秒，默认5）。Windows无ipset只能全量重建规则，去抖可避免频繁封禁时反复重建；该值也是封禁生效的最大延迟；Linux/macOS走增量不受此影响", "int", "", configMap)
 	updateConfigIntItem(initLoad, "hostguard", "host_guard_max_ban_entries", global.GCONFIG_HOST_GUARD_MAX_BAN_ENTRIES, "封禁集合容量上限（默认10000）。超限时优先淘汰剩余时间最短的临时封禁，永久封禁不淘汰", "int", "", configMap)
 	updateConfigIntItem(initLoad, "hostguard", "host_guard_ban_rate_limit", global.GCONFIG_HOST_GUARD_BAN_RATE_LIMIT, "每分钟最多新增封禁数（默认200），防止分布式爆破把封禁集合瞬间打满", "int", "", configMap)
 	updateConfigIntItem(initLoad, "hostguard", "host_guard_subnet_aggregate", global.GCONFIG_HOST_GUARD_SUBNET_AGGREGATE, "网段聚合封禁：同一/24网段内被封IP数达到阈值时，升级为封禁整个网段。对僵尸网络有效但误伤面大（可能封掉整个机房/运营商段），默认关闭", "options", "0|禁用,1|启用", configMap)

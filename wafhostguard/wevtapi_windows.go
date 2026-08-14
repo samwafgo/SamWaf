@@ -35,6 +35,16 @@ const (
 	evtRenderEventXml = 1
 	// 单次最多取多少条事件
 	evtNextBatch = 16
+	// evtNextTimeoutMs EvtNext 自身的等待上限。取得短一点即可：
+	// 外层已经在按节奏轮询，这里没必要再等。
+	evtNextTimeoutMs = 100
+)
+
+// EvtNext 在"当前没有可取事件"时会返回的几个错误码。
+// windows 包里没有现成常量，直接按 winerror.h 的值定义。
+const (
+	errInvalidOperation syscall.Errno = 4317 // ERROR_INVALID_OPERATION
+	errWaitTimeout      syscall.Errno = 1460 // ERROR_TIMEOUT
 )
 
 // wevtAvailable 报告 wevtapi.dll 是否可加载。加载不了就走 wevtutil 降级通道。
@@ -52,19 +62,13 @@ func wevtAvailable() error {
 
 // evtSubscribe 订阅指定频道的未来事件。
 // signalEvent 由 windows.CreateEvent 创建(手动重置)，有新事件时被置位。
-func evtSubscribe(signalEvent windows.Handle, channel, query string) (windows.Handle, error) {
-	chPtr, err := windows.UTF16PtrFromString(channel)
-	if err != nil {
-		return 0, err
-	}
-	var qPtr *uint16
-	if query != "" {
-		qPtr, err = windows.UTF16PtrFromString(query)
-		if err != nil {
-			return 0, err
-		}
-	}
-
+//
+// **chPtr / qPtr 必须由调用方持有到退订为止。** 订阅是长期存活的对象，
+// 而这两块内存是 Go 分配的；调用返回后若没人引用，GC 随时可以回收它们。
+// wevtapi 是否在内部拷贝了字符串并无文档保证，按 unsafe.Pointer 的使用规则，
+// 传给系统调用且可能被对方留存的指针必须显式保活——否则就是未定义行为，
+// 而这类问题的典型表现恰恰是"订阅建得起来、却一条事件都不投递"。
+func evtSubscribe(signalEvent windows.Handle, chPtr, qPtr *uint16) (windows.Handle, error) {
 	r, _, e := procEvtSubscribe.Call(
 		0,                              // Session：本机
 		uintptr(signalEvent),           // SignalEvent
@@ -76,25 +80,31 @@ func evtSubscribe(signalEvent windows.Handle, channel, query string) (windows.Ha
 		uintptr(evtSubscribeToFutureEvents),
 	)
 	if r == 0 {
-		return 0, fmt.Errorf("EvtSubscribe(%s) 失败: %w", channel, e)
+		return 0, fmt.Errorf("EvtSubscribe 失败: %w", e)
 	}
 	return windows.Handle(r), nil
 }
 
-// evtNextXML 等待信号并批量取事件，渲染成 XML 字符串返回。
+// evtNextXML 取一批事件，渲染成 XML 字符串返回。
 //
-// 返回空切片 + nil 表示"超时且无事件"，这是正常情况——调用方据此回到
-// select ctx.Done() 检查是否该退出。超时设成 1 秒，也就决定了 Stop() 的最坏响应时间。
+// **不能只在信号量置位后才去取。** 实测 Windows Server 2022 上 EvtSubscribe
+// 从不置位 SignalEvent(诊断工具测得置位 0 次)，但订阅本身一直在正常收集事件——
+// 直接轮询 EvtNext 就能把事件取出来。只等信号量的写法会导致"订阅建得起来、
+// 一条事件都收不到、还不报任何错"，是最难排查的一种失效。
+//
+// 所以这里改成：等信号量最多 timeoutMs，**无论是否等到都去取一次**。
+// 信号量正常的机器仍然是事件一来就响应，不正常的机器最多延迟 timeoutMs。
+//
+// 返回空切片 + nil 表示"这一轮没有新事件"，是正常情况。
 func evtNextXML(sub, signal windows.Handle, timeoutMs uint32) ([]string, error) {
 	waitRes, err := windows.WaitForSingleObject(signal, timeoutMs)
 	if err != nil {
 		return nil, err
 	}
-	if waitRes == uint32(windows.WAIT_TIMEOUT) {
-		return nil, nil
-	}
-	if err := windows.ResetEvent(signal); err != nil {
-		return nil, err
+	if waitRes == uint32(windows.WAIT_OBJECT_0) {
+		if err := windows.ResetEvent(signal); err != nil {
+			return nil, err
+		}
 	}
 
 	var out []string
@@ -105,13 +115,22 @@ func evtNextXML(sub, signal windows.Handle, timeoutMs uint32) ([]string, error) 
 			uintptr(sub),
 			uintptr(evtNextBatch),
 			uintptr(unsafe.Pointer(&handles[0])),
-			uintptr(0xFFFFFFFF), // INFINITE：事件已经就绪，不会真的阻塞
+			// **不能用 INFINITE**：轮询模式下多数轮次本就没有新事件，
+			// 用 INFINITE 会把整个采集循环永久阻塞在这里。
+			uintptr(evtNextTimeoutMs),
 			0,
 			uintptr(unsafe.Pointer(&returned)),
 		)
 		if r == 0 {
-			// ERROR_NO_MORE_ITEMS 表示这一批取完了，是正常结束
-			if errno, ok := e.(syscall.Errno); ok && errno == windows.ERROR_NO_MORE_ITEMS {
+			// 这三个错误码都表示"这一批取完了"，不是故障：
+			//   ERROR_NO_MORE_ITEMS    没有更多事件
+			//   ERROR_INVALID_OPERATION 订阅句柄上无事件可取时的另一种返回(实测 Server 2022)
+			//   ERROR_TIMEOUT          等待新事件超时
+			// 尤其是 ERROR_INVALID_OPERATION，不认它就会被当成真故障反复报警。
+			if errno, ok := e.(syscall.Errno); ok &&
+				(errno == windows.ERROR_NO_MORE_ITEMS ||
+					errno == errInvalidOperation ||
+					errno == errWaitTimeout) {
 				return out, nil
 			}
 			if len(out) > 0 {

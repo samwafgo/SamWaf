@@ -1828,6 +1828,33 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return tx.Migrator().DropTable(&model.ThreatIPExclude{})
 			},
 		},
+		// 迁移: 为 blocking_page 表添加 content_priority 字段（模版/后端内容优先级）
+		//
+		// 背景：后端真实返回的 4xx/5xx 会被自定义模版整个覆盖，接口的 JSON 错误详情丢失（gitee issue IK8KA7）。
+		// 新增该字段让用户按页面选择"优先自定义模版"（默认，等同历史行为）或"优先后端响应"。
+		// 空值即默认值，老数据无需回填。
+		{
+			ID: "202608140001_add_blocking_page_content_priority",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202608140001: 为 blocking_page 表添加 content_priority 字段")
+				if tx.Migrator().HasColumn(&model.BlockingPage{}, "content_priority") {
+					zlog.Info("content_priority 字段已存在，跳过添加")
+					return nil
+				}
+				if err := tx.Migrator().AddColumn(&model.BlockingPage{}, "content_priority"); err != nil {
+					return fmt.Errorf("添加 content_priority 字段失败: %w", err)
+				}
+				zlog.Info("content_priority 字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202608140001: 删除 blocking_page 表的 content_priority 字段")
+				if tx.Migrator().HasColumn(&model.BlockingPage{}, "content_priority") {
+					return tx.Migrator().DropColumn(&model.BlockingPage{}, "content_priority")
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

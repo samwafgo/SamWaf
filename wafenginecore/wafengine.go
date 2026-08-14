@@ -1370,93 +1370,39 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 				weblogfrist.TimeSpent = datetimeNow.UnixNano()/1e6 - weblogfrist.UNIX_ADD_TIME
 
 				// 检查是否需要应用自定义错误页面（非 ACME Challenge 请求）
-				statusCodeKey := strconv.Itoa(backendStatusCode)
-				var customBlockingPage *model.BlockingPage
-				var useCustomPage bool
+				// 注意：这里只针对"后端真实返回的状态码"；WAF 自身的拦截走 EchoErrorInfo，是另一条独立路径。
+				customBlockingPage := resolveCustomErrorPage(
+					waf.rt().HostTarget[host],
+					waf.rt().HostTarget[waf.rt().HostCode[global.GWAF_GLOBAL_HOST_CODE]],
+					backendStatusCode,
+				)
 
-				// 优先检查网站级别的自定义错误页面配置
-				if blockingPage, ok := waf.rt().HostTarget[host].BlockingPage[statusCodeKey]; ok {
-					customBlockingPage = &blockingPage
-					useCustomPage = true
-				} else if globalBlockingPage, ok := waf.rt().HostTarget[waf.rt().HostCode[global.GWAF_GLOBAL_HOST_CODE]].BlockingPage[statusCodeKey]; ok {
-					// 检查全局级别的自定义错误页面配置
-					customBlockingPage = &globalBlockingPage
-					useCustomPage = true
-				}
+				if customBlockingPage != nil {
+					pageResult := applyCustomErrorPage(resp, customBlockingPage, backendStatusCode, backendStatus, weblogfrist.REQ_UUID)
 
-				// 如果找到自定义错误页面配置，则应用
-				if useCustomPage && customBlockingPage != nil {
-					// 先读取后端原始响应内容，用于日志记录
-					var backendOriginalBody []byte
-					if resp.Body != nil && resp.Body != http.NoBody {
-						backendOriginalBody, _ = io.ReadAll(resp.Body)
-						resp.Body.Close()
-					}
+					if pageResult.TemplateApplied {
+						// 记录响应Header信息
+						resHeader := joinHeader(resp.Header)
+						weblogfrist.ResHeader = resHeader
 
-					renderData := map[string]interface{}{
-						"SAMWAF_REQ_UUID":       weblogfrist.REQ_UUID,
-						"SAMWAF_BACKEND_STATUS": backendStatus,
-						"SAMWAF_BACKEND_CODE":   backendStatusCode,
-						"SAMWAF_BACKEND_BODY":   string(backendOriginalBody),
-					}
+						// 记录日志信息
+						weblogfrist.ACTION = "放行"
+						weblogfrist.STATUS = resp.Status
+						weblogfrist.STATUS_CODE = resp.StatusCode
+						weblogfrist.RES_BODY = string(pageResult.BackendBody)
 
-					// 渲染自定义模板
-					renderedBytes, err := renderTemplate(customBlockingPage.ResponseContent, renderData)
-					var resBytes []byte
-					if err == nil {
-						resBytes = renderedBytes
-					} else {
-						resBytes = []byte(customBlockingPage.ResponseContent)
-						zlog.Warn(fmt.Sprintf("模板渲染失败: %v, 使用原始内容", err))
-					}
+						weblogfrist.TASK_FLAG = 1
+						weblogfrist.BackendCheckCost = time.Now().UnixNano()/1e6 - backendCheckStart
 
-					// 设置自定义响应码（如果配置了）
-					var customResponseCode int = backendStatusCode
-					if customBlockingPage.ResponseCode != "" {
-						if code, err := strconv.Atoi(customBlockingPage.ResponseCode); err == nil {
-							customResponseCode = code
+						// 记录日志 - 根据配置决定是否记录
+						if shouldRecordWebLog(weblogfrist, waf.rt().HostTarget[host].Host.EXCLUDE_URL_LOG) {
+							global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
 						}
+
+						// 应用自定义错误页后直接返回
+						return nil
 					}
-
-					// 清空现有的响应头并设置自定义响应头
-					var headers []map[string]string
-					if err := json.Unmarshal([]byte(customBlockingPage.ResponseHeader), &headers); err == nil {
-						for _, header := range headers {
-							if name, ok := header["name"]; ok {
-								if value, ok := header["value"]; ok && value != "" {
-									resp.Header.Set(name, value)
-								}
-							}
-						}
-					}
-
-					// 更新响应
-					resp.StatusCode = customResponseCode
-					resp.Status = http.StatusText(customResponseCode)
-					resp.Body = io.NopCloser(bytes.NewBuffer(resBytes))
-					resp.ContentLength = int64(len(resBytes))
-					resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(resBytes)), 10))
-
-					// 记录响应Header信息
-					resHeader := joinHeader(resp.Header)
-					weblogfrist.ResHeader = resHeader
-
-					// 记录日志信息
-					weblogfrist.ACTION = "放行"
-					weblogfrist.STATUS = resp.Status
-					weblogfrist.STATUS_CODE = resp.StatusCode
-					weblogfrist.RES_BODY = string(backendOriginalBody)
-
-					weblogfrist.TASK_FLAG = 1
-					weblogfrist.BackendCheckCost = time.Now().UnixNano()/1e6 - backendCheckStart
-
-					// 记录日志 - 根据配置决定是否记录
-					if shouldRecordWebLog(weblogfrist, waf.rt().HostTarget[host].Host.EXCLUDE_URL_LOG) {
-						global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
-					}
-
-					// 应用自定义错误页后直接返回
-					return nil
+					// 「优先后端响应」已把后端内容原样还原，落到下面的常规响应处理
 				}
 
 				//记录响应Header信息

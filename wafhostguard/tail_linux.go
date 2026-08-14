@@ -122,6 +122,7 @@ func (t *fileTail) readLines(ctx context.Context, out chan<- LoginFailEvent) err
 		if len(line) > 0 {
 			t.offset += int64(len(line))
 			if ev, ok := ParseSSHDLine(trimNewline(line), time.Now()); ok {
+				noteRawEvent()
 				select {
 				case out <- ev:
 				case <-ctx.Done():

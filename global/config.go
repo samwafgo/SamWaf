@@ -145,12 +145,16 @@ var (
 	GCONFIG_HOST_GUARD_RDP_PORTS          string = ""        // RDP实际端口(逗号分隔)，留空自动发现
 	GCONFIG_HOST_GUARD_PORT_SCOPE         string = "all"     // 封禁范围 all(全端口，更安全) / detected(只封SSH/RDP端口)
 	GCONFIG_HOST_GUARD_EXEC_MODE          string = "auto"    // 执行方式 auto(平台自适应) / ipset(强制集合) / rule(强制逐条规则)
-	GCONFIG_HOST_GUARD_DEBOUNCE_SEC       int64  = 30        // Windows 去抖合并窗口(秒)，Linux/macOS 走增量不受影响
-	GCONFIG_HOST_GUARD_MAX_BAN_ENTRIES    int64  = 10000     // 封禁集合容量上限，超限先淘汰剩余时间最短的临时封禁(永久封不淘汰)
-	GCONFIG_HOST_GUARD_BAN_RATE_LIMIT     int64  = 200       // 每分钟最多新增封禁数，防分布式爆破把集合瞬间打满
-	GCONFIG_HOST_GUARD_SUBNET_AGGREGATE   int64  = 0         // 网段聚合开关，同/24内被封数达阈值则升级封整段。误伤面大，默认关
-	GCONFIG_HOST_GUARD_SUBNET_THRESHOLD   int64  = 10        // 网段聚合触发阈值
-	GCONFIG_HOST_GUARD_NOTIFY             int64  = 1         // 触发封禁时是否发通知(复用「IP封禁」消息类型)
+	// Windows 去抖合并窗口(秒)，Linux/macOS 走增量不受影响。
+	// 取 5 而不是 30：去抖的目的是把"一阵爆发"合并成一次重建，5 秒已经足够
+	// 收拢成百上千条封禁；再往上加只是让"通知都收到了、防火墙里还没这个 IP"
+	// 的观感变差，换不来多少重建次数的下降。
+	GCONFIG_HOST_GUARD_DEBOUNCE_SEC     int64 = 5
+	GCONFIG_HOST_GUARD_MAX_BAN_ENTRIES  int64 = 10000 // 封禁集合容量上限，超限先淘汰剩余时间最短的临时封禁(永久封不淘汰)
+	GCONFIG_HOST_GUARD_BAN_RATE_LIMIT   int64 = 200   // 每分钟最多新增封禁数，防分布式爆破把集合瞬间打满
+	GCONFIG_HOST_GUARD_SUBNET_AGGREGATE int64 = 0     // 网段聚合开关，同/24内被封数达阈值则升级封整段。误伤面大，默认关
+	GCONFIG_HOST_GUARD_SUBNET_THRESHOLD int64 = 10    // 网段聚合触发阈值
+	GCONFIG_HOST_GUARD_NOTIFY           int64 = 1     // 触发封禁时是否发通知(复用「IP封禁」消息类型)
 	// GCONFIG_HOST_GUARD_FORCE_DISABLE 是自救开关，只能从 conf/config.yml 的
 	// security.host_guard_force_disable 或环境变量 SAMWAF_HOSTGUARD_DISABLE 设置，管理端改不了。
 	// 存在的意义：白名单配错把自己的管理IP也封进 iptables 后，SSH 和管理端会同时进不去，

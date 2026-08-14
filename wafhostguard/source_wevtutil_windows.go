@@ -7,6 +7,7 @@ import (
 	"SamWaf/common/zlog"
 	"context"
 	"encoding/xml"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -61,6 +62,10 @@ func (s *winEventSource) runWevtutil(ctx context.Context, out chan<- LoginFailEv
 
 		xmls, maxID := queryEvents(ctx, securityChannel, security4625Qry, lastSecurityID)
 		for _, x := range xmls {
+			noteRawEvent()
+			s.firstEvent.Do(func() {
+				zlog.Info("[主机登录防护] 已收到第一条 Windows 安全日志事件，采集链路正常(wevtutil 轮询)")
+			})
 			s.handle4625(ctx, x, out)
 		}
 		if maxID > lastSecurityID {
@@ -175,6 +180,17 @@ func newSources() ([]Source, string) {
 	}
 
 	src := &winEventSource{ring: newRDPIPRing()}
+
+	// 逃生口：wevtapi 订阅依赖系统组件，个别 Windows 版本/安全加固环境下可能
+	// "订阅建得起来但一条事件都投不过来"。这种情况从外部无法修，但 wevtutil 轮询
+	// 是纯命令行、行为可预期，留一个环境变量让用户不必等新版本就能切过去。
+	//   SAMWAF_HOSTGUARD_WINSRC=wevtutil
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("SAMWAF_HOSTGUARD_WINSRC")), "wevtutil") {
+		src.fallback = true
+		zlog.Info("[主机登录防护] 已按环境变量 SAMWAF_HOSTGUARD_WINSRC=wevtutil 强制使用轮询采集")
+		return []Source{src}, ""
+	}
+
 	if err := wevtAvailable(); err != nil {
 		src.fallback = true
 		zlog.Warn("[主机登录防护] wevtapi 不可用，已降级为 wevtutil 轮询(每5秒一次，实时性略差但功能不受影响)",

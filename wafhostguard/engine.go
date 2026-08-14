@@ -36,6 +36,7 @@ type Engine struct {
 	sourceNames []string
 	unavailable string // 非空表示当前环境采集不了，内容是可直接展示的中文原因
 	lastEventAt atomic.Int64
+	rawReceived atomic.Int64 // 事件源投递过来的原始事件数(解析与过滤之前)
 	totalParsed atomic.Int64
 	totalBanned atomic.Int64
 	dropped     atomic.Int64
@@ -50,6 +51,27 @@ func GetEngine() *Engine { return engine }
 // 采集端宁可丢事件也不能阻塞——阻塞会让 fd 里的数据越积越多，
 // 最后连"现在正在发生什么"都读不到了。
 func dropEvent() { engine.dropped.Add(1) }
+
+// noteSourceFailure 事件源在**运行期间**失败时回填原因。
+//
+// 存在的意义：采集启动成功不等于一直有效。Windows 上订阅 Security 频道可能在
+// 启动后才失败(权限被组策略收走、事件日志服务重启)，不回填的话状态接口会一直
+// 报"运行中"，用户完全看不出采集其实早就断了。
+func noteSourceFailure(reason string) {
+	engine.mu.Lock()
+	engine.unavailable = reason
+	engine.mu.Unlock()
+}
+
+// noteRawEvent 记一条"事件源确实投递过来的原始事件"(解析与过滤之前)。
+//
+// 这个计数是排障的关键：它和「累计解析」「丢弃事件」三个数放在一起，
+// 能一眼区分三种完全不同的故障——
+//
+//	原始=0             订阅根本没投递(权限/频道/查询语句的问题)
+//	原始>0 解析=0 丢弃=0 投递正常，但事件全被过滤掉了(如 Windows 上非 3/10 的登录类型)
+//	原始>0 丢弃>0       投递与解析都正常，只是拿不到可用的源 IP
+func noteRawEvent() { engine.rawReceived.Add(1) }
 
 // Start 启动采集(幂等)。调用点见 cmd/samwaf/main.go 的两处。
 func Start() { engine.Start() }
@@ -210,12 +232,15 @@ func (e *Engine) handle(ev LoginFailEvent) {
 
 // Status 运行态快照
 type Status struct {
-	Running     bool       `json:"running"`
-	Mode        string     `json:"mode"`
-	Sources     []string   `json:"sources"`
-	Unavailable string     `json:"unavailable"`
-	StartedAt   int64      `json:"started_at"`
-	LastEventAt int64      `json:"last_event_at"`
+	Running     bool     `json:"running"`
+	Mode        string   `json:"mode"`
+	Sources     []string `json:"sources"`
+	Unavailable string   `json:"unavailable"`
+	StartedAt   int64    `json:"started_at"`
+	LastEventAt int64    `json:"last_event_at"`
+	// RawReceived 事件源投递过来的原始事件数(解析与过滤之前)。排障用：
+	// 它为 0 而系统日志里明明有登录失败，说明问题出在采集订阅那一层，与解析无关。
+	RawReceived int64      `json:"raw_received"`
 	TotalParsed int64      `json:"total_parsed"`
 	TotalBanned int64      `json:"total_banned"`
 	Dropped     int64      `json:"dropped"`
@@ -251,6 +276,7 @@ func GetStatus() Status {
 		Sources:     sources,
 		Unavailable: unavailable,
 		LastEventAt: e.lastEventAt.Load(),
+		RawReceived: e.rawReceived.Load(),
 		TotalParsed: e.totalParsed.Load(),
 		TotalBanned: e.totalBanned.Load(),
 		Dropped:     e.dropped.Load(),

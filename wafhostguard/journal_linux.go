@@ -100,6 +100,7 @@ func (s *journalSource) runOnce(ctx context.Context, out chan<- LoginFailEvent) 
 			break
 		}
 		if ev, ok := ParseSSHDLine(scanner.Text(), time.Now()); ok {
+			noteRawEvent()
 			select {
 			case out <- ev:
 			case <-ctx.Done():

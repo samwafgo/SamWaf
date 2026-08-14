@@ -10,6 +10,7 @@ type WafBlockingPageAddReq struct {
 	ResponseCode     string `json:"response_code" form:"response_code"`
 	ResponseHeader   string `json:"response_header" form:"response_header"`
 	ResponseContent  string `json:"response_content" form:"response_content"`
+	ContentPriority  string `json:"content_priority" form:"content_priority"`
 }
 type WafBlockingPageEditReq struct {
 	Id               string `json:"id"`
@@ -20,6 +21,7 @@ type WafBlockingPageEditReq struct {
 	ResponseCode     string `json:"response_code" form:"response_code"`
 	ResponseHeader   string `json:"response_header" form:"response_header"`
 	ResponseContent  string `json:"response_content" form:"response_content"`
+	ContentPriority  string `json:"content_priority" form:"content_priority"`
 }
 type WafBlockingPageDetailReq struct {
 	Id string `json:"id"   form:"id"`

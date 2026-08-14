@@ -16,10 +16,19 @@ import (
 type WafBlockingPageApi struct {
 }
 
+// normalizeContentPriority 归一化内容优先级：只接受白名单取值，其余（含空值、老数据）一律按默认的"优先自定义模版"处理
+func normalizeContentPriority(v string) string {
+	if v == model.BlockingPageContentPriorityBackend {
+		return model.BlockingPageContentPriorityBackend
+	}
+	return model.BlockingPageContentPrioritySamwaf
+}
+
 func (w *WafBlockingPageApi) AddApi(c *gin.Context) {
 	var req request.WafBlockingPageAddReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		req.ContentPriority = normalizeContentPriority(req.ContentPriority)
 		cnt := wafBlockingPageService.CheckIsExistApi(req)
 		if cnt == 0 {
 			err = wafBlockingPageService.AddApi(req)
@@ -94,6 +103,7 @@ func (w *WafBlockingPageApi) ModifyApi(c *gin.Context) {
 	var req request.WafBlockingPageEditReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		req.ContentPriority = normalizeContentPriority(req.ContentPriority)
 		bean := wafBlockingPageService.GetDetailByIdApi(req.Id)
 		err = wafBlockingPageService.ModifyApi(req)
 		if err != nil {

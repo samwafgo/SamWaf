@@ -32,6 +32,7 @@ func (receiver *WafBlockingPageService) AddApi(req request.WafBlockingPageAddReq
 		ResponseCode:     req.ResponseCode,
 		ResponseHeader:   req.ResponseHeader,
 		ResponseContent:  req.ResponseContent,
+		ContentPriority:  req.ContentPriority,
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
 	return nil
@@ -157,6 +158,7 @@ func (receiver *WafBlockingPageService) ModifyApi(req request.WafBlockingPageEdi
 		"ResponseCode":     req.ResponseCode,
 		"ResponseHeader":   req.ResponseHeader,
 		"ResponseContent":  req.ResponseContent,
+		"ContentPriority":  req.ContentPriority,
 
 		"UPDATE_TIME": customtype.JsonTime(time.Now()),
 	}

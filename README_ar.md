@@ -313,7 +313,7 @@ Linux: ./SamWafLinux64 start
 
 ## سجل النجوم
 
-[![مخطط سجل النجوم](https://api.star-history.com/svg?repos=samwafgo/samwaf&type=Date)](https://star-history.com/#samwafgo/samwaf&Date)
+[![مخطط سجل النجوم](https://star-history.dera.page/svg?repos=samwafgo/samwaf&type=Date)](https://star-history.dera.page/#samwafgo/samwaf&Date)
 
 
 #  الترخيص

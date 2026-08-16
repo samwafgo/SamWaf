@@ -313,7 +313,7 @@ SamWaf évolue en permanence. Vos retours et suggestions sont les bienvenus.
 
 ## Historique des stars
 
-[![Graphique de l'historique des stars](https://api.star-history.com/svg?repos=samwafgo/samwaf&type=Date)](https://star-history.com/#samwafgo/samwaf&Date)
+[![Graphique de l'historique des stars](https://star-history.dera.page/svg?repos=samwafgo/samwaf&type=Date)](https://star-history.dera.page/#samwafgo/samwaf&Date)
 
 
 #  Licence

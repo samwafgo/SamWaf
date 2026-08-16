@@ -313,7 +313,7 @@ SamWaf terus berkembang melalui iterasi. Kami menyambut baik umpan balik dan sar
 
 ## Riwayat Star
 
-[![Grafik Riwayat Star](https://api.star-history.com/svg?repos=samwafgo/samwaf&type=Date)](https://star-history.com/#samwafgo/samwaf&Date)
+[![Grafik Riwayat Star](https://star-history.dera.page/svg?repos=samwafgo/samwaf&type=Date)](https://star-history.dera.page/#samwafgo/samwaf&Date)
 
 
 #  Lisensi

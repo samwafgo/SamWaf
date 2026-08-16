@@ -313,7 +313,7 @@ SamWaf ধারাবাহিকভাবে উন্নত হচ্ছে�
 
 ## স্টার হিস্টরি
 
-[![স্টার হিস্টরি চার্ট](https://api.star-history.com/svg?repos=samwafgo/samwaf&type=Date)](https://star-history.com/#samwafgo/samwaf&Date)
+[![স্টার হিস্টরি চার্ট](https://star-history.dera.page/svg?repos=samwafgo/samwaf&type=Date)](https://star-history.dera.page/#samwafgo/samwaf&Date)
 
 
 #  লাইসেন্স

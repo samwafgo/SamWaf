@@ -313,7 +313,7 @@ SamWaf مسلسل ارتقا پذیر ہے۔ ہم فیڈ بیک اور تجاو�
 
 ## اسٹار ہسٹری
 
-[![اسٹار ہسٹری چارٹ](https://api.star-history.com/svg?repos=samwafgo/samwaf&type=Date)](https://star-history.com/#samwafgo/samwaf&Date)
+[![اسٹار ہسٹری چارٹ](https://star-history.dera.page/svg?repos=samwafgo/samwaf&type=Date)](https://star-history.dera.page/#samwafgo/samwaf&Date)
 
 
 #  لائسنس

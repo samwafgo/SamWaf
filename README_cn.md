@@ -313,7 +313,7 @@ How to compile
 
 ## Star 历史趋势
 
-[![Star History Chart](https://api.star-history.com/svg?repos=samwafgo/samwaf&type=Date)](https://star-history.com/#samwafgo/samwaf&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=samwafgo/samwaf&type=Date)](https://star-history.dera.page/#samwafgo/samwaf&Date)
 
 # 许可证书
 SamWaf 采用 Apache 2.0 license. 详细见 [LICENSE](./LICENSE) .

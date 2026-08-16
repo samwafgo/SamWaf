@@ -313,7 +313,7 @@ SamWaf में लगातार सुधार हो रहा है। �
 
 ## स्टार हिस्ट्री
 
-[![स्टार हिस्ट्री चार्ट](https://api.star-history.com/svg?repos=samwafgo/samwaf&type=Date)](https://star-history.com/#samwafgo/samwaf&Date)
+[![स्टार हिस्ट्री चार्ट](https://star-history.dera.page/svg?repos=samwafgo/samwaf&type=Date)](https://star-history.dera.page/#samwafgo/samwaf&Date)
 
 
 #  लाइसेंस

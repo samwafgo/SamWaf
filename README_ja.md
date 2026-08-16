@@ -313,7 +313,7 @@ SamWaf は継続的に改善を続けています。フィードバックやご�
 
 ## Star 履歴
 
-[![Star History チャート](https://api.star-history.com/svg?repos=samwafgo/samwaf&type=Date)](https://star-history.com/#samwafgo/samwaf&Date)
+[![Star History チャート](https://star-history.dera.page/svg?repos=samwafgo/samwaf&type=Date)](https://star-history.dera.page/#samwafgo/samwaf&Date)
 
 
 #  ライセンス

@@ -313,7 +313,7 @@ SamWaf is continuously iterating. We welcome feedback and suggestions.
 
 ## Star history
 
-[![Star History Chart](https://api.star-history.com/svg?repos=samwafgo/samwaf&type=Date)](https://star-history.com/#samwafgo/samwaf&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=samwafgo/samwaf&type=Date)](https://star-history.dera.page/#samwafgo/samwaf&Date)
 
 
 #  License

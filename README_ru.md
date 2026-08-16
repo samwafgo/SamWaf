@@ -313,7 +313,7 @@ SamWaf постоянно развивается. Мы будем рады ва�
 
 ## История звёзд
 
-[![График истории звёзд](https://api.star-history.com/svg?repos=samwafgo/samwaf&type=Date)](https://star-history.com/#samwafgo/samwaf&Date)
+[![График истории звёзд](https://star-history.dera.page/svg?repos=samwafgo/samwaf&type=Date)](https://star-history.dera.page/#samwafgo/samwaf&Date)
 
 
 #  Лицензия

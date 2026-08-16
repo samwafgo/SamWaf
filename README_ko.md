@@ -313,7 +313,7 @@ SamWaf는 지속적으로 발전하고 있습니다. 피드백과 제안을 환�
 
 ## Star 히스토리
 
-[![Star 히스토리 차트](https://api.star-history.com/svg?repos=samwafgo/samwaf&type=Date)](https://star-history.com/#samwafgo/samwaf&Date)
+[![Star 히스토리 차트](https://star-history.dera.page/svg?repos=samwafgo/samwaf&type=Date)](https://star-history.dera.page/#samwafgo/samwaf&Date)
 
 
 #  라이선스

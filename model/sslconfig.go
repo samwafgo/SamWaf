@@ -27,6 +27,14 @@ type SslConfig struct {
 	// 是否启用「凌晨3点从上面路径自动加载证书」：1=开启(默认) 0=关闭。
 	// 当该证书夹由 SamWaf 自动申请管理时会被自动置为0，避免两个自动渠道互相覆盖。
 	AutoLoadPath int `json:"auto_load_path"`
+	// ===== 证书导出（落盘）=====
+	// 上面的 CertPath/KeyPath 是「读进来」用的（凌晨3点从磁盘加载）；
+	// 下面这两个是「写出去」用的：证书夹内容一变（ACME申请/续期、手工保存、路径自动加载）
+	// 就把证书和私钥同步成实体文件，供 nginx 等 SamWaf 之外的程序使用（issue #929）。
+	// 留空 = 该项不导出，整个功能默认关闭，任何导出失败都不影响原有证书使用流程。
+	ExportCertPath string `gorm:"size:500" json:"export_cert_path"` //导出crt文件的完整路径
+	ExportKeyPath  string `gorm:"size:500" json:"export_key_path"`  //导出key文件的完整路径
+	ExportStatus   string `gorm:"size:500" json:"export_status"`    //最近一次导出结果（成功/失败原因+时间），仅供查看
 }
 
 // ExpirationMessage 获取到期提示信息

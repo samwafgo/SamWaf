@@ -25,15 +25,16 @@ type WafSslConfigService struct{}
 
 var WafSslConfigServiceApp = new(WafSslConfigService)
 
-func (receiver *WafSslConfigService) AddApi(req request.SslConfigAddReq) error {
+// AddApi 新增证书夹，返回新记录的ID（供调用方触发证书导出）
+func (receiver *WafSslConfigService) AddApi(req request.SslConfigAddReq) (string, error) {
 	block, _ := pem.Decode([]byte(req.CertContent))
 	if block == nil {
-		return errors.New("无法解码PEM数据")
+		return "", errors.New("无法解码PEM数据")
 	}
 
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return errors.New("解析证书失败")
+		return "", errors.New("解析证书失败")
 	}
 
 	serialNo := cert.SerialNumber.String()
@@ -66,7 +67,7 @@ func (receiver *WafSslConfigService) AddApi(req request.SslConfigAddReq) error {
 	}
 	err = receiver.CheckIsExistApi(serialNo)
 	if err == nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return errors.New("证书已存在")
+		return "", errors.New("证书已存在")
 	}
 	var bean = &model.SslConfig{
 		BaseOrm: baseorm.BaseOrm{
@@ -86,6 +87,10 @@ func (receiver *WafSslConfigService) AddApi(req request.SslConfigAddReq) error {
 		Domains:     domains,
 		CertPath:    req.CertPath,
 		KeyPath:     req.KeyPath,
+		//证书导出路径：留空即不导出，此处只做去空格，合法性在真正导出时校验，
+		//避免因为导出路径写错就把证书本身的保存挡下来
+		ExportCertPath: strings.TrimSpace(req.ExportCertPath),
+		ExportKeyPath:  strings.TrimSpace(req.ExportKeyPath),
 	}
 	//路径自动加载开关：未提供时默认开启(1)
 	if req.AutoLoadPath != nil {
@@ -100,7 +105,7 @@ func (receiver *WafSslConfigService) AddApi(req request.SslConfigAddReq) error {
 		bean.KeyPath = filepath.Join(utils.GetCurrentDir(), "ssl", bean.Id, "domain.key")
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
-	return nil
+	return bean.Id, nil
 }
 
 func (receiver *WafSslConfigService) CreateNewIdInner(config model.SslConfig) {
@@ -111,6 +116,10 @@ func (receiver *WafSslConfigService) CreateNewIdInner(config model.SslConfig) {
 		return
 	}
 	config.Id = uuid.GenUUID()
+	//备份条目不继承导出配置：否则以后编辑这条备份会把旧证书写回导出路径，覆盖掉新证书
+	config.ExportCertPath = ""
+	config.ExportKeyPath = ""
+	config.ExportStatus = ""
 	if config.CertPath == "" {
 		config.CertPath = filepath.Join(utils.GetCurrentDir(), "ssl", config.Id, "domain.crt")
 	}
@@ -211,6 +220,13 @@ func (receiver *WafSslConfigService) ModifyApi(req request.SslConfigEditReq) err
 	//仅当请求提供了路径自动加载开关时才更新该列，避免旧前端不传该字段导致被误置0
 	if req.AutoLoadPath != nil {
 		beanMap["AutoLoadPath"] = *req.AutoLoadPath
+	}
+	//同理，导出路径只在前端明确传了才更新，nil=旧前端不认识该字段，保持库里原值
+	if req.ExportCertPath != nil {
+		beanMap["ExportCertPath"] = strings.TrimSpace(*req.ExportCertPath)
+	}
+	if req.ExportKeyPath != nil {
+		beanMap["ExportKeyPath"] = strings.TrimSpace(*req.ExportKeyPath)
 	}
 	err = global.GWAF_LOCAL_DB.Model(model.SslConfig{}).Where("id = ?", req.Id).Updates(beanMap).Error
 

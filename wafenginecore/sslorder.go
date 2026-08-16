@@ -271,6 +271,49 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 	}
 }
 
+// exportSslConfigFile 证书夹内容更新后，把证书同步导出成实体文件（issue #929）。
+//
+// 导出是附加动作：未配置导出路径就静默跳过；配置了但路径不合法、目录没权限、文件被占用，
+// 一律只记录日志和系统日志，绝不影响证书申请/续期本身的成败判定。
+// 之所以在这里额外发一条通知：续期是低频事件（一张证书 60 天一次），静默失败的话
+// 用户要等到外部程序拿着过期证书报错才会发现。
+func exportSslConfigFile(sslConfigId string, domain string, scene string) {
+	msg, err := wafSslConfigService.ExportById(sslConfigId)
+	if err != nil {
+		exportErrMsg := fmt.Sprintf("SSL证书导出失败 - 域名: %s, 场景: %s, 错误: %v", domain, scene, err.Error())
+		zlog.Error(exportErrMsg)
+
+		wafSysLog := model.WafSysLog{
+			BaseOrm: baseorm.BaseOrm{
+				Id:          uuid.GenUUID(),
+				USER_CODE:   global.GWAF_USER_CODE,
+				Tenant_ID:   global.GWAF_TENANT_ID,
+				CREATE_TIME: customtype.JsonTime(time.Now()),
+				UPDATE_TIME: customtype.JsonTime(time.Now()),
+			},
+			OpType:    "SSL证书导出",
+			OpContent: exportErrMsg,
+		}
+		global.GQEQUE_LOG_DB.Enqueue(&wafSysLog)
+
+		serverName := global.GWAF_CUSTOM_SERVER_NAME
+		if serverName == "" {
+			serverName = "未命名服务器"
+		}
+		global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OperatorMessageInfo{
+			BaseMessageInfo: innerbean.BaseMessageInfo{
+				OperaType: "SSL证书导出失败",
+				Server:    serverName,
+			},
+			OperaCnt: exportErrMsg,
+		})
+		return
+	}
+	if msg != "" {
+		zlog.Info(fmt.Sprintf("%s 证书导出 %s", domain, msg))
+	}
+}
+
 func (waf *WafEngine) processSSL(updateSSLOrder model.SslOrder, bean model.SslOrder) error {
 	newSslConfig := model.SslConfig{
 		BaseOrm: baseorm.BaseOrm{
@@ -296,6 +339,9 @@ func (waf *WafEngine) processSSL(updateSSLOrder model.SslOrder, bean model.SslOr
 		newSslConfig.AutoLoadPath = 0
 		//添加到证书夹内
 		wafSslConfigService.CreateInner(newSslConfig)
+		//这里不触发证书导出：新建的证书夹条目导出路径必然为空（用户还没机会配置），
+		//而且 CreateInner 遇到重复序列号会直接返回不落库，此时按ID导出反而会误报"证书夹不存在"。
+		//用户在证书夹页面配好导出路径后，保存那一下会立刻导出，之后每次续期也会导出。
 		//1.更新主机信息 2.发送主机通知
 		err = wafHostService.UpdateSSLInfoAndBindId(string(updateSSLOrder.ResultCertificate), string(updateSSLOrder.ResultPrivateKey), bean.HostCode, newSslConfig.Id)
 		if err == nil {
@@ -321,6 +367,9 @@ func (waf *WafEngine) processSSL(updateSSLOrder model.SslOrder, bean model.SslOr
 			newSslConfig.AutoLoadPath = 0
 			//把最新的配置上去
 			wafSslConfigService.ModifyInner(newSslConfig)
+
+			//证书导出(落盘)：申请/续期成功后把新证书同步成实体文件，供 nginx 等外部程序使用
+			exportSslConfigFile(newSslConfig.Id, bean.ApplyDomain, "证书申请/续期")
 
 			//若管理端证书绑定了该证书夹条目，顺带刷新管理端证书
 			waf_service.RefreshManagerCertBySslConfig(newSslConfig.Id, newSslConfig.CertContent, newSslConfig.KeyContent)

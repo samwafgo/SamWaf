@@ -171,7 +171,11 @@ func runCoreCRUDCasesB(t *testing.T, db *gorm.DB) {
 	t.Run("SslConfig", func(t *testing.T) {
 		cn := "t" + sfx() + ".example.com"
 		cert1, key1 := genSelfSignedCert(t, cn)
-		fatalIf(t, WafSslConfigServiceApp.AddApi(request.SslConfigAddReq{CertContent: cert1, KeyContent: key1}))
+		newId, addErr := WafSslConfigServiceApp.AddApi(request.SslConfigAddReq{CertContent: cert1, KeyContent: key1})
+		fatalIf(t, addErr)
+		if newId == "" {
+			t.Fatalf("SslConfig 新增未返回ID")
+		}
 		var bean model.SslConfig
 		firstBy(t, db, &bean, "domains = ?", cn)
 		if bean.SerialNo == "" {

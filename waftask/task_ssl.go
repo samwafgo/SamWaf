@@ -83,6 +83,14 @@ func SSLReload() {
 			}
 			//若管理端证书绑定了该证书夹条目，顺带刷新管理端证书
 			waf_service.RefreshManagerCertBySslConfig(updateSslConfig.Id, updateSslConfig.CertContent, updateSslConfig.KeyContent)
+
+			//证书导出(落盘)：路径自动加载进来的新证书同样同步一份到导出路径（issue #929）
+			//导出失败只记录日志，不影响本次加载已经生效的结果
+			if exportMsg, exportErr := wafSslConfigService.ExportById(updateSslConfig.Id); exportErr != nil {
+				zlog.Error(innerLogName, fmt.Sprintf("证书夹[%s] 证书导出失败: %v", rep.Domains, exportErr))
+			} else if exportMsg != "" {
+				zlog.Info(innerLogName, fmt.Sprintf("证书夹[%s] %s", rep.Domains, exportMsg))
+			}
 			hostCount := 0
 			for _, hosts := range wafHostService.GetHostBySSLConfigId(updateSslConfig.Id) {
 				//1.更新主机信息 2.发送主机通知

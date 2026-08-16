@@ -30,9 +30,10 @@ func (s *WafSslConfigApi) AddSslConfigApi(c *gin.Context) {
 	var req request.SslConfigAddReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
-		err = wafSslConfigService.AddApi(req)
+		sslId, err := wafSslConfigService.AddApi(req)
 		if err == nil {
-			response.OkWithMessage("添加成功", c)
+			//证书已保存成功，导出只是附加动作：失败只提示，不改变保存结果
+			response.OkWithMessage("添加成功"+s.exportTip(sslId), c)
 		} else {
 			response.FailWithMessage("添加失败:"+err.Error(), c)
 		}
@@ -139,11 +140,28 @@ func (s *WafSslConfigApi) ModifySslConfigApi(c *gin.Context) {
 			if oldSslBean.SerialNo != newSslBean.SerialNo {
 				s.NotifySslUpdate(oldSslBean, newSslBean)
 			}
-			response.OkWithMessage("编辑成功", c)
+			//证书已保存成功，导出只是附加动作：失败只提示，不改变保存结果
+			response.OkWithMessage("编辑成功"+s.exportTip(req.Id), c)
 		}
 	} else {
 		response.FailWithMessage("解析失败", c)
 	}
+}
+
+// exportTip 保存成功后触发证书导出(落盘)，把结果拼成一句可展示的提示。
+// 未配置导出返回空串；导出失败也只是提示，不影响证书本身已经保存成功这个事实。
+func (s *WafSslConfigApi) exportTip(sslId string) string {
+	if sslId == "" {
+		return ""
+	}
+	msg, err := wafSslConfigService.ExportById(sslId)
+	if err != nil {
+		return "，但证书导出失败：" + err.Error()
+	}
+	if msg == "" {
+		return ""
+	}
+	return "，" + msg
 }
 
 // NotifySslUpdate 通知到SSL引擎使其配置实时生效

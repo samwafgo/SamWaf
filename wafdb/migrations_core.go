@@ -1855,6 +1855,44 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移: 为 ssl_config 表添加证书导出(落盘)三列
+		//
+		// 背景：issue #929，SamWaf 申请/续期成功后把证书同步成实体文件，供 nginx 等
+		// 外部程序使用。原有的 cert_path/key_path 是「读入」方向，不能复用（复用会把用户的
+		// 源文件反向覆盖掉），所以新增独立的导出路径列。留空即不导出，老数据无需回填。
+		{
+			ID: "202608150001_add_ssl_config_export_columns",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202608150001: 为 ssl_config 表添加证书导出字段")
+				// 列名 -> 结构体字段名（AddColumn 用字段名更稳，HasColumn 用列名）
+				cols := []struct{ column, field string }{
+					{"export_cert_path", "ExportCertPath"},
+					{"export_key_path", "ExportKeyPath"},
+					{"export_status", "ExportStatus"},
+				}
+				for _, c := range cols {
+					if tx.Migrator().HasColumn(&model.SslConfig{}, c.column) {
+						continue
+					}
+					if err := tx.Migrator().AddColumn(&model.SslConfig{}, c.field); err != nil {
+						return fmt.Errorf("添加 ssl_config.%s 字段失败: %w", c.column, err)
+					}
+				}
+				zlog.Info("ssl_config 证书导出字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202608150001: 删除 ssl_config 表的证书导出字段")
+				for _, f := range []string{"ExportCertPath", "ExportKeyPath", "ExportStatus"} {
+					if tx.Migrator().HasColumn(&model.SslConfig{}, f) {
+						if err := tx.Migrator().DropColumn(&model.SslConfig{}, f); err != nil {
+							zlog.Warn("删除字段失败", "error", err.Error())
+						}
+					}
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

@@ -40,6 +40,7 @@ func (waf *WafEngine) ProxyHTTP(w http.ResponseWriter, r *http.Request, host str
 				customConfig := map[string]string{}
 				customConfig["IsTransBackDomain"] = strconv.Itoa(hostTarget.Host.IsTransBackDomain)
 				proxy := wafproxy.NewSingleHostReverseProxyCustomHeader(remoteUrl, customHeaders, customConfig)
+				waf.applyResponseBuffering(proxy, hostTarget)
 				proxy.Transport = transport
 				proxy.ModifyResponse = waf.modifyResponse()
 				proxy.ErrorHandler = waf.errorResponse()
@@ -94,6 +95,7 @@ func (waf *WafEngine) ProxyHTTP(w http.ResponseWriter, r *http.Request, host str
 		customConfig := map[string]string{}
 		customConfig["IsTransBackDomain"] = strconv.Itoa(hostTarget.Host.IsTransBackDomain)
 		proxy := wafproxy.NewSingleHostReverseProxyCustomHeader(remoteUrl, customHeaders, customConfig)
+		waf.applyResponseBuffering(proxy, hostTarget)
 		proxy.Transport = transport
 		proxy.ModifyResponse = waf.modifyResponse()
 		proxy.ErrorHandler = waf.errorResponse()
@@ -161,6 +163,7 @@ func (waf *WafEngine) ProxyHTTPWithPathRule(w http.ResponseWriter, r *http.Reque
 	customConfig["IsTransBackDomain"] = strconv.Itoa(hostTarget.Host.IsTransBackDomain)
 
 	proxy := wafproxy.NewSingleHostReverseProxyCustomHeader(remoteUrl, customHeaders, customConfig)
+	waf.applyResponseBuffering(proxy, hostTarget)
 	proxy.Transport = transport
 	proxy.ModifyResponse = waf.modifyResponse()
 	proxy.ErrorHandler = waf.errorResponse()
@@ -181,6 +184,17 @@ func (waf *WafEngine) ProxyHTTPWithPathRule(w http.ResponseWriter, r *http.Reque
 	}
 
 	proxy.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// applyResponseBuffering 按站点配置设置反向代理响应缓冲。
+// IsEnableResponseBuffering==0 时等价于 nginx proxy_buffering off：每次写出后立即 flush，利于 SSE/流式/大文件边下边传。
+func (waf *WafEngine) applyResponseBuffering(proxy *wafproxy.ReverseProxy, hostTarget *wafenginmodel.HostSafe) {
+	if proxy == nil || hostTarget == nil {
+		return
+	}
+	if hostTarget.Host.IsEnableResponseBuffering == 0 {
+		proxy.FlushInterval = -1
+	}
 }
 
 // createPathRuleTransport 为路径规则代理创建 Transport

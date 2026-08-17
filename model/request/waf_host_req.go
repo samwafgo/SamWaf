@@ -48,7 +48,8 @@ type WafHostAddReq struct {
 	TamperJSON                string `json:"tamper_json"`                  //网页防篡改配置 json
 	UploadSecurityJSON        string `json:"upload_security_json"`         //文件上传内容检测配置 json
 	IPMode                    string `json:"ip_mode"`                      //IP提取模式: "nic" 网卡模式 或 "proxy" 代理模式
-	DisableHTTP2              int    `json:"disable_http2"`                //对外HTTP/2开关 0启用 1关闭(该站点只走http/1.1,兼容原生WebSocket客户端)
+	DisableHTTP2              int    `json:"disable_http2"`                 //对外HTTP/2开关 0启用 1关闭(该站点只走http/1.1,兼容原生WebSocket客户端)
+	IsEnableResponseBuffering int    `json:"is_enable_response_buffering"`  //响应缓冲 1开启(默认) 0关闭(类似 nginx proxy_buffering off)
 	AccessJSON                string `json:"access_json"`                  //统一访问认证(Access模式)站点级配置 json
 	IPSourceMode              string `json:"ip_source_mode"`               //真实IP来源模式: ""(兼容,取XFF最左) | nic | header | xff_depth | cdn_preset
 	IPTrustDepth              int    `json:"ip_trust_depth"`               //xff_depth 模式：从右往左取第 N 个 hop(默认1)
@@ -111,7 +112,8 @@ type WafHostEditReq struct {
 	TamperJSON                string `json:"tamper_json"`                  //网页防篡改配置 json
 	UploadSecurityJSON        string `json:"upload_security_json"`         //文件上传内容检测配置 json
 	IPMode                    string `json:"ip_mode"`                      //IP提取模式: "nic" 网卡模式 或 "proxy" 代理模式
-	DisableHTTP2              int    `json:"disable_http2"`                //对外HTTP/2开关 0启用 1关闭(该站点只走http/1.1,兼容原生WebSocket客户端)
+	DisableHTTP2              int    `json:"disable_http2"`                 //对外HTTP/2开关 0启用 1关闭(该站点只走http/1.1,兼容原生WebSocket客户端)
+	IsEnableResponseBuffering int    `json:"is_enable_response_buffering"`  //响应缓冲 1开启(默认) 0关闭(类似 nginx proxy_buffering off)
 	AccessJSON                string `json:"access_json"`                  //统一访问认证(Access模式)站点级配置 json
 	IPSourceMode              string `json:"ip_source_mode"`               //真实IP来源模式: ""(兼容,取XFF最左) | nic | header | xff_depth | cdn_preset
 	IPTrustDepth              int    `json:"ip_trust_depth"`               //xff_depth 模式：从右往左取第 N 个 hop(默认1)

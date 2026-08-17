@@ -1893,84 +1893,27 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
-		// 迁移: 为 hosts 表添加 disable_response_buffering 字段（历史字段，后续迁移到 is_enable_response_buffering）
+		// 迁移: 为 hosts 表添加 is_enable_response_buffering 字段（响应缓冲，1开启/0关闭，默认1）
 		{
-			ID: "202608170001_add_hosts_disable_response_buffering",
+			ID: "202608170001_add_hosts_is_enable_response_buffering",
 			Migrate: func(tx *gorm.DB) error {
-				zlog.Info("迁移 202608170001: 为 hosts 表添加 disable_response_buffering 字段")
-				if tx.Migrator().HasColumn(&model.Hosts{}, "disable_response_buffering") {
-					zlog.Info("disable_response_buffering 字段已存在，跳过添加")
+				zlog.Info("迁移 202608170001: 为 hosts 表添加 is_enable_response_buffering 字段")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "is_enable_response_buffering") {
+					zlog.Info("is_enable_response_buffering 字段已存在，跳过添加")
 					return nil
 				}
-				// 历史列已废弃，仅在旧库兼容场景补列；新语义字段由后续迁移创建
-				type legacyDisableResponseBuffering struct {
-					DisableResponseBuffering int `gorm:"column:disable_response_buffering"`
+				if err := tx.Migrator().AddColumn(&model.Hosts{}, "IsEnableResponseBuffering"); err != nil {
+					return fmt.Errorf("添加 is_enable_response_buffering 字段失败: %w", err)
 				}
-				if err := tx.Migrator().AddColumn(&legacyDisableResponseBuffering{}, "DisableResponseBuffering"); err != nil {
-					// 若表结构无法通过匿名结构体加列，则直接 SQL
-					if execErr := tx.Exec("ALTER TABLE hosts ADD COLUMN disable_response_buffering INTEGER DEFAULT 0").Error; execErr != nil {
-						zlog.Warn("添加 disable_response_buffering 字段失败（可忽略，后续迁移会创建新字段）", "error", execErr.Error())
-					}
+				// 存量站点回填 1（=开启响应缓冲，保持现状；AddColumn 后常见默认 0，需一并纠正）
+				if err := tx.Exec("UPDATE hosts SET is_enable_response_buffering = 1 WHERE is_enable_response_buffering IS NULL OR is_enable_response_buffering = 0").Error; err != nil {
+					zlog.Warn("回填 is_enable_response_buffering 默认值失败", "error", err.Error())
 				}
-				_ = tx.Exec("UPDATE hosts SET disable_response_buffering = 0 WHERE disable_response_buffering IS NULL")
-				zlog.Info("disable_response_buffering 字段处理完成")
+				zlog.Info("is_enable_response_buffering 字段添加成功")
 				return nil
 			},
 			Rollback: func(tx *gorm.DB) error {
-				zlog.Info("回滚 202608170001: 删除 hosts 表的 disable_response_buffering 字段")
-				if tx.Migrator().HasColumn(&model.Hosts{}, "disable_response_buffering") {
-					return tx.Exec("ALTER TABLE hosts DROP COLUMN disable_response_buffering").Error
-				}
-				return nil
-			},
-		},
-		// 迁移: 历史语义修正占位（保留 ID，避免已执行环境重复报错）
-		{
-			ID: "202608170002_fix_hosts_disable_response_buffering_semantics",
-			Migrate: func(tx *gorm.DB) error {
-				zlog.Info("迁移 202608170002: 历史占位，实际字段切换由 202608170003 完成")
-				return nil
-			},
-			Rollback: func(tx *gorm.DB) error {
-				return nil
-			},
-		},
-		// 迁移: 改为 is_enable_response_buffering（1开启/0关闭，默认1）
-		{
-			ID: "202608170003_add_hosts_is_enable_response_buffering",
-			Migrate: func(tx *gorm.DB) error {
-				zlog.Info("迁移 202608170003: 添加 hosts.is_enable_response_buffering（1开启/0关闭）")
-				if !tx.Migrator().HasColumn(&model.Hosts{}, "is_enable_response_buffering") {
-					if err := tx.Migrator().AddColumn(&model.Hosts{}, "IsEnableResponseBuffering"); err != nil {
-						return fmt.Errorf("添加 is_enable_response_buffering 字段失败: %w", err)
-					}
-				}
-
-				// 尝试从旧列转换：旧 disable_response_buffering 语义为 0启用缓冲/1关闭缓冲
-				converted := false
-				if err := tx.Exec(`UPDATE hosts SET is_enable_response_buffering = CASE
-					WHEN disable_response_buffering = 1 THEN 0
-					ELSE 1 END`).Error; err == nil {
-					converted = true
-					_ = tx.Exec("ALTER TABLE hosts DROP COLUMN disable_response_buffering")
-				} else {
-					zlog.Info("未检测到可用的 disable_response_buffering 旧列，按默认开启回填", "error", err.Error())
-				}
-
-				// 新建列未转换时，AddColumn 后常见默认 0，需统一为开启(1)
-				if !converted {
-					if err := tx.Exec("UPDATE hosts SET is_enable_response_buffering = 1 WHERE is_enable_response_buffering IS NULL OR is_enable_response_buffering = 0").Error; err != nil {
-						zlog.Warn("回填 is_enable_response_buffering 默认值失败", "error", err.Error())
-					}
-				} else if err := tx.Exec("UPDATE hosts SET is_enable_response_buffering = 1 WHERE is_enable_response_buffering IS NULL").Error; err != nil {
-					zlog.Warn("回填 is_enable_response_buffering NULL 默认值失败", "error", err.Error())
-				}
-
-				zlog.Info("is_enable_response_buffering 字段就绪")
-				return nil
-			},
-			Rollback: func(tx *gorm.DB) error {
-				zlog.Info("回滚 202608170003: 删除 hosts.is_enable_response_buffering")
+				zlog.Info("回滚 202608170001: 删除 hosts 表的 is_enable_response_buffering 字段")
 				if tx.Migrator().HasColumn(&model.Hosts{}, "is_enable_response_buffering") {
 					return tx.Migrator().DropColumn(&model.Hosts{}, "is_enable_response_buffering")
 				}

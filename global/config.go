@@ -19,6 +19,9 @@ var (
 	GCONFIG_RECORD_PROXY_LOOP_MAX_HOP   int64  = 10                  //反向代理最大跳数，超过则判定为环路并拦截；0=关闭环路检测 proxy_loop_max_hop
 	GCONFIG_RECORD_LOGIN_MAX_ERROR_TIME int64  = 3                   //登录周期里错误最大次数
 	GCONFIG_RECORD_LOGIN_LIMIT_MINTUTES int64  = 1                   //登录错误记录周期 单位分钟最小1
+	// 真实IP来源诊断探针：默认关闭。开启后才在内存里采样"最近到达的请求头"供管理端排查，
+	// 关闭时业务请求路径上只多一次整型比较；样本只存内存、不落库、不外发。
+	GCONFIG_IPPROBE_ENABLE int64 = 0 //真实IP来源探针开关 1开启 0关闭
 
 	// 统一访问认证(Access 模式)
 	// 开启后，被 WAF 代理的站点默认都要先登录才能访问；站点可用 access_json 的三态单独强制开/关。

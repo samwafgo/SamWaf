@@ -294,6 +294,8 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			zlog.Error("get client error", ipErr.Error())
 			return
 		}
+		// 记录一份"真实IP来源"诊断采样(每站每秒最多一条)，供管理端配置页直接查看实际到达的请求头
+		recordIPProbe(hostTarget.Host, r, clientIP)
 		_, ok := waf.ServerOnline.Get(hostTarget.Host.Remote_port)
 		//检测如果访问IP和远程IP是同一个IP，且远程端口在本地Server已存在则显示配置错误
 		if clientIP == hostTarget.Host.Remote_ip && ok == true {

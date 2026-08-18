@@ -7,6 +7,9 @@ type AllHostRep struct {
 	Host     string `json:"label"`    //域名
 	PreHost  string `json:"pre_host"` //纯域名和端口
 	Nickname string `json:"nickname"` //网站昵称（纯昵称，可能为空）
+	// GlobalHost 是否"全局网站"（1是）。它不是真实站点，只承载全局规则，
+	// 前端做"按站点选一个来配置/诊断"这类下拉时要把它过滤掉。
+	GlobalHost int `json:"global_host"`
 }
 
 type AllShareDbRep struct {

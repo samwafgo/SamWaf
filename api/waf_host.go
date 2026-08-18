@@ -339,10 +339,11 @@ func (w *WafHostAPi) GetAllListApi(c *gin.Context) {
 		}
 
 		allHostRep[i] = response2.AllHostRep{
-			Host:     hostDisplay,
-			Code:     wafHosts[i].Code,
-			PreHost:  preHost,
-			Nickname: wafHosts[i].Nickname,
+			Host:       hostDisplay,
+			Code:       wafHosts[i].Code,
+			PreHost:    preHost,
+			Nickname:   wafHosts[i].Nickname,
+			GlobalHost: wafHosts[i].GLOBAL_HOST,
 		}
 	}
 	response.OkWithDetailed(allHostRep, "获取成功", c)

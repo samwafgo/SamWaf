@@ -8,6 +8,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/request"
 	"SamWaf/service/waf_service"
+	"SamWaf/wafenginecore"
 	"SamWaf/wafhostguard"
 	"SamWaf/wafipban"
 	"SamWaf/wafnotify/logfilewriter"
@@ -156,6 +157,12 @@ func setConfigIntValue(name string, value int64, change int) {
 		break
 	case "enable_https_redirect":
 		global.GCONFIG_ENABLE_HTTPS_REDIRECT = value
+		break
+	case "ipprobe_enable":
+		if value != 1 {
+			wafenginecore.ClearAllIPProbeSamples() //关闭时把已采到的样本一并清掉，不留残留
+		}
+		global.GCONFIG_IPPROBE_ENABLE = value
 		break
 	case "enable_device_fingerprint":
 		global.GCONFIG_ENABLE_DEVICE_FINGERPRINT = value
@@ -556,6 +563,7 @@ func TaskLoadSetting(initLoad bool) {
 	updateConfigIntItem(initLoad, "system", "login_max_error_time", global.GCONFIG_RECORD_LOGIN_MAX_ERROR_TIME, "登录周期里错误最大次数 请大于0 ", "int", "", configMap)
 	updateConfigIntItem(initLoad, "system", "login_limit_mintutes", global.GCONFIG_RECORD_LOGIN_LIMIT_MINTUTES, "登录错误记录周期 单位分钟数，默认1分钟", "int", "", configMap)
 	updateConfigIntItem(initLoad, "system", "enable_owasp", global.GCONFIG_RECORD_ENABLE_OWASP, "启动OWASP数据检测（1启动 0关闭）", "int", "", configMap)
+	updateConfigIntItem(initLoad, "system", "ipprobe_enable", global.GCONFIG_IPPROBE_ENABLE, "真实IP来源探针（1开启 0关闭，默认关闭）。开启后记录各站点最近到达的请求头(脱敏,仅内存,每站每秒最多1条)，供站点「真实IP来源」处排查CDN送来的是哪个头；排查完建议关闭", "int", "", configMap)
 	updateConfigIntItem(initLoad, "system", "ai_enable", global.GCONFIG_AI_ENABLE, "启动AI智能检测总开关（1启动 0关闭，需先在AI模型管理上传模型包并在站点开启）", "int", "", configMap)
 	updateConfigStringItem(initLoad, "system", "ai_mode", global.GCONFIG_AI_MODE, "AI检测工作模式：observe(仅记录/观察) block(达拦截阈值则拦截)", "options", "observe|仅记录,block|拦截", configMap)
 	updateConfigIntItem(initLoad, "system", "rule_chain_mode", global.GCONFIG_RULE_CHAIN_MODE, "自定义规则在检测链中的位置（0默认：排在CC之后；1规则优先：排在黑名单之后、Bot/SQLI/XSS等之前，此时规则的放行动作才能跳过这些检测）", "int", "", configMap)

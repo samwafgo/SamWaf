@@ -27,68 +27,24 @@ func (waf *WafEngine) ProxyHTTP(w http.ResponseWriter, r *http.Request, host str
 
 	//检测是否启动负载
 	if hostTarget.Host.IsEnableLoadBalance > 0 {
-		lb := &hostTarget.LoadBalanceRuntime
-		(*lb).Mux.Lock()
-		defer (*lb).Mux.Unlock()
-
-		if len(hostTarget.LoadBalanceLists) > 0 && len(hostTarget.LoadBalanceRuntime.RevProxies) == 0 {
-			for addrIndex, loadBalance := range hostTarget.LoadBalanceLists {
-				//初始化后端负载
-				zlog.Debug("HTTP REQUEST", weblog.REQ_UUID, weblog.URL, "未初始化")
-				transport := waf.getOrCreateTransport(r, host, 1, loadBalance, hostTarget, remoteUrl.Scheme) // 使用缓存的Transport
-				customHeaders := waf.getCustomHeaders(r, host, 1, loadBalance, hostTarget)
-				customConfig := map[string]string{}
-				customConfig["IsTransBackDomain"] = strconv.Itoa(hostTarget.Host.IsTransBackDomain)
-				proxy := wafproxy.NewSingleHostReverseProxyCustomHeader(remoteUrl, customHeaders, customConfig)
-				waf.applyResponseBuffering(proxy, hostTarget)
-				proxy.Transport = transport
-				proxy.ModifyResponse = waf.modifyResponse()
-				proxy.ErrorHandler = waf.errorResponse()
-				hostTarget.LoadBalanceRuntime.RevProxies = append(hostTarget.LoadBalanceRuntime.RevProxies, proxy)
-
-				// 初始化策略相关信息
-				switch hostTarget.Host.LoadBalanceStage {
-				case 1: // 加权轮询（WRR）
-					hostTarget.LoadBalanceRuntime.WeightRoundRobinBalance.Add(addrIndex, loadBalance.Weight)
-					break
-				case 2: // IPHash
-					hostTarget.LoadBalanceRuntime.IpHashBalance.Add(strconv.Itoa(addrIndex), 1)
-					break
-				default:
-					http.Error(w, "Invalid Load Balance Stage", http.StatusBadRequest)
-				}
-			}
-		}
-		proxyIndex := waf.getProxyIndex(host, clientIp, hostTarget)
-		if proxyIndex == -1 {
-			http.Error(w, "No Available BackServer", http.StatusBadRequest)
+		// 这把锁只保护"惰性建代理 + 选后端"这段共享状态的读写，
+		// 绝不能罩住 proxy.ServeHTTP —— 那样锁的持有时长就等于整个响应时长，
+		// 一条 SSE/大文件/WebSocket 长连接会把该站点所有请求排队堵死
+		// （现场表现：大模型还在流式输出，同站点其他页面全打不开）。
+		proxy, ok := waf.pickLoadBalanceProxy(w, r, host, remoteUrl, clientIp, weblog, hostTarget)
+		if !ok {
 			return
 		}
 
-		// 记录使用的负载均衡IP和端口信息
-		if proxyIndex >= 0 && proxyIndex < len(hostTarget.LoadBalanceLists) {
-			selectedLoadBalance := hostTarget.LoadBalanceLists[proxyIndex]
-			balanceInfo := fmt.Sprintf("%s:%d", selectedLoadBalance.Remote_ip, selectedLoadBalance.Remote_port)
-
-			// 记录到WebLog的BalanceInfo字段
-			weblog.BalanceInfo = balanceInfo
+		// 添加转发耗时记录
+		if wafCtx, ok := ctx.Value("waf_context").(innerbean.WafHttpContextData); ok && wafCtx.Weblog != nil {
+			forwardStart := time.Now().UnixNano() / 1e6
+			defer func() {
+				wafCtx.Weblog.ForwardCost = time.Now().UnixNano()/1e6 - forwardStart
+				wafCtx.Weblog.IsBalance = 1
+			}()
 		}
-
-		proxy := hostTarget.LoadBalanceRuntime.RevProxies[proxyIndex]
-		if proxy != nil {
-			// 添加转发耗时记录
-			if wafCtx, ok := ctx.Value("waf_context").(innerbean.WafHttpContextData); ok && wafCtx.Weblog != nil {
-				forwardStart := time.Now().UnixNano() / 1e6
-				defer func() {
-					wafCtx.Weblog.ForwardCost = time.Now().UnixNano()/1e6 - forwardStart
-					wafCtx.Weblog.IsBalance = 1
-				}()
-			}
-			proxy.ServeHTTP(w, r.WithContext(ctx))
-		} else {
-			http.Error(w, "No Available Server", http.StatusBadRequest)
-		}
-
+		proxy.ServeHTTP(w, r.WithContext(ctx))
 	} else {
 		transport := waf.getOrCreateTransport(r, host, 0, model.LoadBalance{}, hostTarget, remoteUrl.Scheme) // 使用缓存的Transport
 		customHeaders := waf.getCustomHeaders(r, host, 0, model.LoadBalance{}, hostTarget)
@@ -111,6 +67,74 @@ func (waf *WafEngine) ProxyHTTP(w http.ResponseWriter, r *http.Request, host str
 
 		proxy.ServeHTTP(w, r.WithContext(ctx))
 	}
+}
+
+// pickLoadBalanceProxy 在负载运行时锁内完成"惰性建代理 + 按策略选后端"，
+// 返回后立即释放锁，转发过程不再持锁。ok=false 表示已经向客户端写过错误响应。
+func (waf *WafEngine) pickLoadBalanceProxy(w http.ResponseWriter, r *http.Request, host string,
+	remoteUrl *url.URL, clientIp string, weblog *innerbean.WebLog,
+	hostTarget *wafenginmodel.HostSafe) (*wafproxy.ReverseProxy, bool) {
+
+	lb := hostTarget.LoadBalanceRuntime
+	lb.Mux.Lock()
+	defer lb.Mux.Unlock()
+
+	if len(hostTarget.LoadBalanceLists) > 0 && len(hostTarget.LoadBalanceRuntime.RevProxies) == 0 {
+		for addrIndex, loadBalance := range hostTarget.LoadBalanceLists {
+			//初始化后端负载
+			zlog.Debug("HTTP REQUEST", weblog.REQ_UUID, weblog.URL, "未初始化")
+			transport := waf.getOrCreateTransport(r, host, 1, loadBalance, hostTarget, remoteUrl.Scheme) // 使用缓存的Transport
+			customHeaders := waf.getCustomHeaders(r, host, 1, loadBalance, hostTarget)
+			customConfig := map[string]string{}
+			customConfig["IsTransBackDomain"] = strconv.Itoa(hostTarget.Host.IsTransBackDomain)
+			proxy := wafproxy.NewSingleHostReverseProxyCustomHeader(remoteUrl, customHeaders, customConfig)
+			waf.applyResponseBuffering(proxy, hostTarget)
+			proxy.Transport = transport
+			proxy.ModifyResponse = waf.modifyResponse()
+			proxy.ErrorHandler = waf.errorResponse()
+			hostTarget.LoadBalanceRuntime.RevProxies = append(hostTarget.LoadBalanceRuntime.RevProxies, proxy)
+
+			// 初始化策略相关信息
+			switch hostTarget.Host.LoadBalanceStage {
+			case 1: // 加权轮询（WRR）
+				hostTarget.LoadBalanceRuntime.WeightRoundRobinBalance.Add(addrIndex, loadBalance.Weight)
+				break
+			case 2: // IPHash
+				hostTarget.LoadBalanceRuntime.IpHashBalance.Add(strconv.Itoa(addrIndex), 1)
+				break
+			default:
+				http.Error(w, "Invalid Load Balance Stage", http.StatusBadRequest)
+			}
+		}
+	}
+	proxyIndex := waf.getProxyIndex(host, clientIp, hostTarget)
+	if proxyIndex == -1 {
+		http.Error(w, "No Available BackServer", http.StatusBadRequest)
+		return nil, false
+	}
+
+	// 记录使用的负载均衡IP和端口信息
+	if proxyIndex >= 0 && proxyIndex < len(hostTarget.LoadBalanceLists) {
+		selectedLoadBalance := hostTarget.LoadBalanceLists[proxyIndex]
+		balanceInfo := fmt.Sprintf("%s:%d", selectedLoadBalance.Remote_ip, selectedLoadBalance.Remote_port)
+
+		// 记录到WebLog的BalanceInfo字段
+		weblog.BalanceInfo = balanceInfo
+	}
+
+	// 越界保护：策略给出的下标不一定落在已建好的代理列表里（后端列表刚变更时尤其如此），
+	// 直接索引会 panic 掉整个请求
+	if proxyIndex < 0 || proxyIndex >= len(hostTarget.LoadBalanceRuntime.RevProxies) {
+		http.Error(w, "No Available Server", http.StatusBadRequest)
+		return nil, false
+	}
+
+	proxy := hostTarget.LoadBalanceRuntime.RevProxies[proxyIndex]
+	if proxy == nil {
+		http.Error(w, "No Available Server", http.StatusBadRequest)
+		return nil, false
+	}
+	return proxy, true
 }
 
 // ProxyHTTPWithPathRule 根据路径规则将请求代理到指定后端

@@ -1227,8 +1227,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 				// 如果是流式内容，使用流式处理器
 				if isStreamContent {
 					// 创建流式处理器包装原始响应体
-					streamProcessor := waf.createStreamProcessor(resp.Body, wafHttpContext, host)
-					resp.Body = io.NopCloser(streamProcessor)
+					resp.Body = waf.createStreamProcessor(resp.Body, wafHttpContext, host)
 
 					// 对于流式内容，跳过后续的常规处理逻辑
 					// 但仍然记录基本的访问日志

@@ -1893,6 +1893,33 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移: 为 hosts 表添加 is_enable_response_buffering 字段（响应缓冲，1开启/0关闭，默认1）
+		{
+			ID: "202608170001_add_hosts_is_enable_response_buffering",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202608170001: 为 hosts 表添加 is_enable_response_buffering 字段")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "is_enable_response_buffering") {
+					zlog.Info("is_enable_response_buffering 字段已存在，跳过添加")
+					return nil
+				}
+				if err := tx.Migrator().AddColumn(&model.Hosts{}, "IsEnableResponseBuffering"); err != nil {
+					return fmt.Errorf("添加 is_enable_response_buffering 字段失败: %w", err)
+				}
+				// 存量站点回填 1（=开启响应缓冲，保持现状；AddColumn 后常见默认 0，需一并纠正）
+				if err := tx.Exec("UPDATE hosts SET is_enable_response_buffering = 1 WHERE is_enable_response_buffering IS NULL OR is_enable_response_buffering = 0").Error; err != nil {
+					zlog.Warn("回填 is_enable_response_buffering 默认值失败", "error", err.Error())
+				}
+				zlog.Info("is_enable_response_buffering 字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202608170001: 删除 hosts 表的 is_enable_response_buffering 字段")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "is_enable_response_buffering") {
+					return tx.Migrator().DropColumn(&model.Hosts{}, "is_enable_response_buffering")
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

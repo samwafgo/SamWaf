@@ -23,6 +23,14 @@ type WafHostService struct{}
 
 var WafHostServiceApp = new(WafHostService)
 
+// normalizeIsEnableResponseBuffering 响应缓冲取值：1开启 0关闭；其它值按开启处理
+func normalizeIsEnableResponseBuffering(v int) int {
+	if v == 0 {
+		return 0
+	}
+	return 1
+}
+
 func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (string, error) {
 	uniCode := ""
 	if wafHostAddReq.Code == "" {
@@ -108,6 +116,7 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 		UploadSecurityJSON:        wafHostAddReq.UploadSecurityJSON,
 		IPMode:                    wafHostAddReq.IPMode,
 		DisableHTTP2:              wafHostAddReq.DisableHTTP2,
+		IsEnableResponseBuffering: normalizeIsEnableResponseBuffering(wafHostAddReq.IsEnableResponseBuffering),
 		AccessJSON:                wafHostAddReq.AccessJSON,
 		IPSourceMode:              wafHostAddReq.IPSourceMode,
 		IPTrustDepth:              wafHostAddReq.IPTrustDepth,
@@ -195,6 +204,7 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 		"UploadSecurityJSON":        wafHostEditReq.UploadSecurityJSON,
 		"IPMode":                    wafHostEditReq.IPMode,
 		"DisableHTTP2":              wafHostEditReq.DisableHTTP2,
+		"IsEnableResponseBuffering": normalizeIsEnableResponseBuffering(wafHostEditReq.IsEnableResponseBuffering),
 		"AccessJSON":                wafHostEditReq.AccessJSON,
 		"IPSourceMode":              wafHostEditReq.IPSourceMode,
 		"IPTrustDepth":              wafHostEditReq.IPTrustDepth,

@@ -1182,6 +1182,24 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 			// 上游 chunked 传输时 resp.ContentLength 为 -1，先按 0 计；非静态资源后续会用真实落盘字节数回填
 			weblogfrist.RES_CONTENT_LENGTH = sanitizeContentLength(resp.ContentLength)
 
+			// 响应缓冲关闭（IsEnableResponseBuffering==0，类似 nginx proxy_buffering off）：不读响应体，避免整包缓冲，配合 FlushInterval=-1 边收边推。
+			// 因此关闭缓冲时，依赖读体的能力（敏感词/响应压缩/防篡改/响应缓存等）对本请求不生效。
+			// ACME 证书校验路径除外，避免签发/续期被短路干扰（与缓存等逻辑一致）。
+			if hostTarget, exists := waf.rt().HostTarget[host]; exists &&
+				hostTarget.Host.IsEnableResponseBuffering == 0 &&
+				!strings.HasPrefix(weblogfrist.URL, global.GSSL_HTTP_CHANGLE_PATH) {
+				weblogfrist.TASK_FLAG = 1
+				resHeader := joinHeader(resp.Header)
+				weblogfrist.ResHeader = resHeader
+				datetimeNow := time.Now()
+				weblogfrist.TimeSpent = datetimeNow.UnixNano()/1e6 - weblogfrist.UNIX_ADD_TIME
+				weblogfrist.BackendCheckCost = datetimeNow.UnixNano()/1e6 - backendCheckStart
+				if shouldRecordWebLog(weblogfrist, hostTarget.Host.EXCLUDE_URL_LOG) {
+					global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
+				}
+				return nil
+			}
+
 			// 网页防篡改：反代响应基线比对（命中且 replace 动作则回吐正确副本并短路）
 			if waf.checkAndHandleTamper(resp, r, host, weblogfrist) {
 				weblogfrist.BackendCheckCost = time.Now().UnixNano()/1e6 - backendCheckStart

@@ -15,10 +15,16 @@ on:
 permissions:
   contents: read
 
+# 同一分支上新提交进来时，取消还在跑的旧 run，避免卡住的 run 长期占坑
+concurrency:
+  group: ci-test-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # Linux 构建和测试
   build-and-test-linux:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,9 +37,8 @@ jobs:
           go-version: '1.21.4'
 
       - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential musl-tools
+        timeout-minutes: 15
+        run: bash .github/scripts/apt-install.sh build-essential musl-tools
 
       - name: Resolve version (align with latest GitHub Release)
         id: ver
@@ -56,7 +61,7 @@ jobs:
 
       - name: Download SamWafWeb
         run: |
-          curl -L https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
+          curl -fSL --retry 3 --retry-all-errors --connect-timeout 15 --max-time 300 https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
           tar -zxvf dist.tar.gz
           rm -rf public/dist
           mv -f dist public
@@ -139,6 +144,7 @@ jobs:
   # Windows 构建和基本测试
   build-and-test-windows:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -151,9 +157,8 @@ jobs:
           go-version: '1.21.4'
 
       - name: Install dependencies for Windows cross-compilation
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686
+        timeout-minutes: 15
+        run: bash .github/scripts/apt-install.sh gcc-mingw-w64-x86-64 gcc-mingw-w64-i686
 
       - name: Resolve version (align with latest GitHub Release)
         id: ver
@@ -170,7 +175,7 @@ jobs:
 
       - name: Download SamWafWeb
         run: |
-          curl -L https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
+          curl -fSL --retry 3 --retry-all-errors --connect-timeout 15 --max-time 300 https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
           tar -zxvf dist.tar.gz
           rm -rf public/dist
           mv -f dist public

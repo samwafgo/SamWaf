@@ -14,6 +14,8 @@ jobs:
   # Linux 和 Windows 编译任务
   goreleaser-linux-windows:
     runs-on: ubuntu-latest
+    # 卡死保护：apt/网络挂住时快速失败，而不是烧满 6 小时默认上限
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,15 +26,11 @@ jobs:
         with:
           go-version: '1.21.4'
       
-      - name: Install basic tools
-        run: | 
-          sudo apt-get update
-          sudo apt-get install -y tar gzip wget curl
-      
+      # 说明：tar/gzip/wget/curl 是 ubuntu-latest 镜像自带的，原来的 "Install basic tools"
+      # 步骤只是白跑一次 apt，却是 2026-08-19 卡住 72 分钟的那一步，已删除。
       - name: Install dependencies for cross-compilation
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu build-essential musl-tools
+        timeout-minutes: 15
+        run: bash .github/scripts/apt-install.sh gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu build-essential musl-tools
       
       - name: Run GoReleaser (Linux/Windows only)
         uses: goreleaser/goreleaser-action@v4
@@ -140,6 +138,7 @@ jobs:
   # macOS 编译任务 (使用原生 macOS runner )
   goreleaser-macos:
     runs-on: macos-latest
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -151,14 +150,9 @@ jobs:
         with:
           go-version: '1.21.4'
       
-      - name: Install basic tools
-        run: |
-          # macOS 已经有 tar, gzip 等基础工具
-          brew install wget curl || true
-      
       - name: Download SamWafWeb
         run: |
-          curl -L https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
+          curl -fSL --retry 3 --retry-all-errors --connect-timeout 15 --max-time 300             https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
           tar -zxvf dist.tar.gz
           rm -rf public/dist
           mv -f dist public
@@ -227,6 +221,7 @@ jobs:
 
   win7win2008r2:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - name: Check if should build Win7
         id: check_win7_build
@@ -257,21 +252,16 @@ jobs:
           go-version: '1.25.11'
           check-latest: false
 
+      # mingw 和 upx 合并成一次 apt（原来分两步 = 两次抢锁两次拉源，翻倍的卡死概率）
       - name: Install dependencies for Windows cross-compilation
         if: steps.check_win7_build.outputs.skip_win7_build != 'true'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 build-essential
-
-      - name: Install UPX
-        if: steps.check_win7_build.outputs.skip_win7_build != 'true'
-        run: |
-          sudo apt-get install -y upx
+        timeout-minutes: 15
+        run: bash .github/scripts/apt-install.sh gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 build-essential upx
 
       - name: DownLoad New SamWafWeb
         if: steps.check_win7_build.outputs.skip_win7_build != 'true'
         run: |
-          curl -L https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
+          curl -fSL --retry 3 --retry-all-errors --connect-timeout 15 --max-time 300             https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
           tar -zxvf dist.tar.gz
           rm -rf public/dist
           mv -f dist public

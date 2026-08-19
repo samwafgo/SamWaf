@@ -39,9 +39,8 @@ jobs:
           go-version: '1.21.4'
 
       - name: Install dependencies for cross-compilation
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu build-essential musl-tools
+        timeout-minutes: 15
+        run: bash .github/scripts/apt-install.sh gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu build-essential musl-tools
 
       - name: Run GoReleaser (build only, snapshot)
         uses: goreleaser/goreleaser-action@v4
@@ -274,7 +273,7 @@ jobs:
 
       - name: Download SamWafWeb
         run: |
-          curl -L https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
+          curl -fSL --retry 3 --retry-all-errors --connect-timeout 15 --max-time 300 https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
           tar -zxvf dist.tar.gz
           rm -rf public/dist
           mv -f dist public
@@ -390,13 +389,12 @@ jobs:
           check-latest: false
 
       - name: Install dependencies for Windows cross-compilation
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 build-essential
+        timeout-minutes: 15
+        run: bash .github/scripts/apt-install.sh gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 build-essential
 
       - name: Download SamWafWeb
         run: |
-          curl -L https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
+          curl -fSL --retry 3 --retry-all-errors --connect-timeout 15 --max-time 300 https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
           tar -zxvf dist.tar.gz
           rm -rf public/dist
           mv -f dist public

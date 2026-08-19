@@ -15,7 +15,7 @@ before:
     # you may remove this if you don't need go generate
     - go generate ./...
     # pull samwaf web
-    - curl -L https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
+    - curl -fSL --retry 3 --retry-all-errors --connect-timeout 15 --max-time 300 https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
     - tar -zxvf dist.tar.gz
     - rm -rf public/dist
     - mv -f dist public

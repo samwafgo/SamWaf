@@ -189,6 +189,11 @@ func readOSReleasePrettyName() string {
 	return ""
 }
 
+// DetectContainerRuntime 判断当前进程运行在什么容器里，非容器返回空字符串。
+// 导出给升级流程使用：容器里的可执行文件位于镜像可写层，应用内升级只在"本次容器生命周期"有效，
+// 容器一旦重建就回退回镜像版本，而数据库已被新版本迁移，会形成"旧程序 + 新库"的不一致状态。
+func DetectContainerRuntime() string { return detectContainerRuntime() }
+
 // detectContainerRuntime 粗略判断当前进程运行在什么容器里，非容器返回空字符串
 func detectContainerRuntime() string {
 	if runtime.GOOS != "linux" {

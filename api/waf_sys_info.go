@@ -176,12 +176,14 @@ func (w *WafSysInfoApi) CheckVersionApi(c *gin.Context) {
 		global.GWAF_RUNTIME_NEW_VERSION = newVer
 		global.GWAF_RUNTIME_NEW_VERSION_DESC = desc
 		response.OkWithDetailed(model.VersionInfo{
-			Version:        global.GWAF_RELEASE_VERSION,
-			VersionName:    global.GWAF_RELEASE_VERSION_NAME,
-			VersionRelease: global.GWAF_RELEASE,
-			NeedUpdate:     true,
-			VersionNew:     newVer,
-			VersionDesc:    desc,
+			Version:           global.GWAF_RELEASE_VERSION,
+			VersionName:       global.GWAF_RELEASE_VERSION_NAME,
+			VersionRelease:    global.GWAF_RELEASE,
+			NeedUpdate:        true,
+			VersionNew:        newVer,
+			VersionDesc:       desc,
+			Container:         utils.DetectContainerRuntime(),
+			SelfUpdateAllowed: isSelfUpdateAllowed(),
 		}, "有新版本", c)
 	} else {
 		// 检查是否启用beta版本检测
@@ -191,12 +193,14 @@ func (w *WafSysInfoApi) CheckVersionApi(c *gin.Context) {
 				global.GWAF_RUNTIME_NEW_VERSION = newVer
 				global.GWAF_RUNTIME_NEW_VERSION_DESC = desc
 				response.OkWithDetailed(model.VersionInfo{
-					Version:        global.GWAF_RELEASE_VERSION,
-					VersionName:    global.GWAF_RELEASE_VERSION_NAME,
-					VersionRelease: global.GWAF_RELEASE,
-					NeedUpdate:     true,
-					VersionNew:     newVer,
-					VersionDesc:    desc,
+					Version:           global.GWAF_RELEASE_VERSION,
+					VersionName:       global.GWAF_RELEASE_VERSION_NAME,
+					VersionRelease:    global.GWAF_RELEASE,
+					NeedUpdate:        true,
+					VersionNew:        newVer,
+					VersionDesc:       desc,
+					Container:         utils.DetectContainerRuntime(),
+					SelfUpdateAllowed: isSelfUpdateAllowed(),
 				}, "有新版本(测试版)", c)
 			} else {
 				response.FailWithMessage("没有最新版本", c)
@@ -285,6 +289,20 @@ func (w *WafSysInfoApi) UpdateApi(c *gin.Context) {
 	} else {
 		remoteURL = fmt.Sprintf("%s%s", global.GUPDATE_VERSION_URL, "")
 	}
+	// 容器环境默认拦截应用内升级：
+	// 容器里的程序文件位于镜像可写层，升级只在本次容器生命周期内有效；容器一旦重建
+	// (docker compose up -d / 换镜像 / 重装宿主) 就会回退成镜像自带的旧版本，
+	// 而数据库已经被新版本迁移且无法回退，于是形成"旧程序 + 新库"的静默不一致状态
+	// (issue #938 现场即如此：库里有 v1.3.24 才有的任务行，跑的却是 v1.3.23)。
+	if container := utils.DetectContainerRuntime(); container != "" && global.GCONFIG_ALLOW_CONTAINER_SELFUPDATE != 1 {
+		zlog.Warn(fmt.Sprintf("检测到容器环境(%v)，已拦截应用内升级", container))
+		response.FailWithMessage(fmt.Sprintf("检测到运行在容器(%v)中，已阻止应用内升级。"+
+			"容器内升级只对当前容器有效，容器重建后程序会回退到镜像自带的版本，"+
+			"而数据库已被新版本迁移且无法回退，会造成程序与数据版本不一致。"+
+			"请改用更新镜像的方式升级(拉取新镜像后重建容器，挂载的数据不受影响)。"+
+			"如确需强制升级，可在系统配置中把 allow_container_selfupdate 置为 1", container), c)
+		return
+	}
 	global.GWAF_RUNTIME_IS_UPDATETING = true
 	var updater = &wafupdate.Updater{
 		CurrentVersion: global.GWAF_RELEASE_VERSION, // Manually update the const, or set it using `go build -ldflags="-X main.VERSION=<newver>" -o hello-updater src/hello-updater/main.go`
@@ -346,4 +364,13 @@ func (w *WafSysInfoApi) UpdateApi(c *gin.Context) {
 
 	}()
 	response.OkWithMessage("已发起升级，等待通知结果", c)
+}
+
+// isSelfUpdateAllowed 当前环境是否允许走应用内升级。
+// 非容器恒为 true；容器环境默认 false，可由 allow_container_selfupdate 配置放行。
+func isSelfUpdateAllowed() bool {
+	if utils.DetectContainerRuntime() == "" {
+		return true
+	}
+	return global.GCONFIG_ALLOW_CONTAINER_SELFUPDATE == 1
 }

@@ -3,6 +3,8 @@
 package wafhostguard
 
 import (
+	"SamWaf/utils"
+
 	"os"
 	"os/exec"
 	"strings"
@@ -67,18 +69,8 @@ func readable(path string) bool {
 	return true
 }
 
-// isInContainer 复刻 firewall/firewall.go 的判定：/.dockerenv 或 cgroup 里带容器标记
+// isInContainer 判断是否在容器内。与 firewall、"系统信息"弹窗、升级拦截统一走同一处判定
+// (utils.DetectContainerRuntime)，不再各自复刻一份 /.dockerenv + cgroup 规则。
 func isInContainer() bool {
-	if _, err := os.Stat("/.dockerenv"); err == nil {
-		return true
-	}
-	data, err := os.ReadFile("/proc/1/cgroup")
-	if err != nil {
-		return false
-	}
-	content := string(data)
-	return strings.Contains(content, "docker") ||
-		strings.Contains(content, "kubepods") ||
-		strings.Contains(content, "containerd") ||
-		strings.Contains(content, "lxc")
+	return utils.DetectContainerRuntime() != ""
 }

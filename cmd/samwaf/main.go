@@ -382,6 +382,9 @@ func (m *wafSystenService) run() {
 	//初始化一次系统参数信息
 	waftask.TaskLoadSetting(true)
 
+	// 校验"上次运行版本"，识别容器重建导致的降级运行(旧程序+新库)，仅记录日志不阻断
+	waftask.CheckVersionDowngrade()
+
 	// IP 数据库：配置已从 DB 读出，按持久化的数据源权威重载一次
 	// （启动早期 manager 用的是默认源，此处才是真正生效的加载点，解决重启后 ipdb 回退到 ip2region 的问题）
 	if global.GIPLOCATION_MANAGER != nil {

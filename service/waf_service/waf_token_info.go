@@ -30,9 +30,11 @@ func (receiver *WafTokenInfoService) AddApi(loginAccount string, AccessToken str
 		LoginIp:      LoginIp,
 		LoginType:    "web", // 默认为web类型
 	}
-	global.GWAF_LOCAL_DB.Create(bean)
-	mod := receiver.GetInfoByLoginAccount(loginAccount)
-	return &mod
+	if err := global.GWAF_LOCAL_DB.Create(bean).Error; err != nil {
+		return nil
+	}
+	// 直接返回刚插入的记录，不再重查（重查可能命中同账号的其它旧行，见 AddApiWithFingerprintAndType 注释）
+	return bean
 }
 
 // AddApiWithFingerprint 添加带指纹的token信息
@@ -52,13 +54,24 @@ func (receiver *WafTokenInfoService) AddApiWithFingerprint(loginAccount string, 
 		DeviceFingerprint: deviceFingerprint,
 		LoginType:         "web", // 默认为web类型
 	}
-	global.GWAF_LOCAL_DB.Create(bean)
-	mod := receiver.GetInfoByLoginAccount(loginAccount)
-	return &mod
+	if err := global.GWAF_LOCAL_DB.Create(bean).Error; err != nil {
+		return nil
+	}
+	// 直接返回刚插入的记录，不再重查（重查可能命中同账号的其它旧行，见 AddApiWithFingerprintAndType 注释）
+	return bean
 }
 
-// AddApiWithFingerprintAndType 添加带指纹和登录类型的token信息
-func (receiver *WafTokenInfoService) AddApiWithFingerprintAndType(loginAccount string, AccessToken string, LoginIp string, deviceFingerprint string, loginType string, role string) *model.TokenInfo {
+// AddApiWithFingerprintAndType 添加带指纹和登录类型的token信息。
+//
+// 这里刻意**返回刚插入的这条记录本身**，而不是插入后再查一次库：
+// 旧写法用 GetInfoByLoginAccountAndType 重查（Limit(1) 且无 ORDER BY），
+// 只要库里还残留同账号同类型的行，返回的就可能是另一条旧记录；
+// 而登录接口是"用本地生成的令牌写缓存、用重查结果下发给前端"，两者一旦不是同一个令牌，
+// 前端就会拿着一个缓存里根本不存在的令牌，之后每个请求都被判「令牌过期」→ 跳登录 → 死循环，
+// 且服务端一行日志都没有（issue #938）。
+// 同时 Create 的错误必须返回给调用方：插入失败时旧写法返回零值结构体，
+// 登录接口照样回「登录成功」但 access_token 是空串，同样是无日志的死循环。
+func (receiver *WafTokenInfoService) AddApiWithFingerprintAndType(loginAccount string, AccessToken string, LoginIp string, deviceFingerprint string, loginType string, role string) (*model.TokenInfo, error) {
 
 	var bean = &model.TokenInfo{
 		BaseOrm: baseorm.BaseOrm{
@@ -75,9 +88,10 @@ func (receiver *WafTokenInfoService) AddApiWithFingerprintAndType(loginAccount s
 		LoginType:         loginType,
 		Role:              enums.NormalizeRole(role),
 	}
-	global.GWAF_LOCAL_DB.Create(bean)
-	mod := receiver.GetInfoByLoginAccountAndType(loginAccount, loginType)
-	return &mod
+	if err := global.GWAF_LOCAL_DB.Create(bean).Error; err != nil {
+		return nil, err
+	}
+	return bean, nil
 }
 
 func (receiver *WafTokenInfoService) CheckIsExistByLoginAccountApi(loginAccount string) error {
@@ -214,7 +228,10 @@ func (receiver *WafTokenInfoService) ReloadAllValidTokensToCache() error {
 		// 如果token没有过期，则重新加载到缓存中
 		if expireTime.After(now) {
 			// 将token信息存入缓存
-			global.GCACHE_WAFCACHE.SetWithTTl(
+			// 用 SetWithTTlRenewTime：管理端热重启(WatchRestartSignal)会在进程存活的情况下再次走到这里，
+			// 此时缓存里的 key 还在，SetWithTTl 会沿用原 createTime，等于把已经续过期的令牌拉回
+			// "登录时刻 + TTL"，把在线会话凭空缩短甚至当场判死。
+			global.GCACHE_WAFCACHE.SetWithTTlRenewTime(
 				enums.CACHE_TOKEN+token.AccessToken,
 				token,
 				time.Duration(global.GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES)*time.Minute,
@@ -242,8 +259,8 @@ func (receiver *WafTokenInfoService) ReloadSpecificTokenToCache(tokenId string) 
 
 	// 如果token没有过期，则重新加载到缓存中
 	if expireTime.After(now) {
-		// 将token信息存入缓存
-		global.GCACHE_WAFCACHE.SetWithTTl(
+		// 将token信息存入缓存（同上，必须 RenewTime，避免沿用原 createTime 把会话缩短）
+		global.GCACHE_WAFCACHE.SetWithTTlRenewTime(
 			enums.CACHE_TOKEN+token.AccessToken,
 			token,
 			time.Duration(global.GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES)*time.Minute,

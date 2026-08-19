@@ -4,9 +4,9 @@ package firewall
 
 import (
 	"SamWaf/common/wafexec"
+	"SamWaf/utils"
 	"bufio"
 	"fmt"
-	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -59,19 +59,11 @@ func (fw *FireWallEngine) IsFirewallEnabled() bool {
 const containerHint = "当前运行在容器内：镜像中需安装 iptables（alpine: apk add iptables），" +
 	"并以 --cap-add=NET_ADMIN --network host 启动容器，否则规则只写入容器自身的网络命名空间，对宿主机流量无效。"
 
-// isInContainer 粗略判断当前进程是否运行在容器内
+// isInContainer 判断当前进程是否运行在容器内。
+// 统一走 utils.DetectContainerRuntime（与"系统信息"弹窗展示的运行环境、升级拦截用的是同一处判定），
+// 避免同一套 /.dockerenv + cgroup 规则在仓库里散落多份、各自演进。
 func isInContainer() bool {
-	if _, err := os.Stat("/.dockerenv"); err == nil {
-		return true
-	}
-	data, err := os.ReadFile("/proc/1/cgroup")
-	if err != nil {
-		return false
-	}
-	content := string(data)
-	return strings.Contains(content, "docker") ||
-		strings.Contains(content, "containerd") ||
-		strings.Contains(content, "kubepods")
+	return utils.DetectContainerRuntime() != ""
 }
 
 // checkAvailable 探测 iptables 是否存在且当前进程有权限操作，供 CheckAvailable 带缓存调用

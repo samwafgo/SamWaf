@@ -41,9 +41,15 @@ var (
 	GCONFIG_ENABLE_PROXY_PROTOCOL int64 = 0
 
 	// 指纹认证相关配置
-	GCONFIG_ENABLE_DEVICE_FINGERPRINT int64 = 1 // 是否启用设备指纹认证 1启用 0禁用
+	GCONFIG_ENABLE_DEVICE_FINGERPRINT int64 = 0 // 是否启用设备指纹认证 1启用 0禁用
 	GCONFIG_ENABLE_STRICT_IP_BINDING  int64 = 0 // 是否启用严格IP绑定 1启用 0禁用(默认关：启用后令牌绑定登录时真实IP，IP变化需重登；反代后需先配可信代理网段。避免动态IP/多出口LB场景反复掉线)
 	GCONFIG_ENABLE_REPLAY_PROTECT     int64 = 1 // 防重放攻击开关 1启用 0禁用
+
+	// 容器环境是否允许应用内升级。默认 0=拦截：容器里的可执行文件在镜像可写层，
+	// 升级只在本次容器生命周期内有效，容器一重建就回退成镜像里的旧版本，
+	// 而数据库已被新版本迁移且回不去，会形成"旧程序 + 新库"的静默不一致状态。
+	// 确实把二进制挂到卷里的高级用户可置 1 自行放行。
+	GCONFIG_ALLOW_CONTAINER_SELFUPDATE int64 = 0
 
 	GCONFIG_RECORD_ENABLE_OWASP int64  = 0               //启动OWASP数据检测
 	GCONFIG_OWASP_MODE          string = "DetectionOnly" //OWASP 检测引擎工作模式: On(拦截) / DetectionOnly(观察/仅记录) / Off(关闭)
@@ -77,7 +83,12 @@ var (
 	GCONFIG_ENABLE_HTTP3_BBR         int64 = 0 //配置http3是否用BBR(默认NewReno)
 	GCONFIG_RECORD_LOG_DESENSITIZE   int64 = 1 //请求记录是否进行脱敏处理 1开启脱敏 0关闭脱敏
 
-	GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES     int64 = 5  //令牌有效期 单位分钟
+	// 令牌有效期(分钟)：空闲多久未访问即失效，每次通过鉴权的请求都会滑动续期。
+	// 默认由 5 分钟调整为 30 分钟：5 分钟同时充当空闲与绝对超时，配合前端无保活轮询，
+	// 表现为"页面开着不动 5 分钟必掉线"（issue #930）。30 分钟落在 OWASP 低风险区间与 NIST 800-63B AAL2 内。
+	// 配置值填 0 或负数表示"不管控有效期"，由 waftask.normalizeTokenExpireMinutes 归一化为 1 年封顶，
+	// 因此本变量在运行期恒为正数，取用方无需再做防御。
+	GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES     int64 = 30 //令牌有效期 单位分钟
 	GCONFIG_RECORD_ANNOUNCEMENT_EXPIRE_HOURS int64 = 24 //公告有效期 单位小时
 
 	// 口令复杂度策略（国标 GB/T 32917 §7 自身安全：身份鉴别/口令复杂度）

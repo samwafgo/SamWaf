@@ -7,6 +7,11 @@ type VersionInfo struct {
 	VersionRelease string `json:"version_release"`
 	VersionNew     string `json:"version_new"`
 	VersionDesc    string `json:"version_desc"`
+	// 容器类型：空=非容器；docker/podman/containerd/lxc/oci
+	// 容器环境下应用内升级只在本次容器生命周期有效，容器重建即回退，故前端应引导用户改用更新镜像的方式
+	Container string `json:"container"`
+	// 当前环境是否允许走应用内升级（容器环境默认为 false，可由 allow_container_selfupdate 配置放行）
+	SelfUpdateAllowed bool `json:"self_update_allowed"`
 }
 
 // RuntimeSystemInfo 系统运行环境信息(供前端版本弹窗展示，便于用户反馈问题时定位环境)

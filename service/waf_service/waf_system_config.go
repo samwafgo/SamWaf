@@ -86,6 +86,21 @@ func (receiver *WafSystemConfigService) ModifyByItemApi(req request.WafSystemCon
 	return err
 }
 
+// SyncMetaByItemApi 只同步配置项的说明性字段（分类/类型/可选项/备注），不动 Value。
+// 用途：配置项的说明文案会随版本演进，而存量库里的行是首次写入时的老文案，
+// 页面上一直显示过时说明（例如令牌有效期的"默认5分钟"）。这里让描述跟着代码走，
+// 用户设置过的值不受影响。
+func (receiver *WafSystemConfigService) SyncMetaByItemApi(item string, itemClass string, itemType string, options string, remarks string) error {
+	editMap := map[string]interface{}{
+		"item_class":  itemClass,
+		"item_type":   itemType,
+		"options":     options,
+		"remarks":     remarks,
+		"UPDATE_TIME": customtype.JsonTime(time.Now()),
+	}
+	return global.GWAF_LOCAL_DB.Model(model.SystemConfig{}).Where("item = ?", item).Updates(editMap).Error
+}
+
 func (receiver *WafSystemConfigService) GetDetailApi(req request.WafSystemConfigDetailReq) model.SystemConfig {
 	var bean model.SystemConfig
 	global.GWAF_LOCAL_DB.Where("id=?", req.Id).Find(&bean)

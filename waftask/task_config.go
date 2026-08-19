@@ -13,7 +13,12 @@ import (
 	"SamWaf/wafipban"
 	"SamWaf/wafnotify/logfilewriter"
 	"SamWaf/wafowasp"
+	"fmt"
 	"strconv"
+	"strings"
+	"sync"
+
+	"golang.org/x/mod/semver"
 )
 
 // syncLogFileWriterConfig 将最新的全局配置同步到 LogFileWriter 实例
@@ -36,6 +41,27 @@ func syncLogFileWriterConfig() {
 			global.GCONFIG_LOG_FILE_WRITE_COMPRESS == 1,
 		)
 	}
+}
+
+// tokenExpireUnlimitedMinutes 令牌"不限制有效期"时实际采用的上限：1 年。
+// 不做真正的永不过期：缓存 TTL 是 time.Duration(int64 纳秒)，约 292 年就会溢出成负数，
+// 令牌反而当场失效；而且永不过期的会话没有任何自然收敛点，泄露后只能靠人工清理。
+// 1 年足够覆盖"我不想管这个"的诉求。
+const tokenExpireUnlimitedMinutes int64 = 365 * 24 * 60
+
+// normalizeTokenExpireMinutes 归一化令牌有效期(分钟)：
+//
+//	<= 0     用户表达的是"不管控有效期"，按 1 年封顶
+//	> 1 年   同样收敛到 1 年，防止 time.Duration 溢出把令牌变成立即过期
+//	其他     原样返回
+//
+// 归一化放在写全局变量的地方，保证 GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES 永远是正数，
+// 所有取用点（登录写缓存、中间件续期、令牌重载）无需各自防御。
+func normalizeTokenExpireMinutes(v int64) int64 {
+	if v <= 0 || v > tokenExpireUnlimitedMinutes {
+		return tokenExpireUnlimitedMinutes
+	}
+	return v
 }
 
 func setConfigIntValue(name string, value int64, change int) {
@@ -132,7 +158,8 @@ func setConfigIntValue(name string, value int64, change int) {
 		global.GCONFIG_RECORD_ALL_SRC_BYTE_INFO = value
 		break
 	case "token_expire_time":
-		global.GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES = value
+		// 用户填 0/负数表示不限制有效期，统一归一化后再落到全局变量
+		global.GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES = normalizeTokenExpireMinutes(value)
 		break
 	case "spider_deny":
 		global.GCONFIG_RECORD_SPIDER_DENY = value
@@ -163,6 +190,9 @@ func setConfigIntValue(name string, value int64, change int) {
 			wafenginecore.ClearAllIPProbeSamples() //关闭时把已采到的样本一并清掉，不留残留
 		}
 		global.GCONFIG_IPPROBE_ENABLE = value
+		break
+	case "allow_container_selfupdate":
+		global.GCONFIG_ALLOW_CONTAINER_SELFUPDATE = value
 		break
 	case "enable_device_fingerprint":
 		global.GCONFIG_ENABLE_DEVICE_FINGERPRINT = value
@@ -479,9 +509,56 @@ func setConfigStringValue(name string, value string, change int) {
 	}
 }
 
+// legacyMigrateOnce 保证旧默认值迁移在一个进程内只执行一次
+var legacyMigrateOnce sync.Once
+
+// defaultTokenExpireMinutes 令牌有效期的出厂默认值(分钟)，与 global/config.go 的初始值保持一致。
+// 单独取常量而不是读全局变量：全局变量在迁移执行时可能已被库里的旧值覆盖成 5，
+// 那样迁移就成了"5 改成 5"的空操作。
+const defaultTokenExpireMinutes int64 = 30
+
+// syncConfigMeta 把配置项的说明性字段（分类/类型/可选项/备注）同步成代码里的最新文案。
+// 只在确实不一致时写库，且绝不触碰 Value —— 用户设过的值不受影响。
+// 存在的意义：存量库里的说明是首次写入时的老文案，页面会一直显示过时描述。
+func syncConfigMeta(configItem model.SystemConfig, itemClass string, itemType string, options string, remarks string) {
+	if configItem.Remarks == remarks && configItem.Options == options &&
+		configItem.ItemClass == itemClass && configItem.ItemType == itemType {
+		return
+	}
+	if err := wafSystemConfigService.SyncMetaByItemApi(configItem.Item, itemClass, itemType, options, remarks); err != nil {
+		zlog.Debug("同步配置项说明失败", configItem.Item, err.Error())
+	}
+}
+
+// migrateLegacyIntConfig 一次性把"仍停留在旧默认值"的存量配置迁移到新默认值。
+// 仅当库里的值恰好等于 legacyValue 时才迁移；用户自己改过的值一律不动。
+// 迁移后同步更新 configMap，避免紧接着的 updateConfigIntItem 又把全局变量按旧值写回去。
+func migrateLegacyIntConfig(itemName string, legacyValue int64, newValue int64, reason string, configMap map[string]model.SystemConfig) {
+	configItem, exists := configMap[itemName]
+	if !exists || configItem.Id == "" {
+		return // 新装：直接走默认值创建，无需迁移
+	}
+	value, err := strconv.ParseInt(configItem.Value, 10, 0)
+	if err != nil || value != legacyValue {
+		return
+	}
+	newStr := strconv.FormatInt(newValue, 10)
+	if err := wafSystemConfigService.ModifyByItemApi(request.WafSystemConfigEditByItemReq{
+		Item:  itemName,
+		Value: newStr,
+	}); err != nil {
+		zlog.Warn("迁移旧默认配置失败", itemName, err.Error())
+		return
+	}
+	configItem.Value = newStr
+	configMap[itemName] = configItem
+	zlog.Info(fmt.Sprintf("配置项 %s 仍为旧默认值 %d，已自动升级为 %d（%s）", itemName, legacyValue, newValue, reason))
+}
+
 func updateConfigIntItem(initLoad bool, itemClass string, itemName string, defaultValue int64, remarks string, itemType string, options string, configMap map[string]model.SystemConfig) {
 	configItem, exists := configMap[itemName]
 	if exists && configItem.Id != "" {
+		syncConfigMeta(configItem, itemClass, itemType, options, remarks)
 		value, err := strconv.ParseInt(configItem.Value, 10, 0)
 		if err == nil && defaultValue != value {
 			setConfigIntValue(itemName, value, 1)
@@ -503,6 +580,7 @@ func updateConfigIntItem(initLoad bool, itemClass string, itemName string, defau
 func updateConfigStringItem(initLoad bool, itemClass string, itemName string, defaultValue string, remarks string, itemType string, options string, configMap map[string]model.SystemConfig) {
 	configItem, exists := configMap[itemName]
 	if exists && configItem.Id != "" {
+		syncConfigMeta(configItem, itemClass, itemType, options, remarks)
 		if defaultValue != configItem.Value {
 			setConfigStringValue(itemName, configItem.Value, 1)
 		} else if initLoad == true {
@@ -526,6 +604,56 @@ func TaskLoadSettingCron() {
 	TaskLoadSetting(false)
 }
 
+// CheckVersionDowngrade 记录/校验"上次运行的版本"，发现降级运行时打日志。
+//
+// 场景：容器环境点了应用内升级后，新版本会把数据库迁移到新 schema，但程序文件在镜像可写层，
+// 容器一旦重建就回退成镜像自带的旧版本，而数据库回不去 —— 形成"旧程序 + 新库"。
+// 这种状态过去是完全静默的，只能靠"任务方法 xxx 未找到"这类间接报错才能猜出来(issue #938)。
+// 这里只记日志、不阻断启动，也不做界面提示。
+func CheckVersionDowngrade() {
+	current := strings.TrimSpace(global.GWAF_RELEASE_VERSION)
+	if current == "" {
+		return
+	}
+	item := wafSystemConfigService.GetDetailByItem(versionRecordItem)
+	last := ""
+	if item.Id != "" {
+		last = strings.TrimSpace(item.Value)
+	}
+
+	if last != "" && semver.IsValid(last) && semver.IsValid(current) && semver.Compare(last, current) > 0 {
+		zlog.Error(fmt.Sprintf("检测到降级运行：数据库记录的上次运行版本是 %v，当前程序版本是 %v。"+
+			"若为容器部署，通常是应用内升级后容器被重建、程序回退到镜像自带版本所致；"+
+			"数据库已按新版本迁移且无法回退，请把镜像更新到 %v 或更高版本后重建容器", last, current, last))
+	}
+
+	// 记录本次版本（只在变化时写库）
+	if last == current {
+		return
+	}
+	if item.Id != "" {
+		if err := wafSystemConfigService.ModifyByItemApi(request.WafSystemConfigEditByItemReq{
+			Item:  versionRecordItem,
+			Value: current,
+		}); err != nil {
+			zlog.Debug("记录本次运行版本失败", err.Error())
+		}
+		return
+	}
+	if err := wafSystemConfigService.AddApi(request.WafSystemConfigAddReq{
+		ItemClass: "system",
+		Item:      versionRecordItem,
+		Value:     current,
+		Remarks:   "上次成功启动的程序版本，用于识别\"程序被降级、数据库却已按新版本迁移\"的不一致状态，请勿手工修改",
+		ItemType:  "string",
+	}); err != nil {
+		zlog.Debug("写入本次运行版本失败", err.Error())
+	}
+}
+
+// versionRecordItem 记录"上次运行版本"的配置项名
+const versionRecordItem = "last_run_version"
+
 // TaskLoadSetting 加载配置数据
 //
 //	initLoad true 是初始化加载，false不是初始化加载
@@ -534,6 +662,15 @@ func TaskLoadSetting(initLoad bool) {
 
 	// 一次性批量查询所有配置项
 	configMap := wafSystemConfigService.GetAllConfigs()
+
+	// 存量实例的旧默认值升级：令牌有效期长期没有页面入口（issue #930），库里若还是 5 分钟
+	// 必然是老默认值而非用户选择，5 分钟同时充当空闲与绝对超时会导致"页面开着不动就掉线"。
+	// 只在进程启动后的第一次加载执行：配置页每保存一次都会调 TaskLoadSetting(true)，
+	// 若不加守卫，用户特意填回 5 分钟会被反复改成 30，等于夺走用户的选择权。
+	legacyMigrateOnce.Do(func() {
+		migrateLegacyIntConfig("token_expire_time", 5, defaultTokenExpireMinutes,
+			"旧默认值5分钟过短，易造成反复登录", configMap)
+	})
 
 	updateConfigIntItem(initLoad, "system", "record_max_req_body_length", global.GCONFIG_RECORD_MAX_BODY_LENGTH, "记录请求最大报文", "int", "", configMap)
 	updateConfigIntItem(initLoad, "system", "record_max_res_body_length", global.GCONFIG_RECORD_MAX_RES_BODY_LENGTH, "如果可以记录，满足最大响应报文大小才记录", "int", "", configMap)
@@ -587,7 +724,7 @@ func TaskLoadSetting(initLoad bool) {
 
 	updateConfigIntItem(initLoad, "system", "record_all_src_byte_info", global.GCONFIG_RECORD_ALL_SRC_BYTE_INFO, "启动记录原始请求BODY报文（1启动 0关闭）", "int", "", configMap)
 	updateConfigIntItem(initLoad, "system", "record_log_desensitize", global.GCONFIG_RECORD_LOG_DESENSITIZE, "请求记录是否进行脱敏处理（1开启脱敏 0关闭脱敏）", "options", "0|关闭脱敏,1|开启脱敏", configMap)
-	updateConfigIntItem(initLoad, "system", "token_expire_time", global.GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES, "管理平台令牌有效期，单位分钟（默认5分钟）", "int", "", configMap)
+	updateConfigIntItem(initLoad, "system", "token_expire_time", global.GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES, "管理平台令牌有效期（空闲多久未操作即失效，单位分钟；每次访问会自动续期。默认30分钟；填 0 或负数表示不限制有效期，实际按 1 年封顶。过短会导致频繁重新登录）", "int", "", configMap)
 
 	// 口令复杂度策略
 	updateConfigIntItem(initLoad, "password", "pwd_min_length", global.GCONFIG_PWD_MIN_LENGTH, "密码最小长度（默认8）", "int", "", configMap)
@@ -612,7 +749,8 @@ func TaskLoadSetting(initLoad bool) {
 	updateConfigIntItem(initLoad, "system", "enable_system_stats_push", global.GCONFIG_ENABLE_SYSTEM_STATS_PUSH, "是否启用系统统计数据推送（1启用 0禁用）", "options", "0|禁用,1|启用", configMap)
 
 	// 指纹认证相关配置
-	updateConfigIntItem(initLoad, "security", "enable_device_fingerprint", global.GCONFIG_ENABLE_DEVICE_FINGERPRINT, "是否启用设备指纹认证（1启用 0禁用）", "options", "0|禁用,1|启用", configMap)
+	updateConfigIntItem(initLoad, "system", "allow_container_selfupdate", global.GCONFIG_ALLOW_CONTAINER_SELFUPDATE, "容器(Docker等)环境是否允许应用内升级（0拦截 1允许，默认拦截）。容器里的程序文件在镜像可写层，应用内升级只在本次容器生命周期有效，容器重建后会回退成镜像自带的旧版本，而数据库已被新版本迁移且无法回退，会造成\"旧程序+新库\"的不一致。容器环境请改用更新镜像的方式升级；确实把程序文件挂到卷里的用户可置1自行放行", "options", "0|拦截,1|允许", configMap)
+	updateConfigIntItem(initLoad, "security", "enable_device_fingerprint", global.GCONFIG_ENABLE_DEVICE_FINGERPRINT, "是否启用设备指纹认证（1启用 0禁用，默认禁用）。指纹由浏览器 UA、Accept-Language、Accept-Encoding 计算；若管理端处于反向代理/CDN 之后，这些请求头可能被改写，开启后会被判为设备不匹配而频繁掉线，请确认链路稳定后再启用", "options", "0|禁用,1|启用", configMap)
 	updateConfigIntItem(initLoad, "security", "enable_strict_ip_binding", global.GCONFIG_ENABLE_STRICT_IP_BINDING, "是否启用严格IP绑定（1启用 0禁用；启用后令牌绑定登录时的真实IP，IP变化需重新登录；反向代理后请先配置可信代理网段，否则按代理IP判定）", "options", "0|禁用,1|启用", configMap)
 	//数据库相关
 	updateConfigIntItem(initLoad, "database", "batch_insert", global.GDATA_BATCH_INSERT, "数据库批量插入数量", "int", "", configMap)

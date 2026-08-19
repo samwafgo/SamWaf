@@ -2,6 +2,7 @@ package api
 
 import (
 	"SamWaf/common/uuid"
+	"SamWaf/common/zlog"
 	"SamWaf/customtype"
 	"SamWaf/enums"
 	"SamWaf/global"
@@ -163,7 +164,16 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 
 			//记录状态
 			accessToken := utils.Md5String(uuid.GenUUID())
-			tokenInfo := wafTokenInfoService.AddApiWithFingerprintAndType(bean.LoginAccount, accessToken, utils.GetManageClientIP(c), deviceFingerprint, loginType, bean.Role)
+			tokenInfo, tokenErr := wafTokenInfoService.AddApiWithFingerprintAndType(bean.LoginAccount, accessToken, utils.GetManageClientIP(c), deviceFingerprint, loginType, bean.Role)
+			// 会话没建成就绝不能回「登录成功」：
+			// 旧写法忽略落库错误、又拿重查结果当令牌下发，一旦对不上，前端会拿到一个
+			// 缓存里不存在（或为空）的令牌，之后每个请求都 401 → 跳登录 → 无限循环，
+			// 而 401 分支不打日志，排查时表现为"点了登录什么日志都没有"（issue #938）。
+			if tokenErr != nil || tokenInfo == nil || tokenInfo.AccessToken != accessToken {
+				zlog.Error(fmt.Sprintf("登录会话创建失败，账号:%v 登录类型:%v 错误:%v", bean.LoginAccount, loginType, tokenErr))
+				response.FailWithMessage("登录状态创建失败，请重试；若持续失败请查看服务端日志", c)
+				return
+			}
 
 			// 强制改密标记随令牌下发，供鉴权中间件拦截未改密令牌（缓存副本即可，Auth 从缓存读取）
 			if needChangePwd {
@@ -242,7 +252,7 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 			wafAccountService.UpdateLastLoginInfo(bean.LoginAccount, clientIP, clientArea, currentTime)
 
 			response.OkWithDetailed(response2.LoginRep{
-				AccessToken:          tokenInfo.AccessToken,
+				AccessToken:          accessToken, // 与写入缓存的令牌同源，杜绝"下发的令牌不在缓存里"
 				NeedChangePassword:   needChangePwd,
 				ChangePasswordReason: changePwdReason,
 				LoginNotice: response2.LoginNoticeRep{

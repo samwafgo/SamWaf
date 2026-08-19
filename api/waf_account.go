@@ -171,13 +171,17 @@ func clearTokenNeedChangePassword(c *gin.Context) {
 		return
 	}
 	tokenInfo.NeedChangePassword = 0
+	// 必须用 SetWithTTlRenewTime：内存实现的 SetWithTTl 对已存在的 key 会沿用原 createTime，
+	// 而过期判定是 time.Since(createTime) <= ttl。写"剩余 remain"进去等于把令牌的寿命
+	// 改成"从登录时刻起只活 remain"——登录已过 4 分钟、剩余 1 分钟时，写完当场就过期，
+	// 表现为改完密码下一个请求就提示令牌过期、被迫重登（issue #897/#930 的掉线来源之一）。
 	if expireTime, err := global.GCACHE_WAFCACHE.GetExpireTime(key); err == nil {
 		if remain := time.Until(expireTime); remain > 0 {
-			global.GCACHE_WAFCACHE.SetWithTTl(key, tokenInfo, remain)
+			global.GCACHE_WAFCACHE.SetWithTTlRenewTime(key, tokenInfo, remain)
 			return
 		}
 	}
-	global.GCACHE_WAFCACHE.SetWithTTl(key, tokenInfo, time.Duration(global.GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES)*time.Minute)
+	global.GCACHE_WAFCACHE.SetWithTTlRenewTime(key, tokenInfo, time.Duration(global.GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES)*time.Minute)
 }
 
 func (w *WafAccountApi) ResetAccountPwdApi(c *gin.Context) {

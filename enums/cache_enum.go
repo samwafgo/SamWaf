@@ -12,9 +12,10 @@ const (
 	CACHE_CAPTCHA_PASS   = "CACHE_CAPTCHA_PASS"    //通过验证的码
 	CACHE_ANNOUNCEMENT   = "CACHE_ANNOUNCEMENT"    //公告数据
 	CACHE_WEBFILE        = "CACHE_WEBFILE"
-	CACHE_FILE_INFO      = "CACHE_FILE_INFO"      //文件信息
-	CACHE_IP_FAILURE_PRE = "CACHE_IP_FAILURE_PRE" //IP失败记录前缀
-	CACHE_REPLAY_NONCE   = "CACHE_REPLAY_NONCE_"  // 防重放 nonce 前缀
+	CACHE_FILE_INFO      = "CACHE_FILE_INFO"       //文件信息
+	CACHE_IP_FAILURE_PRE = "CACHE_IP_FAILURE_PRE"  //IP失败记录前缀
+	CACHE_REPLAY_NONCE   = "CACHE_REPLAY_NONCE_"   // 防重放 nonce 前缀
+	CACHE_TOKEN_BINDFAIL = "CACHE_TOKEN_BINDFAIL_" // 令牌绑定校验(设备指纹/严格IP)连续失败次数，键后缀是令牌
 
 	// —— 统一访问认证(Access 模式) ——
 	// 令牌与会话的真相源是数据库，缓存只是热路径加速。

@@ -32,6 +32,16 @@ func (wafCache *WafCache) Set(key string, value interface{}) {
 	wafCache.SetWithTTl(key, value, 100*365*24*time.Hour)
 }
 
+// SetWithTTl 写入并设置存活时长。
+//
+// 注意语义（踩过坑，别再改回去）：对**已存在**的 key 会沿用原 createTime，
+// 即到期时刻 = 原 createTime + 新 ttl，而不是 now + ttl。所以它只适合
+// "首次写入" 或 "刷新值但不想改变到期时刻" 的场景；凡是要"续命"的地方
+// 一律用 SetWithTTlRenewTime，否则会把在线会话凭空缩短甚至当场判死
+// （历史上改密续期就是这样让令牌立刻失效的）。
+//
+// 另需注意：Redis 后端(RedisCache.SetWithTTl)没有 createTime 概念，等价于 now + ttl。
+// 两个后端在"已存在 key"上的行为并不一致，写业务代码时不要依赖该差异。
 func (wafCache *WafCache) SetWithTTl(key string, value interface{}, ttl time.Duration) {
 	wafCache.mu.Lock()
 	defer wafCache.mu.Unlock()

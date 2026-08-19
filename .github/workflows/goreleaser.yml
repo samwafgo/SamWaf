@@ -317,4 +317,3 @@ jobs:
         with:
           files: |
             release/SamWaf64ForWin7Win8Win2008.exe
-    needs: [goreleaser-linux-windows, goreleaser-macos]

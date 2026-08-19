@@ -496,6 +496,7 @@ func (m *wafSystenService) run() {
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_THREAT_IP_SYNC, waftask.TaskThreatIPSync)
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_ACCESS_CLEAN, waftask.TaskAccessClean)
 	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_HOSTGUARD_CLEAN_EXPIRED, waftask.TaskHostGuardCleanExpired)
+	globalobj.GWAF_RUNTIME_OBJ_WAF_TaskRegistry.RegisterTask(enums.TASK_TRAFFIC_FLUSH, waftask.TaskTrafficFlush)
 
 	// 进程启动重放：把各启用威胁情报渠道的快照重新灌入系统 ipset(内存态重启会丢) 并重建 WAF 并集
 	go waf_service.WafThreatIPServiceApp.RestoreAllOnStartup()
@@ -948,6 +949,12 @@ func (m *wafSystenService) stopSamWaf() {
 	} else {
 		zlog.Warn("App Engine is nil, skipping shutdown")
 	}
+
+	// 站点流量落库：引擎已停、不会再有新字节进来，这里补最后一次，
+	// 把内存里没到 30 秒周期的增量写掉（否则每次重启都会丢掉最后不足一个周期的流量）。
+	zlog.Info("Flush SamWaf Traffic Stats...")
+	waftask.FlushTrafficStats()
+	zlog.Info("Flush SamWaf Traffic Stats finished")
 
 	zlog.Info("Shutdown SamWaf Queue Processors...")
 	// 关闭信号通道，通知所有队列处理协程退出

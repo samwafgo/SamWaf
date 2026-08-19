@@ -276,6 +276,13 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		incrementMonitor(hostCode)
 		defer decrementMonitor(hostCode)
+
+		// 站点流量计量：直接量真实进出字节，静态资源/大文件/chunked/流式/被拦截响应全都算得到。
+		// 必须在这里（host 已解析、任何响应写出之前）包一次，之后所有出口都用包装后的 w。
+		// 分桶时间取「此刻」，不是落库时刻，否则跨天/跨整点的账会记到错误的桶里。（issue #930）
+		meteredWriter, settleTraffic := attachTrafficMeter(w, r, hostCode, r.Host)
+		w = meteredWriter
+		defer settleTraffic()
 		//检测网站是否已关闭
 		if hostTarget.Host.START_STATUS == 1 {
 			resBytes := []byte("<html><head><title>网站已关闭</title></head><body><center><h1>当前访问网站已关闭</h1> <br><h3></h3></center></body> </html>")
@@ -328,8 +335,8 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			zlog.Debug("解析cache json失败")
 		}
 
-		// 获取请求报文的内容长度
-		contentLength := r.ContentLength
+		// 获取请求报文的内容长度（chunked 时 Go 给 -1，先归一，避免统计出现负数）
+		contentLength := sanitizeContentLength(r.ContentLength)
 		var bodyByte []byte
 
 		// 拷贝一份request的Body ,控制不记录大文件的情况
@@ -883,8 +890,8 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			zlog.Debug("write fail:", zap.Any("", err))
 			return
 		}
-		// 获取请求报文的内容长度
-		contentLength := r.ContentLength
+		// 获取请求报文的内容长度（chunked 时 Go 给 -1，先归一，避免统计出现负数）
+		contentLength := sanitizeContentLength(r.ContentLength)
 
 		//server_online[8081].Svr.Close()
 		var bodyByte []byte

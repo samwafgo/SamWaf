@@ -27,4 +27,5 @@ const (
 	TASK_THREAT_IP_SYNC               = "task_threat_ip_sync"               //威胁情报IP订阅同步
 	TASK_ACCESS_CLEAN                 = "task_access_clean"                 //统一访问认证：清理过期会话/令牌/票据与审计日志
 	TASK_HOSTGUARD_CLEAN_EXPIRED      = "task_hostguard_clean_expired"      //主机防爆破：解封到期封禁(每分钟，因最短阶梯只有5分钟)
+	TASK_TRAFFIC_FLUSH                = "task_traffic_flush"                //站点流量计量落库(30秒一次，引擎侧字节计量与日志解耦)
 )

@@ -543,6 +543,46 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 				return tx.Where("task_method = ?", enums.TASK_ACCESS_CLEAN).Delete(&model.Task{}).Error
 			},
 		},
+		// 迁移: 站点流量计量落库任务
+		// 30 秒一次：内存里累计的真实进出字节按天/小时增量落库。周期越短掉进程时丢得越少，
+		// 但每轮只有 2N 条 UPDATE(N=有流量的站点数)，30 秒对 SQLite 毫无压力。
+		{
+			ID: "202608180001_add_traffic_flush_task",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202608180001: 创建站点流量落库任务")
+
+				var count int64
+				tx.Model(&model.Task{}).Where("task_method = ?", enums.TASK_TRAFFIC_FLUSH).Count(&count)
+				if count > 0 {
+					zlog.Info("站点流量落库任务已存在，跳过", "task_method", enums.TASK_TRAFFIC_FLUSH)
+					return nil
+				}
+
+				task := model.Task{
+					BaseOrm: baseorm.BaseOrm{
+						Id:          uuid.GenUUID(),
+						USER_CODE:   global.GWAF_USER_CODE,
+						Tenant_ID:   global.GWAF_TENANT_ID,
+						CREATE_TIME: customtype.JsonTime(time.Now()),
+						UPDATE_TIME: customtype.JsonTime(time.Now()),
+					},
+					TaskName:   "每30秒把站点流量计量落库",
+					TaskUnit:   enums.TASK_SECOND,
+					TaskValue:  30,
+					TaskAt:     "",
+					TaskMethod: enums.TASK_TRAFFIC_FLUSH,
+				}
+				if err := tx.Create(&task).Error; err != nil {
+					return fmt.Errorf("创建站点流量落库任务失败: %w", err)
+				}
+				zlog.Info("站点流量落库任务创建成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202608180001: 删除站点流量落库任务")
+				return tx.Where("task_method = ?", enums.TASK_TRAFFIC_FLUSH).Delete(&model.Task{}).Error
+			},
+		},
 		// 迁移: 主机防爆破的到期解封任务
 		// 1 分钟一次：阶梯最短一级只有 5 分钟，沿用防火墙那个 5 分钟粒度的话，
 		// 用户会看到"明明写着封5分钟，实际封了10分钟"。

@@ -82,12 +82,13 @@ func CollectStatsFromLogs(logs []*innerbean.WebLog) {
 		Host     string
 	}
 	// 站点聚合值
+	// 注意：这里**不再统计流量字节**。日志里静态资源/大文件/chunked/流式响应根本没有记录，
+	// 靠日志累加出来的流量必然偏小（issue #930）。流量改由引擎侧字节计量 + FlushTrafficStats 落库，
+	// 两边写同一张表的不同列，别再把 traffic_* 加回来，否则会双计。
 	type siteAggVal struct {
 		TotalCount     int64
 		AttackCount    int64
 		NormalCount    int64
-		TrafficIn      int64
-		TrafficOut     int64
 		TotalTimeSpent int64
 	}
 
@@ -161,8 +162,6 @@ func CollectStatsFromLogs(logs []*innerbean.WebLog) {
 		} else {
 			sdv.NormalCount++
 		}
-		sdv.TrafficIn += lg.CONTENT_LENGTH
-		sdv.TrafficOut += lg.RES_CONTENT_LENGTH
 		sdv.TotalTimeSpent += lg.TimeSpent
 
 		// 站点小时级聚合（将时间戳截断到整点，注意UNIX_ADD_TIME是毫秒）
@@ -184,8 +183,6 @@ func CollectStatsFromLogs(logs []*innerbean.WebLog) {
 		} else {
 			shv.NormalCount++
 		}
-		shv.TrafficIn += lg.CONTENT_LENGTH
-		shv.TrafficOut += lg.RES_CONTENT_LENGTH
 		shv.TotalTimeSpent += lg.TimeSpent
 	}
 
@@ -381,8 +378,6 @@ func CollectStatsFromLogs(logs []*innerbean.WebLog) {
 				"total_count":      gorm.Expr("total_count + ?", v.TotalCount),
 				"attack_count":     gorm.Expr("attack_count + ?", v.AttackCount),
 				"normal_count":     gorm.Expr("normal_count + ?", v.NormalCount),
-				"traffic_in":       gorm.Expr("traffic_in + ?", v.TrafficIn),
-				"traffic_out":      gorm.Expr("traffic_out + ?", v.TrafficOut),
 				"total_time_spent": gorm.Expr("total_time_spent + ?", v.TotalTimeSpent),
 				"update_time":      now,
 			})
@@ -405,8 +400,6 @@ func CollectStatsFromLogs(logs []*innerbean.WebLog) {
 				TotalCount:     v.TotalCount,
 				AttackCount:    v.AttackCount,
 				NormalCount:    v.NormalCount,
-				TrafficIn:      v.TrafficIn,
-				TrafficOut:     v.TrafficOut,
 				TotalTimeSpent: v.TotalTimeSpent,
 			}).Error
 			if err != nil {
@@ -434,8 +427,6 @@ func CollectStatsFromLogs(logs []*innerbean.WebLog) {
 				"total_count":      gorm.Expr("total_count + ?", v.TotalCount),
 				"attack_count":     gorm.Expr("attack_count + ?", v.AttackCount),
 				"normal_count":     gorm.Expr("normal_count + ?", v.NormalCount),
-				"traffic_in":       gorm.Expr("traffic_in + ?", v.TrafficIn),
-				"traffic_out":      gorm.Expr("traffic_out + ?", v.TrafficOut),
 				"total_time_spent": gorm.Expr("total_time_spent + ?", v.TotalTimeSpent),
 				"update_time":      now,
 			})
@@ -458,8 +449,6 @@ func CollectStatsFromLogs(logs []*innerbean.WebLog) {
 				TotalCount:     v.TotalCount,
 				AttackCount:    v.AttackCount,
 				NormalCount:    v.NormalCount,
-				TrafficIn:      v.TrafficIn,
-				TrafficOut:     v.TrafficOut,
 				TotalTimeSpent: v.TotalTimeSpent,
 			}).Error
 			if err != nil {

@@ -275,6 +275,9 @@ func TestCrossEngine(t *testing.T) {
 			// —— stats 库用例（见 cross_engine_stats_test.go）——
 			t.Run("stats", func(t *testing.T) { runStatsCases(t, x.stats) })
 
+			// —— ip_tags 排除逻辑（见 cross_engine_iptag_test.go）——
+			t.Run("iptag", func(t *testing.T) { runIPTagCases(t, x.core) })
+
 			// —— 有副作用 service 的 DB-only 路径（见 cross_engine_side_test.go）——
 			t.Run("side", func(t *testing.T) { runSideCases(t, x) })
 

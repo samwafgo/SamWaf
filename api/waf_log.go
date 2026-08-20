@@ -279,7 +279,9 @@ func (w *WafLogAPi) GetAttackIPListApi(c *gin.Context) {
 // GetAllIpTagApi 获取所有ip tag
 func (w *WafLogAPi) GetAllIpTagApi(c *gin.Context) {
 
-	ipAttackTags, err2 := wafLogService.GetAllAttackIPTagListApi()
+	// with_benign=1 用于批量删除弹窗：把被排除的标签也列出来，好清理历史数据
+	withBenign := c.Query("with_benign") == "1" || c.Query("with_benign") == "true"
+	ipAttackTags, err2 := wafLogService.GetAllAttackIPTagListApi(withBenign)
 	if err2 != nil {
 		response.FailWithMessage("访问ip tag 失败:"+err2.Error(), c)
 	} else {

@@ -27,4 +27,6 @@ type AttackIPTag struct {
 type AllIPTag struct {
 	Label string `json:"label"`
 	Value string `json:"value"`
+	// Count 单独返回，前端才能把计数渲染成徽标而不是挤在 Label 里；Label 保持带计数的老格式不动
+	Count int64 `json:"count"`
 }

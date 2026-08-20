@@ -192,6 +192,9 @@ var (
 	GDATA_SHARE_DB_FILE_SIZE int64 = 1024        //1024M 进行分库
 	GDATA_CURRENT_CHANGE     bool  = false       //当前是否正在切换
 	GDATA_IP_TAG_DB          int64 = 0           //IP Tag 存放位置 0 是主库  1是读取 stat库
+	// GCONFIG_ATTACK_TAG_EXCLUDE 风险日志里不算风险的标签（逗号分隔）。"正常"永远排除，不用写这里。
+	// 这些标签既不出现在规则筛选列表里，也不计入「阻止数量」，而是算作放行。
+	GCONFIG_ATTACK_TAG_EXCLUDE string = "ACME证书校验,静态文件访问成功"
 
 	GDATA_CURRENT_LOG_DB_MAP map[string]*gorm.DB //当前自定义的数据库连接 TODO 如果用户打开了多个 会不会影响内存
 	/******WebSocket*********/

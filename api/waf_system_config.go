@@ -3,8 +3,10 @@ package api
 import (
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
+	"SamWaf/service/waf_service"
 	"SamWaf/waftask"
 	"errors"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -103,6 +105,10 @@ func (w *WafSystemConfigApi) ModifyApi(c *gin.Context) {
 	var req request.WafSystemConfigEditReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		if msg, ok := checkSystemConfigValue(req.Item, req.Value); !ok {
+			response.FailWithMessage(msg, c)
+			return
+		}
 		err = wafSystemConfigService.ModifyApi(req)
 		if err != nil {
 			response.FailWithMessage("编辑发生错误", c)
@@ -139,6 +145,11 @@ func (w *WafSystemConfigApi) ModifyByItemApi(c *gin.Context) {
 		return
 	}
 
+	if msg, ok := checkSystemConfigValue(req.Item, req.Value); !ok {
+		response.FailWithMessage(msg, c)
+		return
+	}
+
 	err = wafSystemConfigService.ModifyByItemApi(req)
 	if err != nil {
 		response.FailWithMessage("编辑发生错误: "+err.Error(), c)
@@ -157,4 +168,17 @@ func (w *WafSystemConfigApi) GetDetailByItemApi(c *gin.Context) {
 	} else {
 		response.FailWithMessage("解析失败", c)
 	}
+}
+
+// checkSystemConfigValue 针对特定配置项做写入前校验。
+// 配置值最终会进 SQL 的参数绑定，不存在拼接注入，但这些值来自管理端输入，
+// 该挡的（引号、注释符、控制字符、超长、超多）在写库前就挡掉，别等查询时静默丢弃。
+func checkSystemConfigValue(item string, value string) (string, bool) {
+	switch item {
+	case "attack_tag_exclude":
+		if bad, ok := waf_service.ValidateAttackTagExclude(value); !ok {
+			return fmt.Sprintf("排除标签不合法: %q（不能含引号/分号/反斜杠/注释符/控制字符，单项不超过 255 字符，最多 30 项）", bad), false
+		}
+	}
+	return "", true
 }

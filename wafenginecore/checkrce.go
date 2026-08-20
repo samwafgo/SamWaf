@@ -20,7 +20,21 @@ func (waf *WafEngine) CheckRce(r *http.Request, weblogbean *innerbean.WebLog, fo
 		Title:           "",
 		Content:         "",
 	}
-	isRce, RceName := wafdefenserce.DetermineRCE(weblogbean.URL, weblogbean.COOKIES, weblogbean.POST_FORM)
+	// 查询串已多轮解码；再逐个查已解码的表单值
+	isRce, RceName := wafdefenserce.DetermineRCE(weblogbean.RawQuery, weblogbean.URL, weblogbean.COOKIES, weblogbean.BODY)
+	if isRce == false {
+		for _, values := range formValue {
+			for _, v := range values {
+				if ok, name := wafdefenserce.DetermineRCE(v); ok {
+					isRce, RceName = ok, name
+					break
+				}
+			}
+			if isRce {
+				break
+			}
+		}
+	}
 	if isRce == true {
 		weblogbean.RISK_LEVEL = 3
 		result.IsBlock = true

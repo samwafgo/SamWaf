@@ -234,30 +234,19 @@ func RunLogDBMigrations(db *gorm.DB) error {
 		{
 			ID: "202608040002_add_access_audit_log",
 			Migrate: func(tx *gorm.DB) error {
-				zlog.Info("迁移 202608040002: 创建统一访问认证审计日志表")
-				if err := tx.AutoMigrate(&model.AccessAuditLog{}); err != nil {
-					return fmt.Errorf("创建 access_audit_log 表失败: %w", err)
+				zlog.Info("迁移 202608040002: 创建统一安全审计日志表")
+				// 注：该表已在 202608210001 升级重命名为 security_audit_log，模型 TableName 也随之更新，
+				// 故此处 AutoMigrate 直接建成最终表名；索引统一由 202608210001 负责创建，这里不再单独建，
+				// 避免引用旧表名产生无意义告警。存量库此迁移早已应用、不会重跑，行为不受影响。
+				if err := tx.AutoMigrate(&model.SecurityAuditLog{}); err != nil {
+					return fmt.Errorf("创建安全审计日志表失败: %w", err)
 				}
-				// 管理端最常见的查询是「按时间倒序看某类事件」
-				if err := safeCreateIndex(tx, "access_audit_log", "idx_access_audit_day_event",
-					"CREATE INDEX IF NOT EXISTS idx_access_audit_day_event ON access_audit_log (day, event)"); err != nil {
-					zlog.Warn("创建索引 idx_access_audit_day_event 失败", "error", err.Error())
-				}
-				// 排查「某个账号/某个IP干了什么」
-				if err := safeCreateIndex(tx, "access_audit_log", "idx_access_audit_account",
-					"CREATE INDEX IF NOT EXISTS idx_access_audit_account ON access_audit_log (account_name)"); err != nil {
-					zlog.Warn("创建索引 idx_access_audit_account 失败", "error", err.Error())
-				}
-				if err := safeCreateIndex(tx, "access_audit_log", "idx_access_audit_ip",
-					"CREATE INDEX IF NOT EXISTS idx_access_audit_ip ON access_audit_log (client_ip)"); err != nil {
-					zlog.Warn("创建索引 idx_access_audit_ip 失败", "error", err.Error())
-				}
-				zlog.Info("access_audit_log 表创建成功")
+				zlog.Info("安全审计日志表创建成功")
 				return nil
 			},
 			Rollback: func(tx *gorm.DB) error {
 				zlog.Info("回滚 202608040002: 删除统一访问认证审计日志表")
-				return tx.Migrator().DropTable(&model.AccessAuditLog{})
+				return tx.Migrator().DropTable(&model.SecurityAuditLog{})
 			},
 		},
 		// 迁移: notify_log 增加可调试字段（issue #822）
@@ -370,6 +359,60 @@ func RunLogDBMigrations(db *gorm.DB) error {
 			Rollback: func(tx *gorm.DB) error {
 				zlog.Info("回滚 202608110002: 删除威胁情报排除名单审计表")
 				return tx.Migrator().DropTable(&model.ThreatIPExcludeAudit{})
+			},
+		},
+		// 把 access_audit_log 升级为「统一安全审计流水」security_audit_log：
+		// 重命名表 + 加 Category 列（区分 access/config...），将来所有安全日志都进这张表。
+		// 幂等且三驱动通用：ALTER TABLE ... RENAME TO 在 sqlite/mysql/postgres 都成立（用 GORM Migrator）。
+		{
+			ID: "202608210001_rename_access_audit_to_security_audit",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202608210001: access_audit_log → security_audit_log 并加 category 列")
+				hasOld := tx.Migrator().HasTable("access_audit_log")
+				hasNew := tx.Migrator().HasTable("security_audit_log")
+				// 升级场景：老表在、新表不在 → 重命名（索引随表一起迁移）
+				if hasOld && !hasNew {
+					if err := tx.Migrator().RenameTable("access_audit_log", "security_audit_log"); err != nil {
+						return fmt.Errorf("重命名 access_audit_log→security_audit_log 失败: %w", err)
+					}
+					zlog.Info("已重命名 access_audit_log → security_audit_log")
+				}
+				// 新装或重命名后：对齐结构（补 category 列及其索引）
+				if err := tx.AutoMigrate(&model.SecurityAuditLog{}); err != nil {
+					return fmt.Errorf("对齐 security_audit_log 结构失败: %w", err)
+				}
+				// 存量库重命名后，老索引名 idx_access_audit_* 会随表迁移过来；best-effort 删掉，避免与下面的新名索引重复
+				for _, oldIdx := range []string{"idx_access_audit_day_event", "idx_access_audit_account", "idx_access_audit_ip"} {
+					if tx.Migrator().HasIndex(&model.SecurityAuditLog{}, oldIdx) {
+						_ = tx.Migrator().DropIndex(&model.SecurityAuditLog{}, oldIdx)
+					}
+				}
+				// 索引统一到新表名（IF NOT EXISTS，幂等；新装时补上老迁移里因表名变化没建成的那几条）
+				for _, ix := range []struct{ name, ddl string }{
+					{"idx_security_audit_day_event", "CREATE INDEX IF NOT EXISTS idx_security_audit_day_event ON security_audit_log (day, event)"},
+					{"idx_security_audit_account", "CREATE INDEX IF NOT EXISTS idx_security_audit_account ON security_audit_log (account_name)"},
+					{"idx_security_audit_ip", "CREATE INDEX IF NOT EXISTS idx_security_audit_ip ON security_audit_log (client_ip)"},
+					{"idx_security_audit_category", "CREATE INDEX IF NOT EXISTS idx_security_audit_category ON security_audit_log (category)"},
+				} {
+					if err := safeCreateIndex(tx, "security_audit_log", ix.name, ix.ddl); err != nil {
+						zlog.Warn("创建索引失败", "index", ix.name, "error", err.Error())
+					}
+				}
+				// 存量行回填 category=access（历史事件全是访问认证类）
+				if err := tx.Model(&model.SecurityAuditLog{}).
+					Where("category IS NULL OR category = ?", "").
+					Update("category", model.AuditCategoryAccess).Error; err != nil {
+					zlog.Warn("回填 security_audit_log.category 失败", "error", err.Error())
+				}
+				zlog.Info("security_audit_log 升级完成")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202608210001: security_audit_log → access_audit_log")
+				if tx.Migrator().HasTable("security_audit_log") && !tx.Migrator().HasTable("access_audit_log") {
+					return tx.Migrator().RenameTable("security_audit_log", "access_audit_log")
+				}
+				return nil
 			},
 		},
 	})

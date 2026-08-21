@@ -118,11 +118,11 @@ func (receiver *WafSslConfigService) PrepareExportPaths(selfId, loadCertPath, lo
 		return "", "", errors.New("导出证书路径和导出密钥路径必须同时填写")
 	}
 
-	certPath, err := utils.ValidateCertExportPath(exportCertPath)
+	certPath, err := utils.ValidateCertExportPath(exportCertPath, utils.CertExportCert)
 	if err != nil {
 		return "", "", fmt.Errorf("导出证书路径不合法: %v", err)
 	}
-	keyPath, err := utils.ValidateCertExportPath(exportKeyPath)
+	keyPath, err := utils.ValidateCertExportPath(exportKeyPath, utils.CertExportKey)
 	if err != nil {
 		return "", "", fmt.Errorf("导出密钥路径不合法: %v", err)
 	}
@@ -132,17 +132,15 @@ func (receiver *WafSslConfigService) PrepareExportPaths(selfId, loadCertPath, lo
 
 	// 不能导出到「加载路径」上：那是读入方向，写过去会形成自我覆盖，
 	// 用户放在那里的源文件会被 SamWaf 反向改掉。
+	// 加载路径是「读入」方向、走 SamWaf 自管的 ssl/<id>/ 或用户自填，不受导出允许目录约束；
+	// 这里只需判是否与导出目标撞车（IsSameFilePath 自带 Clean/大小写归一），不做导出策略校验。
 	for _, loadPath := range []string{loadCertPath, loadKeyPath} {
 		lp := strings.TrimSpace(loadPath)
 		if lp == "" {
 			continue
 		}
-		cleanedLoad, lerr := utils.ValidateCertExportPath(lp)
-		if lerr != nil {
-			continue // 加载路径本身不合法就不用比了
-		}
-		if utils.IsSameFilePath(cleanedLoad, certPath) || utils.IsSameFilePath(cleanedLoad, keyPath) {
-			return "", "", fmt.Errorf("导出路径不能和本证书夹的自动加载路径相同: %s", cleanedLoad)
+		if utils.IsSameFilePath(lp, certPath) || utils.IsSameFilePath(lp, keyPath) {
+			return "", "", fmt.Errorf("导出路径不能和本证书夹的自动加载路径相同: %s", lp)
 		}
 	}
 
@@ -180,12 +178,9 @@ func (receiver *WafSslConfigService) checkExportPathConflictWithOthers(selfId, c
 			if op == "" {
 				continue
 			}
-			cleaned, err := utils.ValidateCertExportPath(op)
-			if err != nil {
-				continue
-			}
-			if utils.IsSameFilePath(cleaned, certPath) || utils.IsSameFilePath(cleaned, keyPath) {
-				return fmt.Errorf("该路径已被证书夹[%s]的%s占用: %s", other.Domains, o.usage, cleaned)
+			// 仅判是否撞车，IsSameFilePath 自带 Clean/大小写归一，无需再跑导出策略校验
+			if utils.IsSameFilePath(op, certPath) || utils.IsSameFilePath(op, keyPath) {
+				return fmt.Errorf("该路径已被证书夹[%s]的%s占用: %s", other.Domains, o.usage, op)
 			}
 		}
 	}

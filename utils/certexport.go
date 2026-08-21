@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"SamWaf/global"
 	"bytes"
 	"errors"
 	"fmt"
@@ -19,17 +20,30 @@ import (
 // 方便单测覆盖；编排逻辑在 service 层。设计原则是宁可不导出也不能写坏东西：
 // 任何一条校验不过就返回错误，由调用方记录后继续走原有证书流程。
 
-// certExportReservedDirs SamWaf 自身的运行目录，禁止把证书导出到这些目录下，
-// 避免用户误填路径把数据库、配置、日志覆盖掉。
-var certExportReservedDirs = []string{"conf", "data", "logs", "cache", "plugins", "plugin", "exedata", "download"}
-
 // certExportBaseDir 取 SamWaf 程序所在目录，单测里可替换。
 var certExportBaseDir = GetCurrentDir
 
-// ValidateCertExportPath 校验并规范化证书导出路径。
-// 只做与文件系统状态无关的判断（是否为空、非法字符、是否绝对路径、是否落在保留目录），
-// 返回规范化后的路径。路径为空返回错误，由调用方自行判空决定是否跳过。
-func ValidateCertExportPath(raw string) (string, error) {
+// CertExportKind 区分导出的是证书还是私钥，决定文件名扩展白名单。
+type CertExportKind int
+
+const (
+	CertExportCert CertExportKind = iota // 证书文件，允许 .crt/.pem
+	CertExportKey                        // 私钥文件，允许 .key/.pem
+)
+
+// certExportDefaultSubDir 内置默认导出目录（相对程序目录），恒允许，SamWaf 自管可自建。
+const certExportDefaultSubDir = "data/ssl_export"
+
+// 文件名扩展白名单（小写）。刻意保持很短：够 nginx 等常见用法即可，不给攻击面留花样。
+var (
+	certExportCertExts = []string{".crt", ".pem"}
+	certExportKeyExts  = []string{".key", ".pem"}
+)
+
+// cleanAbsFilePath 只做「与文件系统状态无关」的路径规范化与基本合法性判断：
+// 非空、无控制字符、非目录结尾、必须绝对、base 是具体文件名。返回 Clean 后的绝对路径。
+// 不含允许目录/扩展名这类策略判断——策略在 ValidateCertExportPath。
+func cleanAbsFilePath(raw string) (string, error) {
 	p := strings.TrimSpace(raw)
 	if p == "" {
 		return "", errors.New("导出路径为空")
@@ -38,63 +52,87 @@ func ValidateCertExportPath(raw string) (string, error) {
 	if strings.ContainsAny(p, "\r\n\x00") {
 		return "", errors.New("导出路径包含非法字符(换行或空字符)")
 	}
-
-	// 以分隔符结尾说明用户填的是目录，必须在 Clean 之前判断——Clean 会把尾部分隔符抹掉
+	// 以分隔符结尾说明填的是目录，必须在 Clean 之前判断——Clean 会把尾部分隔符抹掉
 	if os.IsPathSeparator(p[len(p)-1]) {
 		return "", fmt.Errorf("导出路径必须指向具体文件，不能以路径分隔符结尾: %s", raw)
 	}
-
 	cleaned := filepath.Clean(p)
-
-	// 必须是绝对路径：相对路径的基准目录取决于进程工作目录（服务方式启动时不可控），
-	// 用户会以为写到了自己想的位置，实际落到别处。
+	// 必须是绝对路径：相对路径的基准目录取决于进程工作目录（服务方式启动时不可控）
 	if !filepath.IsAbs(cleaned) {
 		return "", fmt.Errorf("导出路径必须是绝对路径: %s", raw)
 	}
-
-	// 必须以文件名结尾，不能是目录或盘符根
 	base := filepath.Base(cleaned)
 	if base == "" || base == "." || base == ".." || base == string(filepath.Separator) {
 		return "", fmt.Errorf("导出路径必须指向具体文件: %s", raw)
 	}
-
-	// 不能写进 SamWaf 自己的运行目录
-	if reserved, err := isUnderSamWafReservedDir(cleaned); err != nil {
-		return "", err
-	} else if reserved != "" {
-		return "", fmt.Errorf("导出路径不能位于 SamWaf 自身的 %s 目录下: %s", reserved, cleaned)
-	}
-
 	return cleaned, nil
 }
 
-// isUnderSamWafReservedDir 判断路径是否落在 SamWaf 保留目录内或就是程序自身，
-// 命中时返回命中的目录名（或 "程序文件"），未命中返回空串。
-func isUnderSamWafReservedDir(cleaned string) (string, error) {
-	baseDir := certExportBaseDir()
-	if baseDir == "" || baseDir == "." {
-		// IDE 调试模式下取不到有效的程序目录，不做该项判断
-		return "", nil
+// certExportAllowedRoots 返回当前允许的导出根目录（已 Clean 的绝对路径）：
+// 内置默认 <程序目录>/data/ssl_export（恒允许）+ config.yml security.ssl_export_allowed_dirs 声明的目录。
+// 只从 config 读，不涉及 DB/API——攻击者/OpenAPI Key/普通 systemAdmin 都改不了这份清单。
+func certExportAllowedRoots() []string {
+	roots := make([]string, 0, 4)
+	// base 可能是 "."（IDE/开发模式，GetCurrentDir 见 SamWafIDE 环境变量）或可执行文件所在目录。
+	// 两种都用 filepath.Abs 归一到绝对路径：Abs(".") = 当前工作目录，与其它模块
+	// filepath.Join(GetCurrentDir(), ...) 的落盘基准一致。绝不能因为 base=="." 就跳过内置根，
+	// 否则开发模式下默认目录失效、空清单时一切导出被拒。
+	if base := certExportBaseDir(); base != "" {
+		if absBase, err := filepath.Abs(base); err == nil {
+			roots = append(roots, filepath.Clean(filepath.Join(absBase, certExportDefaultSubDir)))
+		}
 	}
-	absBase, err := filepath.Abs(baseDir)
+	for _, d := range strings.Split(global.GCONFIG_SSL_EXPORT_ALLOWED_DIRS, ",") {
+		d = strings.TrimSpace(d)
+		if d == "" {
+			continue
+		}
+		cleaned := filepath.Clean(d)
+		if !filepath.IsAbs(cleaned) {
+			continue // 只接受绝对目录，相对目录基准不可控，忽略
+		}
+		roots = append(roots, cleaned)
+	}
+	return roots
+}
+
+// hasAllowedExt 判断文件名扩展是否命中白名单（大小写不敏感）。
+func hasAllowedExt(path string, exts []string) bool {
+	ext := strings.ToLower(filepath.Ext(path))
+	for _, e := range exts {
+		if ext == e {
+			return true
+		}
+	}
+	return false
+}
+
+// ValidateCertExportPath 校验并规范化证书/私钥导出路径。三道关（纵深）：
+//  1. 基本合法性（cleanAbsFilePath）；
+//  2. 文件名扩展白名单（按 kind：证书 .crt/.pem，私钥 .key/.pem）；
+//  3. 必须落在允许根目录之下（内置 data/ssl_export + config.yml 声明的目录）。
+//
+// 任意一关不过即拒绝，把「向宿主机任意路径写文件」收敛为「只能写进运营方声明的目录」。
+func ValidateCertExportPath(raw string, kind CertExportKind) (string, error) {
+	cleaned, err := cleanAbsFilePath(raw)
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 
-	// 程序自身可执行文件：覆盖它等于把 SamWaf 自己写坏
-	if exe, err := os.Executable(); err == nil && exe != "" {
-		if pathEqual(filepath.Clean(exe), cleaned) {
-			return "程序文件", nil
-		}
+	exts, kindName := certExportCertExts, "证书"
+	if kind == CertExportKey {
+		exts, kindName = certExportKeyExts, "私钥"
+	}
+	if !hasAllowedExt(cleaned, exts) {
+		return "", fmt.Errorf("%s导出文件名扩展名不合法，仅允许 %s: %s", kindName, strings.Join(exts, "/"), cleaned)
 	}
 
-	for _, dir := range certExportReservedDirs {
-		reserved := filepath.Join(absBase, dir)
-		if pathEqual(reserved, cleaned) || pathUnder(reserved, cleaned) {
-			return dir, nil
+	for _, root := range certExportAllowedRoots() {
+		if pathEqual(root, cleaned) || pathUnder(root, cleaned) {
+			return cleaned, nil
 		}
 	}
-	return "", nil
+	return "", fmt.Errorf("导出路径不在允许目录内（请使用内置 %s 目录，或在 config.yml 的 security.ssl_export_allowed_dirs 声明目标目录）: %s", certExportDefaultSubDir, cleaned)
 }
 
 // IsSameFilePath 判断两个路径是否指向同一个文件，Windows 下大小写不敏感。

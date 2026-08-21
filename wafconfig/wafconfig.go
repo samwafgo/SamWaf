@@ -227,6 +227,16 @@ func LoadAndInitConfig() {
 		configChanged = true
 	}
 
+	//SSL 证书导出允许的额外目录（绝对路径，逗号分隔）。刻意只放 config.yml、不进数据库/API：
+	//“向宿主机哪些目录落盘”属运营方的带外授权，攻击者/OpenAPI Key/普通 systemAdmin 都不能改。
+	//内置默认 data/ssl_export 恒允许；留空=只允许该默认目录（fail-closed）。
+	if config.IsSet("security.ssl_export_allowed_dirs") {
+		global.GCONFIG_SSL_EXPORT_ALLOWED_DIRS = config.GetString("security.ssl_export_allowed_dirs")
+	} else {
+		config.Set("security.ssl_export_allowed_dirs", global.GCONFIG_SSL_EXPORT_ALLOWED_DIRS)
+		configChanged = true
+	}
+
 	//CORS 跨域来源白名单（逗号分隔，大小写不敏感）。同放 config.yml 而非数据库：
 	//异地部署的前端跨域配错会连不上后端，改文件即可自救；回环/本机来源(dev server)在代码里始终放行。
 	if config.IsSet("security.cors_allow_origins") {

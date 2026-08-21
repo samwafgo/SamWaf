@@ -6,92 +6,125 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"SamWaf/global"
 )
 
 // 证书导出（issue #929）的路径校验与原子写入用例。
-// 这里守的是「宁可不导出也不能写坏东西」这条底线，所以拒绝类用例比成功类用例还多。
+// 收口后（EXT-2026-0821-01）：导出只能落进「内置 data/ssl_export + config 声明目录」，
+// 且文件名扩展受白名单约束。拒绝类用例比成功类用例还多。
+
+// setExportBase 把程序目录指到临时目录，并按需设置 config 允许清单，用例结束还原。
+func setExportBase(t *testing.T, base, allowedDirs string) {
+	t.Helper()
+	oldBase := certExportBaseDir
+	certExportBaseDir = func() string { return base }
+	oldDirs := global.GCONFIG_SSL_EXPORT_ALLOWED_DIRS
+	global.GCONFIG_SSL_EXPORT_ALLOWED_DIRS = allowedDirs
+	t.Cleanup(func() {
+		certExportBaseDir = oldBase
+		global.GCONFIG_SSL_EXPORT_ALLOWED_DIRS = oldDirs
+	})
+}
 
 func TestValidateCertExportPath_拒绝非法输入(t *testing.T) {
-	// 保证不受真实程序目录影响
-	old := certExportBaseDir
-	certExportBaseDir = func() string { return filepath.Join(t.TempDir(), "samwaf") }
-	defer func() { certExportBaseDir = old }()
+	base := filepath.Join(t.TempDir(), "samwaf")
+	setExportBase(t, base, "")
+	def := filepath.Join(base, "data", "ssl_export") // 内置允许目录，用来构造"目录合法但其它不合法"的用例
 
 	cases := []struct {
 		name string
 		path string
+		kind CertExportKind
 	}{
-		{"空字符串", ""},
-		{"全是空格", "   "},
-		{"含换行", absPath(t, "a\ncert.crt")},
-		{"含回车", absPath(t, "a\rcert.crt")},
-		{"含NUL", absPath(t, "a\x00cert.crt")},
-		{"相对路径", "certs/a.crt"},
-		{"点开头的相对路径", "./a.crt"},
-		{"上跳的相对路径", "../a.crt"},
-		{"以分隔符结尾", absPath(t, "certs") + string(filepath.Separator)},
+		{"空字符串", "", CertExportCert},
+		{"全是空格", "   ", CertExportCert},
+		{"含换行", filepath.Join(def, "a\ncert.crt"), CertExportCert},
+		{"含NUL", filepath.Join(def, "a\x00cert.crt"), CertExportCert},
+		{"相对路径", "certs/a.crt", CertExportCert},
+		{"上跳的相对路径", "../a.crt", CertExportCert},
+		{"以分隔符结尾", def + string(filepath.Separator), CertExportCert},
+		{"证书扩展名不合法", filepath.Join(def, "a.txt"), CertExportCert},
+		{"私钥扩展名不合法", filepath.Join(def, "a.crt"), CertExportKey},
+		{"无扩展名", filepath.Join(def, "a"), CertExportCert},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got, err := ValidateCertExportPath(c.path); err == nil {
+			if got, err := ValidateCertExportPath(c.path, c.kind); err == nil {
 				t.Fatalf("期望拒绝 %q，实际通过并返回 %q", c.path, got)
 			}
 		})
 	}
 }
 
-func TestValidateCertExportPath_合法路径被规范化(t *testing.T) {
-	old := certExportBaseDir
-	certExportBaseDir = func() string { return filepath.Join(t.TempDir(), "samwaf") }
-	defer func() { certExportBaseDir = old }()
+func TestValidateCertExportPath_内置默认目录被规范化通过(t *testing.T) {
+	base := filepath.Join(t.TempDir(), "samwaf")
+	setExportBase(t, base, "")
+	def := filepath.Join(base, "data", "ssl_export")
 
-	raw := absPath(t, "certs") + string(filepath.Separator) + "sub" + string(filepath.Separator) + ".." +
-		string(filepath.Separator) + "a.crt"
-	got, err := ValidateCertExportPath("  " + raw + "  ") // 前后空格应被吃掉
+	raw := filepath.Join(def, "sub", "..", "a.crt")
+	got, err := ValidateCertExportPath("  "+raw+"  ", CertExportCert) // 前后空格应被吃掉
 	if err != nil {
-		t.Fatalf("合法路径被拒绝: %v", err)
+		t.Fatalf("内置目录下的合法路径被拒绝: %v", err)
 	}
-	want := filepath.Clean(raw)
-	if got != want {
+	if want := filepath.Clean(raw); got != want {
 		t.Fatalf("规范化结果不对: got=%q want=%q", got, want)
 	}
 }
 
-func TestValidateCertExportPath_拒绝写进SamWaf自身目录(t *testing.T) {
-	base := filepath.Join(t.TempDir(), "samwaf")
-	old := certExportBaseDir
-	certExportBaseDir = func() string { return base }
-	defer func() { certExportBaseDir = old }()
-
-	// 保留目录本身、保留目录下的文件、保留目录下的深层文件，都要拒绝
-	for _, dir := range certExportReservedDirs {
-		for _, p := range []string{
-			filepath.Join(base, dir, "a.crt"),
-			filepath.Join(base, dir, "sub", "deep", "a.crt"),
-		} {
-			if _, err := ValidateCertExportPath(p); err == nil {
-				t.Fatalf("期望拒绝保留目录下的路径: %s", p)
-			}
-		}
+// IDE/开发模式下 GetCurrentDir 返回 "."，内置 data/ssl_export 根必须仍生效（相对当前工作目录解析）。
+func TestValidateCertExportPath_IDE模式点目录内置根仍生效(t *testing.T) {
+	setExportBase(t, ".", "")
+	cwd, err := filepath.Abs(".")
+	if err != nil {
+		t.Fatalf("取当前目录失败: %v", err)
 	}
-
-	// 程序目录下的非保留子目录允许（用户就想放在 samwaf/ssl_export 下是合理的）
-	ok := filepath.Join(base, "ssl_export", "a.crt")
-	if _, err := ValidateCertExportPath(ok); err != nil {
-		t.Fatalf("非保留子目录不该被拒绝: %s, %v", ok, err)
+	ok := filepath.Join(cwd, "data", "ssl_export", "a.crt")
+	if got, e := ValidateCertExportPath(ok, CertExportCert); e != nil {
+		t.Fatalf("开发模式下内置 data/ssl_export 应放行: %s, %v (got=%q)", ok, e, got)
 	}
 }
 
-// 保留目录判定不能被「前缀相同但其实是另一个目录」骗过，例如 data 与 database
-func TestValidateCertExportPath_保留目录不做前缀误伤(t *testing.T) {
+func TestValidateCertExportPath_清单外目录被拒(t *testing.T) {
 	base := filepath.Join(t.TempDir(), "samwaf")
-	old := certExportBaseDir
-	certExportBaseDir = func() string { return base }
-	defer func() { certExportBaseDir = old }()
+	setExportBase(t, base, "")
 
-	p := filepath.Join(base, "database_backup", "a.crt")
-	if _, err := ValidateCertExportPath(p); err != nil {
-		t.Fatalf("database_backup 不是保留目录 data，不该被拒绝: %v", err)
+	// 未在允许清单里的绝对目录（含 SamWaf 自身其它目录），一律拒绝
+	for _, p := range []string{
+		filepath.Join(base, "data", "samwaf_core.db"), // 走后缀会先被扩展名拦，换个 .crt
+		filepath.Join(base, "conf", "a.crt"),
+		filepath.Join(base, "data", "not_export", "a.crt"),
+		filepath.Join(t.TempDir(), "etc", "cron.d", "a.crt"),
+	} {
+		if _, err := ValidateCertExportPath(p, CertExportCert); err == nil {
+			t.Fatalf("清单外路径应被拒绝: %s", p)
+		}
+	}
+}
+
+func TestValidateCertExportPath_config声明目录放行(t *testing.T) {
+	base := filepath.Join(t.TempDir(), "samwaf")
+	nginxDir := filepath.Join(t.TempDir(), "etc", "nginx", "ssl")
+	setExportBase(t, base, nginxDir+" , "+filepath.Join(t.TempDir(), "another")) // 逗号分隔+空格
+
+	// 运营方声明的目录内允许
+	for _, tc := range []struct {
+		path string
+		kind CertExportKind
+	}{
+		{filepath.Join(nginxDir, "site.crt"), CertExportCert},
+		{filepath.Join(nginxDir, "site.key"), CertExportKey},
+		{filepath.Join(nginxDir, "site.pem"), CertExportCert},
+		{filepath.Join(nginxDir, "sub", "site.crt"), CertExportCert},
+	} {
+		if _, err := ValidateCertExportPath(tc.path, tc.kind); err != nil {
+			t.Fatalf("config 声明目录内应放行: %s, %v", tc.path, err)
+		}
+	}
+	// 声明目录的"前缀相同但其实是别的目录"不能被误放行
+	sibling := filepath.Join(t.TempDir(), "etc", "nginx", "ssl_backup", "a.crt")
+	if _, err := ValidateCertExportPath(sibling, CertExportCert); err == nil {
+		t.Fatalf("前缀相同的兄弟目录不该被放行: %s", sibling)
 	}
 }
 

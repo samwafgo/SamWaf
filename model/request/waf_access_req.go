@@ -111,6 +111,7 @@ type WafAccessSessionKickByAccountReq struct {
 // ─────────────── 审计日志 ───────────────
 
 type WafAccessAuditSearchReq struct {
+	Category    string `json:"category"` //审计分类 access/config，空=全部
 	Event       string `json:"event"`
 	AccountName string `json:"account_name"`
 	ClientIP    string `json:"client_ip"`

@@ -7,7 +7,7 @@ import (
 // ThreatIPExcludeAudit 威胁情报排除名单操作审计。
 //
 // 放日志库(GWAF_LOCAL_LOG_DB)而不是核心库：这是只增不改的审计流水，
-// 与 LoginHistory / AccessAuditLog 同性质。
+// 与 LoginHistory / SecurityAuditLog 同性质。
 //
 // 排除名单是**主动降低防护**的操作，删除排除条目后原记录就没了，
 // 所以"曾经排除过什么、谁排的、什么时候"必须单独留一份流水，删除动作本身也要记。

@@ -8,7 +8,7 @@ import (
 
 var (
 	wafAccessSessionService = waf_service.WafAccessSessionServiceApp
-	wafAccessAuditService   = waf_service.WafAccessAuditServiceApp
+	wafAccessAuditService   = waf_service.WafSecurityAuditServiceApp
 )
 
 // TaskAccessClean 统一访问认证的数据清理。

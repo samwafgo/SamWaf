@@ -40,7 +40,7 @@ var (
 	accessSessionService = waf_service.WafAccessSessionServiceApp
 	accessAccountService = waf_service.WafAccessAccountServiceApp
 	accessTicketService  = waf_service.WafAccessTicketServiceApp
-	accessAuditService   = waf_service.WafAccessAuditServiceApp
+	accessAuditService   = waf_service.WafSecurityAuditServiceApp
 	accessHostService    = waf_service.WafHostServiceApp
 )
 

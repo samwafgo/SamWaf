@@ -4,8 +4,16 @@ import (
 	"SamWaf/model/baseorm"
 )
 
+// 审计分类：access_audit_log 已升级为「统一安全审计流水」security_audit_log，
+// 用 Category 区分不同来源的安全事件，前端可分类筛选，将来所有安全日志都汇到这张表。
+const (
+	AuditCategoryAccess = "access" //访问认证类（登录/踢人/票据/未认证拦截等）
+	AuditCategoryConfig = "config" //敏感配置变更类（SSL 证书导出落盘等）
+)
+
 // 审计事件类型
 const (
+	// access 类：统一访问认证
 	AccessEventLoginOK       = "login_ok"       //登录成功
 	AccessEventLoginFail     = "login_fail"     //密码错误
 	AccessEventOtpFail       = "otp_fail"       //动态码错误
@@ -19,7 +27,23 @@ const (
 	AccessEventDenied        = "denied"         //未认证被拦（高频，已节流）
 	AccessEventBypassIP      = "bypass_ip"      //命中免认证IP组放行
 	AccessEventBypassToken   = "bypass_token"   //命中服务令牌头放行
+
+	// config 类：敏感配置变更（config_ 前缀，为将来敏感操作预留命名空间）
+	AuditEventConfigSSLExportWrite = "config_ssl_export_write" //SSL 证书/私钥导出落盘（result 1成功 0失败/被拒）
 )
+
+// auditEventCategory 事件 → 分类映射。未登记的事件默认归 access（历史事件全是 access 类）。
+var auditEventCategory = map[string]string{
+	AuditEventConfigSSLExportWrite: AuditCategoryConfig,
+}
+
+// AuditEventCategory 取事件所属分类，未知事件回退 access。
+func AuditEventCategory(event string) string {
+	if c, ok := auditEventCategory[event]; ok {
+		return c
+	}
+	return AuditCategoryAccess
+}
 
 // 审计结果
 const (
@@ -30,19 +54,20 @@ const (
 // AccessEventNames 事件的中文名，通知正文用。
 // 与上面的常量放在一起，是为了新增事件时一眼看到还有这张表要补。
 var AccessEventNames = map[string]string{
-	AccessEventLoginOK:       "登录成功",
-	AccessEventLoginFail:     "密码错误",
-	AccessEventOtpFail:       "动态码错误",
-	AccessEventLocked:        "登录失败次数超限，已锁定",
-	AccessEventLogout:        "主动注销",
-	AccessEventKick:          "管理端踢下线",
-	AccessEventTicketIssue:   "签发跨站点票据",
-	AccessEventTicketConsume: "票据兑换成功",
-	AccessEventTicketReplay:  "票据重放或伪造",
-	AccessEventBadReturnTo:   "回跳地址异常，疑似开放重定向攻击",
-	AccessEventDenied:        "未认证访问被拦截",
-	AccessEventBypassIP:      "命中免认证IP组放行",
-	AccessEventBypassToken:   "命中服务令牌放行",
+	AccessEventLoginOK:             "登录成功",
+	AccessEventLoginFail:           "密码错误",
+	AccessEventOtpFail:             "动态码错误",
+	AccessEventLocked:              "登录失败次数超限，已锁定",
+	AccessEventLogout:              "主动注销",
+	AccessEventKick:                "管理端踢下线",
+	AccessEventTicketIssue:         "签发跨站点票据",
+	AccessEventTicketConsume:       "票据兑换成功",
+	AccessEventTicketReplay:        "票据重放或伪造",
+	AccessEventBadReturnTo:         "回跳地址异常，疑似开放重定向攻击",
+	AccessEventDenied:              "未认证访问被拦截",
+	AccessEventBypassIP:            "命中免认证IP组放行",
+	AccessEventBypassToken:         "命中服务令牌放行",
+	AuditEventConfigSSLExportWrite: "SSL证书导出落盘",
 }
 
 // AccessEventName 取事件中文名，未知事件回退成原始事件码而不是空串。
@@ -69,7 +94,7 @@ var AccessNotifyEvents = map[string]bool{
 	AccessEventBadReturnTo:  true,
 }
 
-// AccessAuditLog 是统一访问认证的结构化安全事件流水。
+// SecurityAuditLog 是统一访问认证的结构化安全事件流水。
 //
 // 为什么不复用 web_logs：web_logs 是「每请求一条」的高频流水，字段是围绕攻击检测设计的，
 // 按账号/事件类型检索很别扭。本表只记低频的安全语义事件（登录、踢人、票据异常），
@@ -78,9 +103,10 @@ var AccessNotifyEvents = map[string]bool{
 //
 // 表放 log 库（migrations_log.go）而不是 core 库：与 account_logs 同属审计流水，
 // 生命周期一致；且 wafdb/log_shard.go 的分库只搬 web_logs 一张表，本表不受影响。
-type AccessAuditLog struct {
+type SecurityAuditLog struct {
 	baseorm.BaseOrm
-	Event       string `gorm:"size:32" json:"event"` //见上方 AccessEvent* 常量
+	Category    string `gorm:"size:16;index" json:"category"` //审计分类 access/config，见 AuditCategory* 常量
+	Event       string `gorm:"size:32" json:"event"`          //见上方 AccessEvent* / AuditEventConfig* 常量
 	AccountName string `gorm:"size:128" json:"account_name"`
 	SessionCode string `gorm:"size:64" json:"session_code"`
 	Host        string `gorm:"size:255" json:"host"`
@@ -96,6 +122,6 @@ type AccessAuditLog struct {
 	Day         int    `json:"day"`                     //20260804，按天清理与按天统计都靠它
 }
 
-func (AccessAuditLog) TableName() string {
-	return "access_audit_log"
+func (SecurityAuditLog) TableName() string {
+	return "security_audit_log"
 }

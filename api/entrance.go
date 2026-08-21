@@ -97,7 +97,7 @@ var (
 	wafAccessAccountService = waf_service.WafAccessAccountServiceApp
 	wafAccessConfigService  = waf_service.WafAccessConfigServiceApp
 	wafAccessSessionService = waf_service.WafAccessSessionServiceApp
-	wafAccessAuditService   = waf_service.WafAccessAuditServiceApp
+	wafAccessAuditService   = waf_service.WafSecurityAuditServiceApp
 	wafIPGroupItemService   = waf_service.WafIPGroupItemServiceApp
 
 	wafAccountService      = waf_service.WafAccountServiceApp

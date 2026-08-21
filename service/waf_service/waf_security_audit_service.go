@@ -15,9 +15,9 @@ import (
 	"time"
 )
 
-type WafAccessAuditService struct{}
+type WafSecurityAuditService struct{}
 
-var WafAccessAuditServiceApp = new(WafAccessAuditService)
+var WafSecurityAuditServiceApp = new(WafSecurityAuditService)
 
 // deniedThrottleMinutes 「未认证被拦」事件的审计节流窗口。
 //
@@ -55,7 +55,7 @@ type AuditEntry struct {
 // denied 由 WriteDenied 做节流后再进来。
 //
 // 约束：Message 里绝不能出现密码、Cookie、票据明文。审计日志的可见性比业务日志更广。
-func (receiver *WafAccessAuditService) Write(e AuditEntry) {
+func (receiver *WafSecurityAuditService) Write(e AuditEntry) {
 	if global.GWAF_LOCAL_LOG_DB == nil {
 		return
 	}
@@ -66,7 +66,7 @@ func (receiver *WafAccessAuditService) Write(e AuditEntry) {
 	if e.Country == "" && e.City == "" {
 		e.Country, e.City = accessLookupLocation(e.ClientIP)
 	}
-	bean := model.AccessAuditLog{
+	bean := model.SecurityAuditLog{
 		BaseOrm: baseorm.BaseOrm{
 			Id:          uuid.GenUUID(),
 			USER_CODE:   global.GWAF_USER_CODE,
@@ -74,6 +74,7 @@ func (receiver *WafAccessAuditService) Write(e AuditEntry) {
 			CREATE_TIME: customtype.JsonTime(now),
 			UPDATE_TIME: customtype.JsonTime(now),
 		},
+		Category:    model.AuditEventCategory(e.Event),
 		Event:       e.Event,
 		AccountName: e.AccountName,
 		SessionCode: e.SessionCode,
@@ -125,7 +126,7 @@ func accessLookupLocation(ip string) (string, string) {
 //  1. AccessNotifyEvents 白名单，高频事件（denied/login_fail）根本不在里面
 //  2. 同一「事件 + IP」5 分钟只发一次 —— 票据重放、回跳地址异常这类是攻击者可以
 //     无限重复触发的，白名单挡不住重复，节流才行
-func (receiver *WafAccessAuditService) notify(bean model.AccessAuditLog, now time.Time) {
+func (receiver *WafSecurityAuditService) notify(bean model.SecurityAuditLog, now time.Time) {
 	abnormal, ok := model.AccessNotifyEvents[bean.Event]
 	if !ok || global.GQEQUE_MESSAGE_DB == nil {
 		return
@@ -164,7 +165,7 @@ func (receiver *WafAccessAuditService) notify(bean model.AccessAuditLog, now tim
 // 用于攻击者可以无限重复触发的事件（未认证被拦、锁定期内继续尝试登录）。
 // 不节流的话，一次目录扫描或一轮爆破就能把审计表刷爆，
 // 真正有价值的登录/踢人/票据异常记录反而被淹没，同时放大同步写库的压力。
-func (receiver *WafAccessAuditService) WriteThrottled(e AuditEntry) {
+func (receiver *WafSecurityAuditService) WriteThrottled(e AuditEntry) {
 	key := enums.CACHE_ACCESS_AUDIT + e.Event + ":" + e.ClientIP + ":" + e.Host
 	if global.GCACHE_WAFCACHE.IsKeyExist(key) {
 		return
@@ -174,18 +175,21 @@ func (receiver *WafAccessAuditService) WriteThrottled(e AuditEntry) {
 }
 
 // WriteDenied 记一条「未认证被拦」（本表唯一的高频事件），带节流。
-func (receiver *WafAccessAuditService) WriteDenied(e AuditEntry) {
+func (receiver *WafSecurityAuditService) WriteDenied(e AuditEntry) {
 	e.Event = model.AccessEventDenied
 	e.Result = model.AccessAuditFail
 	receiver.WriteThrottled(e)
 }
 
-func (receiver *WafAccessAuditService) GetListApi(req request.WafAccessAuditSearchReq) ([]model.AccessAuditLog, int64, error) {
-	var list []model.AccessAuditLog
+func (receiver *WafSecurityAuditService) GetListApi(req request.WafAccessAuditSearchReq) ([]model.SecurityAuditLog, int64, error) {
+	var list []model.SecurityAuditLog
 	var total int64 = 0
 
-	db := global.GWAF_LOCAL_LOG_DB.Model(&model.AccessAuditLog{}).
+	db := global.GWAF_LOCAL_LOG_DB.Model(&model.SecurityAuditLog{}).
 		Where("user_code = ? and tenant_id = ?", global.GWAF_USER_CODE, global.GWAF_TENANT_ID)
+	if strings.TrimSpace(req.Category) != "" {
+		db = db.Where("category = ?", strings.TrimSpace(req.Category))
+	}
 	if strings.TrimSpace(req.Event) != "" {
 		db = db.Where("event = ?", strings.TrimSpace(req.Event))
 	}
@@ -215,11 +219,11 @@ func (receiver *WafAccessAuditService) GetListApi(req request.WafAccessAuditSear
 }
 
 // CleanExpired 按保留天数清理，由定时任务调用。
-func (receiver *WafAccessAuditService) CleanExpired(keepDays int) int64 {
+func (receiver *WafSecurityAuditService) CleanExpired(keepDays int) int64 {
 	if keepDays <= 0 {
 		keepDays = 90
 	}
 	cutoffDay, _ := strconv.Atoi(time.Now().AddDate(0, 0, -keepDays).Format("20060102"))
-	r := global.GWAF_LOCAL_LOG_DB.Where("day < ?", cutoffDay).Delete(&model.AccessAuditLog{})
+	r := global.GWAF_LOCAL_LOG_DB.Where("day < ?", cutoffDay).Delete(&model.SecurityAuditLog{})
 	return r.RowsAffected
 }

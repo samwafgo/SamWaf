@@ -43,9 +43,14 @@ func setupSslExportTestDB(t *testing.T) *gorm.DB {
 	oldDB, oldTenant, oldUser := global.GWAF_LOCAL_DB, global.GWAF_TENANT_ID, global.GWAF_USER_CODE
 	global.GWAF_LOCAL_DB = db
 	global.GWAF_TENANT_ID, global.GWAF_USER_CODE = "SamWafCom", "user-uuid-sslexport"
+	// 收口后导出路径要落在允许目录内；用例都写到 t.TempDir()（均在 os.TempDir() 之下），
+	// 这里把 OS 临时根声明为允许目录，等价于运营方在 config.yml 里放行了导出目标目录。
+	oldExportDirs := global.GCONFIG_SSL_EXPORT_ALLOWED_DIRS
+	global.GCONFIG_SSL_EXPORT_ALLOWED_DIRS = os.TempDir()
 	t.Cleanup(func() {
 		global.GWAF_LOCAL_DB = oldDB
 		global.GWAF_TENANT_ID, global.GWAF_USER_CODE = oldTenant, oldUser
+		global.GCONFIG_SSL_EXPORT_ALLOWED_DIRS = oldExportDirs
 		if sqlDB, e := db.DB(); e == nil {
 			_ = sqlDB.Close()
 		}

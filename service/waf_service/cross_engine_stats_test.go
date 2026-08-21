@@ -10,6 +10,7 @@ package waf_service
 
 import (
 	"SamWaf/common/uuid"
+	"SamWaf/customtype"
 	"SamWaf/model"
 	req "SamWaf/model/request"
 	response2 "SamWaf/model/response"
@@ -89,6 +90,64 @@ func runStatsCases(t *testing.T, statsdb *gorm.DB) {
 		// 去重 IP：今日放行 {1.1.1.1, 4.4.4.4}=2，今日阻止 {1.1.1.1, 2.2.2.2}=2
 		eq64(t, "今日放行去重IP数", res.NormalIpCountOfToday, 2)
 		eq64(t, "今日拦截去重IP数", res.IllegalIpCountOfToday, 2)
+	})
+
+	// 同期环比：用 10 天前那一天做窗口，和上面 今日/昨日 的种子完全隔开，
+	// 避免测试跑在一天里的不同时刻结果漂移。
+	t.Run("DayCompareSamePeriod", func(t *testing.T) {
+		anchor := now.AddDate(0, 0, -10)
+		dayStart := time.Date(anchor.Year(), anchor.Month(), anchor.Day(), 0, 0, 0, 0, anchor.Location())
+		prevStart := dayStart.AddDate(0, 0, -1)
+		dayInt, _ := strconv.Atoi(dayStart.Format("20060102"))
+		prevInt, _ := strconv.Atoi(prevStart.Format("20060102"))
+
+		newHour := func(ts int64, total, attack int64) *model.StatsSiteHour {
+			return &model.StatsSiteHour{BaseOrm: newBase(uuid.GenUUID()), HostCode: "hc", Host: "c.com",
+				HourTime: ts, TotalCount: total, AttackCount: attack, NormalCount: total - attack}
+		}
+		// 窗口内：当天 03:00 攻击4/总10；前一天 03:00 攻击2/总20
+		must(t, statsdb.Create(newHour(dayStart.Add(3*time.Hour).Unix(), 10, 4)).Error)
+		must(t, statsdb.Create(newHour(prevStart.Add(3*time.Hour).Unix(), 20, 2)).Error)
+		// 窗口外（12点之后）：不能被算进来
+		must(t, statsdb.Create(newHour(dayStart.Add(20*time.Hour).Unix(), 999, 999)).Error)
+		must(t, statsdb.Create(newHour(prevStart.Add(20*time.Hour).Unix(), 999, 999)).Error)
+
+		newIPAt := func(ip string, day int, ct time.Time) *model.StatsIPDay {
+			b := newBase(uuid.GenUUID())
+			b.CREATE_TIME = customtype.JsonTime(ct)
+			b.UPDATE_TIME = customtype.JsonTime(ct)
+			return &model.StatsIPDay{BaseOrm: b, HostCode: "hc", Host: "c.com", Day: day, IP: ip, Type: "阻止", Count: 1}
+		}
+		// 去重IP：当天窗口内 {5.5.5.5}=1（6.6.6.6 在 13:00 出现，窗口外）；前一天窗口内 {7.7.7.7,8.8.8.8}=2
+		must(t, statsdb.Create(newIPAt("5.5.5.5", dayInt, dayStart.Add(time.Hour))).Error)
+		must(t, statsdb.Create(newIPAt("6.6.6.6", dayInt, dayStart.Add(13*time.Hour))).Error)
+		must(t, statsdb.Create(newIPAt("7.7.7.7", prevInt, prevStart.Add(2*time.Hour))).Error)
+		must(t, statsdb.Create(newIPAt("8.8.8.8", prevInt, prevStart.Add(5*time.Hour))).Error)
+
+		attack, visit, illegalIP, hours := WafStatServiceApp.buildDayCompare(dayStart.Add(12 * time.Hour))
+		if hours != 12 {
+			t.Fatalf("对比窗口期望 12 小时，实际 %d", hours)
+		}
+		eq64(t, "同期攻击数(今)", attack.Current, 4)
+		eq64(t, "同期攻击数(昨)", attack.Previous, 2)
+		if !attack.HasCompare || attack.Trend != "up" || attack.Percent != 100 {
+			t.Fatalf("攻击同期对比期望 up/100%%，实际 %+v", attack)
+		}
+		eq64(t, "同期访问数(今)", visit.Current, 10)
+		eq64(t, "同期访问数(昨)", visit.Previous, 20)
+		if visit.Trend != "down" || visit.Percent != -50 {
+			t.Fatalf("访问同期对比期望 down/-50%%，实际 %+v", visit)
+		}
+		eq64(t, "同期异常IP(今)", illegalIP.Current, 1)
+		eq64(t, "同期异常IP(昨)", illegalIP.Previous, 2)
+		if illegalIP.Trend != "down" || illegalIP.Percent != -50 {
+			t.Fatalf("异常IP同期对比期望 down/-50%%，实际 %+v", illegalIP)
+		}
+
+		// 零点整不足一个整点小时，直接判定"无对比"
+		if _, _, _, h0 := WafStatServiceApp.buildDayCompare(dayStart); h0 != 0 {
+			t.Fatalf("零点整期望 0 小时窗口，实际 %d", h0)
+		}
 	})
 
 	t.Run("StatHomeSumDayRange", func(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"SamWaf/common/zlog"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -59,6 +60,26 @@ func (w *WafStatApi) StatHomeSumDayApi(c *gin.Context) {
 		return
 	}
 	response.OkWithDetailed(wafStat, "获取成功", c)
+}
+
+// StatQpsTrendApi 获取实时QPS趋势
+// @Summary      获取实时QPS趋势
+// @Description  返回最近若干秒的QPS采样点（内存采样，不落库），用于首页QPS趋势图
+// @Tags         统计-数据统计
+// @Produce      json
+// @Param        limit  query     int  false  "采样点个数(1-120，默认60)"
+// @Success      200    {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /wafstatqpstrend [get]
+func (w *WafStatApi) StatQpsTrendApi(c *gin.Context) {
+	limit, err := strconv.Atoi(c.DefaultQuery("limit", "60"))
+	if err != nil || limit <= 0 {
+		limit = 60
+	}
+	if limit > 120 {
+		limit = 120
+	}
+	response.OkWithDetailed(wafStatService.StatQpsTrendApi(limit), "获取成功", c)
 }
 
 // StatHomeSumDayRangeApi 按日期范围统计访问量

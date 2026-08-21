@@ -372,6 +372,8 @@ func UpdateRealtimeQPS() {
 
 			atomic.StoreUint64(&GWAF_CURRENT_REALTIME_QPS, realQPS)
 			atomic.StoreUint64(&GWAF_CURRENT_REALTIME_LOG_QPS, realLogQPS)
+			// 留一份采样历史，首页QPS卡片的趋势图直接读内存，不落库
+			AppendQPSSample(currentTime, realQPS)
 		}
 		// 如果时间差小于1秒，保持之前的QPS值不变
 	} else {

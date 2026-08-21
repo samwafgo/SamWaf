@@ -192,6 +192,49 @@ func RunStatsDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移5: 首页"较昨日同期"对比用的索引
+		{
+			ID: "202608200001_create_compare_indexes",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202608200001: 创建首页同期对比索引（大表建索引耗时属正常，请耐心等待）")
+
+				ddlDB := tx.Session(&gorm.Session{
+					Logger: NewGormZLogger().LogMode(logger.Silent),
+				})
+
+				indexes := []struct {
+					name  string
+					table string
+					sql   string
+				}{
+					// 同期去重IP：count(distinct ip) where day=? and type=? and create_time<?
+					// 四列顺序即过滤顺序，ip 放最后让它变成覆盖索引，避免回表
+					{"idx_stats_ip_days_day_type_ct", "stats_ip_days",
+						"CREATE INDEX IF NOT EXISTS idx_stats_ip_days_day_type_ct ON stats_ip_days (day, type, create_time, ip)"},
+					// 同期攻击/访问量：小时表只按 hour_time range 扫，原有索引以 host_code 打头用不上
+					{"idx_stats_site_hours_time", "stats_site_hours",
+						"CREATE INDEX IF NOT EXISTS idx_stats_site_hours_time ON stats_site_hours (hour_time)"},
+				}
+
+				for _, idx := range indexes {
+					zlog.Info("创建索引中...", "index", idx.name)
+					start := time.Now()
+					if err := safeCreateIndex(ddlDB, idx.table, idx.name, idx.sql); err != nil {
+						return fmt.Errorf("创建同期对比索引 %s 失败: %w", idx.name, err)
+					}
+					zlog.Info("索引创建完成", "index", idx.name, "耗时", time.Since(start).String())
+				}
+
+				zlog.Info("迁移 202608200001: 首页同期对比索引创建完成")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202608200001: 删除首页同期对比索引")
+				_ = tx.Exec("DROP INDEX IF EXISTS idx_stats_ip_days_day_type_ct").Error
+				_ = tx.Exec("DROP INDEX IF EXISTS idx_stats_site_hours_time").Error
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

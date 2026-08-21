@@ -3,21 +3,53 @@ package response
 import "SamWaf/model"
 
 type WafStat struct {
-	AttackCountOfToday          int64  //今日攻击数量
-	VisitCountOfToday           int64  //今天访问数量
-	AttackCountOfYesterday      int64  //昨日攻击数量
-	VisitCountOfYesterday       int64  //昨日访问数量
-	AttackCountOfLastWeekToday  int64  //上周攻击数量
-	VisitCountOfLastWeekToday   int64  //上周访问数量
-	NormalIpCountOfToday        int64  //今日正常IP数量
-	IllegalIpCountOfToday       int64  //今日非法IP数量
-	NormalCountryCountOfToday   int64  //今日正常国家数量
-	IllegalCountryCountOfToday  int64  //今日非法国家数量
-	NormalProvinceCountOfToday  int64  //今日正常省份数量
-	IllegalProvinceCountOfToday int64  //今日非法省份数量
-	NormalCityCountOfToday      int64  //今日正常城市数量
-	IllegalCityCountOfToday     int64  //今日非法城市数量
-	CurrentQps                  uint64 //当前QPS
+	AttackCountOfToday          int64          //今日攻击数量
+	VisitCountOfToday           int64          //今天访问数量
+	AttackCountOfYesterday      int64          //昨日攻击数量
+	VisitCountOfYesterday       int64          //昨日访问数量
+	AttackCountOfLastWeekToday  int64          //上周攻击数量
+	VisitCountOfLastWeekToday   int64          //上周访问数量
+	NormalIpCountOfToday        int64          //今日正常IP数量
+	IllegalIpCountOfToday       int64          //今日非法IP数量
+	NormalCountryCountOfToday   int64          //今日正常国家数量
+	IllegalCountryCountOfToday  int64          //今日非法国家数量
+	NormalProvinceCountOfToday  int64          //今日正常省份数量
+	IllegalProvinceCountOfToday int64          //今日非法省份数量
+	NormalCityCountOfToday      int64          //今日正常城市数量
+	IllegalCityCountOfToday     int64          //今日非法城市数量
+	CurrentQps                  uint64         //当前QPS
+	CompareHours                int            //同期对比窗口(今天已走完的整点小时数，0表示不足1小时无法对比)
+	AttackCompare               WafStatCompare //今日攻击数 较昨日同期
+	VisitCompare                WafStatCompare //今日访问数 较昨日同期
+	IllegalIpCompare            WafStatCompare //今日异常IP 较昨日同期
+}
+
+/*
+*
+同期环比：今天 00:00~当前整点 与 昨天同一时段的对比。
+之所以按整点截断而不是"到此刻"，是因为小时级统计表只有整点粒度，
+两侧必须同口径，比值才有意义（拿今天半天去比昨天全天永远是大幅下跌）。
+*/
+type WafStatCompare struct {
+	HasCompare bool    //是否有可对比的同期数据(当天不足1小时时为false)
+	Current    int64   //今日同期值
+	Previous   int64   //昨日同期值
+	Percent    float64 //变化百分比(昨日为0且今日有值时记为100)
+	Trend      string  //up/down/flat
+}
+
+/*
+*
+首页QPS趋势(内存采样，不落库)
+*/
+type WafQpsTrendPoint struct {
+	T int64  //采样时刻(unix秒)
+	V uint64 //该秒QPS
+}
+type WafQpsTrend struct {
+	Current uint64             //当前QPS
+	Max     uint64             //窗口内峰值
+	Points  []WafQpsTrendPoint //采样点(时间升序)
 }
 type WafStatRange struct {
 	AttackCountOfRange map[int]int64 //区间攻击数量

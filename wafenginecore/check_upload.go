@@ -6,12 +6,14 @@ import (
 	"SamWaf/model/detection"
 	"SamWaf/model/wafenginmodel"
 	"bytes"
+	"errors"
 	"io"
 	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -84,6 +86,97 @@ func matchDangerousExt(filename, blacklist string) (bool, string) {
 		}
 	}
 	return false, ""
+}
+
+// reUploadCDFilename 抓 Content-Disposition 里出现的每一个 filename / filename* / filename*N* 参数原值
+var reUploadCDFilename = regexp.MustCompile(`(?i)(?:^|;)\s*filename\s*(\*\s*\d*\s*\*?)?\s*=\s*("(?:[^"\\]|\\.)*"|[^;]*)`)
+
+// unquoteCDValue 去引号并还原 \" 转义
+func unquoteCDValue(v string) string {
+	v = strings.TrimSpace(v)
+	if len(v) >= 2 && v[0] == '"' && v[len(v)-1] == '"' {
+		inner := v[1 : len(v)-1]
+		var b strings.Builder
+		for i := 0; i < len(inner); i++ {
+			if inner[i] == '\\' && i+1 < len(inner) {
+				i++
+			}
+			b.WriteByte(inner[i])
+		}
+		return b.String()
+	}
+	return v
+}
+
+// stripRFC2231Charset 去掉 charset'lang' 前缀（无论该字符集 Go 是否支持——后端往往照收）
+func stripRFC2231Charset(v string) string {
+	if i := strings.Index(v, "'"); i >= 0 {
+		if j := strings.Index(v[i+1:], "'"); j >= 0 {
+			return v[i+1+j+1:]
+		}
+	}
+	return v
+}
+
+// percentDecodeLoose 宽松百分号解码，非法序列原样保留
+func percentDecodeLoose(s string) string {
+	if !strings.Contains(s, "%") {
+		return s
+	}
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == '%' && i+2 < len(s) {
+			if h, err := strconv.ParseUint(s[i+1:i+3], 16, 8); err == nil {
+				b.WriteByte(byte(h))
+				i += 2
+				continue
+			}
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}
+
+// uploadPartFileNames 收集该 part 所有“可能被后端解析成文件名”的候选。
+// Go 的 part.FileName() 会丢弃不支持字符集的 filename*、并在参数重复时整体报错返回空，
+// 而后端(Werkzeug/PHP 等)照样能解析出 shell.php —— 只信任单一解析结果即形成绕过。
+func uploadPartFileNames(part *multipart.Part) []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(s string) {
+		s = strings.TrimSpace(s)
+		if s == "" || seen[s] {
+			return
+		}
+		seen[s] = true
+		out = append(out, s)
+	}
+	addWithDecoded := func(s string) {
+		add(s)
+		if d := percentDecodeLoose(s); d != s {
+			add(d)
+		}
+	}
+	add(part.FileName())
+	var segs []string
+	// Values 而非 Get：头部重复出现时 Go 只取第一条，后端可能取最后一条
+	for _, cd := range part.Header.Values("Content-Disposition") {
+		for _, m := range reUploadCDFilename.FindAllStringSubmatch(cd, -1) {
+			star := strings.TrimSpace(m[1])
+			val := unquoteCDValue(m[2])
+			if star != "" { // 扩展形式 filename* / filename*N*
+				if strings.HasSuffix(star, "*") {
+					val = stripRFC2231Charset(val)
+				}
+				segs = append(segs, val)
+			}
+			addWithDecoded(val)
+		}
+	}
+	if len(segs) > 1 { // RFC2231 分段拼接：filename*0*=sh; filename*1*=ell.php
+		addWithDecoded(strings.Join(segs, ""))
+	}
+	return out
 }
 
 // overUploadSize 文件大小是否超过上限
@@ -215,14 +308,23 @@ func (waf *WafEngine) CheckUpload(r *http.Request, weblogbean *innerbean.WebLog,
 
 	mr := multipart.NewReader(bytes.NewReader(raw), boundary)
 	for {
-		part, e := mr.NextPart()
+		// NextRawPart：不做 quoted-printable 解码，扫到的字节与后端收到的一致
+		part, e := mr.NextRawPart()
 		if e != nil {
-			break
+			if errors.Is(e, io.EOF) {
+				break
+			}
+			// 报文畸形会让扫描提前终止而后端仍能解析出后续 part，fail-closed
+			return uploadBlock(weblogbean, "文件上传检测-报文异常", "multipart报文解析异常，已拦截")
 		}
-		fn := part.FileName()
-		if fn == "" { // 非文件字段跳过（文本字段由 SQLi/XSS 检测覆盖）
+		fileNames := uploadPartFileNames(part)
+		if len(fileNames) == 0 { // 非文件字段跳过（文本字段由 SQLi/XSS 检测覆盖）
 			part.Close()
 			continue
+		}
+		fn := part.FileName()
+		if fn == "" { // Go 解析不出但后端能解析出，取候选做后续内容判定
+			fn = fileNames[0]
 		}
 		declaredCT := part.Header.Get("Content-Type")
 		fileContent, _ := io.ReadAll(io.LimitReader(part, limit+1))
@@ -230,8 +332,10 @@ func (waf *WafEngine) CheckUpload(r *http.Request, weblogbean *innerbean.WebLog,
 
 		// 便宜→贵，命中即短路
 		if cfg.CheckExt == 1 {
-			if bad, ext := matchDangerousExt(fn, cfg.ExtBlacklist); bad {
-				return uploadBlock(weblogbean, "文件上传检测-危险扩展名", "检测到危险文件扩展名(."+ext+")，已拦截")
+			for _, name := range fileNames { // 逐个候选校验，防解析差异绕过
+				if bad, ext := matchDangerousExt(name, cfg.ExtBlacklist); bad {
+					return uploadBlock(weblogbean, "文件上传检测-危险扩展名", "检测到危险文件扩展名(."+ext+")，已拦截")
+				}
 			}
 		}
 		if cfg.CheckSize == 1 && overUploadSize(len(fileContent), cfg.MaxSizeKB) {

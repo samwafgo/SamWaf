@@ -77,6 +77,7 @@ type APIGroup struct {
 	WafAppApi
 	WafAIApi
 	WafUIPreferenceApi
+	WafUpgradeNoticeApi
 }
 
 var APIGroupAPP = new(APIGroup)
@@ -171,4 +172,6 @@ var (
 	wafAppChangeLogService  = waf_service.WafAppChangeLogServiceApp
 
 	wafUIPreferenceService = waf_service.WafUIPreferenceServiceApp
+
+	wafUpgradeNoticeService = waf_service.WafUpgradeNoticeServiceApp
 )

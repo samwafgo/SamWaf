@@ -1,0 +1,133 @@
+# 升级须知内置清单
+#
+# 随版本编译进二进制，不走网络。发版时按 SamWafTechDoc/Plan/2026-08-20-版本升级须知-实施计划.md §10
+# 与 Update.md 的「重要说明」一起维护。
+#
+# 硬性要求（构建期单测 wafupgradenotice/notes_test.go 强制）：
+#   1. id 全局唯一、只含小写字母/数字/下划线，一旦发布不得修改（它是幂等键）
+#   2. version 必须是合法 semver（形如 v1.3.24）
+#   3. kind=action 时，中英两套的 effect_on / effect_off / revert 都必填，
+#      且 effect_off 必须写清代价（磁盘、性能、可能误拦、可能掉线），不许只写好处
+#   4. page 只能是站内相对路径，doc 只能指向 https://doc.samwaf.com/
+#   5. fresh_install: true 的条目只在"全新安装"时生成，不参与版本区间计算
+
+notes:
+  # ---------------- 全新安装建议 ----------------
+  - id: fresh_change_default_password
+    version: v1.3.21
+    kind: action
+    level: high
+    fresh_install: true
+    page: /account/Account
+    doc: https://doc.samwaf.com/quickstart/Update.html
+    apply:
+      type: navigate
+    zh:
+      title: 立即修改初始登录口令
+      detail: 全新安装的初始口令是一次性凭据，写在安装目录 data/initial_password.txt 里，同时也打印在启动日志中。
+      effect_on: 改完之后：初始口令立即失效，data/initial_password.txt 与启动日志里的那串字符再也登不进来。
+      effect_off: 不改：任何拿到过安装日志、备份包或服务器文件的人，都能直接登录管理端，等同于把 WAF 的控制权公开。
+      revert: 口令可以随时再改；忘记时可用后台命令行重置。
+    en:
+      title: Change the initial login password now
+      detail: A fresh install generates a one-time password, written to data/initial_password.txt under the install directory and also printed to the startup log.
+      effect_on: After changing it the initial password stops working immediately, so the string in data/initial_password.txt and in the startup log can no longer be used to log in.
+      effect_off: If you skip this, anyone who has ever seen the install log, a backup archive or the server filesystem can log into the console - effectively handing over control of the WAF.
+      revert: You can change the password again at any time; if you forget it, reset it from the command line.
+
+  - id: fresh_manage_trusted_proxies
+    version: v1.3.21
+    kind: check
+    level: high
+    fresh_install: true
+    page: /sys/SystemConfig
+    doc: https://doc.samwaf.com/quickstart/Update.html
+    apply:
+      type: navigate
+    zh:
+      title: 管理端前面有反向代理时，需要声明可信代理网段
+      detail: 如果管理端（默认 26666 端口）前面还有 Nginx、云负载或 CDN，SamWaf 默认只认直连来源 IP，取到的会是代理机的地址。请在 conf/config.yml 的 security.manage_trusted_proxies 或「参数设置」里填写可信代理网段（CIDR，逗号分隔）。管理端直接对外、前面没有任何代理时，不需要动。
+      effect_on: 配置后：管理端 IP 白名单、登录失败封禁、登录历史都基于真实客户端 IP 判定。
+      effect_off: 不配置：以上判定全部落在代理机 IP 上——IP 白名单形同虚设，一次爆破就可能把所有人一起挡在门外。
+      revert: 清空该配置即恢复为"只认直连 IP"。
+    en:
+      title: Declare trusted proxy ranges if the console sits behind a reverse proxy
+      detail: If Nginx, a cloud load balancer or a CDN sits in front of the console (port 26666 by default), SamWaf only trusts the direct peer address, which is the proxy's IP. Set security.manage_trusted_proxies in conf/config.yml (CIDR list, comma separated) or on the Parameter Settings page. Nothing to do if the console is exposed directly.
+      effect_on: Once configured, the console IP allowlist, login failure banning and login history all work off the real client IP.
+      effect_off: Left unset, all of those decisions are made against the proxy's IP - the IP allowlist becomes meaningless and a single brute-force burst can lock everyone out at once.
+      revert: Clearing the setting restores the "direct peer only" behaviour.
+
+  - id: fresh_enable_otp
+    version: v1.3.21
+    kind: action
+    level: normal
+    fresh_install: true
+    page: /account/OTP
+    doc: https://doc.samwaf.com/quickstart/Update.html
+    apply:
+      type: navigate
+    zh:
+      title: 建议为管理端开启两步验证（OTP）
+      detail: 给管理端登录加一层 TOTP 动态口令，支持任意标准验证器 App。
+      effect_on: 开启后：登录除口令外还需输入 6 位动态码，口令泄露也无法单独登录；请务必留存好绑定二维码/密钥，换手机时需要它。
+      effect_off: 保持关闭：口令一旦泄露（撞库、截图、备份外流），攻击者可以直接登录管理端。
+      revert: 可在「双因素认证」页解绑；密钥丢失时可用后台命令行重置。
+    en:
+      title: Turn on two-factor authentication for the console
+      detail: Adds a TOTP one-time code to console logins, compatible with any standard authenticator app.
+      effect_on: Once enabled, logging in requires a 6-digit code in addition to the password, so a leaked password alone is not enough. Keep the enrolment QR code or secret - you will need it when changing phones.
+      effect_off: Left off, a leaked password (credential stuffing, a screenshot, a stray backup) is enough for an attacker to log straight into the console.
+      revert: Unbind it on the two-factor page; if you lose the secret, reset it from the command line.
+
+  - id: fresh_notify_channel
+    version: v1.3.21
+    kind: action
+    level: normal
+    fresh_install: true
+    page: /notify/channel
+    doc: https://doc.samwaf.com/quickstart/Update.html
+    apply:
+      type: navigate
+    zh:
+      title: 建议至少配置一个通知渠道
+      detail: 钉钉、飞书、企业微信、Server 酱、邮件或自定义 Webhook 任选其一，用于接收攻击、证书到期、异常登录等告警。
+      effect_on: 配置后：告警会主动推送到你填写的地址；这会产生指向该地址的出网请求（地址、请求头、报文模板都由你自己填）。
+      effect_off: 不配置：所有告警只留在管理端里，需要你主动登录才看得到——证书到期、被打这类事往往就错过了。
+      revert: 在「通知渠道」页停用或删除即可，停用后不再发起任何相关出网请求。
+    en:
+      title: Configure at least one notification channel
+      detail: Pick DingTalk, Feishu, WeCom, ServerChan, e-mail or a custom webhook to receive attack, certificate expiry and abnormal login alerts.
+      effect_on: Once configured, alerts are pushed to the address you entered. This creates outbound requests to that address - the URL, headers and payload template are entirely yours to define.
+      effect_off: Without a channel, every alert stays inside the console and is only visible when you log in - which is exactly how expiring certificates and ongoing attacks get missed.
+      revert: Disable or delete the channel on the Notification Channel page; no related outbound request is made once it is off.
+
+  # ---------------- 版本升级须知 ----------------
+  - id: v1_3_21_password_bcrypt
+    version: v1.3.21
+    kind: notice
+    level: high
+    page: ''
+    doc: https://doc.samwaf.com/quickstart/Update.html
+    apply:
+      type: none
+    zh:
+      title: 登录口令存储方式由 MD5 切换为 bcrypt
+      detail: 向上升级无感知，登录方式与口令都不变。注意：如需回滚到 v1.3.21-beta.8 之前的版本，由于加密方式已切换，旧版本无法校验新格式的口令，需手工使用后台命令行重置密码。
+    en:
+      title: Console passwords are now stored with bcrypt instead of MD5
+      detail: Upgrading is transparent - the login flow and your password are unchanged. Note that if you roll back to a build older than v1.3.21-beta.8, that build cannot verify the new hash format and you will have to reset the password from the command line.
+
+  - id: v1_3_22_postgresql
+    version: v1.3.22
+    kind: notice
+    level: low
+    page: ''
+    doc: https://doc.samwaf.com/quickstart/Update.html
+    apply:
+      type: none
+    zh:
+      title: 数据库新增支持 PostgreSQL
+      detail: 自 v1.3.22 起 conf/config.yml 的 database.driver 可选 postgres。现有 SQLite / MySQL 部署完全不受影响，无需任何操作。
+    en:
+      title: PostgreSQL is now supported as a database backend
+      detail: From v1.3.22 you can set database.driver to postgres in conf/config.yml. Existing SQLite and MySQL deployments are unaffected and need no action.

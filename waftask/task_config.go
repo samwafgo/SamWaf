@@ -607,12 +607,23 @@ func TaskLoadSettingCron() {
 	TaskLoadSetting(false)
 }
 
-// CheckVersionDowngrade 记录/校验"上次运行的版本"，发现降级运行时打日志。
+// CheckVersionDowngrade 维护两个版本水位并做降级校验，顺带生成本次的「升级须知」。
 //
 // 场景：容器环境点了应用内升级后，新版本会把数据库迁移到新 schema，但程序文件在镜像可写层，
 // 容器一旦重建就回退成镜像自带的旧版本，而数据库回不去 —— 形成"旧程序 + 新库"。
 // 这种状态过去是完全静默的，只能靠"任务方法 xxx 未找到"这类间接报错才能猜出来(issue #938)。
-// 这里只记日志、不阻断启动，也不做界面提示。
+// 这里只记日志、不阻断启动。
+//
+// 为什么要两个配置项：
+//   - last_run_version 上次运行的版本，**跟着当前版本走（会下调）**，用于算升级须知的版本区间
+//   - max_run_version  曾经运行过的最高版本，**只升不降**，用于降级判定
+//
+// 降级判定必须用后者。若沿用 last_run_version，判完降级后它会被改写成当前这个较低的版本，
+// 等于自己把证据抹掉：重启一次警告就永远消失，而"旧程序 + 新库"的真实状态还在。
+// 容器反复重建恰恰是这个警告要防的场景，只警告第一次等于没警告。
+//
+// 升级须知刻意写在这个函数里、而不是另找地方再查一次 last_run_version：
+// 本函数读完就会把库里的值改写成当前版本，一旦写回，旧版本号就再也拿不到了。
 func CheckVersionDowngrade() {
 	current := strings.TrimSpace(global.GWAF_RELEASE_VERSION)
 	if current == "" {
@@ -624,38 +635,67 @@ func CheckVersionDowngrade() {
 		last = strings.TrimSpace(item.Value)
 	}
 
-	if last != "" && semver.IsValid(last) && semver.IsValid(current) && semver.Compare(last, current) > 0 {
-		zlog.Error(fmt.Sprintf("检测到降级运行：数据库记录的上次运行版本是 %v，当前程序版本是 %v。"+
+	maxItem := wafSystemConfigService.GetDetailByItem(maxVersionRecordItem)
+	maxSeen := ""
+	if maxItem.Id != "" {
+		maxSeen = strings.TrimSpace(maxItem.Value)
+	}
+	// 老库没有 max_run_version 这一行，用 last_run_version 当初值：
+	// 升级到本版本之前跑过的最高版本，最好的已知近似就是上次运行的那个。
+	if maxSeen == "" {
+		maxSeen = last
+	}
+
+	if maxSeen != "" && semver.IsValid(maxSeen) && semver.IsValid(current) && semver.Compare(maxSeen, current) > 0 {
+		zlog.Error(fmt.Sprintf("检测到降级运行：数据库记录曾经运行过的最高版本是 %v，当前程序版本是 %v。"+
 			"若为容器部署，通常是应用内升级后容器被重建、程序回退到镜像自带版本所致；"+
-			"数据库已按新版本迁移且无法回退，请把镜像更新到 %v 或更高版本后重建容器", last, current, last))
+			"数据库已按新版本迁移且无法回退，请把镜像更新到 %v 或更高版本后重建容器", maxSeen, current, maxSeen))
+	}
+
+	// 生成本次升级须知（内置清单 + 版本区间）。必须赶在下面写回 last_run_version 之前。
+	wafUpgradeNoticeSvc.Generate(last, current, maxSeen)
+
+	// 版本水位只升不降：降级运行时保留历史最高版本，警告才不会因为一次重启就消失
+	if maxSeen == "" || (semver.IsValid(current) && (!semver.IsValid(maxSeen) || semver.Compare(current, maxSeen) > 0)) {
+		writeVersionRecord(maxItem, maxVersionRecordItem, current,
+			"曾经成功启动过的最高程序版本（只升不降），用于识别\"程序被降级、数据库却已按新版本迁移\"的不一致状态，请勿手工修改")
 	}
 
 	// 记录本次版本（只在变化时写库）
 	if last == current {
 		return
 	}
-	if item.Id != "" {
+	writeVersionRecord(item, versionRecordItem, current,
+		"上次成功启动的程序版本，用于计算升级须知的版本区间，请勿手工修改")
+}
+
+// writeVersionRecord 写入/更新一个版本水位配置项。失败只记日志，不影响启动。
+func writeVersionRecord(existing model.SystemConfig, item, value, remarks string) {
+	if existing.Id != "" {
 		if err := wafSystemConfigService.ModifyByItemApi(request.WafSystemConfigEditByItemReq{
-			Item:  versionRecordItem,
-			Value: current,
+			Item:  item,
+			Value: value,
 		}); err != nil {
-			zlog.Debug("记录本次运行版本失败", err.Error())
+			zlog.Debug("更新版本记录失败", item, err.Error())
 		}
 		return
 	}
 	if err := wafSystemConfigService.AddApi(request.WafSystemConfigAddReq{
 		ItemClass: "system",
-		Item:      versionRecordItem,
-		Value:     current,
-		Remarks:   "上次成功启动的程序版本，用于识别\"程序被降级、数据库却已按新版本迁移\"的不一致状态，请勿手工修改",
+		Item:      item,
+		Value:     value,
+		Remarks:   remarks,
 		ItemType:  "string",
 	}); err != nil {
-		zlog.Debug("写入本次运行版本失败", err.Error())
+		zlog.Debug("写入版本记录失败", item, err.Error())
 	}
 }
 
-// versionRecordItem 记录"上次运行版本"的配置项名
+// versionRecordItem 记录"上次运行版本"的配置项名（跟着当前版本走，可下调）
 const versionRecordItem = "last_run_version"
+
+// maxVersionRecordItem 记录"曾经运行过的最高版本"的配置项名（只升不降，降级判定用它）
+const maxVersionRecordItem = "max_run_version"
 
 // TaskLoadSetting 加载配置数据
 //

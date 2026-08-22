@@ -1920,6 +1920,26 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移: 创建升级须知记录表（升级后在产品内提示本次变更与建议操作）
+		{
+			ID: "202608220001_add_upgrade_notice_record_table",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202608220001: 创建升级须知记录表")
+				if err := tx.AutoMigrate(&model.UpgradeNoticeRecord{}); err != nil {
+					return fmt.Errorf("创建升级须知记录表失败: %w", err)
+				}
+				// notice_id 唯一：同一条须知跨多次重启只生成一次，用户处理过的状态不会被覆盖
+				if err := safeCreateIndex(tx, "upgrade_notice_record", "uni_upgrade_notice_id",
+					"CREATE UNIQUE INDEX IF NOT EXISTS uni_upgrade_notice_id ON upgrade_notice_record(notice_id, user_code, tenant_id)"); err != nil {
+					zlog.Warn("创建索引 uni_upgrade_notice_id 失败", "error", err.Error())
+				}
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202608220001: 删除升级须知记录表")
+				return tx.Migrator().DropTable(&model.UpgradeNoticeRecord{})
+			},
+		},
 	})
 
 	// 执行迁移

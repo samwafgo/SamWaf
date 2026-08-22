@@ -8,6 +8,7 @@ var (
 	wafSysLogService       = waf_service.WafSysLogServiceApp
 	wafSystemConfigService = waf_service.WafSystemConfigServiceApp
 	wafLogService          = waf_service.WafLogServiceApp
+	wafUpgradeNoticeSvc    = waf_service.WafUpgradeNoticeServiceApp
 )
 
 type LastCounter struct {

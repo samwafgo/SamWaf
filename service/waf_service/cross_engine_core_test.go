@@ -32,6 +32,8 @@ func runCoreCases(t *testing.T, db *gorm.DB) {
 	// ————— 新增：各 service 完整 CRUD 回路 —————
 	runCoreCRUDCases(t, db)
 	runCoreCRUDCasesB(t, db)
+	// ————— 升级须知：生成幂等 / 状态流转 / 降级不生成 —————
+	runUpgradeNoticeCases(t, db)
 }
 
 // ========================= 修改类（保留原有覆盖）=========================

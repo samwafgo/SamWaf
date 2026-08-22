@@ -74,6 +74,7 @@ type ApiGroup struct {
 	WafAppRouter
 	WafAIRouter
 	WafUIPreferenceRouter
+	UpgradeNoticeRouter
 }
 type PublicApiGroup struct {
 	LoginRouter

@@ -132,6 +132,7 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 	{
 		// 共享/运维类接口：任意已登录角色可访问
 		router.ApiGroupApp.InitHostRouter(RouterGroup)
+		router.ApiGroupApp.InitHostGroupRouter(RouterGroup)
 		router.ApiGroupApp.InitLogRouter(RouterGroup)
 		router.ApiGroupApp.InitEngineRouter(RouterGroup)
 		router.ApiGroupApp.InitStatRouter(RouterGroup)

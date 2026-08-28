@@ -1979,6 +1979,35 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移: 创建网站分组表并为 hosts 表添加 group_code 字段。
+		// 分组只是管理端的组织与筛选维度，不承载防护配置；存量站点 group_code 留空即「未分组」，行为与升级前一致。
+		{
+			ID: "202608280001_add_host_group",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202608280001: 创建网站分组表并为 hosts 添加 group_code 字段")
+				if err := tx.AutoMigrate(&model.HostGroup{}); err != nil {
+					return fmt.Errorf("创建网站分组表失败: %w", err)
+				}
+				if tx.Migrator().HasColumn(&model.Hosts{}, "group_code") {
+					zlog.Info("group_code 字段已存在，跳过添加")
+					return nil
+				}
+				if err := tx.Migrator().AddColumn(&model.Hosts{}, "GroupCode"); err != nil {
+					return fmt.Errorf("添加 group_code 字段失败: %w", err)
+				}
+				zlog.Info("group_code 字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202608280001: 删除 group_code 字段与网站分组表")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "group_code") {
+					if err := tx.Migrator().DropColumn(&model.Hosts{}, "group_code"); err != nil {
+						return err
+					}
+				}
+				return tx.Migrator().DropTable(&model.HostGroup{})
+			},
+		},
 	})
 
 	// 执行迁移

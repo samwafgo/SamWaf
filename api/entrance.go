@@ -4,6 +4,7 @@ import "SamWaf/service/waf_service"
 
 type APIGroup struct {
 	WafHostAPi
+	WafHostGroupApi
 	WafStatApi
 	WafLogAPi
 	WafRuleAPi
@@ -95,6 +96,7 @@ var (
 	wafIpBlockService  = waf_service.WafBlockIpServiceApp
 	wafUrlBlockService = waf_service.WafBlockUrlServiceApp
 
+	wafHostGroupService     = waf_service.WafHostGroupServiceApp
 	wafIPGroupService       = waf_service.WafIPGroupServiceApp
 	wafAccessAccountService = waf_service.WafAccessAccountServiceApp
 	wafAccessConfigService  = waf_service.WafAccessConfigServiceApp

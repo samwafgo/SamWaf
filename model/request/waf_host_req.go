@@ -48,14 +48,15 @@ type WafHostAddReq struct {
 	TamperJSON                string `json:"tamper_json"`                  //网页防篡改配置 json
 	UploadSecurityJSON        string `json:"upload_security_json"`         //文件上传内容检测配置 json
 	IPMode                    string `json:"ip_mode"`                      //IP提取模式: "nic" 网卡模式 或 "proxy" 代理模式
-	DisableHTTP2              int    `json:"disable_http2"`                 //对外HTTP/2开关 0启用 1关闭(该站点只走http/1.1,兼容原生WebSocket客户端)
-	IsEnableResponseBuffering int    `json:"is_enable_response_buffering"`  //响应缓冲 1开启(默认) 0关闭(类似 nginx proxy_buffering off)
+	DisableHTTP2              int    `json:"disable_http2"`                //对外HTTP/2开关 0启用 1关闭(该站点只走http/1.1,兼容原生WebSocket客户端)
+	IsEnableResponseBuffering int    `json:"is_enable_response_buffering"` //响应缓冲 1开启(默认) 0关闭(类似 nginx proxy_buffering off)
 	AccessJSON                string `json:"access_json"`                  //统一访问认证(Access模式)站点级配置 json
 	IPSourceMode              string `json:"ip_source_mode"`               //真实IP来源模式: ""(兼容,取XFF最左) | nic | header | xff_depth | cdn_preset
 	IPTrustDepth              int    `json:"ip_trust_depth"`               //xff_depth 模式：从右往左取第 N 个 hop(默认1)
 	IPRealHeader              string `json:"ip_real_header"`               //header/cdn_preset 模式指定的真实IP头，如 CF-Connecting-IP
 	IPTrustProxies            string `json:"ip_trust_proxies"`             //可信代理网段(CIDR/IP，逗号分隔)，用于校验真实IP头来源
 	CDNProvider               string `json:"cdn_provider"`                 //cdn_preset 模式选择的 CDN 厂商码
+	GroupCode                 string `json:"group_code"`                   //所属分组短码，空=未分组（纯管理端组织维度，不下发引擎）
 }
 
 type WafHostDelReq struct {
@@ -112,14 +113,15 @@ type WafHostEditReq struct {
 	TamperJSON                string `json:"tamper_json"`                  //网页防篡改配置 json
 	UploadSecurityJSON        string `json:"upload_security_json"`         //文件上传内容检测配置 json
 	IPMode                    string `json:"ip_mode"`                      //IP提取模式: "nic" 网卡模式 或 "proxy" 代理模式
-	DisableHTTP2              int    `json:"disable_http2"`                 //对外HTTP/2开关 0启用 1关闭(该站点只走http/1.1,兼容原生WebSocket客户端)
-	IsEnableResponseBuffering int    `json:"is_enable_response_buffering"`  //响应缓冲 1开启(默认) 0关闭(类似 nginx proxy_buffering off)
+	DisableHTTP2              int    `json:"disable_http2"`                //对外HTTP/2开关 0启用 1关闭(该站点只走http/1.1,兼容原生WebSocket客户端)
+	IsEnableResponseBuffering int    `json:"is_enable_response_buffering"` //响应缓冲 1开启(默认) 0关闭(类似 nginx proxy_buffering off)
 	AccessJSON                string `json:"access_json"`                  //统一访问认证(Access模式)站点级配置 json
 	IPSourceMode              string `json:"ip_source_mode"`               //真实IP来源模式: ""(兼容,取XFF最左) | nic | header | xff_depth | cdn_preset
 	IPTrustDepth              int    `json:"ip_trust_depth"`               //xff_depth 模式：从右往左取第 N 个 hop(默认1)
 	IPRealHeader              string `json:"ip_real_header"`               //header/cdn_preset 模式指定的真实IP头，如 CF-Connecting-IP
 	IPTrustProxies            string `json:"ip_trust_proxies"`             //可信代理网段(CIDR/IP，逗号分隔)，用于校验真实IP头来源
 	CDNProvider               string `json:"cdn_provider"`                 //cdn_preset 模式选择的 CDN 厂商码
+	GroupCode                 string `json:"group_code"`                   //所属分组短码，空=未分组（纯管理端组织维度，不下发引擎）
 }
 type WafHostGuardStatusReq struct {
 	CODE         string `json:"code"`
@@ -127,8 +129,12 @@ type WafHostGuardStatusReq struct {
 }
 
 type WafHostSearchReq struct {
-	Code           string `json:"code" `                                  //主机码
-	REMARKS        string `json:"remarks"`                                //备注
+	Code    string `json:"code" `   //主机码
+	REMARKS string `json:"remarks"` //备注
+	// GroupCode 分组筛选：走精确匹配，不并入 FilterBy 那条 like 通道
+	// （短码走 like 会出现 "a" 命中 "abc" 的串组）。
+	// 传 model.HostGroupNone 表示只看未分组。
+	GroupCode      string `json:"group_code" form:"group_code"`
 	SortBy         string `json:"sort_by" form:"sort_by"`                 //排序字段
 	SortDescending string `json:"sort_descending" form:"sort_descending"` //排序方式
 	FilterBy       string `json:"filter_by" form:"filter_by"`             //筛选字段

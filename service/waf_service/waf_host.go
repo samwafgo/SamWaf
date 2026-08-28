@@ -123,6 +123,7 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 		IPRealHeader:              wafHostAddReq.IPRealHeader,
 		IPTrustProxies:            wafHostAddReq.IPTrustProxies,
 		CDNProvider:               wafHostAddReq.CDNProvider,
+		GroupCode:                 wafHostAddReq.GroupCode,
 	}
 	global.GWAF_LOCAL_DB.Create(wafHost)
 	return wafHost.Code, nil
@@ -211,6 +212,7 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 		"IPRealHeader":              wafHostEditReq.IPRealHeader,
 		"IPTrustProxies":            wafHostEditReq.IPTrustProxies,
 		"CDNProvider":               wafHostEditReq.CDNProvider,
+		"GroupCode":                 wafHostEditReq.GroupCode,
 	}
 	err := global.GWAF_LOCAL_DB.Debug().Model(model.Hosts{}).Where("CODE=?", wafHostEditReq.CODE).Updates(hostMap).Error
 
@@ -246,6 +248,20 @@ func (receiver *WafHostService) GetListApi(req request.WafHostSearchReq) ([]mode
 	//where字段赋值
 	if len(req.Code) > 0 {
 		whereValues = append(whereValues, req.Code)
+	}
+	// 分组筛选：走精确匹配，不并入下面 FilterBy 的 like 通道
+	// （短码走 like 会出现 "a" 命中 "abc" 的串组）。
+	if len(req.GroupCode) > 0 {
+		if len(whereField) > 0 {
+			whereField = whereField + " and "
+		}
+		if req.GroupCode == model.HostGroupNone {
+			// 存量行落的是 NULL 还是空串取决于数据库，两种都要命中，否则会漏掉一半站点
+			whereField = whereField + " (group_code = '' or group_code is null) "
+		} else {
+			whereField = whereField + " group_code = ? "
+			whereValues = append(whereValues, req.GroupCode)
+		}
 	}
 	for i, by := range splitFilterBys {
 		if len(by) == 0 {

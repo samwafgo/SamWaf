@@ -3,9 +3,11 @@ package wafenginecore
 import (
 	"SamWaf/common/uuid"
 	"SamWaf/common/zlog"
+	"SamWaf/customtype"
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model"
+	"SamWaf/model/baseorm"
 	"SamWaf/model/wafenginmodel"
 	"SamWaf/service/waf_service"
 	"SamWaf/utils"
@@ -63,77 +65,32 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 	if inHost.GLOBAL_HOST == 1 {
 		global.GWAF_GLOBAL_HOST_CODE = inHost.Code
 	}
-	onlineServer, ok := waf.ServerOnline.Get(inHost.Port)
-	if ok == false && inHost.GLOBAL_HOST == 0 {
-		if inHost.START_STATUS == 0 {
-			waf.ServerOnline.Set(inHost.Port, innerbean.ServerRunTime{
-				ServerType: utils.GetServerByHosts(inHost),
-				Port:       inHost.Port,
-				Status:     1,
-			})
-		} else {
-			waf.ServerOnline.Delete(inHost.Port)
+	// 端口监听统一走 ResolveHostListens 唯一真源（issue #955）：显式 port_listens_json 优先，
+	// 空值按老规则派生；主端口/副端口/AutoJumpHTTPS 隐式 80 不再各写一套判定。
+	listens := utils.ResolveHostListens(inHost)
+	//定义一个port int数组（需要注册域名路由的副端口，不含主端口与隐式80）
+	var ports = []int{}
+	for _, listen := range listens {
+		if !listen.IsMain && !listen.Implied {
+			ports = append(ports, listen.Port)
 		}
-
-	} else if ok {
-		if (onlineServer.ServerType) == "https" && onlineServer.Svr != nil {
-
-			zlog.Debug(strconv.Itoa(len(onlineServer.Svr.TLSConfig.Certificates)))
-			/*onlineServer.Svr.TLSConfig.NameToCertificate = waf.AllCertificate[inHost.Port]
-			onlineServer.Svr.TLSConfig.GetCertificate = func(clientInfo *tls.ClientHelloInfo) (*tls.Certificate, error) {
-				if x509Cert, ok := onlineServer.Svr.TLSConfig.NameToCertificate[clientInfo.ServerName]; ok {
-					return x509Cert, nil
-				}
-				return nil, errors.New("config error")
-			}*/
-		}
-
-	}
-	//检查是否存在强制跳转HTTPS的情况
-	if inHost.AutoJumpHTTPS == 1 {
-		default80Port := 80
-		_, ok := waf.ServerOnline.Get(default80Port)
-		if ok == false && inHost.GLOBAL_HOST == 0 {
+		onlineServer, ok := waf.ServerOnline.Get(listen.Port)
+		if !ok {
 			if inHost.START_STATUS == 0 {
-				waf.ServerOnline.Set(default80Port, innerbean.ServerRunTime{
-					ServerType: "http",
-					Port:       default80Port,
+				waf.ServerOnline.Set(listen.Port, innerbean.ServerRunTime{
+					ServerType: listen.Protocol,
+					IPVersion:  listen.IPVersion,
+					Port:       listen.Port,
 					Status:     1,
 				})
-			} else {
-				waf.ServerOnline.Delete(default80Port)
 			}
-		}
-	}
-	//定义一个port int数组
-	var ports = []int{}
-	//如果存在一个主机绑定了多个Port的情况
-	if inHost.BindMorePort != "" && inHost.GLOBAL_HOST == 0 {
-		lines := strings.Split(inHost.BindMorePort, ",")
-		for _, portStr := range lines {
-			port, err := strconv.Atoi(strings.TrimSpace(portStr))
-			if err != nil {
-				continue
-			}
-			ports = append(ports, port)
-			_, ok := waf.ServerOnline.Get(port)
-			if ok == false {
-				if inHost.START_STATUS == 0 {
-					if port == 443 || (inHost.Ssl == 1 && port != 80) {
-						waf.ServerOnline.Set(port, innerbean.ServerRunTime{
-							ServerType: "https",
-							Port:       port,
-							Status:     1,
-						})
-					} else {
-						waf.ServerOnline.Set(port, innerbean.ServerRunTime{
-							ServerType: "http",
-							Port:       port,
-							Status:     1,
-						})
-					}
-
-				}
+		} else if inHost.START_STATUS == 0 {
+			if onlineServer.ServerType != listen.Protocol {
+				// 端口是全机共享资源：先加载者定协议，后到者协议不一致时保持先到先得，但必须发声
+				waf.alertPortProtocolConflict(inHost, listen.Port, listen.Protocol, onlineServer.ServerType)
+			} else if normalizeIPV(onlineServer.IPVersion) != normalizeIPV(listen.IPVersion) {
+				// 已有监听不会按新 IP 版本自动重建，静默会让用户以为已生效
+				waf.alertPortIPVersionPending(inHost, listen.Port, listen.IPVersion, onlineServer.IPVersion)
 			}
 		}
 	}
@@ -358,18 +315,69 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 		}
 	})
 
+	// 返回本站全部监听 runtime（含 AutoJumpHTTPS 隐式 80），供"新增站点"路径逐个启动
 	var serverOnlines = []innerbean.ServerRunTime{}
-	serverOnline, isExist := waf.ServerOnline.Get(inHost.Port)
-	if isExist {
-		serverOnlines = append(serverOnlines, serverOnline)
-	}
-	for _, port := range ports {
-		serverOnline, isExist := waf.ServerOnline.Get(port)
+	for _, listen := range listens {
+		serverOnline, isExist := waf.ServerOnline.Get(listen.Port)
 		if isExist {
 			serverOnlines = append(serverOnlines, serverOnline)
 		}
 	}
 	return serverOnlines
+}
+
+func normalizeIPV(ipv string) string {
+	if ipv == "" {
+		return utils.ListenIPVBoth
+	}
+	return ipv
+}
+
+// alertPortProtocolConflict 端口协议冲突发声：系统日志 + WebSocket 推送（issue #955 的静默点）。
+// 引擎不因冲突拒绝启动，先到先得维持现状，由用户依提示处理。
+func (waf *WafEngine) alertPortProtocolConflict(inHost model.Hosts, port int, wantProto, activeProto string) {
+	msg := fmt.Sprintf("端口协议冲突：站点 %s 声明端口 %d 为 %s，但该端口当前按 %s 监听（先加载者生效）。若是多个网站对同一端口声明了不同协议，请统一协议或更换端口；若是您刚修改了本站该端口的协议，需重启引擎（或重启程序）后生效",
+		inHost.Host, port, strings.ToUpper(wantProto), strings.ToUpper(activeProto))
+	zlog.Warn(msg)
+	global.GQEQUE_LOG_DB.Enqueue(&model.WafSysLog{
+		BaseOrm: baseorm.BaseOrm{
+			Id:          uuid.GenUUID(),
+			USER_CODE:   global.GWAF_USER_CODE,
+			Tenant_ID:   global.GWAF_TENANT_ID,
+			CREATE_TIME: customtype.JsonTime(time.Now()),
+			UPDATE_TIME: customtype.JsonTime(time.Now()),
+		},
+		OpType:    "系统运行错误",
+		OpContent: msg,
+	})
+	global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OpResultMessageInfo{
+		BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "提示信息", Server: global.GWAF_CUSTOM_SERVER_NAME},
+		Msg:             msg,
+		Success:         "false",
+	})
+}
+
+// alertPortIPVersionPending IP 版本变更未生效发声：已有监听不按新 ipv 自动重建，需重启引擎
+func (waf *WafEngine) alertPortIPVersionPending(inHost model.Hosts, port int, wantIPV, activeIPV string) {
+	msg := fmt.Sprintf("端口 %d 当前按 IP版本 %s 监听，站点 %s 本次声明为 %s：已有监听不会自动重建，需重启引擎（或重启程序）后生效",
+		port, normalizeIPV(activeIPV), inHost.Host, normalizeIPV(wantIPV))
+	zlog.Warn(msg)
+	global.GQEQUE_LOG_DB.Enqueue(&model.WafSysLog{
+		BaseOrm: baseorm.BaseOrm{
+			Id:          uuid.GenUUID(),
+			USER_CODE:   global.GWAF_USER_CODE,
+			Tenant_ID:   global.GWAF_TENANT_ID,
+			CREATE_TIME: customtype.JsonTime(time.Now()),
+			UPDATE_TIME: customtype.JsonTime(time.Now()),
+		},
+		OpType:    "信息",
+		OpContent: msg,
+	})
+	global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OpResultMessageInfo{
+		BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "提示信息", Server: global.GWAF_CUSTOM_SERVER_NAME},
+		Msg:             msg,
+		Success:         "false",
+	})
 }
 
 // RemovePortServer 检测如果没有端口在占用了，可以关闭相应端口
@@ -414,19 +422,10 @@ func (waf *WafEngine) RemoveHost(host model.Hosts) {
 	waf.withWriteTable(func(nt *routingTable) {
 		//a.移除对照关系
 		delete(nt.HostCode, host.Code)
-		//b.移除主机保护信息（主端口）
+		//b.移除主机保护信息：主端口/副端口/AutoJumpHTTPS 的 80 统一按监听表清理，避免残留 stale 指针
 		delete(nt.HostTarget, host.Host+":"+strconv.Itoa(host.Port))
-		//b2.移除 BindMorePort 副端口对应的 HostTarget 条目，避免残留 stale 指针
-		if host.BindMorePort != "" && host.GLOBAL_HOST == 0 {
-			for _, portStr := range strings.Split(host.BindMorePort, ",") {
-				if p, err := strconv.Atoi(strings.TrimSpace(portStr)); err == nil {
-					delete(nt.HostTarget, host.Host+":"+strconv.Itoa(p))
-				}
-			}
-		}
-		//b3.移除 AutoJumpHTTPS 添加的 80 端口条目
-		if host.AutoJumpHTTPS == 1 {
-			delete(nt.HostTarget, host.Host+":80")
+		for _, listen := range utils.ResolveHostListens(host) {
+			delete(nt.HostTarget, host.Host+":"+strconv.Itoa(listen.Port))
 		}
 		//b4.移除 HostTargetNoPort 中的主域名和多域名条目
 		delete(nt.HostTargetNoPort, host.Host)
@@ -842,26 +841,15 @@ func (waf *WafEngine) checkCredentials(hostSafe *wafenginmodel.HostSafe, usernam
 
 // purgeTransportForHost 清理指定主机相关的 TransportPool 键
 func (waf *WafEngine) purgeTransportForHost(host model.Hosts) {
-	// 构建需要匹配的 host:port 组合（主端口、80端口、绑定端口、绑定域名）
+	// 构建需要匹配的 host:port 组合（主端口、隐式80、副端口、绑定域名），端口来源统一走监听表
 	hostStrs := map[string]bool{
 		fmt.Sprintf("%s:%d", host.Host, host.Port): true,
 	}
-	if host.AutoJumpHTTPS == 1 {
-		hostStrs[fmt.Sprintf("%s:%d", host.Host, 80)] = true
-	}
-	// BindMorePort 绑定的端口
 	var morePorts []int
-	if host.BindMorePort != "" && host.GLOBAL_HOST == 0 {
-		lines := strings.Split(host.BindMorePort, ",")
-		for _, portStr := range lines {
-			portStr = strings.TrimSpace(portStr)
-			if portStr == "" {
-				continue
-			}
-			if p, err := strconv.Atoi(portStr); err == nil {
-				morePorts = append(morePorts, p)
-				hostStrs[fmt.Sprintf("%s:%d", host.Host, p)] = true
-			}
+	for _, listen := range utils.ResolveHostListens(host) {
+		hostStrs[fmt.Sprintf("%s:%d", host.Host, listen.Port)] = true
+		if !listen.IsMain && !listen.Implied {
+			morePorts = append(morePorts, listen.Port)
 		}
 	}
 	// 绑定多域名

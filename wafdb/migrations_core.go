@@ -2008,6 +2008,30 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return tx.Migrator().DropTable(&model.HostGroup{})
 			},
 		},
+		// 迁移: 为 hosts 表添加 port_listens_json 字段（端口监听表，issue #955）
+		// 只加列不回填：空值 = 按老规则派生，存量站点行为逐字节不变（见 utils.ResolveHostListens）
+		{
+			ID: "202608290001_add_hosts_port_listens_json",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202608290001: 为 hosts 表添加 port_listens_json 字段")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "port_listens_json") {
+					zlog.Info("port_listens_json 字段已存在，跳过添加")
+					return nil
+				}
+				if err := tx.Migrator().AddColumn(&model.Hosts{}, "PortListensJSON"); err != nil {
+					return fmt.Errorf("添加 port_listens_json 字段失败: %w", err)
+				}
+				zlog.Info("port_listens_json 字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202608290001: 删除 hosts 表的 port_listens_json 字段")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "port_listens_json") {
+					return tx.Migrator().DropColumn(&model.Hosts{}, "PortListensJSON")
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

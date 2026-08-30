@@ -6,6 +6,7 @@ import (
 	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/innerbean"
+	"SamWaf/model"
 	"SamWaf/model/spec"
 	"SamWaf/service/waf_service"
 	"SamWaf/utils"
@@ -171,6 +172,21 @@ func SSLOrderReload() {
 					zlog.Info(fmt.Sprintf("%s %s %s 是否过期 %v 天数：%v 信息 %v ，系统检测超期天数 %v 天",
 						innerLogName, certType, hostBean.Host, isExpire, availDay, msg, expireDays))
 					if isExpire == false && availDay <= int(expireDays) {
+						// http01 续期要求 80 端口是 HTTP 明文：若被设成 HTTPS 或没有 80，
+						// 挑战必失败且会消耗 ACME 服务商的失败频率配额，这里跳过并明确告警，
+						// 不静默重试（静默重试只会让配额耗尽、真到期时也申请不下来）
+						if lastSslOrderInfo.ApplyMethod == "http01" && !hostHTTP01Ready(hostBean) {
+							msg := fmt.Sprintf("站点 %s 的证书自动续期已跳过：文件验证(http01)需要 80 端口以 HTTP 明文提供服务，"+
+								"当前该站点没有 HTTP 协议的 80 端口。请在网站编辑的「监听端口」里把 80 设为 HTTP，或把该证书订单改用 DNS 验证方式",
+								hostBean.Host)
+							zlog.Error(innerLogName, msg)
+							global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OpResultMessageInfo{
+								BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "提示信息", Server: global.GWAF_CUSTOM_SERVER_NAME},
+								Msg:             msg,
+								Success:         "false",
+							})
+							continue
+						}
 						//没过期 且是指定天数 就才处理
 						var chanInfo = spec.ChanSslOrder{
 							Type:    enums.ChanSslOrderrenew,
@@ -357,4 +373,15 @@ func checkAndNotifySSLExpire(domain string, expiryTime time.Time) {
 			DaysLeft:   daysLeft,
 		})
 	}
+}
+
+// hostHTTP01Ready 站点是否具备 ACME http01 文件验证条件：存在协议为 HTTP 的 80 端口。
+// 与 api/waf_sslorder.go 的 check80Port 同一判据（那里还要区分"没有80"与"80是HTTPS"以给不同文案）。
+func hostHTTP01Ready(host model.Hosts) bool {
+	for _, listen := range utils.ResolveHostListens(host) {
+		if listen.Port == 80 {
+			return listen.Protocol == utils.ListenProtoHTTP
+		}
+	}
+	return false
 }

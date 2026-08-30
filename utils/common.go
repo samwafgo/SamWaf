@@ -230,6 +230,9 @@ func CheckDebugEnvInfo() bool {
 
 	return false
 }
+
+// Deprecated: 监听协议判定统一走 ResolveHostListens / HostMainProtocol（utils/hostport.go），
+// 本函数仅保留给 legacy 派生内部复用，新代码不得调用。
 func GetServerByHosts(hosts model.Hosts) string {
 	if hosts.Ssl == 1 {
 		return "https"

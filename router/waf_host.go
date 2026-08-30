@@ -24,5 +24,7 @@ func (receiver *HostRouter) InitHostRouter(group *gin.RouterGroup) {
 	hostRouter.POST("/api/v1/wafhost/host/batchcopyconfig", hostApi.BatchCopyConfigApi)
 	hostRouter.GET("/api/v1/wafhost/host/ipsource/probe", hostApi.IPSourceProbeApi)            //查看最近到达的真实请求头(排查真实IP来源)
 	hostRouter.GET("/api/v1/wafhost/host/ipsource/probe/clear", hostApi.IPSourceProbeClearApi) //清空采样
+	hostRouter.POST("/api/v1/wafhost/host/checkports", hostApi.CheckPortsApi)                  //保存前预检端口监听表(issue #955)
+	hostRouter.GET("/api/v1/wafhost/port/overview", hostApi.GetPortOverviewApi)                //端口占用总览
 
 }

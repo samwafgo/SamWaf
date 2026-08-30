@@ -236,3 +236,18 @@ notes:
     en:
       title: Website groups added to the list, with group filtering and bulk move
       detail: A group navigation bar now sits below the toolbar on the Website Protection list page. You can classify websites by your own criteria - production, test, intranet, by customer, by data center and so on - click a group to filter, and hover a group to rename it, change its color, reorder it or delete it. The table gains a Group column, and after ticking several websites you can move them into a group in bulk from the navigation bar; the add and edit website form also lets you pick a group directly. To be clear, a group is only an organizing and filtering dimension in the console. It applies no protection configuration to a website and does not affect how the WAF handles requests, so moving websites in and out of groups changes nothing about protection behavior. Deleting a group does not delete its websites - they fall back to Ungrouped. After upgrading, every website starts out Ungrouped, which behaves exactly as before and requires no action from you. This version also condenses the row actions into a single line of Edit, Auto Cert and More, moving Copy and Delete under More, and pins the action column and the selection column to the right and left edges of the table so narrow screens no longer need scrolling to the end.
+
+  - id: v1_3_25_port_protocol
+    version: v1.3.25
+    kind: notice
+    level: high
+    page: /waf-host/wafhost
+    doc: https://doc.samwaf.com/guide/Host.html
+    apply:
+      type: navigate
+    zh:
+      title: 端口协议可逐端口显式选择，80 端口不再被 SSL 开关"连带"改成 HTTPS
+      detail: 网站的监听端口现在逐个声明协议：编辑网站时每个端口一行，右侧直接选 HTTP 或 HTTPS，还可选择只监听 IPv4 或 IPv6（默认两者都收，与升级前一致）。此前协议由 SSL 开关整体决定，最典型的问题是"主端口 80 + 开了 SSL"会把整机 80 端口建成 HTTPS，同机其它明文网站和 CDN 明文回源全部收到 400。升级本身不改变任何现有行为：没动过端口设置的网站完全保持原样（包括上述 80 变 HTTPS 的现象也原样保留，不会被自动"纠正"）；只有你打开网站编辑、调整端口协议并保存后，新声明才生效。如果你正是 CDN 明文回源收到 400 的用户：编辑该网站，把 80 端口改成 HTTP 保存即可，证书不受影响可继续用于 443。同一端口在整机只能是一种协议，保存时会检测并明确指出与哪个网站冲突；已存在的冲突会在网站列表标红、在系统日志与消息推送中提示，新增的「端口占用总览」页可查看每个端口被哪些网站以什么协议占用。
+    en:
+      title: Per-port protocol selection - port 80 is no longer forced to HTTPS by the SSL switch
+      detail: Listening ports are now declared one by one. When editing a website each port takes its own row where you pick HTTP or HTTPS directly, and optionally restrict it to IPv4 or IPv6 only (both are accepted by default, same as before the upgrade). Previously the protocol was derived from the SSL switch as a whole, and the most typical problem was that a site with main port 80 plus SSL enabled turned port 80 of the whole machine into HTTPS, so every plaintext site on the same machine and any CDN origin-pull over plain HTTP got a 400. The upgrade itself changes nothing - websites whose port settings were never touched keep their exact previous behavior, including the port-80-as-HTTPS phenomenon above, which is deliberately not auto-corrected. A new declaration only takes effect after you open the website editor, adjust the port protocols and save. If you are hitting the CDN plaintext origin-pull 400 - edit that website and switch port 80 to HTTP; the certificate is unaffected and keeps serving 443. A given port can only speak one protocol per machine - saving validates this and names the conflicting website, existing conflicts are flagged in red on the website list and reported in the system log and message push, and the new Port Overview page shows which websites occupy each port with which protocol.

@@ -61,10 +61,19 @@ func structFieldNames(t *testing.T, file *ast.File, structName string) map[strin
 
 // funcCompositeKeys 收集某个方法体内所有复合字面量的 key：
 // 结构体字面量取标识符名(如 IPMode:)，map 字面量取字符串键(如 "IPMode":)。
+// 也收集 map 下标赋值的字符串键(如 hostMap["PortListensJSON"] = ...)——
+// 条件写入的字段(指针语义 nil 不写库)走的是这种形态。
 func funcCompositeKeys(t *testing.T, file *ast.File, funcName string) map[string]bool {
 	t.Helper()
 	keys := map[string]bool{}
 	found := false
+	collectStringKey := func(e ast.Expr) {
+		if lit, ok := e.(*ast.BasicLit); ok && lit.Kind == token.STRING {
+			if s, err := strconv.Unquote(lit.Value); err == nil {
+				keys[s] = true
+			}
+		}
+	}
 	ast.Inspect(file, func(n ast.Node) bool {
 		fd, ok := n.(*ast.FuncDecl)
 		if !ok || fd.Name.Name != funcName {
@@ -72,17 +81,18 @@ func funcCompositeKeys(t *testing.T, file *ast.File, funcName string) map[string
 		}
 		found = true
 		ast.Inspect(fd.Body, func(inner ast.Node) bool {
-			kv, ok := inner.(*ast.KeyValueExpr)
-			if !ok {
-				return true
-			}
-			switch k := kv.Key.(type) {
-			case *ast.Ident:
-				keys[k.Name] = true
-			case *ast.BasicLit:
-				if k.Kind == token.STRING {
-					if s, err := strconv.Unquote(k.Value); err == nil {
-						keys[s] = true
+			switch node := inner.(type) {
+			case *ast.KeyValueExpr:
+				switch k := node.Key.(type) {
+				case *ast.Ident:
+					keys[k.Name] = true
+				case *ast.BasicLit:
+					collectStringKey(k)
+				}
+			case *ast.AssignStmt:
+				for _, lhs := range node.Lhs {
+					if idx, ok := lhs.(*ast.IndexExpr); ok {
+						collectStringKey(idx.Index)
 					}
 				}
 			}

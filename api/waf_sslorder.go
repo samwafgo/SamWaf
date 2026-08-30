@@ -15,7 +15,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -47,10 +46,12 @@ func (w *WafSslOrderApi) AddApi(c *gin.Context) {
 			response.FailWithMessage("查找主机未找到", c)
 			return
 		}
-		//检测是否有80端口
-		if req.ApplyMethod == "http01" && w.check80Port(hostBean) == false {
-			response.FailWithMessage("未在主机上找到80端口配置，请在绑定更多端口里面增加80端口，再进行发起", c)
-			return
+		//检测80端口是否可用于 http01 文件验证（必须存在且为 HTTP 明文）
+		if req.ApplyMethod == "http01" {
+			if ok, proto := w.check80Port(hostBean); !ok {
+				response.FailWithMessage(http01PortHint(proto), c)
+				return
+			}
 		}
 		//检测是否*的情况
 		if req.ApplyMethod == "http01" && hostBean.Host == "*" {
@@ -194,6 +195,17 @@ func (w *WafSslOrderApi) ModifyApi(c *gin.Context) {
 			response.FailWithMessage("上次证书申请未成功，无法续期。请点击新建发起申请", c)
 			return
 		}
+		// 续期与申请走同一套挑战：http01 同样要求 80 端口是 HTTP 明文，
+		// 否则每次续期都会在 ACME 侧失败（还会消耗服务商的失败频率配额）
+		if existingOrder.ApplyMethod == "http01" {
+			hostBean := wafHostService.GetDetailByCodeApi(existingOrder.HostCode)
+			if hostBean.Id != "" {
+				if ok, proto := w.check80Port(hostBean); !ok {
+					response.FailWithMessage(http01PortHint(proto), c)
+					return
+				}
+			}
+		}
 		if len(existingOrder.ResultPrivateKey) == 0 || len(existingOrder.ResultCertificate) == 0 {
 			response.FailWithMessage("上次证书未找到，无法续期。请点击新建发起申请", c)
 			return
@@ -238,19 +250,27 @@ func (w *WafSslOrderApi) NotifyWaf(chanType int, bean model.SslOrder) {
 	global.GWAF_CHAN_SSLOrder <- chanInfo
 }
 
-// 检测是否有80端口
-func (w *WafSslOrderApi) check80Port(hosts model.Hosts) bool {
-	splitPort := strings.Split(hosts.BindMorePort, ",")
+// http01PortHint 按 80 端口的实际状态给出可操作的提示文案。
+func http01PortHint(proto string) string {
+	if proto == utils.ListenProtoHTTPS {
+		return "80端口当前被设置为 HTTPS 协议，而文件验证(http01)需要以明文 HTTP 访问 " +
+			global.GSSL_HTTP_CHANGLE_PATH + " ，验证会失败。请在网站编辑的「监听端口」里把 80 改为 HTTP，或改用 DNS 验证方式"
+	}
+	return "未在主机上找到80端口配置，请在网站编辑的「监听端口」里增加一个协议为 HTTP 的 80 端口，再进行发起"
+}
 
-	for _, port := range splitPort {
-		if port == "80" {
-			return true
+// check80Port 检测 80 端口能否承载 ACME http01 文件验证。
+// 端口来源统一走监听表（含显式 port_listens_json 与隐式 80）；协议必须是 http：
+// Let's Encrypt/ZeroSSL 是以明文 HTTP 访问 http://域名/.well-known/acme-challenge/ 的，
+// 80 若被声明为 HTTPS，TLS 握手就失败，挑战永远拿不到。
+// 返回 (是否可用于 http01, 该端口当前协议;不存在时为空)
+func (w *WafSslOrderApi) check80Port(hosts model.Hosts) (bool, string) {
+	for _, listen := range utils.ResolveHostListens(hosts) {
+		if listen.Port == 80 {
+			return listen.Protocol == utils.ListenProtoHTTP, listen.Protocol
 		}
 	}
-	if hosts.Port == 80 {
-		return true
-	}
-	return false
+	return false, ""
 }
 
 // fetchAndUpdateZeroSSLEABCredentials 调用 ZeroSSL API 获取 EAB 凭证并更新配置

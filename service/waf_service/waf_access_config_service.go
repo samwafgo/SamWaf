@@ -9,6 +9,7 @@ import (
 	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
 	"SamWaf/model/response"
+	"SamWaf/utils"
 	"SamWaf/wafenginecore/accessgate"
 	"crypto/sha256"
 	"encoding/hex"
@@ -325,7 +326,8 @@ func (receiver *WafAccessConfigService) GetCenterHostOptionsApi() []response.Acc
 			if d == "" || strings.Contains(d, "*") {
 				continue
 			}
-			origin := buildOrigin(d, h.Port, h.Ssl == 1)
+			// 对外协议以主端口监听协议为准（Ssl 字段已降级为"是否配置证书"，issue #955）
+			origin := buildOrigin(d, h.Port, utils.HostMainProtocol(h) == utils.ListenProtoHTTPS)
 			if seen[origin] {
 				continue
 			}

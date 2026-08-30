@@ -57,6 +57,7 @@ type WafHostAddReq struct {
 	IPTrustProxies            string `json:"ip_trust_proxies"`             //可信代理网段(CIDR/IP，逗号分隔)，用于校验真实IP头来源
 	CDNProvider               string `json:"cdn_provider"`                 //cdn_preset 模式选择的 CDN 厂商码
 	GroupCode                 string `json:"group_code"`                   //所属分组短码，空=未分组（纯管理端组织维度，不下发引擎）
+	PortListensJSON           string `json:"port_listens_json"`            //端口监听表(JSON)，空=按老规则派生
 }
 
 type WafHostDelReq struct {
@@ -122,7 +123,20 @@ type WafHostEditReq struct {
 	IPTrustProxies            string `json:"ip_trust_proxies"`             //可信代理网段(CIDR/IP，逗号分隔)，用于校验真实IP头来源
 	CDNProvider               string `json:"cdn_provider"`                 //cdn_preset 模式选择的 CDN 厂商码
 	GroupCode                 string `json:"group_code"`                   //所属分组短码，空=未分组（纯管理端组织维度，不下发引擎）
+	// PortListensJSON 端口监听表(JSON)。指针语义：nil=本次请求未携带该字段(老前端/脚本)，
+	// 落库时保持原值不动；非 nil(含空串)才写库。防止旧客户端把端口表抹空导致协议突变。
+	PortListensJSON *string `json:"port_listens_json"`
 }
+
+// WafHostCheckPortsReq 保存前端口监听表预检（新增时 code 传空）
+type WafHostCheckPortsReq struct {
+	CODE            string `json:"code"`
+	Port            int    `json:"port"`
+	Ssl             int    `json:"ssl"`
+	AutoJumpHTTPS   int    `json:"auto_jump_https"`
+	PortListensJSON string `json:"port_listens_json"`
+}
+
 type WafHostGuardStatusReq struct {
 	CODE         string `json:"code"`
 	GUARD_STATUS int    `json:"guard_status"` //防御状态 1 是开启防御 0 是防御关闭

@@ -100,7 +100,7 @@ func (waf *WafEngine) ReconcileHTTP3() {
 			return true
 		}
 		if want {
-			waf.startHTTP3(port, v.H3)
+			waf.startHTTP3(port, v.IPVersion, v.H3)
 		} else {
 			waf.stopHTTP3(port, v.H3)
 		}
@@ -117,7 +117,9 @@ func (waf *WafEngine) ReconcileHTTP3() {
 //
 // 独立 recover：QUIC 侧任何异常都不能拖垮同端口的 HTTPS(TCP) 监听 ——
 // 这正是 issue #916 里 QUICConfig 空指针 panic 连带把 HTTPS 也搞挂的次生故障。
-func (waf *WafEngine) startHTTP3(port int, holder *innerbean.H3Holder) {
+// ipVersion 取 both/ipv4/ipv6：QUIC 的 UDP 必须与同端口 TCP 侧保持同一 IP 版本，
+// 否则 Alt-Svc 会把浏览器引到一个实际不可达的地址族。
+func (waf *WafEngine) startHTTP3(port int, ipVersion string, holder *innerbean.H3Holder) {
 	if holder == nil {
 		return
 	}
@@ -142,7 +144,7 @@ func (waf *WafEngine) startHTTP3(port int, holder *innerbean.H3Holder) {
 	addr := ":" + strconv.Itoa(port)
 	// 先绑定成功再宣告：老代码把「启动HTTPS 3 服务器」打在 bind 之前，端口被占时日志会说谎。
 	// 用端口复用的 UDP PacketConn，使升级重叠期新旧 Worker 同端口并存。
-	pconn, perr := wafnet.ReusePortPacketConn(addr)
+	pconn, perr := wafnet.ReusePortPacketConnNetwork(utils.UDPNetworkForIPVersion(ipVersion), addr)
 	if perr != nil {
 		zlog.Error("[HTTP3] UDP 监听失败 " + addr + " : " + perr.Error())
 		waf.logH3SysError("HTTP3(UDP)监听失败: " + addr + " 原因:" + perr.Error() +

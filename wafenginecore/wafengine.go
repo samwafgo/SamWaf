@@ -1688,11 +1688,47 @@ func (waf *WafEngine) StartAllProxyServer() {
 // 罗列端口
 func (waf *WafEngine) EnumAllPortProxyServer() {
 	onlinePorts := ""
+	summary := ""
 	waf.ServerOnline.Range(func(port int, v innerbean.ServerRunTime) bool {
 		onlinePorts = strconv.Itoa(v.Port) + "," + onlinePorts
+		ipv := v.IPVersion
+		if ipv == "" {
+			ipv = utils.ListenIPVBoth
+		}
+		summary = strconv.Itoa(v.Port) + "(" + v.ServerType + "," + ipv + ") " + summary
 		return true
 	})
 	global.GWAF_RUNTIME_CURRENT_WEBPORT = onlinePorts
+	// 端口监听总表：端口(协议,IP版本)，排障时一眼看清全机端口协议分布
+	zlog.Info("当前端口监听总表: " + summary)
+}
+
+// notifyListenFail 监听失败发声：系统日志 + WebSocket。选了仅IPv6而机器无IPv6等场景，
+// 静默 return 会让站点悄悄不通、无从排查。
+func (waf *WafEngine) notifyListenFail(innruntime innerbean.ServerRunTime, cause error) {
+	ipv := innruntime.IPVersion
+	if ipv == "" {
+		ipv = utils.ListenIPVBoth
+	}
+	msg := fmt.Sprintf("端口监听失败: %d 协议:%s IP版本:%s 原因:%s ，请检查端口是否被其他应用占用、IP版本是否与主机网络能力匹配（如选了仅IPv6但机器无IPv6地址）",
+		innruntime.Port, innruntime.ServerType, ipv, cause.Error())
+	zlog.Error(msg)
+	global.GQEQUE_LOG_DB.Enqueue(&model.WafSysLog{
+		BaseOrm: baseorm.BaseOrm{
+			Id:          uuid.GenUUID(),
+			USER_CODE:   global.GWAF_USER_CODE,
+			Tenant_ID:   global.GWAF_TENANT_ID,
+			CREATE_TIME: customtype.JsonTime(time.Now()),
+			UPDATE_TIME: customtype.JsonTime(time.Now()),
+		},
+		OpType:    "系统运行错误",
+		OpContent: msg,
+	})
+	global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OpResultMessageInfo{
+		BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "提示信息", Server: global.GWAF_CUSTOM_SERVER_NAME},
+		Msg:             msg,
+		Success:         "false",
+	})
 }
 
 func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
@@ -1766,15 +1802,15 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 
 			// HTTP/3 与 TCP 监听彼此独立：QUIC 起不来也绝不能影响 HTTPS(TCP)
 			if global.GCONFIG_ENABLE_HTTP3 == 1 {
-				waf.startHTTP3(innruntime.Port, h3Holder)
+				waf.startHTTP3(innruntime.Port, innruntime.IPVersion, h3Holder)
 			}
 
 			if redirectServer != nil {
 				zlog.Info("启动HTTPS重定向服务器" + portStr)
 				// 端口复用监听，使升级重叠期新旧 Worker 同端口并存
-				rln, rerr := wafnet.ReusePortTCPListen(svr.Addr)
+				rln, rerr := wafnet.ReusePortTCPListenNetwork(utils.NetworkForIPVersion(innruntime.IPVersion), svr.Addr)
 				if rerr != nil {
-					zlog.Error("https redirect listen fail", rerr.Error())
+					waf.notifyListenFail(innruntime, rerr)
 					return
 				}
 				err := redirectServer.ServeTLSWithListener(rln, "", "")
@@ -1784,9 +1820,9 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 			} else {
 				zlog.Info("启动HTTPS 服务器" + portStr)
 
-				ln, err := wafnet.ReusePortTCPListen(svr.Addr)
+				ln, err := wafnet.ReusePortTCPListenNetwork(utils.NetworkForIPVersion(innruntime.IPVersion), svr.Addr)
 				if err != nil {
-					zlog.Error("https listen fail", err.Error())
+					waf.notifyListenFail(innruntime, err)
 					return
 				}
 				if global.GCONFIG_ENABLE_PROXY_PROTOCOL == 1 {
@@ -1832,9 +1868,9 @@ func (waf *WafEngine) StartProxyServer(innruntime innerbean.ServerRunTime) {
 			waf.ServerOnline.Set(innruntime.Port, serclone)
 
 			zlog.Info("启动HTTP 服务器" + strconv.Itoa(innruntime.Port))
-			ln, err := wafnet.ReusePortTCPListen(svr.Addr)
+			ln, err := wafnet.ReusePortTCPListenNetwork(utils.NetworkForIPVersion(innruntime.IPVersion), svr.Addr)
 			if err != nil {
-				zlog.Error("http listen fail", err.Error())
+				waf.notifyListenFail(innruntime, err)
 				return
 			}
 			if global.GCONFIG_ENABLE_PROXY_PROTOCOL == 1 {

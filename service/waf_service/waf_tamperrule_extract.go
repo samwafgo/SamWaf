@@ -6,6 +6,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/request"
 	"SamWaf/model/spec"
+	"SamWaf/utils"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -90,10 +91,8 @@ func (receiver *WafTamperRuleService) ExtractUrlsApi(req request.WafTamperRuleEx
 	}
 
 	// 归一化基准用「站点域名 + 请求路径」，这样 HTML 里写成站点绝对地址的引用也能被识别为同站
-	scheme := "http"
-	if host.Ssl == 1 {
-		scheme = "https"
-	}
+	// scheme 以主端口监听协议为准（Ssl 字段已降级为"是否配置证书"）
+	scheme := utils.HostMainProtocol(host)
 	siteBase := &url.URL{Scheme: scheme, Host: domain, Path: reqPath}
 	return extractTamperCandidates(body, siteBase, siteHosts), nil
 }

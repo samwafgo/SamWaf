@@ -104,7 +104,7 @@ func TestStartHTTP3WithBBRDoesNotPanic(t *testing.T) {
 	holder := &innerbean.H3Holder{}
 	port := freeUDPPort(t)
 
-	waf.startHTTP3(port, holder)
+	waf.startHTTP3(port, "both", holder)
 	defer waf.stopHTTP3(port, holder)
 
 	if holder.Server() == nil {
@@ -140,7 +140,7 @@ func TestHTTP3HandshakeIgnoresSSLMaxVersionConfig(t *testing.T) {
 			holder := &innerbean.H3Holder{}
 			port := freeUDPPort(t)
 
-			waf.startHTTP3(port, holder)
+			waf.startHTTP3(port, "both", holder)
 			defer waf.stopHTTP3(port, holder)
 			if holder.Server() == nil {
 				t.Fatal("HTTP/3 未能启动")
@@ -168,7 +168,7 @@ func TestStopHTTP3ReleasesUDPSocket(t *testing.T) {
 	holder := &innerbean.H3Holder{}
 	port := freeUDPPort(t)
 
-	waf.startHTTP3(port, holder)
+	waf.startHTTP3(port, "both", holder)
 	pconn := holder.Conn
 	if pconn == nil {
 		t.Fatal("启动后 holder.Conn 为空")

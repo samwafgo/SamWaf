@@ -66,6 +66,11 @@ type Hosts struct {
 	// GroupCode 所属分组短码，空=未分组。
 	// 纯管理端组织维度：只用于列表筛选与批量选择，不参与任何请求期判定，也不下发引擎（见 model/host_group.go）。
 	GroupCode string `gorm:"size:64" json:"group_code"`
+	// PortListensJSON 端口监听表(JSON)，形如 [{"port":80,"proto":"http","ipv":"both"}]。
+	// 空 = 按老规则从 Ssl/BindMorePort/AutoJumpHTTPS 派生（存量站点保持原行为）。
+	// addr 为预留字段：当前版本不生效，引擎读到会忽略并按通配监听。
+	// 解析唯一入口 utils.ResolveHostListens，其它地方不得自行解析。
+	PortListensJSON string `gorm:"size:2048" json:"port_listens_json"`
 }
 
 type HostsDefense struct {

@@ -47,9 +47,11 @@ func (h *H3Holder) SetServer(s *http3.Server) {
 type ServerRunTime struct {
 	//tcp http https
 	ServerType string
-	Port       int
-	Status     int // 0 是启动完成 ，1 是新增，2 是编辑 3，是删除
-	Svr        *http.Server
+	// IPVersion 监听 IP 版本：both(默认,双栈) / ipv4 / ipv6。空按 both 处理。
+	IPVersion string
+	Port      int
+	Status    int // 0 是启动完成 ，1 是新增，2 是编辑 3，是删除
+	Svr       *http.Server
 	// H3 该端口的 HTTP/3 运行状态持有者(仅 https 端口非空)，支持运行期热起停。
 	H3 *H3Holder
 	// Conns 当前该端口打开的连接数(原子计数)。由 http.Server.ConnState 维护：

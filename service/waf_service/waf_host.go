@@ -12,6 +12,7 @@ import (
 	"SamWaf/wafdb/dialect"
 	"encoding/json"
 	"errors"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -124,6 +125,7 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 		IPTrustProxies:            wafHostAddReq.IPTrustProxies,
 		CDNProvider:               wafHostAddReq.CDNProvider,
 		GroupCode:                 wafHostAddReq.GroupCode,
+		PortListensJSON:           wafHostAddReq.PortListensJSON,
 	}
 	global.GWAF_LOCAL_DB.Create(wafHost)
 	return wafHost.Code, nil
@@ -214,6 +216,11 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 		"CDNProvider":               wafHostEditReq.CDNProvider,
 		"GroupCode":                 wafHostEditReq.GroupCode,
 	}
+	// PortListensJSON 指针语义：nil=请求未携带（旧前端/脚本），保持库中原值不写，
+	// 防止老客户端把端口监听表抹空导致协议突变；非 nil（含空串）才落库
+	if wafHostEditReq.PortListensJSON != nil {
+		hostMap["PortListensJSON"] = *wafHostEditReq.PortListensJSON
+	}
 	err := global.GWAF_LOCAL_DB.Debug().Model(model.Hosts{}).Where("CODE=?", wafHostEditReq.CODE).Updates(hostMap).Error
 
 	return err
@@ -283,6 +290,26 @@ func (receiver *WafHostService) GetListApi(req request.WafHostSearchReq) ([]mode
 		if by == "host" {
 			whereField += " (host like ? OR nickname like ?) "
 			whereValues = append(whereValues, "%"+val+"%", "%"+val+"%")
+		} else if by == "port" {
+			// 「监听端口」列展示的是这个站的全部监听端口（主端口 + 副端口 + 显式端口表），
+			// 只查 port 主端口列会出现"列里明明列着 6800、按 6800 筛却 0 条"。
+			// port 是整型列：PostgreSQL 下 `int like '文本'` 直接报错(无隐式转换)，
+			// 所以数字走等值、只有文本列走 like，三种数据库通吃。
+			if p, convErr := strconv.Atoi(strings.TrimSpace(val)); convErr == nil {
+				whereField += " (port = ? or bind_more_port like ? or port_listens_json like ?) "
+				whereValues = append(whereValues, p, "%"+val+"%", "%"+val+"%")
+			} else {
+				whereField += " (bind_more_port like ? or port_listens_json like ?) "
+				whereValues = append(whereValues, "%"+val+"%", "%"+val+"%")
+			}
+		} else if by == "remote_port" {
+			// 同上：整型列不能 like，非数字输入直接判定为无结果
+			if p, convErr := strconv.Atoi(strings.TrimSpace(val)); convErr == nil {
+				whereField += " remote_port = ? "
+				whereValues = append(whereValues, p)
+			} else {
+				whereField += " 1 = 0 "
+			}
 		} else {
 			whereField += " " + by + " like ? "
 			whereValues = append(whereValues, "%"+val+"%")
@@ -306,8 +333,14 @@ func (receiver *WafHostService) GetListApi(req request.WafHostSearchReq) ([]mode
 		}
 	}
 
-	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where(whereField, whereValues...).Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Order(orderInfo).Find(&list)
-	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where(whereField, whereValues...).Count(&total)
+	// 查询错误必须抛出去：吞掉的话前端只会看到"共 0 条数据"，
+	// 分不清是"确实没有"还是"这条 SQL 在当前数据库上根本执行不了"
+	if err := global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where(whereField, whereValues...).Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Order(orderInfo).Find(&list).Error; err != nil {
+		return nil, 0, err
+	}
+	if err := global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where(whereField, whereValues...).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
 
 	return list, total, nil
 }
@@ -394,27 +427,220 @@ func (receiver *WafHostService) CheckPortExistApi(port int) int64 {
 }
 
 func (receiver *WafHostService) CheckAvailablePortExistApi(port int) int64 {
-	var total int64 = 0
-	// 先检查主端口
-	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Where("start_status = 0 and port=?", port).Count(&total)
-	if total > 0 {
-		return total
-	}
-	// 再检查 BindMorePort（逗号分隔的副端口列表）
-	// 取出所有启用且有副端口配置的主机，在 Go 层解析，避免 DB 字符串模糊匹配误判
+	// 端口引用统一按监听表判定（含显式 port_listens_json、副端口与 AutoJumpHTTPS 隐式 80）：
+	// 漏算会导致 RemovePortServer 误关仍在使用的监听
 	var hosts []model.Hosts
 	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).
-		Where("start_status = 0 and bind_more_port != ''").
-		Select("bind_more_port").Find(&hosts)
-	portStr := strconv.Itoa(port)
+		Where("start_status = 0 and global_host = 0").Find(&hosts)
 	for _, h := range hosts {
-		for _, p := range strings.Split(h.BindMorePort, ",") {
-			if strings.TrimSpace(p) == portStr {
+		for _, p := range utils.HostListenPorts(h) {
+			if p == port {
 				return 1
 			}
 		}
 	}
 	return 0
+}
+
+// ListenConflict 端口协议冲突明细（保存预检与站点列表标记共用）
+type ListenConflict struct {
+	Port          int    `json:"port"`
+	WantProto     string `json:"want_proto"`
+	OtherProto    string `json:"other_proto"`
+	OtherHost     string `json:"other_host"`
+	OtherNickname string `json:"other_nickname"`
+	OtherCode     string `json:"other_code"`
+}
+
+// CheckPortListensConflict 校验监听表与其它启用站点是否存在「同端口不同协议」冲突。
+// excludeCode 排除自身（编辑场景）；对端同样走 ResolveHostListens（含空表派生）。
+func (receiver *WafHostService) CheckPortListensConflict(excludeCode string, listens []utils.HostListen) []ListenConflict {
+	var conflicts []ListenConflict
+	if len(listens) == 0 {
+		return conflicts
+	}
+	var hosts []model.Hosts
+	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).
+		Where("start_status = 0 and global_host = 0 and code != ?", excludeCode).Find(&hosts)
+	for _, other := range hosts {
+		for _, ol := range utils.ResolveHostListens(other) {
+			for _, l := range listens {
+				if l.Port == ol.Port && l.Protocol != ol.Protocol {
+					conflicts = append(conflicts, ListenConflict{
+						Port:          l.Port,
+						WantProto:     l.Protocol,
+						OtherProto:    ol.Protocol,
+						OtherHost:     other.Host,
+						OtherNickname: other.Nickname,
+						OtherCode:     other.Code,
+					})
+				}
+			}
+		}
+	}
+	return conflicts
+}
+
+// FormatListenConflicts 冲突明细转用户可读文案（保存拒绝与预检共用一套话术）
+func FormatListenConflicts(conflicts []ListenConflict) string {
+	if len(conflicts) == 0 {
+		return ""
+	}
+	var parts []string
+	for _, c := range conflicts {
+		other := c.OtherHost
+		if c.OtherNickname != "" {
+			other = other + "（" + c.OtherNickname + "）"
+		}
+		parts = append(parts, "端口 "+strconv.Itoa(c.Port)+" 已被站点 "+other+" 以 "+strings.ToUpper(c.OtherProto)+
+			" 协议监听，本站声明为 "+strings.ToUpper(c.WantProto))
+	}
+	return strings.Join(parts, "；") + "。同一端口在本机只能是一种协议，请统一协议或更换端口"
+}
+
+// ValidatePortListensReq 保存期校验：与引擎运行期的宽容解析不同，用户主动编辑时脏数据一律拒绝。
+// 返回按显式表归一后的监听列表（供后续冲突校验复用）。
+func (receiver *WafHostService) ValidatePortListensReq(raw string, mainPort int, ssl int, autoJumpHTTPS int) ([]utils.HostListen, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	// 列宽 size:2048：MySQL 下超长在严格模式报错含糊、非严格模式截断成坏 JSON 后静默回落派生，必须在保存期拦住
+	if len(raw) > 2048 {
+		return nil, errors.New("端口监听表过长(超过2048字符)")
+	}
+	var items []utils.PortListenItem
+	if err := json.Unmarshal([]byte(raw), &items); err != nil {
+		return nil, errors.New("端口监听表格式不合法")
+	}
+	if len(items) == 0 {
+		return nil, errors.New("端口监听表不能为空")
+	}
+	if len(items) > 32 {
+		return nil, errors.New("端口监听表最多支持 32 个端口")
+	}
+	seen := map[int]bool{}
+	hasMain := false
+	hasHTTPS := false
+	for _, it := range items {
+		if it.Port < 1 || it.Port > 65535 {
+			return nil, errors.New("端口 " + strconv.Itoa(it.Port) + " 超出合法范围(1-65535)")
+		}
+		proto := strings.ToLower(strings.TrimSpace(it.Proto))
+		if proto != utils.ListenProtoHTTP && proto != utils.ListenProtoHTTPS {
+			return nil, errors.New("端口 " + strconv.Itoa(it.Port) + " 的协议只能是 http 或 https")
+		}
+		ipv := strings.ToLower(strings.TrimSpace(it.Ipv))
+		if ipv != "" && ipv != utils.ListenIPVBoth && ipv != utils.ListenIPV4 && ipv != utils.ListenIPV6 {
+			return nil, errors.New("端口 " + strconv.Itoa(it.Port) + " 的IP版本只能是 both/ipv4/ipv6")
+		}
+		if strings.TrimSpace(it.Addr) != "" {
+			return nil, errors.New("当前版本不支持指定监听地址(addr)")
+		}
+		if seen[it.Port] {
+			return nil, errors.New("端口 " + strconv.Itoa(it.Port) + " 重复")
+		}
+		seen[it.Port] = true
+		if it.Port == mainPort {
+			hasMain = true
+		}
+		if proto == utils.ListenProtoHTTPS {
+			hasHTTPS = true
+		}
+	}
+	if !hasMain {
+		return nil, errors.New("端口监听表必须包含主端口 " + strconv.Itoa(mainPort))
+	}
+	if hasHTTPS && ssl != 1 {
+		// 只要求开启 SSL，不要求证书文件已就位：自动申请证书流程里证书后到，与老行为持平
+		return nil, errors.New("存在 HTTPS 端口时必须启用SSL证书开关")
+	}
+	return utils.ResolveHostListens(model.Hosts{Port: mainPort, Ssl: ssl, AutoJumpHTTPS: autoJumpHTTPS, PortListensJSON: raw}), nil
+}
+
+// PortOverviewSite 端口占用总览里的单个站点引用
+type PortOverviewSite struct {
+	Code     string `json:"code"`
+	Host     string `json:"host"`
+	Nickname string `json:"nickname"`
+	Proto    string `json:"proto"`
+	Ipv      string `json:"ipv"`
+	IsMain   bool   `json:"is_main"`
+	Implied  bool   `json:"implied"`
+}
+
+// PortOverviewRow 端口占用总览行：一个端口在全机的声明汇总
+type PortOverviewRow struct {
+	Port     int                `json:"port"`
+	Proto    string             `json:"proto"` // http / https；冲突时为先声明者协议
+	Conflict bool               `json:"conflict"`
+	Sites    []PortOverviewSite `json:"sites"`
+}
+
+// GetPortOverviewApi 端口占用总览：端口 → 协议 → 占用站点（仅启用的非全局站点），按端口升序
+func (receiver *WafHostService) GetPortOverviewApi() []PortOverviewRow {
+	var hosts []model.Hosts
+	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).
+		Where("start_status = 0 and global_host = 0").Order("create_time asc").Find(&hosts)
+	rowMap := map[int]*PortOverviewRow{}
+	var portsOrder []int
+	for _, h := range hosts {
+		for _, l := range utils.ResolveHostListens(h) {
+			row, ok := rowMap[l.Port]
+			if !ok {
+				row = &PortOverviewRow{Port: l.Port, Proto: l.Protocol}
+				rowMap[l.Port] = row
+				portsOrder = append(portsOrder, l.Port)
+			}
+			if row.Proto != l.Protocol {
+				row.Conflict = true
+			}
+			row.Sites = append(row.Sites, PortOverviewSite{
+				Code: h.Code, Host: h.Host, Nickname: h.Nickname,
+				Proto: l.Protocol, Ipv: l.IPVersion, IsMain: l.IsMain, Implied: l.Implied,
+			})
+		}
+	}
+	sort.Ints(portsOrder)
+	rows := make([]PortOverviewRow, 0, len(portsOrder))
+	for _, p := range portsOrder {
+		rows = append(rows, *rowMap[p])
+	}
+	return rows
+}
+
+// HostPortConflictCodes 返回当前处于端口协议冲突中的启用站点 code 集合（列表红标用）
+func (receiver *WafHostService) HostPortConflictCodes() map[string]bool {
+	res := map[string]bool{}
+	var hosts []model.Hosts
+	global.GWAF_LOCAL_DB.Model(&model.Hosts{}).
+		Where("start_status = 0 and global_host = 0").Find(&hosts)
+	type occ struct {
+		proto string
+		codes []string
+	}
+	portMap := map[int]*occ{}
+	for _, h := range hosts {
+		for _, l := range utils.ResolveHostListens(h) {
+			o, ok := portMap[l.Port]
+			if !ok {
+				portMap[l.Port] = &occ{proto: l.Protocol, codes: []string{h.Code}}
+				continue
+			}
+			o.codes = append(o.codes, h.Code)
+			if o.proto != l.Protocol {
+				o.proto = "conflict"
+			}
+		}
+	}
+	for _, o := range portMap {
+		if o.proto == "conflict" {
+			for _, c := range o.codes {
+				res[c] = true
+			}
+		}
+	}
+	return res
 }
 
 func (receiver *WafHostService) IsEmptyHost() bool {

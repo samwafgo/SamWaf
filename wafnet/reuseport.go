@@ -13,14 +13,25 @@ import (
 	"net"
 )
 
-// ReusePortTCPListen 创建开启端口复用的 TCP 监听。
+// ReusePortTCPListen 创建开启端口复用的 TCP 监听（双栈，等价 network="tcp"）。
 func ReusePortTCPListen(addr string) (net.Listener, error) {
+	return ReusePortTCPListenNetwork("tcp", addr)
+}
+
+// ReusePortTCPListenNetwork 创建开启端口复用的 TCP 监听，network 取 tcp/tcp4/tcp6，
+// 供站点端口按 IP 版本（both/ipv4/ipv6）选择监听族。
+func ReusePortTCPListenNetwork(network, addr string) (net.Listener, error) {
 	lc := net.ListenConfig{Control: reusePortControl}
-	return lc.Listen(context.Background(), "tcp", addr)
+	return lc.Listen(context.Background(), network, addr)
 }
 
 // ReusePortPacketConn 创建开启端口复用的 UDP PacketConn，供 HTTP/3(QUIC) 使用。
 func ReusePortPacketConn(addr string) (net.PacketConn, error) {
+	return ReusePortPacketConnNetwork("udp", addr)
+}
+
+// ReusePortPacketConnNetwork 同上，network 取 udp/udp4/udp6，与 TCP 侧保持同一 IP 版本。
+func ReusePortPacketConnNetwork(network, addr string) (net.PacketConn, error) {
 	lc := net.ListenConfig{Control: reusePortControl}
-	return lc.ListenPacket(context.Background(), "udp", addr)
+	return lc.ListenPacket(context.Background(), network, addr)
 }

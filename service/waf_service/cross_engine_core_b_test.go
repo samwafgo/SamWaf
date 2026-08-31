@@ -185,11 +185,27 @@ func runCoreCRUDCasesB(t *testing.T, db *gorm.DB) {
 			AutoLoadPath: 0, // 自动管理证书：关闭路径自动加载
 		}
 		// 修复前：按值 Create + 零值默认列在此 panic（reflect.Value.SetInt unaddressable）
-		WafSslConfigServiceApp.CreateInner(cfg)
+		newId, createErr := WafSslConfigServiceApp.CreateInner(cfg)
+		fatalIf(t, createErr)
+		if newId != cfg.Id {
+			t.Fatalf("CreateInner 应返回落库的ID: 返回 %q 期望 %q", newId, cfg.Id)
+		}
 		var got model.SslConfig
 		firstBy(t, db, &got, "serial_no = ?", serial)
 		if got.AutoLoadPath != 0 {
 			t.Fatalf("CreateInner 后 auto_load_path 应为 0，实际 %d", got.AutoLoadPath)
+		}
+		// 序列号已存在时不重复落库，必须返回库里那条已有记录的ID：
+		// 返回本次传入的新ID会让调用方把主机绑到一条不存在的证书夹上
+		dup := cfg
+		dup.BaseOrm = newBase(uuid.GenUUID())
+		dupId, dupErr := WafSslConfigServiceApp.CreateInner(dup)
+		fatalIf(t, dupErr)
+		if dupId != cfg.Id {
+			t.Fatalf("重复序列号应返回已有记录ID: 返回 %q 期望 %q", dupId, cfg.Id)
+		}
+		if n := countBy(t, db, &model.SslConfig{}, "id = ?", dup.Id); n != 0 {
+			t.Fatalf("重复序列号不应再落一条记录，实际 %d 条", n)
 		}
 	})
 }

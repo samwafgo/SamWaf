@@ -337,13 +337,22 @@ func (waf *WafEngine) processSSL(updateSSLOrder model.SslOrder, bean model.SslOr
 		zlog.Info(fmt.Sprintf("%s 当前主机未配置证书新增一个证书文件夹", bean.ApplyDomain))
 		//该证书夹由 SamWaf 自动申请管理，关闭路径自动加载，避免凌晨3点被本地旧文件覆盖
 		newSslConfig.AutoLoadPath = 0
-		//添加到证书夹内
-		wafSslConfigService.CreateInner(newSslConfig)
-		//这里不触发证书导出：新建的证书夹条目导出路径必然为空（用户还没机会配置），
-		//而且 CreateInner 遇到重复序列号会直接返回不落库，此时按ID导出反而会误报"证书夹不存在"。
+		//添加到证书夹内。绑定用的是 CreateInner 返回的ID：
+		//序列号已存在时它不会重复落库而是返回已有条目的ID，拿本地生成的ID去绑会绑到一条查不到的记录上，
+		//主机编辑页的证书夹下拉就只剩一串ID显示不出名称
+		sslConfigId, createErr := wafSslConfigService.CreateInner(newSslConfig)
+		if createErr != nil {
+			zlog.Error(fmt.Sprintf("%s 证书夹保存失败 %v", bean.ApplyDomain, createErr.Error()))
+		}
+		//这里不触发证书导出：新建的证书夹条目导出路径必然为空（用户还没机会配置）。
 		//用户在证书夹页面配好导出路径后，保存那一下会立刻导出，之后每次续期也会导出。
 		//1.更新主机信息 2.发送主机通知
-		err = wafHostService.UpdateSSLInfoAndBindId(string(updateSSLOrder.ResultCertificate), string(updateSSLOrder.ResultPrivateKey), bean.HostCode, newSslConfig.Id)
+		if sslConfigId == "" {
+			//证书夹没能落库：证书本身照常生效，但不写绑定ID，避免指向一条不存在的证书夹条目
+			err = wafHostService.UpdateSSLInfo(string(updateSSLOrder.ResultCertificate), string(updateSSLOrder.ResultPrivateKey), bean.HostCode)
+		} else {
+			err = wafHostService.UpdateSSLInfoAndBindId(string(updateSSLOrder.ResultCertificate), string(updateSSLOrder.ResultPrivateKey), bean.HostCode, sslConfigId)
+		}
 		if err == nil {
 			hostBean.Keyfile = string(updateSSLOrder.ResultPrivateKey)
 			hostBean.Certfile = string(updateSSLOrder.ResultCertificate)

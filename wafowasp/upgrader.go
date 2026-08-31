@@ -20,6 +20,9 @@ import (
 // UpgradeConfig 升级所需的外部配置（通过 ConfigureUpgrader 由上层注入，避免 wafowasp → global 循环依赖）。
 type UpgradeConfig struct {
 	UpdateVersionURL string // 升级源根 URL，例如 http://update.samwaf.com/update/
+	// ClientQuery 清单请求上统一携带的客户端标识(v/u/os/arch/rt)，由上层注入。
+	// 用函数而不是字符串：注入发生在启动早期，那时实例码还没从配置里读出来。
+	ClientQuery func() string
 	// NotifyFunc 当升级流程产生结果时被回调，可用于推送 WS 消息。success=false 表示失败。
 	NotifyFunc func(success bool, msg string)
 }
@@ -79,6 +82,12 @@ func CheckUpgrade(m *OwaspManager) (*UpgradeInfo, error) {
 		return info, fmt.Errorf("未配置升级源 GUPDATE_VERSION_URL")
 	}
 	manifestURL := strings.TrimRight(cfg.UpdateVersionURL, "/") + "/owasp-ruleset/latest.json"
+	// 带上客户端标识便于升级源侧统计；规则包下载地址保持纯静态，避免打散 CDN 缓存
+	if cfg.ClientQuery != nil {
+		if q := cfg.ClientQuery(); q != "" {
+			manifestURL += "?" + q
+		}
+	}
 	manifest, err := fetchManifest(manifestURL)
 	if err != nil {
 		return info, err

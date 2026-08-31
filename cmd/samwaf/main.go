@@ -255,6 +255,7 @@ func (m *wafSystenService) run() {
 	// 所以升级源、SSRF 安全客户端、通知回调都从这里传进去。
 	iplocation.ConfigureUpgrader(iplocation.UpgradeConfig{
 		UpdateVersionURL: global.GUPDATE_VERSION_URL,
+		ClientQuery:      wafupdate.ClientQuery,
 		NewClient:        utils.SafeHTTPClient,
 		ValidateURL:      utils.IsSafeOutboundURL,
 		NotifyFunc: func(success bool, msg string) {
@@ -282,6 +283,7 @@ func (m *wafSystenService) run() {
 	// 注入升级上下文：避免 wafowasp → global 的循环依赖
 	wafowasp.ConfigureUpgrader(wafowasp.UpgradeConfig{
 		UpdateVersionURL: global.GUPDATE_VERSION_URL,
+		ClientQuery:      wafupdate.ClientQuery,
 		NotifyFunc: func(success bool, msg string) {
 			if global.GQEQUE_MESSAGE_DB == nil {
 				return

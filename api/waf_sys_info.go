@@ -37,7 +37,7 @@ func fetchAnnouncementWithTimeout(timeout time.Duration) (string, error) {
 		Timeout: timeout,
 	}
 
-	resp, err := client.Get(global.GUPDATE_VERSION_URL + "announcement/public.json?v=" + global.GWAF_RELEASE_VERSION + "&u=" + global.GWAF_USER_CODE)
+	resp, err := client.Get(global.GUPDATE_VERSION_URL + "announcement/public.json?" + wafupdate.ClientQuery())
 	if err != nil {
 		return "", errors.New(fmt.Sprintf("获取失败: %v", err))
 	}
@@ -304,6 +304,16 @@ func (w *WafSysInfoApi) UpdateApi(c *gin.Context) {
 		return
 	}
 	global.GWAF_RUNTIME_IS_UPDATETING = true
+
+	tracker := wafupdate.GlobalUpdateProgress
+	if channel == "" {
+		channel = "official"
+	}
+	tracker.Begin(global.GWAF_RELEASE_VERSION, global.GWAF_RUNTIME_NEW_VERSION, channel)
+	// 环境检查在进入本函数前已经做完(容器检测/是否允许应用内升级)，这里直接结帐
+	tracker.StageStart(wafupdate.StageCheck)
+	tracker.StageDone(wafupdate.StageCheck, "")
+
 	var updater = &wafupdate.Updater{
 		CurrentVersion: global.GWAF_RELEASE_VERSION, // Manually update the const, or set it using `go build -ldflags="-X main.VERSION=<newver>" -o hello-updater src/hello-updater/main.go`
 		ApiURL:         remoteURL,                   // The server hosting `$CmdName/$GOOS-$ARCH.json` which contains the checksum for the binary
@@ -312,8 +322,12 @@ func (w *WafSysInfoApi) UpdateApi(c *gin.Context) {
 		Dir:            "tmp_update/",               // The directory created by the app when run which stores the cktime file
 		CmdName:        "samwaf_update",             // The app name which is appended to the ApiURL to look for an update
 		//ForceCheck:     true,                     // For this example, always check for an update unless the version is "dev"
+		Tracker: tracker,
 		OnSuccessfulUpdate: func() {
 			global.GWAF_RUNTIME_IS_UPDATETING = false
+			// 二进制已替换完成，接下来是重启：此后 WebSocket 必断，
+			// 界面转为轮询版本号判断新版本是否已就绪。
+			tracker.MarkRestarting()
 			zlog.Info("OnSuccessfulUpdate 升级成功")
 			wafDelayMsgService.Add("升级结果", "升级结果", "升级成功，当前版本为："+global.GWAF_RUNTIME_NEW_VERSION+" 版本说明:"+global.GWAF_RUNTIME_NEW_VERSION_DESC)
 			global.GWAF_CHAN_UPDATE <- 1
@@ -327,43 +341,83 @@ func (w *WafSysInfoApi) UpdateApi(c *gin.Context) {
 	}
 	go func() {
 		// 备份当前可执行文件
-		err := wafupdate.BackupExecutable()
-		if err != nil {
+		tracker.StageStart(wafupdate.StageBackup)
+		if err := wafupdate.BackupExecutable(); err != nil {
 			zlog.Error("备份可执行文件失败:", err)
-			// 备份失败不影响升级流程，继续执行
+			// 备份失败不影响升级流程，继续执行；但要让用户知道自己已失去一键回退能力
+			tracker.StageWarn(wafupdate.StageBackup, "备份失败，升级后将无法一键回退："+err.Error())
+		} else {
+			tracker.StageDone(wafupdate.StageBackup, "")
 		}
 
 		// try to update
+		var err error
 		if channel != "" {
-			err := updater.BackgroundRunWithChannel(channel)
-			if err != nil {
-
-				global.GWAF_RUNTIME_IS_UPDATETING = false
-				//发送websocket 推送消息
-				global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.UpdateResultMessageInfo{
-					BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "升级结果", Server: global.GWAF_CUSTOM_SERVER_NAME},
-					Msg:             "升级错误:" + err.Error(),
-					Success:         "False",
-				})
-				zlog.Info("Failed to update app:", err)
-			}
+			err = updater.BackgroundRunWithChannel(channel)
 		} else {
-			err := updater.BackgroundRun()
-			if err != nil {
-
-				global.GWAF_RUNTIME_IS_UPDATETING = false
-				//发送websocket 推送消息
-				global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.UpdateResultMessageInfo{
-					BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "升级结果", Server: global.GWAF_CUSTOM_SERVER_NAME},
-					Msg:             "升级错误:" + err.Error(),
-					Success:         "False",
-				})
-				zlog.Info("Failed to update app:", err)
-			}
+			err = updater.BackgroundRun()
 		}
-
+		if err != nil {
+			global.GWAF_RUNTIME_IS_UPDATETING = false
+			tracker.Fail(err)
+			//发送websocket 推送消息
+			global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.UpdateResultMessageInfo{
+				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "升级结果", Server: global.GWAF_CUSTOM_SERVER_NAME},
+				Msg:             "升级错误:" + err.Error(),
+				Success:         "False",
+			})
+			zlog.Info("Failed to update app:", err)
+			return
+		}
+		// 升级链路存在"返回 nil 但其实什么都没做"的通路(远端版本不高于当前版本、
+		// 或距上次检查时间未到)。此时若不收尾，升级中标志会一直挂着，
+		// 之后所有升级/版本检查都会被挡在"正在升级中"上。
+		if !tracker.ReplaceDone() {
+			global.GWAF_RUNTIME_IS_UPDATETING = false
+			tracker.Fail(errors.New("未检出可升级的新版本，升级流程未执行"))
+			global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.UpdateResultMessageInfo{
+				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "升级结果", Server: global.GWAF_CUSTOM_SERVER_NAME},
+				Msg:             "升级未执行：未检出可升级的新版本",
+				Success:         "False",
+			})
+			zlog.Info("升级流程结束但未发生二进制替换")
+		}
 	}()
 	response.OkWithMessage("已发起升级，等待通知结果", c)
+}
+
+// updateProgressResp 升级进度响应：进度快照 + 环境相关的等待上限。
+// 放在 api 层而不是 model 包：model 被 global 引用，若在其中引用 wafupdate 会成环。
+type updateProgressResp struct {
+	wafupdate.ProgressSnapshot
+	// RestartTimeout 替换二进制后界面等待服务重新就绪的上限(秒)，来自 conf/config.yml 的
+	// update_restart_timeout。下发给前端而不是让前端写死，容器/低配机器可带外调大。
+	RestartTimeout int64 `json:"restart_timeout"`
+}
+
+// UpdateProgressApi 查询当前升级进度
+// GET /api/v1/sysinfo/updateprogress
+//
+// 只读内存快照，不触发任何动作。界面靠它渲染进度，也靠它在刷新页面后恢复现场——
+// 二进制替换与重启期间 WebSocket 必断，轮询才是唯一能跨过重启的通道。
+func (w *WafSysInfoApi) UpdateProgressApi(c *gin.Context) {
+	snapshot := wafupdate.GlobalUpdateProgress.Snapshot()
+	response.OkWithDetailed(updateProgressResp{
+		ProgressSnapshot: snapshot,
+		RestartTimeout:   global.GCONFIG_UPDATE_RESTART_TIMEOUT,
+	}, "获取成功", c)
+}
+
+// CancelUpdateApi 取消正在进行的升级
+// GET /api/v1/sysinfo/cancelupdate
+//
+// 只在下载阶段可取消：进入二进制替换后中断反而危险。
+func (w *WafSysInfoApi) CancelUpdateApi(c *gin.Context) {
+	if !wafupdate.GlobalUpdateProgress.Cancel() {
+		response.FailWithMessage("当前阶段不可取消，只有下载阶段允许取消", c)
+		return
+	}
+	response.OkWithMessage("已请求取消升级", c)
 }
 
 // isSelfUpdateAllowed 当前环境是否允许走应用内升级。

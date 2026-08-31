@@ -80,6 +80,36 @@ func (httpRequester *HTTPRequester) Fetch(url string) (io.ReadCloser, error) {
 	return resp.Body, nil
 }
 
+// SizedRequester 可选能力：除响应体外再带出 Content-Length，用于下载进度百分比。
+// 刻意做成独立接口而不是改 Requester.Fetch 的签名，既有的自定义 Requester 与
+// 测试 mock 不受影响，拿不到长度时退化为"只显示已下载字节"。
+type SizedRequester interface {
+	FetchWithSize(url string) (io.ReadCloser, int64, error)
+}
+
+// FetchWithSize 与 Fetch 等价，额外返回 Content-Length（未知或分块传输时为 0）。
+func (httpRequester *HTTPRequester) FetchWithSize(url string) (io.ReadCloser, int64, error) {
+	client := httpRequester.Client
+	if client == nil {
+		client = defaultHTTPClient
+	}
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if resp.StatusCode != 200 {
+		resp.Body.Close()
+		return nil, 0, fmt.Errorf("bad http status from %s: %v", url, resp.Status)
+	}
+
+	size := resp.ContentLength
+	if size < 0 {
+		size = 0
+	}
+	return resp.Body, size, nil
+}
+
 // mockRequester used for some mock testing to ensure the requester contract
 // works as specified.
 type mockRequester struct {

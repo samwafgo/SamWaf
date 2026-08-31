@@ -100,6 +100,9 @@ func fileNameByKey(key string) string {
 type UpgradeConfig struct {
 	// UpdateVersionURL 升级源根 URL，例如 https://update.samwaf.com/
 	UpdateVersionURL string
+	// ClientQuery 清单请求上统一携带的客户端标识(v/u/os/arch/rt)，由上层注入。
+	// 用函数而不是字符串：注入发生在启动早期，那时实例码还没从配置里读出来。
+	ClientQuery func() string
 	// NewClient 返回一枚带 SSRF 防护的 http.Client；为 nil 时退化为普通客户端。
 	// 该 client 负责跳转链上每一跳的校验，初始 URL 由 ValidateURL 把关。
 	NewClient func() *http.Client
@@ -347,7 +350,7 @@ func CheckUpgrade(dataDir string) (*UpgradeInfo, error) {
 	if cfg.UpdateVersionURL == "" {
 		return info, fmt.Errorf("未配置升级源")
 	}
-	manifest, err := fetchManifest(context.Background(), strings.TrimRight(cfg.UpdateVersionURL, "/")+"/ipdb-dataset/latest.json")
+	manifest, err := fetchManifest(context.Background(), manifestURL(cfg))
 	if err != nil {
 		return info, err
 	}
@@ -455,7 +458,7 @@ func doUpgrade(ctx context.Context, dataDir, key, fileName string, reload func()
 	if cfg.UpdateVersionURL == "" {
 		return notifyErr(fmt.Errorf("未配置升级源"))
 	}
-	manifest, err := fetchManifest(ctx, strings.TrimRight(cfg.UpdateVersionURL, "/")+"/ipdb-dataset/latest.json")
+	manifest, err := fetchManifest(ctx, manifestURL(cfg))
 	if err != nil {
 		return notifyErr(fmt.Errorf("获取升级清单失败: %w", err))
 	}
@@ -607,4 +610,16 @@ func fileSHA256(path string) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// manifestURL 拼出 IP 库清单地址，带上客户端标识便于升级源侧统计版本与运行形态分布。
+// 只加在清单上，数据包下载地址保持纯静态，避免打散 CDN 缓存。
+func manifestURL(cfg UpgradeConfig) string {
+	u := strings.TrimRight(cfg.UpdateVersionURL, "/") + "/ipdb-dataset/latest.json"
+	if cfg.ClientQuery != nil {
+		if q := cfg.ClientQuery(); q != "" {
+			u += "?" + q
+		}
+	}
+	return u
 }

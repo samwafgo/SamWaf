@@ -71,6 +71,10 @@ type Updater struct {
 		Desc    string
 	}
 	OnSuccessfulUpdate func() // Optional function to run after an update has successfully taken place
+
+	// Tracker 升级进度快照，可为 nil（所有打点方法都是 nil 安全的）。
+	// 传入后各阶段的起止、下载字节数会写进快照，供管理端轮询展示。
+	Tracker *ProgressTracker
 }
 
 func (u *Updater) getExecRelativeDir(dir string) string {
@@ -197,6 +201,7 @@ func (u *Updater) UpdateAvailableWithChannel(channel string) (bool, string, stri
 
 	//渠道选择
 	if channel == "" || channel == "official" {
+		// 这里只是版本检查，不属于升级流程，不打进度点
 		err = u.fetchInfo()
 		if err != nil {
 			return false, "", "", err
@@ -247,6 +252,7 @@ func (u *Updater) Update() error {
 	}
 
 	// go fetch latest updates manifest
+	u.Tracker.StageStart(StageManifest)
 	err = u.fetchInfo()
 	if err != nil {
 		return err
@@ -257,6 +263,7 @@ func (u *Updater) Update() error {
 	if cmp <= 0 {
 		return nil
 	}
+	u.Tracker.StageDone(StageManifest, u.Info.Version)
 
 	old, err := os.Open(path)
 	if err != nil {
@@ -279,7 +286,8 @@ func (u *Updater) Update() error {
 	// it can't be renamed if a handle to the file is still open
 	old.Close()
 
-	err, errRecover := fromStream(bytes.NewBuffer(bin))
+	u.Tracker.StageStart(StageExtract)
+	err, errRecover := fromStreamWithTracker(bytes.NewBuffer(bin), u.Tracker)
 	if errRecover != nil {
 		return fmt.Errorf("update and recovery errors: %q %q", err, errRecover)
 	}
@@ -308,6 +316,7 @@ func (u *Updater) UpdateWithChannel(channel string) error {
 
 	if channel == "" || channel == "official" {
 		// go fetch latest updates manifest
+		u.Tracker.StageStart(StageManifest)
 		err = u.fetchInfo()
 		if err != nil {
 			return err
@@ -318,6 +327,7 @@ func (u *Updater) UpdateWithChannel(channel string) error {
 		if cmp <= 0 {
 			return nil
 		}
+		u.Tracker.StageDone(StageManifest, u.Info.Version)
 
 		old, err := os.Open(path)
 		if err != nil {
@@ -340,7 +350,8 @@ func (u *Updater) UpdateWithChannel(channel string) error {
 		// it can't be renamed if a handle to the file is still open
 		old.Close()
 
-		err, errRecover := fromStream(bytes.NewBuffer(bin))
+		u.Tracker.StageStart(StageExtract)
+		err, errRecover := fromStreamWithTracker(bytes.NewBuffer(bin), u.Tracker)
 		if errRecover != nil {
 			return fmt.Errorf("update and recovery errors: %q %q", err, errRecover)
 		}
@@ -353,16 +364,20 @@ func (u *Updater) UpdateWithChannel(channel string) error {
 			u.OnSuccessfulUpdate()
 		}
 	} else if channel == "github" {
+		u.Tracker.StageStart(StageManifest)
 		err = u.fetchInfoGithub()
 		if err != nil {
 			return err
 		}
+		u.Tracker.StageDone(StageManifest, u.Info.Version)
 		// 从 GitHub 下载资源
-		r, err := u.fetch(u.BinGithubURL)
+		u.Tracker.StageStart(StageDownload)
+		r, dlSize, err := u.fetchSized(u.BinGithubURL)
 		if err != nil {
 			return err
 		}
 		defer r.Close()
+		body := newProgressReader(r, u.Tracker, dlSize)
 
 		// 创建临时目录用于解压文件
 		tempDir, err := ioutil.TempDir("", "samwaf_beta_update"+u.Info.Version)
@@ -378,11 +393,14 @@ func (u *Updater) UpdateWithChannel(channel string) error {
 			return err
 		}
 
-		_, err = io.Copy(out, r)
+		_, err = io.Copy(out, body)
 		out.Close()
 		if err != nil {
 			return err
 		}
+		u.Tracker.StageDone(StageDownload, "")
+		// GitHub 渠道的包没有官方渠道那份 SHA256 清单，校验阶段不适用
+		u.Tracker.StageStart(StageExtract)
 
 		// 根据文件类型和平台解压并获取正确的可执行文件
 		var binPath string
@@ -421,7 +439,7 @@ func (u *Updater) UpdateWithChannel(channel string) error {
 		if err != nil {
 			return err
 		}
-		err, errRecover := fromStream(bytes.NewBuffer(fileBytes))
+		err, errRecover := fromStreamWithTracker(bytes.NewBuffer(fileBytes), u.Tracker)
 		if errRecover != nil {
 			return fmt.Errorf("update and recovery errors: %q %q", err, errRecover)
 		}
@@ -442,6 +460,11 @@ func (u *Updater) UpdateWithChannel(channel string) error {
 // 替换本身(唯一 .old 命名、属性清理、重试、旧二进制处置)统一在 binreplace.go，
 // 与 RollbackExecutable 共用，不要在这里再写一套 rename 技巧。
 func fromStream(updateWith io.Reader) (err error, errRecover error) {
+	return fromStreamWithTracker(updateWith, nil)
+}
+
+// fromStreamWithTracker 与 fromStream 相同，额外在"写完临时文件"与"开始替换"之间打点。
+func fromStreamWithTracker(updateWith io.Reader, tracker *ProgressTracker) (err error, errRecover error) {
 	updatePath, err := os.Executable()
 	if err != nil {
 		return
@@ -485,13 +508,19 @@ func fromStream(updateWith io.Reader) (err error, errRecover error) {
 		return
 	}
 
-	return replaceExecutable(updatePath, newPath)
+	tracker.StageDone(StageExtract, filepath.Base(newPath))
+	tracker.StageStart(StageReplace)
+	err, errRecover = replaceExecutable(updatePath, newPath)
+	if err == nil && errRecover == nil {
+		tracker.StageDone(StageReplace, "")
+	}
+	return err, errRecover
 }
 
 // fetchInfo fetches the update JSON manifest at u.ApiURL/appname/platform.json?v=currentVersion
 // and updates u.Info.
 func (u *Updater) fetchInfo() error {
-	r, err := u.fetch(u.ApiURL + url.QueryEscape(u.CmdName) + "/" + url.QueryEscape(plat) + ".json?v=" + global.GWAF_RELEASE_VERSION + "&u=" + global.GWAF_USER_CODE)
+	r, err := u.fetch(u.ApiURL + url.QueryEscape(u.CmdName) + "/" + url.QueryEscape(plat) + ".json?" + ClientQuery())
 	if err != nil {
 		return err
 	}
@@ -508,7 +537,7 @@ func (u *Updater) fetchInfo() error {
 
 // fetchInfoGithub 从GitHub获取最新beta版本信息
 func (u *Updater) fetchInfoGithub() error {
-	r, err := u.fetch(global.GUPDATE_GITHUB_VERSION_URL)
+	r, err := u.fetch(global.GUPDATE_GITHUB_VERSION_URL + "?" + ClientQuery())
 	if err != nil {
 		return err
 	}
@@ -609,25 +638,32 @@ func (u *Updater) fetchAndApplyPatch(old io.Reader) ([]byte, error) {
 }
 
 func (u *Updater) fetchAndVerifyFullBin() ([]byte, error) {
+	u.Tracker.StageStart(StageDownload)
 	bin, err := u.fetchBin()
 	if err != nil {
 		return nil, err
 	}
+	u.Tracker.StageDone(StageDownload, "")
+
+	u.Tracker.StageStart(StageVerify)
 	verified := verifySha(bin, u.Info.Sha256)
 	if !verified {
 		return nil, ErrHashMismatch
 	}
+	u.Tracker.StageDone(StageVerify, "SHA256 校验通过")
 	return bin, nil
 }
 
 func (u *Updater) fetchBin() ([]byte, error) {
-	r, err := u.fetch(u.BinURL + url.QueryEscape(u.CmdName) + "/" + url.QueryEscape(u.Info.Version) + "/" + url.QueryEscape(plat) + ".gz")
+	r, size, err := u.fetchSized(u.BinURL + url.QueryEscape(u.CmdName) + "/" + url.QueryEscape(u.Info.Version) + "/" + url.QueryEscape(plat) + ".gz")
 	if err != nil {
 		return nil, err
 	}
 	defer r.Close()
+	// 计数放在 gzip 之外：Content-Length 是压缩包大小，两者口径要一致
+	body := newProgressReader(r, u.Tracker, size)
 	buf := new(bytes.Buffer)
-	gz, err := gzip.NewReader(r)
+	gz, err := gzip.NewReader(body)
 	if err != nil {
 		return nil, err
 	}
@@ -636,6 +672,20 @@ func (u *Updater) fetchBin() ([]byte, error) {
 	}
 	return buf.Bytes(), nil
 }
+
+// fetchSized 在 fetch 基础上带出 Content-Length，用于下载进度百分比。
+// Requester 未实现 SizedRequester 时长度返回 0，界面退化为只显示已下载字节。
+func (u *Updater) fetchSized(url string) (io.ReadCloser, int64, error) {
+	if u.Requester == nil {
+		return defaultHTTPRequester.FetchWithSize(url)
+	}
+	if sized, ok := u.Requester.(SizedRequester); ok {
+		return sized.FetchWithSize(url)
+	}
+	readCloser, err := u.fetch(url)
+	return readCloser, 0, err
+}
+
 func (u *Updater) fetch(url string) (io.ReadCloser, error) {
 	if u.Requester == nil {
 		return defaultHTTPRequester.Fetch(url)

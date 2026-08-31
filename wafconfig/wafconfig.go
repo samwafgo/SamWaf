@@ -135,6 +135,25 @@ func LoadAndInitConfig() {
 		configChanged = true
 	}
 
+	// 应用内升级替换二进制后，界面等待服务重新就绪的上限（秒）。由升级进度接口下发给前端。
+	// 只读 config.yml、不进数据库/API：容器或低配机器重启慢，属部署环境差异，运营方带外调整。
+	if config.IsSet("update_restart_timeout") {
+		if v := config.GetInt64("update_restart_timeout"); v > 0 {
+			global.GCONFIG_UPDATE_RESTART_TIMEOUT = v
+		}
+	} else {
+		config.Set("update_restart_timeout", global.GCONFIG_UPDATE_RESTART_TIMEOUT)
+		configChanged = true
+	}
+
+	// 版本/清单检查请求是否附带运行环境标识
+	if config.IsSet("update_env_report") {
+		global.GCONFIG_UPDATE_ENV_REPORT = config.GetBool("update_env_report")
+	} else {
+		config.Set("update_env_report", global.GCONFIG_UPDATE_ENV_REPORT)
+		configChanged = true
+	}
+
 	// 调试响应头开关：开启后在响应头加 X-SamWaf-Worker 标记处理进程，便于验证升级时新旧 Worker 交替。
 	// Supervisor 与 Worker 均在启动时从 config.yml 读取（服务模式下环境变量不会从交互式 shell 传入，故改用配置项）。
 	if config.IsSet("debug_worker_header") {

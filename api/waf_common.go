@@ -15,6 +15,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -332,11 +333,12 @@ func checkHostCodeData(code string) (string, error) {
 	return "数据正常", nil
 }
 func checkHostPortData(host string, port string) (string, error) {
-	//唯一性校验：检查 `Host` 和 `Port` 的组合是否已存在
-	if err := wafHostService.CheckIsExist(host, port); err == nil {
-		errorMsg := "Host+Port 数据已存在不进行插入"
-		// 数据已存在，不插入
-		return errorMsg, errors.New(errorMsg)
+	portInt, err := strconv.Atoi(strings.TrimSpace(port))
+	if err != nil {
+		portInt = 0
+	}
+	if err := wafHostService.CheckDomainOccupied("", model.Hosts{Host: host, Port: portInt}); err != nil {
+		return err.Error(), err
 	}
 	return "数据正常", nil
 }

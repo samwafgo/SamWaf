@@ -175,21 +175,14 @@ func (w *WafHostAPi) AddApi(c *gin.Context) {
 			//return
 			req.START_STATUS = 1 //设置成不能启动
 		}
-		err = wafHostService.CheckIsExistApi(req)
-		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
-			hostCode, err := wafHostService.AddApi(req)
-			if err == nil {
-				w.NotifyWaf(hostCode, nil)
-				response.OkWithDetailed(hostCode, "添加成功", c)
-			} else {
-
-				response.FailWithMessage("添加失败", c)
-			}
-			return
-		} else {
-			response.FailWithMessage("当前网站和端口已经存在", c)
+		hostCode, err := wafHostService.AddApi(req)
+		if err != nil {
+			response.FailWithMessage(err.Error(), c)
 			return
 		}
+		w.NotifyWaf(hostCode, nil)
+		response.OkWithDetailed(hostCode, "添加成功", c)
+		return
 
 	} else {
 		response.FailWithMessage("解析失败", c)
@@ -489,7 +482,7 @@ func (w *WafHostAPi) ModifyHostApi(c *gin.Context) {
 		}
 		err = wafHostService.ModifyApi(req)
 		if err != nil {
-			response.FailWithMessage("编辑发生错误", c)
+			response.FailWithMessage(err.Error(), c)
 		} else {
 			w.NotifyWaf(req.CODE, wafHostOld)
 			response.OkWithMessage("编辑成功", c)

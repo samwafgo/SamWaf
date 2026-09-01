@@ -2,6 +2,7 @@ package wafenginecore
 
 import (
 	"SamWaf/model/wafenginmodel"
+	"SamWaf/utils"
 )
 
 // routingTable 不可变路由快照（RCU）。
@@ -113,6 +114,7 @@ func (waf *WafEngine) UpdateHostByKey(hostKey string, mutator func(h *wafenginmo
 // applyHostUpdateLocked 字段级 COW 的核心，必须在 writeMu 下调用：
 // 浅拷贝目标 HostSafe→跑 mutator→新表中所有指向旧 HostSafe 的 key 改指向新副本→原子发布。
 func (waf *WafEngine) applyHostUpdateLocked(cur *routingTable, hostKey string, mutator func(h *wafenginmodel.HostSafe)) {
+	hostKey = utils.CanonicalHostPort(hostKey)
 	old, ok := cur.HostTarget[hostKey]
 	if !ok || old == nil {
 		return
@@ -143,7 +145,7 @@ func (waf *WafEngine) GetHostByCode(hostCode string) (*wafenginmodel.HostSafe, b
 // ResetHostProxiesByKey 清空指定 host:port 的已建反向代理，使下次请求按新后端懒重建(见 proxy.go)。
 // LoadBalanceRuntime 是共享可变子对象，在其自身 Mux 下重置，线程安全。
 func (waf *WafEngine) ResetHostProxiesByKey(hostKey string) {
-	h, ok := waf.rt().HostTarget[hostKey]
+	h, ok := waf.rt().HostTarget[utils.CanonicalHostPort(hostKey)]
 	if !ok || h == nil || h.LoadBalanceRuntime == nil {
 		return
 	}

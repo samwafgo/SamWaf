@@ -48,18 +48,8 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 
 	//检测https
 	if inHost.Ssl == 1 {
-		// 为主域名加载证书
-		waf.AllCertificate.LoadSSL(inHost.Host, inHost.Certfile, inHost.Keyfile)
-
-		// 为绑定的多个域名也加载相同的证书
-		if inHost.BindMoreHost != "" {
-			lines := strings.Split(inHost.BindMoreHost, "\n")
-			for _, line := range lines {
-				line = strings.TrimSpace(line)
-				if line != "" {
-					waf.AllCertificate.LoadSSL(line, inHost.Certfile, inHost.Keyfile)
-				}
-			}
+		for _, name := range utils.HostNames(inHost) {
+			waf.AllCertificate.LoadSSL(name, inHost.Certfile, inHost.Keyfile)
 		}
 	}
 	if inHost.GLOBAL_HOST == 1 {
@@ -234,85 +224,10 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 	}
 	// 路由表(RCU)：在 writeMu 下克隆当前快照→在副本上登记本 host→原子发布。
 	waf.withWriteTable(func(nt *routingTable) {
-		// 原子替换：先清掉该 host(按旧 HostSafe 指针)此前占用的所有 key，再装新 key。
-		// 全程在克隆表上操作、单次 Store 发布——主端口 key 不会出现"短暂缺失"，
-		// 因此重载(改端口/SSL/绑定域名等)期间不会再返回 403 Host forbidden。
-		if oldKey, ok := nt.HostCode[inHost.Code]; ok {
-			if oldHS := nt.HostTarget[oldKey]; oldHS != nil {
-				for k, v := range nt.HostTarget {
-					if v == oldHS {
-						delete(nt.HostTarget, k)
-					}
-				}
-			}
-		}
-		for k, v := range nt.HostTargetMoreDomain {
-			if v == inHost.Code {
-				delete(nt.HostTargetMoreDomain, k)
-			}
-		}
-		//目标关系情况
-		nt.HostTarget[inHost.Host+":"+strconv.Itoa(inHost.Port)] = hostsafe
-		//赋值到对照表里面
-		nt.HostCode[inHost.Code] = inHost.Host + ":" + strconv.Itoa(inHost.Port)
-
-		if len(ports) > 0 {
-			for _, port := range ports {
-				//目标关系情况
-				nt.HostTarget[inHost.Host+":"+strconv.Itoa(port)] = hostsafe
-				// 注意：HostCode[code] 始终指向主端口 key（已在上方赋值），不在此处覆盖
-			}
-		}
-
-		//如果存在强制跳转
-		if inHost.AutoJumpHTTPS == 1 {
-			nt.HostTarget[inHost.Host+":80"] = hostsafe
-			nt.HostCode[inHost.Code] = inHost.Host + ":80"
-		}
-		//如果是不限制端口的情况
-		if inHost.UnrestrictedPort == 1 {
-			zlog.Debug("来源端口宽松模式")
-			nt.HostTargetNoPort[inHost.Host] = inHost.Host + ":" + strconv.Itoa(inHost.Port)
-			// 多域名也注册到宽松端口映射
-			if inHost.BindMoreHost != "" {
-				for _, moreLine := range strings.Split(inHost.BindMoreHost, "\n") {
-					moreLine = strings.TrimSpace(moreLine)
-					if moreLine != "" {
-						nt.HostTargetNoPort[moreLine] = inHost.Host + ":" + strconv.Itoa(inHost.Port)
-					}
-				}
-			}
-		} else {
-			if _, ok := nt.HostTargetNoPort[inHost.Host]; ok {
-				zlog.Debug("来源端口严苛模式")
-				delete(nt.HostTargetNoPort, inHost.Host)
-			}
-			// 多域名也从宽松端口映射中移除
-			if inHost.BindMoreHost != "" {
-				for _, moreLine := range strings.Split(inHost.BindMoreHost, "\n") {
-					moreLine = strings.TrimSpace(moreLine)
-					if moreLine != "" {
-						delete(nt.HostTargetNoPort, moreLine)
-					}
-				}
-			}
-		}
-		//如果存在一个主机绑定了多个域名的情况
-		if inHost.BindMoreHost != "" {
-			lines := strings.Split(inHost.BindMoreHost, "\n")
-			for _, line := range lines {
-				line = strings.TrimSpace(line)
-				if line == "" {
-					continue
-				}
-				// 主端口
-				nt.HostTargetMoreDomain[line+":"+strconv.Itoa(inHost.Port)] = inHost.Code
-				// 副端口（BindMorePort）也需要注册，否则副域名+副端口无法路由
-				for _, extraPort := range ports {
-					nt.HostTargetMoreDomain[line+":"+strconv.Itoa(extraPort)] = inHost.Code
-				}
-			}
-		}
+		// 原子替换：先按 HostSafe 指针清掉该站旧 key，再按归一化域名写入。
+		// 全程在克隆表上操作、单次 Store 发布——主端口 key 不会出现"短暂缺失"。
+		clearHostRoutes(nt, inHost.Code)
+		applyHostRouteMaps(nt, inHost, hostsafe)
 	})
 
 	// 返回本站全部监听 runtime（含 AutoJumpHTTPS 隐式 80），供"新增站点"路径逐个启动
@@ -418,45 +333,15 @@ func (waf *WafEngine) RemovePortServer() {
 // RemoveHost 移除主机相关信息
 func (waf *WafEngine) RemoveHost(host model.Hosts) {
 
-	// 移除当前信息：路由表(RCU)在 writeMu 下克隆→在副本上删除本 host 相关条目→原子发布。
+	// 移除当前信息：路由表(RCU)在 writeMu 下克隆→按站点指针删除本 host 相关条目→原子发布。
 	waf.withWriteTable(func(nt *routingTable) {
-		//a.移除对照关系
+		clearHostRoutes(nt, host.Code)
 		delete(nt.HostCode, host.Code)
-		//b.移除主机保护信息：主端口/副端口/AutoJumpHTTPS 的 80 统一按监听表清理，避免残留 stale 指针
-		delete(nt.HostTarget, host.Host+":"+strconv.Itoa(host.Port))
-		for _, listen := range utils.ResolveHostListens(host) {
-			delete(nt.HostTarget, host.Host+":"+strconv.Itoa(listen.Port))
-		}
-		//b4.移除 HostTargetNoPort 中的主域名和多域名条目
-		delete(nt.HostTargetNoPort, host.Host)
-		if host.BindMoreHost != "" {
-			for _, moreLine := range strings.Split(host.BindMoreHost, "\n") {
-				moreLine = strings.TrimSpace(moreLine)
-				if moreLine != "" {
-					delete(nt.HostTargetNoPort, moreLine)
-				}
-			}
-		}
-		//d.删除更多内容里面域名信息
-		for moreHost, hostCode := range nt.HostTargetMoreDomain {
-			if hostCode == host.Code {
-				delete(nt.HostTargetMoreDomain, moreHost)
-			}
-		}
 	})
 
-	//c.移除某个端口下的证书数据
-	waf.AllCertificate.RemoveSSL(host.Host)
-
-	// 移除绑定的多个域名的证书
-	if host.BindMoreHost != "" {
-		lines := strings.Split(host.BindMoreHost, "\n")
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			if line != "" {
-				waf.AllCertificate.RemoveSSL(line)
-			}
-		}
+	// 证书按「是否还有其它站占用该归一化域名」决定是否卸载，避免删 B 卸掉 A 的证
+	for _, name := range utils.HostNames(host) {
+		waf.removeSSLIfUnused(name)
 	}
 
 	// 清理与该主机及后端绑定的 Transport 缓存
@@ -842,9 +727,16 @@ func (waf *WafEngine) checkCredentials(hostSafe *wafenginmodel.HostSafe, usernam
 // purgeTransportForHost 清理指定主机相关的 TransportPool 键
 func (waf *WafEngine) purgeTransportForHost(host model.Hosts) {
 	// 构建需要匹配的 host:port 组合（主端口、隐式80、副端口、绑定域名），端口来源统一走监听表
-	hostStrs := map[string]bool{
-		fmt.Sprintf("%s:%d", host.Host, host.Port): true,
+	hostStrs := map[string]bool{}
+	for _, c := range utils.HostRouteClaims(host) {
+		if c.AnyPort {
+			hostStrs[c.Domain] = true
+			continue
+		}
+		hostStrs[fmt.Sprintf("%s:%d", c.Domain, c.Port)] = true
+		hostStrs[fmt.Sprintf("%s:%d", host.Host, c.Port)] = true
 	}
+	hostStrs[fmt.Sprintf("%s:%d", host.Host, host.Port)] = true
 	var morePorts []int
 	for _, listen := range utils.ResolveHostListens(host) {
 		hostStrs[fmt.Sprintf("%s:%d", host.Host, listen.Port)] = true
@@ -852,20 +744,10 @@ func (waf *WafEngine) purgeTransportForHost(host model.Hosts) {
 			morePorts = append(morePorts, listen.Port)
 		}
 	}
-	// 绑定多域名
-	if host.BindMoreHost != "" {
-		lines := strings.Split(host.BindMoreHost, "\n")
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			if line == "" {
-				continue
-			}
-			// 绑定域名 + 主端口
-			hostStrs[fmt.Sprintf("%s:%d", line, host.Port)] = true
-			// 绑定域名 + 其他端口
-			for _, p := range morePorts {
-				hostStrs[fmt.Sprintf("%s:%d", line, p)] = true
-			}
+	for _, line := range utils.SplitBindMoreHost(host.BindMoreHost) {
+		hostStrs[fmt.Sprintf("%s:%d", line, host.Port)] = true
+		for _, p := range morePorts {
+			hostStrs[fmt.Sprintf("%s:%d", line, p)] = true
 		}
 	}
 

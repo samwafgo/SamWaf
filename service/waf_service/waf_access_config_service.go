@@ -372,23 +372,24 @@ func (receiver *WafAccessConfigService) newEncryptedSecret() (string, error) {
 // 主域名、多域名绑定、泛域名三种情况都要认，否则用户用泛域名做认证中心会被误拦。
 func (receiver *WafAccessConfigService) isCenterHostConfigured(centerHost string) bool {
 	pure := centerHost
-	if idx := strings.LastIndex(pure, ":"); idx > 0 {
-		pure = pure[:idx]
+	if h, _, has := utils.SplitHostPortLoose(pure); has {
+		pure = h
 	}
+	pure = utils.CanonicalHost(pure)
 	var hosts []model.Hosts
 	global.GWAF_LOCAL_DB.Where("user_code = ? and tenant_id = ?",
 		global.GWAF_USER_CODE, global.GWAF_TENANT_ID).Find(&hosts)
 	for _, h := range hosts {
-		if strings.EqualFold(h.Host, pure) || h.Host == "*" {
+		canon := utils.CanonicalHost(h.Host)
+		if canon == pure || h.Host == "*" || canon == "*" {
 			return true
 		}
-		// 泛域名 *.example.com 匹配 sso.example.com
-		if strings.HasPrefix(h.Host, "*.") &&
-			strings.HasSuffix(strings.ToLower(pure), strings.ToLower(h.Host[1:])) {
+		if strings.HasPrefix(canon, "*.") &&
+			(pure == strings.TrimPrefix(canon, "*.") || strings.HasSuffix(pure, strings.TrimPrefix(canon, "*"))) {
 			return true
 		}
 		for _, more := range splitLines(h.BindMoreHost) {
-			if strings.EqualFold(more, pure) {
+			if utils.CanonicalHost(more) == pure {
 				return true
 			}
 		}

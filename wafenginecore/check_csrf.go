@@ -5,6 +5,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/detection"
 	"SamWaf/model/wafenginmodel"
+	"SamWaf/utils"
 	"net/http"
 	"net/url"
 	"strings"
@@ -130,7 +131,7 @@ func extractHostFromOrigin(s string) string {
 			host = host[:idx]
 		}
 	}
-	return strings.ToLower(host)
+	return utils.CanonicalHost(host)
 }
 
 // isCsrfOriginAllowed 判断来源 host 是否在允许集合内（精确匹配 + *.example.com 通配）
@@ -162,21 +163,18 @@ func buildCsrfAllowedHosts(reqHost string, bindMoreHost string, allowedOrigins s
 
 	// 本站域名（去端口，小写）
 	selfHost := reqHost
-	if idx := strings.Index(selfHost, ":"); idx >= 0 {
-		selfHost = selfHost[:idx]
+	if h, _, hasPort := utils.SplitHostPortLoose(selfHost); hasPort {
+		selfHost = h
 	}
-	selfHost = strings.ToLower(strings.TrimSpace(selfHost))
+	selfHost = utils.CanonicalHost(selfHost)
 	if selfHost != "" {
 		hosts = append(hosts, selfHost)
 	}
 
-	// 绑定的多域名（换行分隔）
-	if bindMoreHost != "" {
-		for _, line := range strings.Split(bindMoreHost, "\n") {
-			h := strings.ToLower(strings.TrimSpace(line))
-			if h != "" {
-				hosts = append(hosts, h)
-			}
+	for _, line := range utils.SplitBindMoreHost(bindMoreHost) {
+		h := utils.CanonicalHost(line)
+		if h != "" {
+			hosts = append(hosts, h)
 		}
 	}
 
@@ -189,7 +187,7 @@ func buildCsrfAllowedHosts(reqHost string, bindMoreHost string, allowedOrigins s
 			}
 			// 通配域名保持原样（供 isCsrfOriginAllowed 识别）
 			if strings.HasPrefix(line, "*.") {
-				hosts = append(hosts, strings.ToLower(line))
+				hosts = append(hosts, utils.CanonicalHost(line))
 				continue
 			}
 			h := extractHostFromOrigin(line)

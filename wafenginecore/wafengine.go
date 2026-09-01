@@ -184,25 +184,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-SamWaf-Worker", global.GWAF_WORKER_TAG)
 	}
 
-	port := ""
-	host := r.Host
-	if !strings.Contains(host, ":") {
-		// 检查请求是否使用了HTTPS
-		if r.TLS != nil {
-			// 请求使用了HTTPS
-			host = host + ":443"
-		} else {
-			// 请求使用了HTTP
-			host = host + ":80"
-		}
-	}
-	// 从 host 字符串中提取端口
-	if strings.Contains(host, ":") {
-		parts := strings.Split(host, ":")
-		if len(parts) == 2 {
-			port = parts[1]
-		}
-	}
+	host, port := utils.CanonicalRequestHost(r.Host, r.TLS != nil)
 	defer func() {
 		e := recover()
 		if e != nil {
@@ -218,7 +200,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 	targetCode := ""
 	//检测是否是不检测端口的情况
-	if targetHost, ok := waf.rt().HostTargetNoPort[utils.GetPureDomain(host)]; ok {
+	if targetHost, ok := waf.rt().HostTargetNoPort[utils.CanonicalHost(utils.GetPureDomain(host))]; ok {
 		host = targetHost
 	}
 	findHost := false

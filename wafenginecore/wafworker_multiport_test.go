@@ -21,44 +21,11 @@ func newTestWafEngine() *WafEngine {
 	return waf
 }
 
-// simulateLoadHostMaps 模拟 LoadHost 中纯 map 赋值的部分（不含 DB 查询）
-// 严格按照修复后的逻辑编写，用于在无 DB 环境下验证 Fix1/Fix2 正确性
+// simulateLoadHostMaps 走与 LoadHost 相同的路由注册（归一化域名、冲突先到先得）。
 func simulateLoadHostMaps(waf *WafEngine, inHost model.Hosts) {
 	hostsafe := &wafenginmodel.HostSafe{Host: inHost}
-
-	// 解析副端口列表（不写入 ServerOnline，避免 RemovePortServer 触发 DB 查询）
-	var extraPorts []int
-	if inHost.BindMorePort != "" && inHost.GLOBAL_HOST == 0 {
-		for _, ps := range strings.Split(inHost.BindMorePort, ",") {
-			if p, err := strconv.Atoi(strings.TrimSpace(ps)); err == nil {
-				extraPorts = append(extraPorts, p)
-			}
-		}
-	}
-
-	// 主端口注册
-	waf.rt().HostTarget[inHost.Host+":"+strconv.Itoa(inHost.Port)] = hostsafe
-	// Fix2: HostCode 只指向主端口，不在副端口循环内覆盖
-	waf.rt().HostCode[inHost.Code] = inHost.Host + ":" + strconv.Itoa(inHost.Port)
-
-	// 副端口注册（只注册 HostTarget，不改 HostCode）
-	for _, port := range extraPorts {
-		waf.rt().HostTarget[inHost.Host+":"+strconv.Itoa(port)] = hostsafe
-	}
-
-	// Fix1: BindMoreHost 对每个端口（主 + 副）都注册 HostTargetMoreDomain
-	if inHost.BindMoreHost != "" {
-		for _, line := range strings.Split(inHost.BindMoreHost, "\n") {
-			line = strings.TrimSpace(line)
-			if line == "" {
-				continue
-			}
-			waf.rt().HostTargetMoreDomain[line+":"+strconv.Itoa(inHost.Port)] = inHost.Code
-			for _, ep := range extraPorts {
-				waf.rt().HostTargetMoreDomain[line+":"+strconv.Itoa(ep)] = inHost.Code
-			}
-		}
-	}
+	clearHostRoutes(waf.rt(), inHost.Code)
+	applyHostRouteMaps(waf.rt(), inHost, hostsafe)
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -388,14 +355,14 @@ func TestIssue2_DeleteSiteNotAffectOtherSiteExtraPort(t *testing.T) {
 	waf.RemoveHost(hostB)
 
 	// 站点 A 的主端口和副端口应仍然存在
-	if waf.rt().HostTarget["siteA.com:80"] == nil {
+	if waf.rt().HostTarget["sitea.com:80"] == nil {
 		t.Error("删除站点 B 后，站点 A 主端口 :80 不应受影响")
 	}
-	if waf.rt().HostTarget["siteA.com:8080"] == nil {
+	if waf.rt().HostTarget["sitea.com:8080"] == nil {
 		t.Error("删除站点 B 后，站点 A 副端口 :8080 不应受影响")
 	}
-	if waf.rt().HostCode["A"] != "siteA.com:80" {
-		t.Errorf("删除站点 B 后，站点 A 的 HostCode 应为 siteA.com:80，实际 %q", waf.rt().HostCode["A"])
+	if waf.rt().HostCode["A"] != "sitea.com:80" {
+		t.Errorf("删除站点 B 后，站点 A 的 HostCode 应为 sitea.com:80，实际 %q", waf.rt().HostCode["A"])
 	}
 }
 

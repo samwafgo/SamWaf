@@ -21,7 +21,7 @@ type AllCertificate struct {
 func (ac *AllCertificate) LoadSSL(domain string, cert string, key string) error {
 	ac.Mux.Lock()
 	defer ac.Mux.Unlock()
-	domain = strings.ToLower(domain)
+	domain = utils.CanonicalHost(domain)
 	// 加载新的证书
 	newCert, err := tls.X509KeyPair([]byte(cert), []byte(key))
 	if err != nil {
@@ -51,7 +51,7 @@ func (ac *AllCertificate) LoadSSL(domain string, cert string, key string) error 
 func (ac *AllCertificate) LoadSSLByFilePath(domain string, certPath string, keyPath string) error {
 	ac.Mux.Lock()
 	defer ac.Mux.Unlock()
-	domain = strings.ToLower(domain)
+	domain = utils.CanonicalHost(domain)
 	// 加载新的证书
 	newCert, err := tls.LoadX509KeyPair(certPath, keyPath)
 	if err != nil {
@@ -77,7 +77,7 @@ func (ac *AllCertificate) LoadSSLByFilePath(domain string, certPath string, keyP
 func (ac *AllCertificate) RemoveSSL(domain string) error {
 	ac.Mux.Lock()
 	defer ac.Mux.Unlock()
-	domain = strings.ToLower(domain)
+	domain = utils.CanonicalHost(domain)
 	_, ok := ac.Map[domain]
 	if ok {
 		delete(ac.Map, domain)
@@ -89,7 +89,7 @@ func (ac *AllCertificate) RemoveSSL(domain string) error {
 func (ac *AllCertificate) GetSSL(domain string) *tls.Certificate {
 	ac.Mux.Lock()
 	defer ac.Mux.Unlock()
-	domain = strings.ToLower(domain)
+	domain = utils.CanonicalHost(domain)
 
 	// 首先尝试精确匹配
 	certificate, ok := ac.Map[domain]
@@ -161,7 +161,7 @@ func (waf *WafEngine) isHTTP2DisabledForServerName(serverName string, port strin
 	if serverName == "" {
 		return false
 	}
-	pureDomain := utils.GetPureDomain(serverName)
+	pureDomain := utils.CanonicalHost(utils.GetPureDomain(serverName))
 	hostKey := pureDomain
 	if port != "" {
 		hostKey = pureDomain + ":" + port
@@ -205,6 +205,31 @@ func (waf *WafEngine) isHTTP2DisabledForServerName(serverName string, port strin
 		}
 	}
 	return false
+}
+
+// removeSSLIfUnused 仅当路由表里已无该归一化域名时才卸证书，避免删一个站卸掉另一个站的证。
+func (waf *WafEngine) removeSSLIfUnused(rawDomain string) {
+	d := utils.CanonicalHost(rawDomain)
+	if d == "" {
+		return
+	}
+	rt := waf.rt()
+	for k := range rt.HostTarget {
+		if routeKeyDomain(k) == d {
+			return
+		}
+	}
+	for k := range rt.HostTargetMoreDomain {
+		if routeKeyDomain(k) == d {
+			return
+		}
+	}
+	for k := range rt.HostTargetNoPort {
+		if utils.CanonicalHost(k) == d {
+			return
+		}
+	}
+	_ = waf.AllCertificate.RemoveSSL(d)
 }
 
 // portFromLocalAddr 从连接的本地地址取监听端口（用于按 SNI+port 匹配路由）。

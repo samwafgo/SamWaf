@@ -33,6 +33,9 @@ func normalizeIsEnableResponseBuffering(v int) int {
 }
 
 func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (string, error) {
+	if err := receiver.CheckDomainOccupied("", hostCandidateFromAdd(wafHostAddReq)); err != nil {
+		return "", err
+	}
 	uniCode := ""
 	if wafHostAddReq.Code == "" {
 		uniCode = uuid.GenUUID()
@@ -131,6 +134,34 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 	return wafHost.Code, nil
 }
 
+func hostCandidateFromAdd(req request.WafHostAddReq) model.Hosts {
+	return model.Hosts{
+		Host:             req.Host,
+		Port:             req.Port,
+		Ssl:              req.Ssl,
+		BindMoreHost:     req.BindMoreHost,
+		BindMorePort:     req.BindMorePort,
+		AutoJumpHTTPS:    req.AutoJumpHTTPS,
+		UnrestrictedPort: req.UnrestrictedPort,
+		PortListensJSON:  req.PortListensJSON,
+	}
+}
+
+func (receiver *WafHostService) CheckDomainOccupied(excludeCode string, candidate model.Hosts) error {
+	if err := utils.ValidateHostNamesNoDuplicate(candidate); err != nil {
+		return err
+	}
+	other, claim, found := utils.FindRouteClaimConflict(excludeCode, candidate, receiver.GetAllHostApi())
+	if !found {
+		return nil
+	}
+	name := other.Host
+	if other.Nickname != "" {
+		name = other.Host + "（" + other.Nickname + "）"
+	}
+	return errors.New("域名 " + utils.FormatRouteClaim(claim) + " 已被站点 " + name + " 占用，同一域名在相同端口只能绑定一个站点")
+}
+
 func (receiver *WafHostService) CheckIsExistApi(wafHostAddReq request.WafHostAddReq) error {
 	return global.GWAF_LOCAL_DB.First(&model.Hosts{}, "host = ? and port= ?", wafHostAddReq.Host, wafHostAddReq.Port).Error
 }
@@ -139,18 +170,27 @@ func (receiver *WafHostService) CheckIsExist(host string, port string) error {
 }
 
 func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq) error {
-	var webHost model.Hosts
-	global.GWAF_LOCAL_DB.Where("host = ? and port= ?", wafHostEditReq.Host, wafHostEditReq.Port).Find(&webHost)
-	if webHost.Id != "" && webHost.Code != wafHostEditReq.CODE {
-		return errors.New("当前网站和端口已经存在")
-	}
-	if webHost.GLOBAL_HOST == 1 {
+	oldHost := receiver.GetDetailByCodeApi(wafHostEditReq.CODE)
+	if oldHost.GLOBAL_HOST == 1 {
 		return errors.New("全局网站不允许单独编辑")
 	}
-	// 改域名同样能把认证中心悬空——效果和删站点一模一样（所有站点失去登录入口），
-	// 只是更隐蔽。这里只拦「改之前托管着认证中心、改之后不再托管」这一种情况，
-	// 认证中心站点的其它字段（后端地址、证书……）照常可改。
-	oldHost := receiver.GetDetailByCodeApi(wafHostEditReq.CODE)
+	candidate := model.Hosts{
+		Code:             wafHostEditReq.CODE,
+		Host:             wafHostEditReq.Host,
+		Port:             wafHostEditReq.Port,
+		Ssl:              wafHostEditReq.Ssl,
+		BindMoreHost:     wafHostEditReq.BindMoreHost,
+		BindMorePort:     wafHostEditReq.BindMorePort,
+		AutoJumpHTTPS:    wafHostEditReq.AutoJumpHTTPS,
+		UnrestrictedPort: wafHostEditReq.UnrestrictedPort,
+		PortListensJSON:  oldHost.PortListensJSON,
+	}
+	if wafHostEditReq.PortListensJSON != nil {
+		candidate.PortListensJSON = *wafHostEditReq.PortListensJSON
+	}
+	if err := receiver.CheckDomainOccupied(wafHostEditReq.CODE, candidate); err != nil {
+		return err
+	}
 	if used, centerHost := WafAccessConfigServiceApp.IsHostUsedAsCenter(oldHost); used {
 		after := model.Hosts{Host: wafHostEditReq.Host, BindMoreHost: wafHostEditReq.BindMoreHost}
 		if stillUsed, _ := WafAccessConfigServiceApp.IsHostUsedAsCenter(after); !stillUsed {

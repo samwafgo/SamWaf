@@ -83,7 +83,7 @@ func (waf *WafEngine) validateReturnTo(raw, expectHost string) (string, bool) {
 	// ② 绑定层：目标域名必须等于票据里记录的域名。
 	//    这一条比「在白名单里」严格得多——即使 WAF 代理了 100 个站点，
 	//    从 a.com 发起的认证也只能回到 a.com。
-	if !strings.EqualFold(u.Host, expectHost) {
+	if utils.CanonicalHostPort(u.Host) != utils.CanonicalHostPort(expectHost) {
 		return "", false
 	}
 
@@ -108,12 +108,8 @@ func (waf *WafEngine) lookupHostCode(hostWithPort string) (string, bool) {
 		return "", false
 	}
 	rt := waf.rt()
-	host := strings.ToLower(strings.TrimSpace(hostWithPort))
-	candidates := []string{host}
-	if !strings.Contains(host, ":") {
-		candidates = []string{host + ":443", host + ":80"}
-	}
-	if key, ok := rt.HostTargetNoPort[utils.GetPureDomain(host)]; ok {
+	pure, candidates := routeLookupCandidates(hostWithPort)
+	if key, ok := rt.HostTargetNoPort[pure]; ok {
 		if h, ok2 := rt.HostTarget[key]; ok2 && h != nil {
 			return h.Host.Code, true
 		}
@@ -147,15 +143,7 @@ func (waf *WafEngine) isManagedHost(hostWithPort string) bool {
 		return false
 	}
 	rt := waf.rt()
-	host := strings.ToLower(strings.TrimSpace(hostWithPort))
-
-	// 未带端口时按 ServeHTTP 的规则补默认端口。
-	// 这里没有 r.TLS 可依据，所以 80/443 都试一遍——只是判定"是否受管"，
-	// 放宽到两个端口不会引入越权，漏判反而会让 HTTPS 站点回跳失败。
-	candidates := []string{host}
-	if !strings.Contains(host, ":") {
-		candidates = []string{host + ":443", host + ":80"}
-	}
+	pure, candidates := routeLookupCandidates(hostWithPort)
 
 	// 刻意不认「不指定域名」的通配站点（HostTargetNoPort["*"] 与 HostTarget["*:port"]）。
 	//
@@ -169,7 +157,6 @@ func (waf *WafEngine) isManagedHost(hostWithPort string) bool {
 	// 回跳目标必须是具名站点，这个方向上宁可少一点便利。
 	//
 	// lookupHostCode 也刻意不认 catch-all，与本函数保持同一口径 —— 别"顺手补全"。
-	pure := utils.GetPureDomain(host)
 	if _, ok := rt.HostTargetNoPort[pure]; ok && pure != "*" {
 		return true
 	}

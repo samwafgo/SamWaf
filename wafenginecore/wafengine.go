@@ -19,7 +19,6 @@ import (
 	"SamWaf/wafenginecore/wafwebcache"
 	"SamWaf/wafnet"
 	"SamWaf/wafproxy"
-	"SamWaf/webplugin"
 	"bytes"
 	"context"
 	"crypto/tls"
@@ -42,7 +41,6 @@ import (
 	"github.com/pires/go-proxyproto"
 	goahocorasick "github.com/samwafgo/ahocorasick"
 	"go.uber.org/zap"
-	"golang.org/x/time/rate"
 )
 
 type WafEngine struct {
@@ -452,38 +450,6 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// 检测是否已经被CC封禁（使用与CC检测相同的IP模式）
-		ccCheckIP := model.GetClientIPByMode(hostTarget.Host.IPMode, weblogbean.NetSrcIp, weblogbean.SRC_IP)
-		ccCacheKey := enums.CACHE_CCVISITBAN_PRE + ccCheckIP
-		if global.GCACHE_WAFCACHE.IsKeyExist(ccCacheKey) {
-			// 使用新的IP封禁消息格式
-			regionStr := strings.Join(region, ",")
-			serverName := global.GWAF_CUSTOM_SERVER_NAME
-			if serverName == "" {
-				serverName = "未命名服务器"
-			}
-			banDuration, _ := global.GCACHE_WAFCACHE.GetInt(ccCacheKey)
-			remainingSeconds := 0
-			if expireTime, err := global.GCACHE_WAFCACHE.GetExpireTime(ccCacheKey); err == nil {
-				if r := int(time.Until(expireTime).Seconds()); r > 0 {
-					remainingSeconds = r
-				}
-			}
-			global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.IPBanMessageInfo{
-				BaseMessageInfo: innerbean.BaseMessageInfo{
-					OperaType: "CC封禁提醒",
-					Server:    serverName,
-				},
-				Ip:               ccCheckIP + " (" + regionStr + ")",
-				Reason:           "CC攻击，访问频次过高",
-				Duration:         banDuration,
-				RemainingSeconds: remainingSeconds,
-				Time:             time.Now().Format("2006-01-02 15:04:05"),
-			})
-			EchoErrorInfo(w, r, &weblogbean, "", "当前IP由于访问频次太高暂时无法访问", hostTarget, waf.rt().HostTarget[waf.rt().HostCode[global.GWAF_GLOBAL_HOST_CODE]], false, "cc_attack")
-			return
-		}
-
 		if r.TLS == nil {
 			// 检查是否需要自动跳转到HTTPS
 			shouldJump, domainJump := shouldAutoJumpHTTPS(host, hostTarget.Host.Host, weblogbean.URL, hostTarget.Host.AutoJumpHTTPS, hostTarget.Host.Ssl)
@@ -623,6 +589,21 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			//检测白名单结束
 			if detectionWhiteResult.JumpGuardResult == false {
 
+				// CC 封禁期拦截。位置有两个讲究：
+				// 一是放在 GUARD_STATUS 判断之内——站点关闭防护后不该再拦；
+				// 二是放在白名单检测之后——白名单内的 IP 不受封禁影响，配错了阈值还能靠白名单自救。
+				if hitKey, banIP := matchCCBan(hostTarget.Host.Code, weblogbean.NetSrcIp, weblogbean.SRC_IP, hostTarget.Host.IPMode); hitKey != "" {
+					if hostTarget.Host.LogOnlyMode == 1 {
+						// 仅记录模式：只在日志上留痕，不阻断，继续走后续检测
+						weblogbean.LogOnlyMode = 1
+						weblogbean.RULE = "CC封禁"
+					} else {
+						notifyCCBanOnce(hitKey, banIP, region)
+						EchoErrorInfo(w, r, &weblogbean, "", "当前IP由于访问频次太高暂时无法访问", hostTarget, waf.rt().HostTarget[waf.rt().HostCode[global.GWAF_GLOBAL_HOST_CODE]], false, "cc_attack")
+						return
+					}
+				}
+
 				if handleBlock(waf.CheckDenyIP) {
 					return
 				}
@@ -732,7 +713,18 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				// 验证码检测
 				captchaConfig := model.ParseCaptchaConfig(hostTarget.Host.CaptchaJSON)
 
-				if captchaConfig.IsEnableCaptcha == 1 && !ruleSkip("CAPTCHA") {
+				// CC 规则的「人机验证」动作也从这里出闸：命中后该客户端被标记为需要验证，
+				// 于是即便站点没有常开验证码，也会走同一套挑战与放行凭证——
+				// 通过一次之后同一页面的子请求带着凭证直接过，不会被反复挑战。
+				ccCaptchaIP := model.GetClientIPByMode(hostTarget.Host.IPMode, weblogbean.NetSrcIp, weblogbean.SRC_IP)
+				ccNeedCaptcha := IsCCCaptchaRequired(hostTarget.Host.Code, ccCaptchaIP)
+				if (captchaConfig.IsEnableCaptcha == 1 || ccNeedCaptcha) && !ruleSkip("CAPTCHA") {
+					// 被 CC 规则要求验证的客户端带着有效凭证过来了，说明这一轮挑战已经完成：
+					// 把"需验证"换成同等长度的免挑战期。免挑战期一过再超阈值会重新挑战，
+					// 所以这个动作是可重复的关卡。
+					if ccNeedCaptcha && hasCaptchaPass(r, ccCaptchaIP) {
+						GrantCCCaptchaGrace(hostTarget.Host.Code, ccCaptchaIP)
+					}
 					if !waf.checkCaptchaToken(r, weblogbean, captchaConfig, hostTarget.Host.IPMode) {
 						// 检查当前URL是否在排除列表中
 						currentURL := strings.ToLower(r.URL.Path)
@@ -752,7 +744,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 						if len(captchaConfig.ExcludeURLs) > 0 {
 							// 将换行分隔的URL列表拆分为数组
-							excludeURLs := strings.Split(captchaConfig.ExcludeURLs, "\n")
+							excludeURLs := strings.Split(string(captchaConfig.ExcludeURLs), "\n")
 							for _, excludeURL := range excludeURLs {
 								// 去除可能的空白字符并转为小写
 								excludeURL = strings.TrimSpace(strings.ToLower(excludeURL))
@@ -762,7 +754,20 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 								}
 							}
 						}
+						if isExcluded && ccNeedCaptcha {
+							// 命中验证码的「排除URL」，本次不发起挑战。
+							// CC 规则的人机验证动作复用同一个闸门，所以这条排除会连它一起挡掉。
+							// 必须写进日志：否则界面上只看得到「触发了人机验证」却没有挑战页，无从排查。
+							weblogbean.RULE = weblogbean.RULE + " / 命中验证码排除URL，本次未挑战"
+						}
 						if !isExcluded {
+							// 记下这次验证是谁要求的。闸门本身不知道触发来源，
+							// 不写下来的话，日志里只有「显示图形验证码」，查不出是哪条规则要求的。
+							if ccNeedCaptcha {
+								if src := CaptchaRequireSource(hostTarget.Host.Code, ccCaptchaIP); src != "" {
+									weblogbean.RULE = weblogbean.RULE + " / 人机验证来源:" + src
+								}
+							}
 							waf.handleCaptchaRequest(w, r, &weblogbean, captchaConfig, captchaPathPrefix, hostTarget.Host.IPMode)
 							return
 						}
@@ -2020,6 +2025,10 @@ func (waf *WafEngine) TotalConns() int64 {
 }
 
 func (waf *WafEngine) ClearCcWindows() {
+	// 多规则计数器：回收空闲计数键，防止客户端数量随攻击持续增长
+	if removed := GCCCounter.Cleanup(300); removed > 0 {
+		zlog.Debug(fmt.Sprintf("CC计数器回收空闲键 %d 个，当前活跃 %d", removed, GCCCounter.ActiveKeys()))
+	}
 	// 清理所有主机的IP限流器记录
 	for _, hostSafe := range waf.rt().HostTarget {
 		if hostSafe.PluginIpRateLimiter != nil {
@@ -2080,17 +2089,8 @@ func (waf *WafEngine) ApplyAntiCCConfig(hostCode string, antiCC model.AntiCC) {
 			return
 		}
 
-		// 与初始化逻辑保持一致：支持滑动窗口/平均速率
-		if antiCC.LimitMode == "window" {
-			hostSafe.PluginIpRateLimiter = webplugin.NewWindowIPRateLimiter(antiCC.Rate, antiCC.Limit)
-		} else {
-			hostSafe.PluginIpRateLimiter = webplugin.NewIPRateLimiter(rate.Limit(antiCC.Rate), antiCC.Limit)
-		}
-		if antiCC.IsEnableRule {
-			hostSafe.PluginIpRateLimiter.Rule = &utils.RuleHelper{}
-			hostSafe.PluginIpRateLimiter.Rule.InitRuleEngine()
-			hostSafe.PluginIpRateLimiter.Rule.LoadRuleString(antiCC.RuleContent)
-		}
+		// 与冷启动(LoadHost)共用同一构造函数，保证保存前后与重启前后的阈值一致
+		hostSafe.PluginIpRateLimiter = BuildIPRateLimiter(antiCC, hostSafe.Host.Host)
 		hostSafe.AntiCCBean = antiCC
 
 		zlog.Debug("远程配置", zap.Any("Anticc", antiCC))

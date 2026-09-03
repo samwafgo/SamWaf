@@ -32,3 +32,4 @@ dist/
 # 只挡 wafsec/ 下这两个固定文件名，不影响内嵌资源 cmd/samwaf/exedata/public_key.pem。
 /wafsec/private_key.pem
 /wafsec/public_key.pem
+/wafinit/testdata

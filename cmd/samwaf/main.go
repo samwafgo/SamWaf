@@ -665,6 +665,10 @@ func (m *wafSystenService) run() {
 					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.UpdateHostRules(msg.HostCode, rules)
 					zlog.Debug("远程配置", zap.Any("Rule", rules))
 					break
+				case enums.ChanTypeAntiCCRule:
+					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ApplyCCRules(msg.HostCode)
+					zlog.Debug("远程配置", zap.Any("AntiCCRule", msg.HostCode))
+					break
 				case enums.ChanTypeAnticc:
 					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ApplyAntiCCConfig(msg.HostCode, msg.Content.(model.AntiCC))
 					break
@@ -855,9 +859,10 @@ func (m *wafSystenService) run() {
 			}
 			break
 		case host := <-global.GWAF_CHAN_HOST:
-			// 防护开关热更新(copy-on-write，按 host:port key 定位)
+			// 站点字段热更新(copy-on-write，按 host:port key 定位；全局网站的 key 是「全局网站:0」，同样命中)
+			// 具体搬哪些字段见 wafenginecore.ApplyHostHotUpdate——新增请求期要读的字段必须在那里登记
 			globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.UpdateHostByKey(host.Host+":"+strconv.Itoa(host.Port), func(h *wafenginmodel.HostSafe) {
-				h.Host.GUARD_STATUS = host.GUARD_STATUS
+				wafenginecore.ApplyHostHotUpdate(h, host)
 			})
 			zlog.Debug("规则", zap.Any("主机", host))
 			break

@@ -11,12 +11,16 @@ import (
 	"SamWaf/utils"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
+// WafAntiCCApi 旧版单条 CC 配置接口。
+//
+// Deprecated: 已由多规则接口 /api/v1/wafhost/anticcrule/* 取代。
+// 存量配置在数据库迁移时已转换成等价规则，这些接口保留一个版本周期供老前端过渡，
+// 之后随旧表一并下线。新功能一律走多规则接口。
 type WafAntiCCApi struct {
 }
 
@@ -122,13 +126,23 @@ func (w *WafAntiCCApi) GetBanIpListApi(c *gin.Context) {
 	banIpList := global.GCACHE_WAFCACHE.ListAvailableKeysWithPrefix(enums.CACHE_CCVISITBAN_PRE)
 	beans := make([]response2.CcIpRep, 0, len(banIpList))
 
-	// 遍历 banIpList，将每个 IP 信息添加到 beans 中
-	for banIp, duration := range banIpList {
-		// 去掉 IP 的前缀
-		banIp := strings.TrimPrefix(banIp, enums.CACHE_CCVISITBAN_PRE)
+	// 站点码换显示名：界面上「仅本站点」得说清楚是哪个站点，只给一串 code 没法用。
+	// 带端口（同一域名常有多条记录，各是一个独立站点），与站点下拉的显示名保持一致
+	hostNames := map[string]string{}
+	for _, h := range wafHostService.GetAllHostApi() {
+		hostNames[h.Code] = HostDisplayName(h)
+	}
 
-		// 将剩余时间格式化为 "hours:minutes:seconds" 格式
-		remainTime := fmt.Sprintf("%02d时%02d分", int(duration.Hours()), int(duration.Minutes())%60)
+	// 遍历 banIpList，将每个 IP 信息添加到 beans 中
+	for cacheKey, duration := range banIpList {
+		scope, hostCode, banIp, ok := model.ParseCCBanKey(cacheKey)
+		if !ok {
+			continue
+		}
+
+		// 带上秒：封禁时长常常不足一分钟，只显示到分会让"还剩 50 秒"和"已经到期"看起来一样
+		remainTime := fmt.Sprintf("%02d时%02d分%02d秒",
+			int(duration.Hours()), int(duration.Minutes())%60, int(duration.Seconds())%60)
 
 		region := utils.GetCountry(banIp)
 		// 将信息添加到 beans 中
@@ -136,6 +150,9 @@ func (w *WafAntiCCApi) GetBanIpListApi(c *gin.Context) {
 			IP:         banIp,
 			RemainTime: remainTime,
 			Region:     fmt.Sprintf("%v", region),
+			Scope:      scope,
+			HostCode:   hostCode,
+			HostName:   hostNames[hostCode],
 		})
 	}
 
@@ -155,9 +172,16 @@ func (w *WafAntiCCApi) RemoveCCBanIPApi(c *gin.Context) {
 	var req request.WafAntiCCRemoveBanIpReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
-		ccCacheKey := enums.CACHE_CCVISITBAN_PRE + req.Ip
-		if global.GCACHE_WAFCACHE.IsKeyExist(ccCacheKey) {
-			global.GCACHE_WAFCACHE.Remove(ccCacheKey)
+		// 同一个 IP 可能同时存在全局封禁、各站点封禁以及升级前的旧格式键，逐一清理
+		removed := false
+		for cacheKey := range global.GCACHE_WAFCACHE.ListAvailableKeysWithPrefix(enums.CACHE_CCVISITBAN_PRE) {
+			_, _, banIp, ok := model.ParseCCBanKey(cacheKey)
+			if ok && banIp == req.Ip {
+				global.GCACHE_WAFCACHE.Remove(cacheKey)
+				removed = true
+			}
+		}
+		if removed {
 			global.GWAF_CHAN_CLEAR_CC_IP <- req.Ip
 			response.OkWithMessage(req.Ip+" 移除成功", c)
 		} else {

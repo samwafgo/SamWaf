@@ -10,6 +10,27 @@ import (
 	"strings"
 )
 
+// hasCaptchaPass 该请求是否持有有效的验证码通行凭证。
+//
+// 与 checkCaptchaToken 的区别：后者还会因为"良性爬虫""证书申请路径"等原因放行，
+// 那些都不代表人机验证通过，不能用来判定 CC 的人机验证动作是否已被满足。
+func hasCaptchaPass(r *http.Request, clientIP string) bool {
+	if global.GCACHE_WAFCACHE == nil || clientIP == "" {
+		return false
+	}
+	if cookie, err := r.Cookie("samwaf_captcha_token"); err == nil && cookie.Value != "" {
+		if global.GCACHE_WAFCACHE.IsKeyExist(enums.CACHE_CAPTCHA_PASS + cookie.Value + clientIP) {
+			return true
+		}
+	}
+	if token := r.Header.Get("X-SamWaf-Captcha-Token"); token != "" {
+		if global.GCACHE_WAFCACHE.IsKeyExist(enums.CACHE_CAPTCHA_PASS + token + clientIP) {
+			return true
+		}
+	}
+	return false
+}
+
 // checkCaptchaToken 返回false 要验证信息 ，true 不验证信息
 func (waf *WafEngine) checkCaptchaToken(r *http.Request, webLog innerbean.WebLog, captchaConfig model.CaptchaConfig, ipMode string) bool {
 	// 根据IP模式选择使用的IP（从 Host 级别传入）

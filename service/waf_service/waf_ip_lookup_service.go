@@ -529,17 +529,30 @@ func (r *WafIPLookupService) matchCCBan(ip string, resp *response2.IPLookupResp)
 		resp.Degraded = append(resp.Degraded, srcCCBan)
 		return
 	}
-	if !global.GCACHE_WAFCACHE.IsKeyExist(enums.CACHE_CCVISITBAN_PRE + ip) {
+	// 封禁键按作用域分开存放，任一命中即视为处于封禁期
+	hitKey := ""
+	hitScope := ""
+	for cacheKey := range global.GCACHE_WAFCACHE.ListAvailableKeysWithPrefix(enums.CACHE_CCVISITBAN_PRE) {
+		if scope, _, banIp, ok := model.ParseCCBanKey(cacheKey); ok && banIp == ip {
+			hitKey, hitScope = cacheKey, scope
+			break
+		}
+	}
+	if hitKey == "" {
 		return
 	}
 	detail := "CC防护触发的临时封禁"
-	if remain := r.remainText(enums.CACHE_CCVISITBAN_PRE, ip); remain != "" {
+	if remain := r.remainTextByKey(enums.CACHE_CCVISITBAN_PRE, hitKey); remain != "" {
 		detail += "，剩余" + remain
+	}
+	scopeText := "全局"
+	if hitScope == model.CCBanScopeHost {
+		scopeText = "本站点"
 	}
 	resp.Hits = append(resp.Hits, response2.IPLookupHit{
 		Source:     srcCCBan,
 		SourceName: "CC封禁",
-		Scope:      "全局",
+		Scope:      scopeText,
 		Effect:     "block",
 		Detail:     detail,
 	})
@@ -547,6 +560,24 @@ func (r *WafIPLookupService) matchCCBan(ip string, resp *response2.IPLookupResp)
 
 // remainText 取缓存剩余时间。缓存接口只给了「按前缀列出可用键」，没有单键 TTL，
 // 所以这里列一次再挑出目标键。
+// remainTextByKey 与 remainText 同义，区别是直接给完整缓存键——
+// CC 封禁键含作用域与站点码，拼不出「前缀+ip」的形式。
+func (r *WafIPLookupService) remainTextByKey(prefix, key string) string {
+	list := global.GCACHE_WAFCACHE.ListAvailableKeysWithPrefix(prefix)
+	d, ok := list[key]
+	if !ok || d <= 0 {
+		return ""
+	}
+	if d < time.Minute {
+		return fmt.Sprintf("%d秒", int(d.Seconds()))
+	}
+	total := int(d.Minutes())
+	if total < 60 {
+		return fmt.Sprintf("%d分钟", total)
+	}
+	return fmt.Sprintf("%d小时%d分钟", total/60, total%60)
+}
+
 func (r *WafIPLookupService) remainText(prefix, ip string) string {
 	list := global.GCACHE_WAFCACHE.ListAvailableKeysWithPrefix(prefix)
 	d, ok := list[prefix+ip]

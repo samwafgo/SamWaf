@@ -42,22 +42,25 @@ type WebLog struct {
 	RISK_LEVEL           int      `json:"risk_level"`                                                        //危险等级 0:正常 1:轻微 2:有害 3:严重 4:特别严重
 	GUEST_IDENTIFICATION string   `gorm:"column:guest_id_entification;size:191" json:"guest_identification"` //访客身份识别
 	IsBot                int      `json:"is_bot"`                                                            //是否是机器人  0 不是机器人 1 机器人
-	TimeSpent            int64    `json:"time_spent"`                                                        //用时
-	NetSrcIp             string   `gorm:"size:64" json:"net_src_ip"`                                         //获取的原始IP
-	SrcByteBody          []byte   `json:"src_byte_body"`                                                     //原始body信息
-	SrcByteResBody       []byte   `json:"src_byte_res_body"`                                                 //返回body bytes信息
-	WebLogVersion        int      `json:"web_log_version"`                                                   //日志版本信息早期的是空和0，后期实时增加
-	Scheme               string   `gorm:"size:20" json:"scheme"`                                             //HTTP 协议
-	SrcURL               []byte   `json:"src_url"`                                                           //原始url信息
-	PreCheckCost         int64    `json:"pre_check_cost"`                                                    // 前置检查耗时(ms)
-	ForwardCost          int64    `json:"forward_cost"`                                                      // 转发耗时(ms)
-	BackendCheckCost     int64    `json:"backend_check_cost"`                                                // 后端处理耗时(ms)
-	ResHeader            string   `gorm:"type:text" json:"res_header"`                                       // 返回header情况
-	BodyHash             string   `gorm:"size:100" json:"body_hash"`                                         // body hash值
-	LogOnlyMode          int      `json:"log_only_mode"`                                                     //是否只记录日志 1 是 0 不是
-	IsBalance            int      `json:"is_balance"`                                                        //是否是负载均衡 1 是 0 不是
-	BalanceInfo          string   `gorm:"size:255" json:"balance_info"`                                      //负载均衡IP端口信息
-	AI_SCORE             float64  `json:"ai_score"`                                                          //AI检测得分[0,1]，0表示未经AI检测或未命中；命中(观察/拦截)时记录实际分数
+	// BotVerifyStrong 爬虫身份是否走完完整验证闭环（正向确认的反向DNS / 厂商公布网段）。
+	// 仅进程内使用，不落库也不出接口：它只影响运行期判定，存下来没有意义。
+	BotVerifyStrong  int     `gorm:"-" json:"-"`
+	TimeSpent        int64   `json:"time_spent"`                   //用时
+	NetSrcIp         string  `gorm:"size:64" json:"net_src_ip"`    //获取的原始IP
+	SrcByteBody      []byte  `json:"src_byte_body"`                //原始body信息
+	SrcByteResBody   []byte  `json:"src_byte_res_body"`            //返回body bytes信息
+	WebLogVersion    int     `json:"web_log_version"`              //日志版本信息早期的是空和0，后期实时增加
+	Scheme           string  `gorm:"size:20" json:"scheme"`        //HTTP 协议
+	SrcURL           []byte  `json:"src_url"`                      //原始url信息
+	PreCheckCost     int64   `json:"pre_check_cost"`               // 前置检查耗时(ms)
+	ForwardCost      int64   `json:"forward_cost"`                 // 转发耗时(ms)
+	BackendCheckCost int64   `json:"backend_check_cost"`           // 后端处理耗时(ms)
+	ResHeader        string  `gorm:"type:text" json:"res_header"`  // 返回header情况
+	BodyHash         string  `gorm:"size:100" json:"body_hash"`    // body hash值
+	LogOnlyMode      int     `json:"log_only_mode"`                //是否只记录日志 1 是 0 不是
+	IsBalance        int     `json:"is_balance"`                   //是否是负载均衡 1 是 0 不是
+	BalanceInfo      string  `gorm:"size:255" json:"balance_info"` //负载均衡IP端口信息
+	AI_SCORE         float64 `json:"ai_score"`                     //AI检测得分[0,1]，0表示未经AI检测或未命中；命中(观察/拦截)时记录实际分数
 
 	// GeoUnresolved 本次请求的地区无法判定（没有可用的地区库，或查询失败），
 	// 区别于"查出来是未知"。为 true 时规则引擎会跳过引用了 COUNTRY/PROVINCE/CITY 的规则，

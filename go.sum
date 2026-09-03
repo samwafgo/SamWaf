@@ -387,8 +387,6 @@ github.com/sagikazarmark/locafero v0.11.0 h1:1iurJgmM9G3PA/I+wWYIOw/5SyBtxapeHDc
 github.com/sagikazarmark/locafero v0.11.0/go.mod h1:nVIGvgyzw595SUSUE6tvCp3YYTeHs15MvlmU87WwIik=
 github.com/samwafgo/ahocorasick v1.0.0 h1:/PMXeYaV1lumsPdueT11aubJ95DcvYzIHyBiMxm8+TI=
 github.com/samwafgo/ahocorasick v1.0.0/go.mod h1:PCU/JDpXAk9IACzdN5W1+AI5JiiByZGrG2pj4YnxzIc=
-github.com/samwafgo/cap_go_server v1.0.0 h1:1LnITCKtYaw0X3KM4FGT9mh+3RDsyMGHefwXN+JKZjc=
-github.com/samwafgo/cap_go_server v1.0.0/go.mod h1:PbMuR/mvf5D2vqj6nZDIFuBhYWCQCq4VnKPQstZS2gc=
 github.com/samwafgo/cap_go_server v1.0.1 h1:8eDw2pnTeIbdLqYx1+tuqdKttvc/2gPGzIXjQkt1XbM=
 github.com/samwafgo/cap_go_server v1.0.1/go.mod h1:PbMuR/mvf5D2vqj6nZDIFuBhYWCQCq4VnKPQstZS2gc=
 github.com/samwafgo/go-wxsqlite3 v1.0.2 h1:ipwEiHq2+jL1qAO01BrPVAXiV6Z+vKBinbKF6rGpIyM=

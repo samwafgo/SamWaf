@@ -12,7 +12,55 @@ type BotResult struct {
 	IsBot       bool   //是否是爬虫
 	IsNormalBot bool   //是否是正常爬虫 false 会拦截
 	BotName     string //爬虫名称
+
+	// StrongVerified 表示身份验证走完了完整闭环：
+	//   - DNS 类：反向拿到域名 → 后缀匹配 → 正向解析该域名 → 结果包含原 IP
+	//   - IP 段类：来访 IP 落在厂商公布的网段内
+	// 只有反向匹配、正向没能确认时它为 false——这时仍按原来的判定放行（不判伪装），
+	// 但需要更强把握的场合（如 CC 豁免）不应采信。
+	StrongVerified bool
 }
+
+// dnsSpider 一家用 DNS 验证身份的爬虫
+type dnsSpider struct {
+	fakeName string //反向解析对不上时的名称
+	rules    []suffixRule
+}
+
+type suffixRule struct {
+	suffix  string
+	botName string
+}
+
+var (
+	baiduRules = dnsSpider{
+		fakeName: "伪装百度爬虫",
+		rules: []suffixRule{
+			{".baidu.com.", "百度爬虫"},
+			{".baidu.jp.", "百度爬虫"},
+		},
+	}
+	googleRules = dnsSpider{
+		fakeName: "伪装Google爬虫",
+		rules: []suffixRule{
+			{".googlebot.com.", "Google爬虫"},
+			{".google.com.", "Google爬虫(特殊)"},
+			{".googleusercontent.com.", "Google爬虫(用户触发)"},
+		},
+	}
+	bingRules = dnsSpider{
+		fakeName: "伪装Bing爬虫",
+		rules:    []suffixRule{{".msn.com.", "Bing爬虫"}},
+	}
+	sogouRules = dnsSpider{
+		fakeName: "伪装搜狗爬虫",
+		rules:    []suffixRule{{".sogou.com.", "搜狗爬虫"}},
+	}
+	yisouRules = dnsSpider{
+		fakeName: "伪装神马搜索爬虫",
+		rules:    []suffixRule{{".sm.cn.", "神马搜索爬虫"}},
+	}
+)
 
 /*
 *
@@ -20,258 +68,76 @@ type BotResult struct {
 */
 func DetermineNormalSearch(userAgent, ip string) BotResult {
 	if strings.Contains(userAgent, "Baiduspider") {
-		return baiduSpider(ip)
+		return verifyByDNS(ip, baiduRules)
 	} else if strings.Contains(userAgent, "google") {
-		return googleSpider(ip)
+		return verifyByDNS(ip, googleRules)
 	} else if strings.Contains(userAgent, "bingbot") || strings.Contains(userAgent, "msn.com") {
-		return bingSpider(ip)
+		return verifyByDNS(ip, bingRules)
 	} else if strings.Contains(userAgent, "sogou") {
-		return sogouSpider(ip)
+		return verifyByDNS(ip, sogouRules)
 	} else if strings.Contains(userAgent, "360Spider") {
 		return spider360(ip)
 	} else if strings.Contains(userAgent, "YisouSpider") {
-		return yisouSpider(ip)
+		return verifyByDNS(ip, yisouRules)
 	} else if strings.Contains(userAgent, "Bytespider") {
 		return byteSpider(ip)
 	}
-	return BotResult{false, false, ""}
+	return BotResult{false, false, "", false}
 }
 
-/*
-*
-百度的蜘蛛
-*/
-func baiduSpider(ip string) BotResult {
-	//先查询本地库
-	//然后远端查询
-	fakeSpiderResult := BotResult{
-		IsBot:       true,
-		IsNormalBot: false,
-		BotName:     "伪装百度爬虫",
-	}
+// verifyByDNS 用「正向确认的反向 DNS」验证爬虫身份。
+//
+// 步骤按各家官方文档：反向拿 PTR → 域名后缀匹配 → 正向解析该域名 → 确认能解析回原 IP。
+//
+// 正向确认失败时**不判伪装**，只是不给 StrongVerified。原因有二：
+//   - 实测百度 180.76.x 老抓取段的 PTR 域名没有正向记录，严格执行会把真 Baiduspider 判成伪装，
+//     而伪装爬虫在开启拦截时是直接挡下的，后果是掉索引
+//   - 正向查询本身会超时（实测冷启动可达 500ms 上限），DNS 抖一下就封搜索引擎，代价太大
+//
+// 需要更强把握的场合改为只认 StrongVerified，这样既不放松拦截、也不误伤。
+func verifyByDNS(ip string, spider dnsSpider) BotResult {
+	fake := BotResult{IsBot: true, IsNormalBot: false, BotName: spider.fakeName}
+
 	lookup, err := ReverseDNSLookup(ip)
-	if err == nil {
-		if len(lookup) > 0 {
-			if strings.HasSuffix(lookup[0], ".baidu.com.") || strings.HasSuffix(lookup[0], ".baidu.jp.") {
-				return BotResult{
-					IsBot:       true,
-					IsNormalBot: true,
-					BotName:     "百度爬虫",
-				}
-			} else {
-				return fakeSpiderResult
-			}
-		} else {
-			return fakeSpiderResult
+	if err != nil {
+		return dnsErrResult(err, fake)
+	}
+	if len(lookup) == 0 {
+		return fake
+	}
+	name := lookup[0]
+	for _, rule := range spider.rules {
+		if !strings.HasSuffix(name, rule.suffix) {
+			continue
 		}
-	} else {
-		var dnsErr *net.DNSError
-		if errors.As(err, &dnsErr) {
-			if dnsErr.IsTimeout {
-				return BotResult{
-					IsBot:       true,
-					IsNormalBot: true,
-					BotName:     "查询超时",
-				}
-			} else if dnsErr.IsNotFound {
-				return fakeSpiderResult
-			} else {
-				return BotResult{
-					IsBot:       true,
-					IsNormalBot: true,
-					BotName:     "查询失败",
-				}
-			}
-		} else {
-			return BotResult{
-				IsBot:       true,
-				IsNormalBot: true,
-				BotName:     "查询失败",
-			}
+		return BotResult{
+			IsBot:          true,
+			IsNormalBot:    true,
+			BotName:        rule.botName,
+			StrongVerified: ForwardConfirms(name, ip),
 		}
 	}
+	return fake
+}
+
+// dnsErrResult 反向查询本身出错时的口径，沿用既有行为：
+// 超时与其它错误按「存疑放行」处理，只有明确的 NXDOMAIN 才判伪装。
+func dnsErrResult(err error, fake BotResult) BotResult {
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		if dnsErr.IsTimeout {
+			return BotResult{IsBot: true, IsNormalBot: true, BotName: "查询超时"}
+		}
+		if dnsErr.IsNotFound {
+			return fake
+		}
+	}
+	return BotResult{IsBot: true, IsNormalBot: true, BotName: "查询失败"}
 }
 
 /*
 *
-谷歌的蜘蛛
-*/
-func googleSpider(ip string) BotResult {
-	//先查询本地库
-	//然后远端查询
-	fakeSpiderResult := BotResult{
-		IsBot:       true,
-		IsNormalBot: false,
-		BotName:     "伪装Google爬虫",
-	}
-	lookup, err := ReverseDNSLookup(ip)
-	if err == nil {
-		if len(lookup) > 0 {
-			if strings.HasSuffix(lookup[0], ".googlebot.com.") {
-				return BotResult{
-					IsBot:       true,
-					IsNormalBot: true,
-					BotName:     "Google爬虫",
-				}
-			} else if strings.HasSuffix(lookup[0], ".google.com.") {
-				return BotResult{
-					IsBot:       true,
-					IsNormalBot: true,
-					BotName:     "Google爬虫(特殊)",
-				}
-			} else if strings.HasSuffix(lookup[0], ".googleusercontent.com.") {
-				return BotResult{
-					IsBot:       true,
-					IsNormalBot: true,
-					BotName:     "Google爬虫(用户触发)",
-				}
-			} else {
-				return fakeSpiderResult
-			}
-		} else {
-			return fakeSpiderResult
-		}
-	} else {
-		var dnsErr *net.DNSError
-		if errors.As(err, &dnsErr) {
-			if dnsErr.IsTimeout {
-				return BotResult{
-					IsBot:       true,
-					IsNormalBot: true,
-					BotName:     "查询超时",
-				}
-			} else if dnsErr.IsNotFound {
-				return fakeSpiderResult
-			} else {
-				return BotResult{
-					IsBot:       true,
-					IsNormalBot: true,
-					BotName:     "查询失败",
-				}
-			}
-		} else {
-			return BotResult{
-				IsBot:       true,
-				IsNormalBot: true,
-				BotName:     "查询失败",
-			}
-		}
-	}
-}
-
-/*
-*
-bing的蜘蛛
-*/
-func bingSpider(ip string) BotResult {
-	//先查询本地库
-	//然后远端查询
-	fakeSpiderResult := BotResult{
-		IsBot:       true,
-		IsNormalBot: false,
-		BotName:     "伪装Bing爬虫",
-	}
-	lookup, err := ReverseDNSLookup(ip)
-	if err == nil {
-		if len(lookup) > 0 {
-			if strings.HasSuffix(lookup[0], ".msn.com.") {
-				return BotResult{
-					IsBot:       true,
-					IsNormalBot: true,
-					BotName:     "Bing爬虫",
-				}
-			} else {
-				return fakeSpiderResult
-			}
-		} else {
-			return fakeSpiderResult
-		}
-	} else {
-		var dnsErr *net.DNSError
-		if errors.As(err, &dnsErr) {
-			if dnsErr.IsTimeout {
-				return BotResult{
-					IsBot:       true,
-					IsNormalBot: true,
-					BotName:     "查询超时",
-				}
-			} else if dnsErr.IsNotFound {
-				return fakeSpiderResult
-			} else {
-				return BotResult{
-					IsBot:       true,
-					IsNormalBot: true,
-					BotName:     "查询失败",
-				}
-			}
-		} else {
-			return BotResult{
-				IsBot:       true,
-				IsNormalBot: true,
-				BotName:     "查询失败",
-			}
-		}
-	}
-}
-
-/*
-*
-sogou蜘蛛
-*/
-func sogouSpider(ip string) BotResult {
-	//先查询本地库
-	//然后远端查询
-	fakeSpiderResult := BotResult{
-		IsBot:       true,
-		IsNormalBot: false,
-		BotName:     "伪装搜狗爬虫",
-	}
-	lookup, err := ReverseDNSLookup(ip)
-	if err == nil {
-		if len(lookup) > 0 {
-			if strings.HasSuffix(lookup[0], ".sogou.com.") {
-				return BotResult{
-					IsBot:       true,
-					IsNormalBot: true,
-					BotName:     "搜狗爬虫",
-				}
-			} else {
-				return fakeSpiderResult
-			}
-		} else {
-			return fakeSpiderResult
-		}
-	} else {
-		var dnsErr *net.DNSError
-		if errors.As(err, &dnsErr) {
-			if dnsErr.IsTimeout {
-				return BotResult{
-					IsBot:       true,
-					IsNormalBot: true,
-					BotName:     "查询超时",
-				}
-			} else if dnsErr.IsNotFound {
-				return fakeSpiderResult
-			} else {
-				return BotResult{
-					IsBot:       true,
-					IsNormalBot: true,
-					BotName:     "查询失败",
-				}
-			}
-		} else {
-			return BotResult{
-				IsBot:       true,
-				IsNormalBot: true,
-				BotName:     "查询失败",
-			}
-		}
-	}
-}
-
-/*
-*
-360 搜索引擎
+360搜索：按厂商公布的网段验证，不查 DNS
 */
 func spider360(ip string) BotResult {
 	// 将要检查的 IP 地址段转换成数组
@@ -310,79 +176,24 @@ func spider360(ip string) BotResult {
 		}
 	}
 	if isInRange {
+		// 落在公布网段内即为完整验证：这条路径不依赖 DNS，没有"确认不了"的中间态
 		return BotResult{
-			IsBot:       true,
-			IsNormalBot: true,
-			BotName:     "360爬虫",
-		}
-	} else {
-		return BotResult{
-			IsBot:       true,
-			IsNormalBot: false,
-			BotName:     "伪装360爬虫",
+			IsBot:          true,
+			IsNormalBot:    true,
+			BotName:        "360爬虫",
+			StrongVerified: true,
 		}
 	}
-}
-
-/*
-*
-UC 搜索
-*/
-func yisouSpider(ip string) BotResult {
-	//先查询本地库
-	//然后远端查询
-
-	fakeSpiderResult := BotResult{
+	return BotResult{
 		IsBot:       true,
 		IsNormalBot: false,
-		BotName:     "伪装神马搜索爬虫",
-	}
-	lookup, err := ReverseDNSLookup(ip)
-	if err == nil {
-		if len(lookup) > 0 {
-			if strings.HasSuffix(lookup[0], ".sm.cn.") {
-				return BotResult{
-					IsBot:       true,
-					IsNormalBot: true,
-					BotName:     "神马搜索爬虫",
-				}
-			} else {
-				return fakeSpiderResult
-			}
-		} else {
-			return fakeSpiderResult
-		}
-	} else {
-		var dnsErr *net.DNSError
-		if errors.As(err, &dnsErr) {
-			if dnsErr.IsTimeout {
-				return BotResult{
-					IsBot:       true,
-					IsNormalBot: true,
-					BotName:     "查询超时",
-				}
-			} else if dnsErr.IsNotFound {
-				return fakeSpiderResult
-			} else {
-				return BotResult{
-					IsBot:       true,
-					IsNormalBot: true,
-					BotName:     "查询失败",
-				}
-			}
-		} else {
-			return BotResult{
-				IsBot:       true,
-				IsNormalBot: true,
-				BotName:     "查询失败",
-			}
-		}
+		BotName:     "伪装360爬虫",
 	}
 }
 
 /*
 *
-字节跳动的爬虫
+字节跳动：按厂商公布的网段验证，不查 DNS
 */
 func byteSpider(ip string) BotResult {
 	ipRanges := []string{
@@ -398,18 +209,17 @@ func byteSpider(ip string) BotResult {
 		"60.8.151.0/24",
 	}
 
-	isInRanges := utils.CheckIPInRanges(ip, ipRanges)
-	if isInRanges {
+	if utils.CheckIPInRanges(ip, ipRanges) {
 		return BotResult{
-			IsBot:       true,
-			IsNormalBot: true,
-			BotName:     "字节跳动爬虫",
+			IsBot:          true,
+			IsNormalBot:    true,
+			BotName:        "字节跳动爬虫",
+			StrongVerified: true,
 		}
-	} else {
-		return BotResult{
-			IsBot:       true,
-			IsNormalBot: false,
-			BotName:     "伪装字节跳动爬虫",
-		}
+	}
+	return BotResult{
+		IsBot:       true,
+		IsNormalBot: false,
+		BotName:     "伪装字节跳动爬虫",
 	}
 }

@@ -251,3 +251,219 @@ notes:
     en:
       title: Per-port protocol selection - port 80 is no longer forced to HTTPS by the SSL switch
       detail: Listening ports are now declared one by one. When editing a website each port takes its own row where you pick HTTP or HTTPS directly, and optionally restrict it to IPv4 or IPv6 only (both are accepted by default, same as before the upgrade). Previously the protocol was derived from the SSL switch as a whole, and the most typical problem was that a site with main port 80 plus SSL enabled turned port 80 of the whole machine into HTTPS, so every plaintext site on the same machine and any CDN origin-pull over plain HTTP got a 400. The upgrade itself changes nothing - websites whose port settings were never touched keep their exact previous behavior, including the port-80-as-HTTPS phenomenon above, which is deliberately not auto-corrected. A new declaration only takes effect after you open the website editor, adjust the port protocols and save. If you are hitting the CDN plaintext origin-pull 400 - edit that website and switch port 80 to HTTP; the certificate is unaffected and keeps serving 443. A given port can only speak one protocol per machine - saving validates this and names the conflicting website, existing conflicts are flagged in red on the website list and reported in the system log and message push, and the new Port Overview page shows which websites occupy each port with which protocol.
+
+  - id: v1_3_25_cc_multi_rule
+    version: v1.3.25
+    kind: check
+    level: high
+    page: /waf-host/anticc
+    doc: https://doc.samwaf.com/guide/AntiCC.html
+    apply:
+      type: navigate
+    zh:
+      title: CC 防护改为多规则，并修正了「平均速率模式」保存后阈值不一致的问题
+      detail: >-
+        CC 防护从「一个网站一条配置」改成「一个网站多条规则，按优先级自上而下执行，命中即停」。
+        新增三样以前没有的能力：一是统计口径可以排除静态资源——一次页面加载会带出几十个 js/css/图片请求，
+        以前它们全部计入，导致阈值只能设得很松；二是统计维度除了客户端 IP，还能按 IP+URL、Cookie、
+        请求头、查询参数或整站总量归堆；三是超过阈值后的动作除了拦截和封禁，新增了「观察（仅记录不阻断）」
+        与「人机验证」，且封禁可以只作用于本站点。
+        升级不改变你现有的防护行为：旧配置会自动转换成一条名为「默认CC防护」的等价规则，
+        统计口径仍是「全部请求」、封禁仍作用于「全部站点」、限流算法沿用原设置，界面上带「兼容旧配置」标记。
+        更合理的新默认值（排除静态、人机验证、只封本站点）只作用于你之后新建的规则。
+        需要你留意的一点：如果你用的是「平均速率模式」，这个版本修正了一处缺陷——
+        此前在界面点一次保存，实际生效的阈值会与启动时不同（例如配置 60 秒 100 次，保存后会变成每秒 100 次左右），
+        重启后又会变回去。修正后保存前后、重启前后一致，因此你可能会观察到实际拦截强度与之前不同，
+        这是把阈值恢复成你配置的值，不是新增的限制。
+      effect_on: 保持默认即可：存量配置已自动转换成等价规则，防护行为与升级前一致。建议在网站防护 - CC防护里看一眼转换结果，把「统计口径」改成「排除静态资源」、「封禁作用范围」改成「仅本站点」，阈值会更贴合真实情况、也不会再因为一个站点触发就影响其它站点。
+      effect_off: 不做任何调整：防护照常工作，但统计口径仍把 js/css/图片算进来，同样的阈值实际能容纳的真实操作次数少得多，只能靠放松阈值来避免误伤；封禁也仍然作用于全部站点，一个站点触发会连带影响同实例的其它站点。
+      revert: 转换出来的规则可以随时编辑或停用；停用全部规则即回到不做 CC 限制的状态。
+    en:
+      title: CC protection is now rule-based, and a rate-mode threshold inconsistency is fixed
+      detail: >-
+        CC protection moves from one configuration per website to multiple rules per website, evaluated
+        top-down by priority and stopping at the first match. Three capabilities are new. First, the count
+        scope can exclude static assets - one page load pulls dozens of js/css/image requests, and previously
+        all of them counted, which forced thresholds to be set very loose. Second, besides client IP, hits can
+        be grouped by IP+URL, a cookie, a request header, a query parameter, or the whole site. Third, in
+        addition to blocking and banning, a rule can now Observe (log only, no blocking) or require human
+        verification, and a ban can be limited to the current website only.
+        The upgrade does not change your existing protection behavior - the old configuration is converted
+        into an equivalent rule named "Default CC protection", keeping the All requests count scope, the
+        All sites ban scope and the original rate-limiting algorithm, and it is tagged as legacy in the UI.
+        The better new defaults (exclude static assets, human verification, ban this site only) apply only
+        to rules you create from now on.
+        One thing to note - if you use the average rate mode, this version fixes a defect where saving the
+        form in the UI produced a different effective threshold than the one applied at startup (for example
+        60 seconds / 100 times became roughly 100 per second after saving), reverting again after a restart.
+        Now saving and restarting are consistent, so you may notice the effective strictness differs from
+        before. That is the threshold being restored to what you configured, not a new restriction.
+      effect_on: Keeping the defaults is fine - existing configuration has been converted into an equivalent rule and behaves as before. It is worth reviewing the converted rule under Website Protection - CC Protection and switching the count scope to Exclude static assets and the ban scope to This site only, so the threshold reflects real activity and one website no longer affects the others.
+      effect_off: If you change nothing, protection keeps working, but the count scope still includes js/css/images, so the same threshold tolerates far fewer real user actions and can only be made safe by loosening it; bans also still apply to all websites, so one site triggering affects every other site on the same instance.
+      revert: Converted rules can be edited or disabled at any time; disabling every rule returns to having no CC limiting.
+  - id: v1_3_25_bot_verify_and_cc_exempt
+    version: v1.3.25
+    kind: check
+    level: normal
+    page: /waf-host/anticc
+    doc: https://doc.samwaf.com/guide/AntiCC.html
+    apply:
+      type: navigate
+    zh:
+      title: 搜索引擎爬虫的身份验证补齐了正向回查，CC 规则可豁免已验证爬虫
+      detail: >-
+        以前判断一个来访 IP 是不是真的搜索引擎爬虫，只做了反向 DNS 解析并比对域名后缀。
+        各家官方文档（Google、百度等）要求的是两步：反向拿到域名之后，还要对该域名做正向解析，
+        确认能解析回最初那个来访 IP。这个版本补上了第二步。
+        补齐之后新增了一个能力：CC 规则可以设置「已验证爬虫豁免」，开启后完成完整身份验证的
+        搜索引擎爬虫不计入这条规则的计数。以前 CC 防护完全不看爬虫身份，抓取快的搜索引擎
+        一样会被限流甚至封禁。
+        有两点需要留意。其一，正向解析确认不了的爬虫仍按原来的判定放行、不会被判成伪装爬虫，
+        但也拿不到豁免——实测部分厂商的老抓取段没有正向解析记录，严格执行会误伤真爬虫、导致掉索引，
+        所以这里刻意做得宽松，只在需要更强把握的豁免场合才要求完整验证。
+        其二，豁免默认只作用于新建的规则，你已有的规则保持关闭，防护行为与升级前一致。
+      effect_on: 建议在网站防护 - CC防护里，给「全站兜底」这类不该拦搜索引擎的规则打开「已验证爬虫豁免」。存量规则升级后默认是关闭的，需要你自己打开。
+      effect_off: 不打开也可以：防护照常工作，但搜索引擎爬虫会和普通访客一样计入 CC 计数，抓取密集时可能被限流或封禁，进而影响收录。
+      revert: 这个开关随时可以关掉，关掉后该规则立即恢复对爬虫一并计数。
+    en:
+      title: Crawler verification now includes a forward DNS confirmation, and CC rules can exempt verified crawlers
+      detail: >-
+        Deciding whether a visiting IP is really a search-engine crawler previously used only a reverse DNS
+        lookup plus a domain suffix comparison. The vendors' own documentation (Google, Baidu and others)
+        describes two steps: after the reverse lookup returns a hostname, resolve that hostname forward and
+        confirm it maps back to the original visiting IP. This version adds that second step.
+        On top of it, CC rules gain an "Exempt verified crawlers" option: when on, search-engine crawlers that
+        completed full identity verification are not counted by that rule. Previously CC protection ignored
+        crawler identity entirely, so an actively crawling search engine could be rate-limited or even banned.
+        Two things to note. First, a crawler whose forward lookup cannot be confirmed is still treated exactly
+        as before and is not classified as spoofed - measurements show some vendors' older crawling ranges have
+        no forward records, and enforcing this strictly would block real crawlers and cost you search indexing.
+        Full verification is required only for the exemption, where a stronger guarantee is warranted.
+        Second, the exemption defaults to on only for newly created rules; your existing rules keep it off, so
+        protection behaves exactly as before the upgrade.
+      effect_on: In Website protection - CC protection, turn on "Exempt verified crawlers" for rules that should not block search engines, such as a site-wide fallback. Existing rules have it off after the upgrade, so you need to enable it yourself.
+      effect_off: Leaving it off is fine - protection keeps working, but search-engine crawlers are counted like ordinary visitors and may be rate-limited or banned during heavy crawling, which can affect indexing.
+      revert: The switch can be turned off at any time; that rule immediately goes back to counting crawlers along with everyone else.
+  - id: v1_3_25_captcha_capability_split
+    version: v1.3.25
+    kind: check
+    level: normal
+    page: /waf-host/wafhostlist
+    doc: https://doc.samwaf.com/guide/HumanVerify.html
+    apply:
+      type: navigate
+    zh:
+      title: 人机验证设置不再被开关藏起来，「排除URL列表」更名为「永不挑战的路径」
+      detail: >-
+        网站编辑里的验证码设置以前整体挂在「是否开启验证码」这个开关后面，开关一关，
+        验证方式、路径前缀、有效期、排除URL 等字段全部从界面上消失。
+        但这些设置并不只服务于那个开关——CC 防护规则的「人机验证」动作同样在使用它们，
+        于是会出现「规则命中了、日志也写了人机验证，却因为看不见的排除清单而从不弹出挑战」。
+        这个版本把它们分成两块：上半部分是「验证能力」，无论开关开关都始终可见可改；
+        下半部分是「触发来源」，原来的开关改名为「站点常开人机验证」，它只是众多触发来源之一。
+        「排除URL列表」更名为「永不挑战的路径」，并写明它对所有触发来源生效。
+        另外修正了一处解析问题：验证码配置里的数值字段（有效期、capJs 的挑战数量/难度等）
+        在存量数据里是字符串形式，此前会被静默忽略、悄悄回落到默认值，现在能正确读取——
+        如果你以前调过这些值却感觉没生效，升级后它们才真正开始起作用。
+        同一类问题还修了「验证方式」：存量数据里出现过当前版本不认识的取值，此前会导致挑战页发不出来——站点常开验证码、CC 规则的人机验证动作、紧急模式三条路径在这类站点上一律失效，而界面和日志看起来都正常。现在不认识的取值一律按「传统方式」处理。
+        另外新增一栏「挑战页联系方式」：填了会显示在人机验证页面上，留空则不显示。访客被挡下来之后进不去也没地方问，这里给他一条出路。
+      effect_on: 请到网站防护 - 网站编辑 - 人机验证里看一眼「永不挑战的路径」。列在那里的路径不会被任何来源挑战，包括 CC 规则；不需要的条目可以删掉。若你调过 capJs 的挑战数量或难度，也请确认现在生效的值是不是你想要的。
+      effect_off: 不看也可以：设置的实际行为与升级前完全一致，只是不再被开关藏起来。但如果你配过 CC 规则的人机验证却一直没见到挑战页，多半就是被这份清单跳过了。
+      revert: 界面分组与名称的调整不影响已保存的配置，字段本身没有变化。
+    en:
+      title: Human verification settings are no longer hidden behind the switch, and the exclude list is renamed
+      detail: >-
+        The captcha settings in the website editor used to sit entirely behind the "Enable captcha" switch:
+        turning it off made the verification type, path prefix, lifetime and exclude list disappear from the UI.
+        Those settings are not exclusive to that switch, though - the Human verification action of CC rules
+        uses them too, which produced the confusing case where a rule matched and the log said human
+        verification, yet no challenge ever appeared because of an exclude list nobody could see.
+        This version splits them in two: the upper part is the verification capability, always visible and
+        editable regardless of the switch; the lower part is trigger sources, where the old switch is renamed
+        Site-wide human verification and becomes just one source among several. The exclude list is renamed
+        "Never challenge these paths" and now states that it applies to every trigger source.
+        A parsing defect is also fixed: numeric fields in the captcha config (lifetime, capJs challenge count
+        and difficulty, and so on) are stored as strings in existing data and used to be silently ignored,
+        quietly falling back to defaults. They are read correctly now - if you tuned those values before and
+        felt nothing happened, they only start taking effect after this upgrade.
+        The same class of problem is fixed for the verification type: existing data could hold a value this version does not recognise, which stopped the challenge page from being produced at all - the site-wide captcha, the CC rule Human verification action and Emergency mode all silently failed on such websites while the UI and logs looked fine. Unrecognised values now fall back to the traditional captcha.
+        A new "Contact shown on the challenge page" field was also added: when filled in it appears on the verification page, and when empty nothing is shown. A blocked visitor can neither get in nor ask anyone - this gives them a way out.
+      effect_on: Open Website protection - edit a website - Human verification and review "Never challenge these paths". Paths listed there are never challenged by any source, CC rules included; remove the entries you no longer need. If you tuned capJs challenge count or difficulty, confirm the values now in effect are the ones you want.
+      effect_off: Skipping the review is fine - behavior is identical to before the upgrade, the settings are simply no longer hidden. But if you configured human verification on a CC rule and never saw a challenge page, this list is the most likely reason.
+      revert: The regrouping and renaming do not change any saved configuration; the underlying fields are unchanged.
+  - id: v1_3_25_cc_captcha_loop
+    version: v1.3.25
+    kind: check
+    level: normal
+    page: /waf-host/anticc
+    doc: https://doc.samwaf.com/guide/CC.html
+    apply:
+      type: navigate
+    zh:
+      title: CC 规则的「人机验证」动作：通过验证后不再被反复挑战
+      detail: >-
+        动作选「人机验证」的 CC 规则，访客完成挑战之后本应进入一段免挑战期，
+        期间即使计数窗口里的次数仍然超标也不再重复挑战。实际上这段免挑战期发不出来：
+        它由检测链后半段的验证码闸门在「访客带着有效凭证出现」时发放，
+        而 CC 检测跑在闸门前面，会先把访客刚拿到的凭证作废掉，闸门于是永远看不到它。
+        表现是访客每完成一次挑战、下一个请求又被挑战，直到计数窗口自己漏空为止。
+        这个版本把交接提前到 CC 检测这一步完成：只要上一轮确实要求过验证、
+        而访客这次带着有效凭证过来，就地换成免挑战期。
+        「超量时作废陈旧凭证」的行为保留不变——此前没被要求过验证、
+        拿着站点常开验证码留下的长期凭证的访客，超量时仍会被要求重新验证。
+      effect_on: 如果你配过动作为「人机验证」的 CC 规则，升级后请自己走一遍：触发阈值、完成挑战，之后应当能正常访问而不是反复看到挑战页。日志里会多出「CC人机验证-本轮已通过」这条文案。
+      effect_off: 不需要改任何配置，升级后自动生效。
+      revert: 这是行为修正，没有开关。若要暂时避开，可把规则动作临时改为「观察」。
+    en:
+      title: CC rules with the Human verification action no longer re-challenge visitors who already passed
+      detail: >-
+        A CC rule whose action is Human verification is supposed to give a visitor a grace period once they
+        complete the challenge, so that they are not challenged again while the counting window is still over
+        the threshold. That grace period could never actually be granted: it is issued by the captcha gate in
+        the second half of the detection chain when a visitor arrives holding a valid pass, but the CC check
+        runs before that gate and revoked the pass the visitor had just obtained, so the gate never saw it.
+        The visible symptom was a visitor being challenged again on every request after each successful
+        challenge, until the counting window drained on its own. This version completes that handover at the
+        CC check itself: when verification was requested in the previous round and the visitor now arrives
+        with a valid pass, the grace period is granted right there.
+        Revoking stale passes on threshold breach is unchanged - a visitor who was not previously asked to
+        verify and is carrying a long-lived pass from the site-wide captcha is still asked to verify again.
+      effect_on: If you have CC rules using the Human verification action, walk through it yourself after upgrading - trip the threshold, complete the challenge, and you should then browse normally instead of seeing the challenge page repeatedly. Logs now include a "CC human verification - passed this round" entry.
+      effect_off: No configuration changes are needed; the fix applies automatically.
+      revert: This is a behavioural correction with no switch. To avoid it temporarily, set the rule action to Observe.
+  - id: v1_3_25_cc_emergency_mode
+    version: v1.3.25
+    kind: notice
+    level: normal
+    page: /waf-host/anticc
+    doc: https://doc.samwaf.com/guide/CC.html
+    apply:
+      type: navigate
+    zh:
+      title: 新增「紧急模式」：被打的时候一键让全部访客先过人机验证
+      detail: >-
+        CC 页面新增「紧急模式」按钮。开启后，该站点的所有访客都要先完成一次人机验证，
+        通过之后 30 分钟内不再重复挑战。它不看阈值、也不改动你已有的任何一条 CC 规则，
+        关掉即恢复原状，因此可以在被攻击时直接按下、事后直接关掉。
+        选择全局网站开启则对所有站点生效，适合一次被打一片的情况。
+        它与 CC 规则的人机验证动作共用同一套闸门与凭证，所以站点的「永不挑战的路径」
+        对它同样生效——App / API 客户端跑不了 JS 挑战，必须先把这些路径列进去。
+        默认关闭，升级不会改变任何站点的现有行为。
+      effect_on: 建议先去网站编辑 - 人机验证里确认「永不挑战的路径」已经写上了 App/API 的接口路径，这样真要用的时候按下去不会把客户端全挡在门外。开启时请选一个自动关闭时间，忘了关的代价由真实访客承担。
+      effect_off: 不开就完全不影响。它默认关闭，只有你自己按下才会生效。
+      revert: 在同一个弹窗里关闭即可，站点立刻恢复升级前的行为。
+    en:
+      title: New Emergency mode - one click to put every visitor behind a human verification
+      detail: >-
+        The CC page has a new Emergency mode button. Once enabled, every visitor to that website must complete
+        a human verification first and is then not challenged again for 30 minutes. It ignores thresholds and
+        does not modify any of your existing CC rules, and turning it off restores the previous behaviour, so
+        it is safe to hit while under attack and switch off afterwards. Enabling it on the global website
+        applies it to every site, which is what you want when many sites are hit at once.
+        It shares the same gate and pass mechanism as the Human verification action of CC rules, so the
+        website's "Never challenge these paths" applies to it as well - App and API clients cannot run a JS
+        challenge, so those paths must be listed there first.
+        It is off by default; upgrading changes nothing for any website.
+      effect_on: Before you need it, open the website editor - Human verification and make sure "Never challenge these paths" already lists your App/API endpoints, so hitting the button does not lock those clients out. When enabling it, pick an auto turn-off time - forgetting about it costs your real visitors.
+      effect_off: Leaving it alone has no effect at all. It is off by default and only applies when you turn it on yourself.
+      revert: Turn it off in the same dialog; the website immediately returns to its previous behaviour.

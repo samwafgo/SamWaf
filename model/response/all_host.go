@@ -10,6 +10,8 @@ type AllHostRep struct {
 	// GlobalHost 是否"全局网站"（1是）。它不是真实站点，只承载全局规则，
 	// 前端做"按站点选一个来配置/诊断"这类下拉时要把它过滤掉。
 	GlobalHost int `json:"global_host"`
+	// GroupCode 所属分组短码，空=未分组。供前端「先选分组再选站点」的下拉做本地筛选。
+	GroupCode string `json:"group_code"`
 }
 
 type AllShareDbRep struct {

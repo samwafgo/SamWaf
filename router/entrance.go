@@ -10,6 +10,7 @@ type ApiGroup struct {
 	AllowUrlRouter
 	LdpUrlRouter
 	AntiCCRouter
+	AntiCCRuleRouter
 	IPFailureRouter
 	BlockIpRouter
 	HostGroupRouter

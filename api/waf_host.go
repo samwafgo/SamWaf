@@ -1,6 +1,7 @@
 package api
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/globalobj"
@@ -179,6 +180,11 @@ func (w *WafHostAPi) AddApi(c *gin.Context) {
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 			hostCode, err := wafHostService.AddApi(req)
 			if err == nil {
+				// 给新站点铺一套开箱可用的 CC 规则。失败只记日志：
+				// 建站本身已经成功，不该因为附带的默认规则没生成而让用户以为建站失败。
+				if ruleErr := wafAntiCCRuleService.CreateDefaultRules(hostCode); ruleErr != nil {
+					zlog.Warn("生成默认CC规则失败", ruleErr)
+				}
 				w.NotifyWaf(hostCode, nil)
 				response.OkWithDetailed(hostCode, "添加成功", c)
 			} else {
@@ -329,37 +335,19 @@ func (w *WafHostAPi) GetListApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 	}
 }
+
+// HostDisplayName 站点显示名。实现在 model.Hosts.DisplayName——
+// service 层也要用它，而 service 不能反向依赖 api。
+func HostDisplayName(h model.Hosts) string {
+	return h.DisplayName()
+}
+
 func (w *WafHostAPi) GetAllListApi(c *gin.Context) {
 	wafHosts := wafHostService.GetAllHostApi()
 	allHostRep := make([]response2.AllHostRep, len(wafHosts)) // 创建数组
 	for i, _ := range wafHosts {
-		var hostDisplay string
 		var preHost string = fmt.Sprintf("%s:%d", wafHosts[i].Host, wafHosts[i].Port)
-
-		// 构建括号内的内容
-		var bracketContent []string
-
-		// 如果有昵称，优先显示昵称
-		if wafHosts[i].Nickname != "" {
-			bracketContent = append(bracketContent, wafHosts[i].Nickname)
-		}
-
-		// 如果是SSL，添加SSL标识
-		if wafHosts[i].Ssl == 1 {
-			bracketContent = append(bracketContent, "SSL")
-		}
-
-		// 如果有备注，添加备注
-		if wafHosts[i].REMARKS != "" {
-			bracketContent = append(bracketContent, wafHosts[i].REMARKS)
-		}
-
-		// 构建最终的Host显示字符串
-		if len(bracketContent) > 0 {
-			hostDisplay = fmt.Sprintf("%s:%d(%s)", wafHosts[i].Host, wafHosts[i].Port, strings.Join(bracketContent, ","))
-		} else {
-			hostDisplay = fmt.Sprintf("%s:%d", wafHosts[i].Host, wafHosts[i].Port)
-		}
+		hostDisplay := HostDisplayName(wafHosts[i])
 
 		allHostRep[i] = response2.AllHostRep{
 			Host:       hostDisplay,
@@ -367,6 +355,7 @@ func (w *WafHostAPi) GetAllListApi(c *gin.Context) {
 			PreHost:    preHost,
 			Nickname:   wafHosts[i].Nickname,
 			GlobalHost: wafHosts[i].GLOBAL_HOST,
+			GroupCode:  wafHosts[i].GroupCode,
 		}
 	}
 	response.OkWithDetailed(allHostRep, "获取成功", c)

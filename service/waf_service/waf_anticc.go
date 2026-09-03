@@ -11,6 +11,9 @@ import (
 	"time"
 )
 
+// WafAntiCCService 旧版单条 CC 配置服务。
+//
+// Deprecated: 已由 WafAntiCCRuleService 取代，保留一个版本周期供老前端过渡。
 type WafAntiCCService struct{}
 
 var WafAntiCCServiceApp = new(WafAntiCCService)

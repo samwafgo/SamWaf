@@ -12,6 +12,18 @@ import (
 	"time"
 )
 
+// botDNSFailCacheSeconds 「查询超时 / 查询失败」这类结果的负缓存时长。
+//
+// 这类结果原先完全不入缓存，导致 DNS 查不通的 IP 每来一个请求就重查一次；
+// 补上正向解析后就是每请求两次查询。用一个远短于正常结果的 TTL 缓存它：
+// 太长会把一次 DNS 抖动的错误结论锁住很久，不存则等于持续空转。
+const botDNSFailCacheSeconds = 60
+
+// isDNSUncertain 判断是不是「没查出结论」的那两种结果
+func isDNSUncertain(name string) bool {
+	return name == "查询超时" || name == "查询失败"
+}
+
 /*
 *
 检测爬虫
@@ -41,6 +53,9 @@ func (waf *WafEngine) CheckBot(r *http.Request, weblogbean *innerbean.WebLog, fo
 	}
 	if botResult.IsBot == true {
 		weblogbean.IsBot = 1
+		if botResult.StrongVerified {
+			weblogbean.BotVerifyStrong = 1
+		}
 		if botResult.IsNormalBot {
 			weblogbean.GUEST_IDENTIFICATION = botResult.BotName
 		} else {
@@ -55,16 +70,14 @@ func (waf *WafEngine) CheckBot(r *http.Request, weblogbean *innerbean.WebLog, fo
 			result.Title = botResult.BotName
 			result.Content = "请正确访问"
 
-			if !isBotCacheExist && botResult.BotName != "查询超时" && botResult.BotName != "查询失败" {
-				//如果是bot 加入cache里面（排除查询超时和查询失败的情况）
-				global.GCACHE_WAFCACHE.SetWithTTl(enums.CACHE_DNS_BOT_IP+weblogbean.SRC_IP, botResult, time.Duration(global.GCONFIG_RECORD_DNS_BOT_EXPIRE_HOURS)*time.Hour)
+			if !isBotCacheExist {
+				cacheBotResult(weblogbean.SRC_IP, botResult)
 			}
 			return result
 		}
 
-		if !isBotCacheExist && botResult.BotName != "查询超时" && botResult.BotName != "查询失败" {
-			//如果是正常爬虫，也保存结果（排除查询超时和查询失败的情况）
-			global.GCACHE_WAFCACHE.SetWithTTl(enums.CACHE_DNS_BOT_IP+weblogbean.SRC_IP, botResult, time.Duration(global.GCONFIG_RECORD_DNS_BOT_EXPIRE_HOURS)*time.Hour)
+		if !isBotCacheExist {
+			cacheBotResult(weblogbean.SRC_IP, botResult)
 		}
 
 	} else {
@@ -74,4 +87,18 @@ func (waf *WafEngine) CheckBot(r *http.Request, weblogbean *innerbean.WebLog, fo
 	}
 
 	return result
+}
+
+// cacheBotResult 写入爬虫判定缓存。
+// 有结论的按正常有效期存；没查出结论的（超时/失败）只存很短一段时间，
+// 既避免每请求重复查询，也不会把一次 DNS 抖动的结论长期钉死。
+func cacheBotResult(ip string, botResult wafbot.BotResult) {
+	if ip == "" || global.GCACHE_WAFCACHE == nil {
+		return
+	}
+	ttl := time.Duration(global.GCONFIG_RECORD_DNS_BOT_EXPIRE_HOURS) * time.Hour
+	if isDNSUncertain(botResult.BotName) {
+		ttl = botDNSFailCacheSeconds * time.Second
+	}
+	global.GCACHE_WAFCACHE.SetWithTTl(enums.CACHE_DNS_BOT_IP+ip, botResult, ttl)
 }

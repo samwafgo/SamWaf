@@ -3,6 +3,7 @@ package api
 import (
 	"SamWaf/enums"
 	"SamWaf/global"
+	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	response2 "SamWaf/model/response"
@@ -185,7 +186,12 @@ func (w *WafIPFailureApi) RemoveIPFailureBanIPApi(c *gin.Context) {
 		// 直接清除失败记录窗口累积
 		manager := wafipban.GetIPFailureManager()
 		manager.ClearIPFailure(req.Ip)
-		global.GCACHE_WAFCACHE.Remove(enums.CACHE_CCVISITBAN_PRE + req.Ip)
+		// CC 封禁键按作用域分开存放，逐一清理（含升级前的旧格式键）
+		for cacheKey := range global.GCACHE_WAFCACHE.ListAvailableKeysWithPrefix(enums.CACHE_CCVISITBAN_PRE) {
+			if _, _, banIp, ok := model.ParseCCBanKey(cacheKey); ok && banIp == req.Ip {
+				global.GCACHE_WAFCACHE.Remove(cacheKey)
+			}
+		}
 		response.OkWithMessage(req.Ip+" 移除成功", c)
 	} else {
 		response.FailWithMessage("解析失败", c)

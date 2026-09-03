@@ -3,6 +3,9 @@ package model
 import (
 	"SamWaf/model/baseorm"
 	"encoding/json"
+	"fmt"
+	"strconv"
+	"strings"
 )
 
 type Hosts struct {
@@ -71,6 +74,45 @@ type Hosts struct {
 	// addr 为预留字段：当前版本不生效，引擎读到会忽略并按通配监听。
 	// 解析唯一入口 utils.ResolveHostListens，其它地方不得自行解析。
 	PortListensJSON string `gorm:"size:2048" json:"port_listens_json"`
+	// EmergencyMode 紧急模式（对标 Under Attack Mode）：1=开启，全部页面请求先过一次人机验证。
+	//
+	// 它是站点级总闸，不改动任何一条 CC 规则——把规则的动作改掉再改回来，
+	// 中间出任何岔子都恢复不回原样，而这个开关多半是在被打的时候按的。
+	// 「永不挑战的路径」对它同样生效：App/API 客户端跑不了 JS 挑战，必须留得出口。
+	EmergencyMode int `json:"emergency_mode"`
+	// EmergencyUntil 紧急模式自动关闭时间(unix 秒)，0=手动关闭前一直开着。
+	// 默认给一个到期时间：这个开关会让全部访客多走一道挑战，忘了关的代价由真实用户承担。
+	EmergencyUntil int64 `json:"emergency_until"`
+}
+
+// DisplayName 站点在下拉/清单里的显示名：域名:端口(昵称,SSL,备注)。
+// 同一个域名常常有多条记录（不同端口各一条），只显示域名会看起来像重复数据。
+// 各处统一走这里，避免两个地方各写一份、显示名对不上。
+func (h Hosts) DisplayName() string {
+	var bracketContent []string
+	if h.Nickname != "" {
+		bracketContent = append(bracketContent, h.Nickname)
+	}
+	if h.Ssl == 1 {
+		bracketContent = append(bracketContent, "SSL")
+	}
+	if h.REMARKS != "" {
+		bracketContent = append(bracketContent, h.REMARKS)
+	}
+	if len(bracketContent) > 0 {
+		return fmt.Sprintf("%s:%d(%s)", h.Host, h.Port, strings.Join(bracketContent, ","))
+	}
+	return fmt.Sprintf("%s:%d", h.Host, h.Port)
+}
+
+// IsEmergencyActive 紧急模式当前是否生效（已开启且未到自动关闭时间）。
+// 到期判定放在读取侧而不是靠定时任务改库：定时任务没跑到的那段时间里，
+// 库里写着「开」而实际早该关了，两者不一致比晚关几秒更难查。
+func (h *Hosts) IsEmergencyActive(nowUnix int64) bool {
+	if h == nil || h.EmergencyMode != 1 {
+		return false
+	}
+	return h.EmergencyUntil <= 0 || h.EmergencyUntil > nowUnix
 }
 
 type HostsDefense struct {
@@ -97,19 +139,95 @@ type HealthyConfig struct {
 	LastErrorReason string `json:"last_error_reason"` // 最后一次错误原因
 }
 
+// FlexInt 兼容 JSON 里被写成字符串的数字（如 "24"）。
+//
+// 存量 captcha_json 里的数值字段大多是字符串形式。用普通 int 接收时，
+// encoding/json 会跳过该字段、继续解析其余字段，并只在最后返回一个类型错误——
+// 结果是字段悄悄回落到默认值：用户改了不生效，界面上也没有任何提示。
+type FlexInt int
+
+func (f *FlexInt) UnmarshalJSON(b []byte) error {
+	s := strings.TrimSpace(string(b))
+	if s == "" || s == "null" {
+		return nil
+	}
+	if s[0] == '"' {
+		var str string
+		if err := json.Unmarshal(b, &str); err != nil {
+			return err
+		}
+		str = strings.TrimSpace(str)
+		if str == "" {
+			return nil
+		}
+		n, err := strconv.Atoi(str)
+		if err != nil {
+			return err
+		}
+		*f = FlexInt(n)
+		return nil
+	}
+	var n int
+	if err := json.Unmarshal(b, &n); err != nil {
+		return err
+	}
+	*f = FlexInt(n)
+	return nil
+}
+
+// FlexLines 兼容 JSON 里被写成数组的换行分隔清单（如 ["/a","/b"]）。
+//
+// 存量 captcha_json 的 exclude_urls 有字符串和数组两种写法。用普通 string 接收数组时，
+// encoding/json 同样是跳过该字段、继续解析其余字段——清单会整份消失，
+// 表现为「明明配了永不挑战的路径，却照样被挑战」。
+type FlexLines string
+
+func (f *FlexLines) UnmarshalJSON(b []byte) error {
+	s := strings.TrimSpace(string(b))
+	if s == "" || s == "null" {
+		return nil
+	}
+	if s[0] == '[' {
+		var arr []string
+		if err := json.Unmarshal(b, &arr); err != nil {
+			return err
+		}
+		lines := make([]string, 0, len(arr))
+		for _, v := range arr {
+			if v = strings.TrimSpace(v); v != "" {
+				lines = append(lines, v)
+			}
+		}
+		*f = FlexLines(strings.Join(lines, "\n"))
+		return nil
+	}
+	var str string
+	if err := json.Unmarshal(b, &str); err != nil {
+		return err
+	}
+	*f = FlexLines(str)
+	return nil
+}
+
 // CaptchaConfig 验证码配置
 type CaptchaConfig struct {
-	IsEnableCaptcha int    `json:"is_enable_captcha"` // 是否开启验证码 1开启 0关闭
-	ExcludeURLs     string `json:"exclude_urls"`      // 排除验证码的URL列表
-	ExpireTime      int    `json:"expire_time"`       // 验证通过后的有效期(小时)
-	IPMode          string `json:"ip_mode"`           // IP提取模式: "nic" 网卡模式 或 "proxy" 代理模式
-	EngineType      string `json:"engine_type"`       // 验证码引擎类型: 传统方式 "traditional",capJS工作量证明 "capJs"
-	PathPrefix      string `json:"path_prefix"`       // 验证码路径前缀，用于隐藏系统特征，默认为随机生成
-	CapJsConfig     struct {
-		ChallengeCount      int `json:"challengeCount,omitempty"`      // Number of challenges to generate (default: 50)
-		ChallengeSize       int `json:"challengeSize,omitempty"`       // Size of each challenge in bytes (default: 32)
-		ChallengeDifficulty int `json:"challengeDifficulty,omitempty"` // Difficulty level (default: 4)
-		ExpiresMs           int `json:"expiresMs,omitempty"`           // Expiration time in milliseconds (default: 600000)
+	IsEnableCaptcha FlexInt   `json:"is_enable_captcha"` // 是否开启验证码 1开启 0关闭
+	ExcludeURLs     FlexLines `json:"exclude_urls"`      // 排除验证码的URL列表（换行分隔；对所有触发来源生效）
+	ExpireTime      FlexInt   `json:"expire_time"`       // 验证通过后的有效期(小时)
+	IPMode          string    `json:"ip_mode"`           // IP提取模式: "nic" 网卡模式 或 "proxy" 代理模式
+	EngineType      string    `json:"engine_type"`       // 验证码引擎类型: 传统方式 "traditional",capJS工作量证明 "capJs"
+	PathPrefix      string    `json:"path_prefix"`       // 验证码路径前缀，用于隐藏系统特征，默认为随机生成
+	// ContactInfo 管理员联系方式，填了就显示在挑战页上，留空则整块不渲染。
+	//
+	// 挑战页对访客是个死胡同：被挡住之后既进不去、也没地方问。这一栏就是给这种情况留的出口。
+	// 内容由管理员自己写（邮箱、电话、工单地址、一句说明都行），渲染时**必须 HTML 转义**——
+	// 它出现在给访客看的公开页面上。
+	ContactInfo string `json:"contact_info"` // 挑战页展示的管理员联系方式，留空=不显示
+	CapJsConfig struct {
+		ChallengeCount      FlexInt `json:"challengeCount,omitempty"`      // Number of challenges to generate (default: 50)
+		ChallengeSize       FlexInt `json:"challengeSize,omitempty"`       // Size of each challenge in bytes (default: 32)
+		ChallengeDifficulty FlexInt `json:"challengeDifficulty,omitempty"` // Difficulty level (default: 4)
+		ExpiresMs           FlexInt `json:"expiresMs,omitempty"`           // Expiration time in milliseconds (default: 600000)
 		InfoTitle           struct {
 			En string `json:"en,omitempty"` // English title
 			Zh string `json:"zh,omitempty"` // Chinese title
@@ -154,8 +272,33 @@ func ParseCaptchaConfig(captchaJSON string) CaptchaConfig {
 			return config
 		}
 	}
+	// 归一化验证方式：只认 traditional / capJs，其余一律按 traditional。
+	//
+	// 存量数据里出现过 "default" 这种当前代码不认的值（更早版本或导入留下的）。
+	// 下游按 EngineType 分发挑战页时是「两个 if，没有 else」，
+	// 取到不认识的值就两个分支都不进、什么都不写——响应是空的、挑战永远发不出来，
+	// 而配置、日志、界面上一切正常。在解析入口收口，所有下游一次性受益。
+	if config.EngineType != CaptchaEngineTraditional && config.EngineType != CaptchaEngineCapJs {
+		config.EngineType = CaptchaEngineTraditional
+	}
+	// 联系方式要显示在公开的挑战页上，在解析入口就把长度封住：
+	// 这段文本来自管理端输入，界面上限制得住，直接改库或旧数据限制不住。
+	config.ContactInfo = strings.TrimSpace(config.ContactInfo)
+	if n := []rune(config.ContactInfo); len(n) > CaptchaContactMaxRunes {
+		config.ContactInfo = string(n[:CaptchaContactMaxRunes])
+	}
 	return config
 }
+
+// 验证方式取值。只有这两个是引擎认得的，其余一律按 traditional 处理（见 ParseCaptchaConfig）。
+const (
+	CaptchaEngineTraditional = "traditional"
+	CaptchaEngineCapJs       = "capJs"
+)
+
+// CaptchaContactMaxRunes 挑战页联系方式的长度上限（按字符算，不是字节）。
+// 够写下"邮箱 + 电话 + 一句说明"，又不至于让人把整页说明塞进挑战页。
+const CaptchaContactMaxRunes = 200
 
 // AntiLeechConfig 防盗链配置
 type AntiLeechConfig struct {

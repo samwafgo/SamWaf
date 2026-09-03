@@ -3,6 +3,7 @@ package wafenginmodel
 import (
 	"SamWaf/model"
 	"SamWaf/utils"
+	"SamWaf/wafenginecore/ccrule"
 	"SamWaf/wafenginecore/ipset"
 	"SamWaf/wafenginecore/loadbalance"
 	"SamWaf/wafproxy"
@@ -38,7 +39,8 @@ type HostSafe struct {
 	UrlBlockLists      []model.URLBlockList          //url 黑名单
 	LoadBalanceLists   []model.LoadBalance           //负载均衡
 	LoadBalanceRuntime *LoadBalanceRuntime           //负载运行时
-	AntiCCBean         model.AntiCC                  //抵御CC
+	AntiCCBean         model.AntiCC                  //抵御CC(旧版单条配置，多规则未配置时兜底)
+	CCRules            []*ccrule.CompiledRule        //抵御CC(多规则，按优先级升序，已编译)
 	HttpAuthBases      []model.HttpAuthBase          //HTTP AUTH校验
 	BlockingPage       map[string]model.BlockingPage //自定义拦截界面
 	CacheRule          []model.CacheRule             //CacheRule

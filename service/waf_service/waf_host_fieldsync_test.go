@@ -21,6 +21,11 @@ var hostFieldSyncExempt = map[string]string{
 	"Code":         "新增时由后端生成；编辑时作为 where 条件而非更新列",
 	"GUARD_STATUS": "由 ModifyGuardStatusApi 单独维护",
 	"GLOBAL_HOST":  "全局站点标记，内部维护不开放编辑",
+	// 紧急模式是应急闸门，由 CC 页面的独立接口（SetEmergencyApi）开关。
+	// 刻意不进站点编辑表单：它有到期时间、要即时下发引擎，
+	// 混在一个几十项的表单里保存，既容易被顺手带上，也没法「一键」。
+	"EmergencyMode":  "由 SetEmergencyApi 单独维护（应急闸门，带到期时间）",
+	"EmergencyUntil": "由 SetEmergencyApi 随开关一并写入",
 }
 
 // parseGoFile 解析源码文件为 AST

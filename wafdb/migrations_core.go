@@ -8,6 +8,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/go-gormigrate/gormigrate/v2"
@@ -2032,6 +2033,160 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移: 创建 CC 多规则表，并把旧的单条 AntiCC 配置逐条转成等价规则
+		// 转换刻意保留旧行为（全部请求口径、全站作用域、原限流算法），升级后防护效果不变；
+		// 更合理的新默认值只作用于之后新建的规则。
+		{
+			ID: "202608310001_add_anti_cc_rules",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202608310001: 创建CC多规则表并转换存量配置")
+				if err := tx.AutoMigrate(&model.AntiCCRule{}); err != nil {
+					return fmt.Errorf("创建CC多规则表失败: %w", err)
+				}
+
+				var olds []model.AntiCC
+				if err := tx.Find(&olds).Error; err != nil {
+					return fmt.Errorf("读取存量CC配置失败: %w", err)
+				}
+				converted := 0
+				for _, old := range olds {
+					if old.Id == "" || old.HostCode == "" {
+						continue
+					}
+					// 同一网站已有转换结果就跳过，保证迁移可重复执行
+					var exist int64
+					if err := tx.Model(&model.AntiCCRule{}).
+						Where("host_code = ?", old.HostCode).Count(&exist).Error; err != nil {
+						return fmt.Errorf("检查CC规则是否已存在失败: %w", err)
+					}
+					if exist > 0 {
+						continue
+					}
+					if err := tx.Create(buildRuleFromLegacyAntiCC(old)).Error; err != nil {
+						return fmt.Errorf("转换CC配置失败(host_code=%s): %w", old.HostCode, err)
+					}
+					converted++
+				}
+				zlog.Info(fmt.Sprintf("CC多规则表创建完成，存量配置转换 %d 条", converted))
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202608310001: 删除CC多规则表")
+				return tx.Migrator().DropTable(&model.AntiCCRule{})
+			},
+		},
+		{
+			ID: "202609010001_add_anti_cc_rule_code",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202609010001: CC规则补充短码列")
+				if !tx.Migrator().HasColumn(&model.AntiCCRule{}, "rule_code") {
+					if err := tx.Migrator().AddColumn(&model.AntiCCRule{}, "rule_code"); err != nil {
+						return fmt.Errorf("新增CC规则短码列失败: %w", err)
+					}
+				}
+				// 存量规则逐条补码：短码要唯一，不能一条 UPDATE 批量填同一个值
+				var olds []model.AntiCCRule
+				if err := tx.Where("rule_code IS NULL OR rule_code = ''").Find(&olds).Error; err != nil {
+					return fmt.Errorf("读取待补码的CC规则失败: %w", err)
+				}
+				used := map[string]bool{}
+				var exists []string
+				tx.Model(&model.AntiCCRule{}).Where("rule_code <> ''").Pluck("rule_code", &exists)
+				for _, c := range exists {
+					used[c] = true
+				}
+				for _, rule := range olds {
+					code := ""
+					for i := 0; i < 8; i++ {
+						c := model.GenCCRuleCode()
+						if !used[c] {
+							code = c
+							break
+						}
+					}
+					if code == "" {
+						code = "CC-" + rule.Id[:6]
+					}
+					used[code] = true
+					if err := tx.Model(&model.AntiCCRule{}).Where("id = ?", rule.Id).
+						Update("rule_code", code).Error; err != nil {
+						return fmt.Errorf("补充CC规则短码失败(id=%s): %w", rule.Id, err)
+					}
+				}
+				zlog.Info(fmt.Sprintf("CC规则短码补充完成，共 %d 条", len(olds)))
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202609010001: 删除CC规则短码列")
+				if !tx.Migrator().HasColumn(&model.AntiCCRule{}, "rule_code") {
+					return nil
+				}
+				return tx.Migrator().DropColumn(&model.AntiCCRule{}, "rule_code")
+			},
+		},
+		{
+			ID: "202609010002_add_anti_cc_rule_bot_exempt",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202609010002: CC规则新增已验证爬虫豁免开关")
+				if !tx.Migrator().HasColumn(&model.AntiCCRule{}, "bot_exempt") {
+					if err := tx.Migrator().AddColumn(&model.AntiCCRule{}, "bot_exempt"); err != nil {
+						return fmt.Errorf("新增CC规则爬虫豁免列失败: %w", err)
+					}
+				}
+				// 存量规则一律置 0（不豁免），保持升级前的防护行为不变；
+				// 新默认值只作用于之后新建的规则。
+				if err := tx.Model(&model.AntiCCRule{}).
+					Where("bot_exempt IS NULL").Update("bot_exempt", 0).Error; err != nil {
+					return fmt.Errorf("初始化CC规则爬虫豁免列失败: %w", err)
+				}
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202609010002: 删除CC规则爬虫豁免列")
+				if !tx.Migrator().HasColumn(&model.AntiCCRule{}, "bot_exempt") {
+					return nil
+				}
+				return tx.Migrator().DropColumn(&model.AntiCCRule{}, "bot_exempt")
+			},
+		},
+		{
+			ID: "202609020001_add_hosts_emergency_mode",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202609020001: 网站新增紧急模式开关与到期时间")
+				cols := map[string]string{"emergency_mode": "EmergencyMode", "emergency_until": "EmergencyUntil"}
+				for col, field := range cols {
+					if tx.Migrator().HasColumn(&model.Hosts{}, col) {
+						continue
+					}
+					if err := tx.Migrator().AddColumn(&model.Hosts{}, field); err != nil {
+						return fmt.Errorf("新增网站紧急模式列 %s 失败: %w", col, err)
+					}
+				}
+				// 存量站点一律置关。这个开关会让全部访客多走一道人机验证，
+				// 升级顺带把它打开等于静默改变每个站点的访问体验。
+				if err := tx.Model(&model.Hosts{}).
+					Where("emergency_mode IS NULL").Update("emergency_mode", 0).Error; err != nil {
+					return fmt.Errorf("初始化网站紧急模式列失败: %w", err)
+				}
+				if err := tx.Model(&model.Hosts{}).
+					Where("emergency_until IS NULL").Update("emergency_until", 0).Error; err != nil {
+					return fmt.Errorf("初始化网站紧急模式到期列失败: %w", err)
+				}
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202609020001: 删除网站紧急模式列")
+				for col, field := range map[string]string{"emergency_mode": "EmergencyMode", "emergency_until": "EmergencyUntil"} {
+					if !tx.Migrator().HasColumn(&model.Hosts{}, col) {
+						continue
+					}
+					if err := tx.Migrator().DropColumn(&model.Hosts{}, field); err != nil {
+						return err
+					}
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移
@@ -2205,4 +2360,58 @@ func RollbackCoreDBMigration(db *gorm.DB, migrationID string) error {
 
 	zlog.Info("回滚成功完成", "version", migrationID)
 	return nil
+}
+
+// buildRuleFromLegacyAntiCC 把旧的单条 CC 配置转成一条等价的多规则记录。
+//
+// 转换原则是「行为不变」：口径仍为全部请求、封禁仍作用于全部站点、限流算法沿用原设置。
+// 这些取值与新建规则的默认值刻意不同——新默认值只作用于新建规则，
+// 存量配置保持原样，避免升级后防护强度悄悄改变。
+func buildRuleFromLegacyAntiCC(old model.AntiCC) *model.AntiCCRule {
+	algo := model.CCAlgoTokenBucket
+	if old.LimitMode == "window" {
+		algo = model.CCAlgoWindow
+	}
+	matchMode := model.CCMatchModeAll
+	matchExpr := ""
+	if old.IsEnableRule && strings.TrimSpace(old.RuleContent) != "" {
+		matchMode = model.CCMatchModeExpr
+		matchExpr = old.RuleContent
+	}
+	stopGlobal := 0
+	if old.SkipGlobalCC {
+		stopGlobal = 1
+	}
+	lockSeconds := old.LockIPMinutes * 60
+	if lockSeconds <= 0 {
+		lockSeconds = 600
+	}
+	now := customtype.JsonTime(time.Now())
+	return &model.AntiCCRule{
+		BaseOrm: baseorm.BaseOrm{
+			Id:          uuid.GenUUID(),
+			USER_CODE:   old.USER_CODE,
+			Tenant_ID:   old.Tenant_ID,
+			CREATE_TIME: now,
+			UPDATE_TIME: now,
+		},
+		HostCode:      old.HostCode,
+		RuleCode:      model.GenCCRuleCode(),
+		RuleName:      "默认CC防护",
+		Priority:      100,
+		IsEnable:      1,
+		MatchMode:     matchMode,
+		MatchExpr:     matchExpr,
+		CountPhase:    model.CCCountPhaseRequest,
+		CountScope:    model.CCCountScopeAll,
+		StatDim:       model.CCStatDimIP,
+		Algo:          algo,
+		WindowSec:     old.Rate,
+		Threshold:     old.Limit,
+		Action:        model.CCActionBan,
+		ActionSeconds: lockSeconds,
+		BanScope:      model.CCBanScopeGlobal,
+		StopGlobal:    stopGlobal,
+		Remarks:       "由旧版CC防护配置自动转换，保持原有行为",
+	}
 }

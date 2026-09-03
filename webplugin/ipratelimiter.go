@@ -27,6 +27,7 @@ type IPRateLimiter struct {
 	mode     LimitMode
 	window   int                    // 时间窗口大小(秒)
 	requests map[string][]time.Time // 用于滑动窗口模式记录请求时间
+	lastSeen map[string]time.Time   // 平均速率模式下每个IP的最后活跃时间，供清理判断空闲
 	Rule     *utils.RuleHelper
 }
 
@@ -34,13 +35,21 @@ type IPRateLimiter struct {
 // r: 每秒请求速率
 // b: 突发请求数量
 func NewIPRateLimiter(r rate.Limit, b int) *IPRateLimiter {
+	// 令牌桶从空到补满需要 b/r 秒。把它记成等价窗口：空闲超过这段时间后桶必然已满，
+	// 此时回收限流器与保留它完全等价，清理才不会平白送给攻击者一次满桶。
+	window := 0
+	if r > 0 {
+		window = int(float64(b)/float64(r)) + 1
+	}
 	i := &IPRateLimiter{
 		ips:      make(map[string]*rate.Limiter),
 		mu:       &sync.RWMutex{},
 		r:        r,
 		b:        b,
 		mode:     RateMode, // 默认使用平均速率模式，保持向后兼容
+		window:   window,
 		requests: make(map[string][]time.Time),
+		lastSeen: make(map[string]time.Time),
 	}
 
 	return i
@@ -58,6 +67,7 @@ func NewWindowIPRateLimiter(window, maxRequests int) *IPRateLimiter {
 		mode:     WindowMode,
 		window:   window,
 		requests: make(map[string][]time.Time),
+		lastSeen: make(map[string]time.Time),
 	}
 
 	return i
@@ -73,6 +83,7 @@ func (i *IPRateLimiter) AddIP(ip string) *rate.Limiter {
 
 	i.ips[ip] = limiter
 	i.requests[ip] = []time.Time{}
+	i.lastSeen[ip] = time.Now()
 
 	return limiter
 }
@@ -87,7 +98,7 @@ func (i *IPRateLimiter) GetLimiter(ip string) *rate.Limiter {
 		i.mu.Unlock()
 		return i.AddIP(ip)
 	}
-
+	i.lastSeen[ip] = time.Now()
 	i.mu.Unlock()
 
 	return limiter
@@ -143,6 +154,25 @@ func (i *IPRateLimiter) CleanupOldRecords() {
 	defer i.mu.Unlock()
 
 	now := time.Now()
+
+	if i.mode == RateMode {
+		// 平均速率模式下 requests 里没有时间戳，不能拿窗口去判过期——那样每次清理都会把
+		// 所有令牌桶整表删掉重建，等于按清理周期给攻击者定时重置一次满桶。
+		// 改成按空闲时长回收：只有空闲超过「补满一桶所需时间」的 IP 才删，此时删与不删等价。
+		idleTTL := time.Duration(i.window) * time.Second
+		if idleTTL <= 0 {
+			idleTTL = time.Minute
+		}
+		for ip, seen := range i.lastSeen {
+			if now.Sub(seen) >= idleTTL {
+				delete(i.lastSeen, ip)
+				delete(i.requests, ip)
+				delete(i.ips, ip)
+			}
+		}
+		return
+	}
+
 	windowStart := now.Add(-time.Duration(i.window) * time.Second)
 
 	for ip, times := range i.requests {
@@ -156,6 +186,7 @@ func (i *IPRateLimiter) CleanupOldRecords() {
 		if len(validRequests) == 0 {
 			delete(i.requests, ip)
 			delete(i.ips, ip)
+			delete(i.lastSeen, ip)
 		} else {
 			i.requests[ip] = validRequests
 		}
@@ -201,4 +232,28 @@ func (i *IPRateLimiter) GetRequestCount(ip string) int {
 	}
 
 	return count
+}
+
+// —— 只读访问器：供构造一致性校验与运行期可观测使用 ——
+
+// RatePerSecond 返回令牌桶的每秒补充速率（滑动窗口模式下为等价速率）。
+func (i *IPRateLimiter) RatePerSecond() rate.Limit { return i.r }
+
+// Burst 返回突发额度（滑动窗口模式下即窗口内最大请求数）。
+func (i *IPRateLimiter) Burst() int { return i.b }
+
+// WindowSeconds 返回时间窗口(秒)。平均速率模式下是「令牌桶补满所需时间」的等价窗口。
+func (i *IPRateLimiter) WindowSeconds() int { return i.window }
+
+// IsWindowMode 是否为滑动窗口模式。
+func (i *IPRateLimiter) IsWindowMode() bool { return i.mode == WindowMode }
+
+// TrackedIPCount 当前正在跟踪的客户端数量，用于观察内存占用规模。
+func (i *IPRateLimiter) TrackedIPCount() int {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	if i.mode == WindowMode {
+		return len(i.requests)
+	}
+	return len(i.ips)
 }

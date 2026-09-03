@@ -13,6 +13,7 @@ type APIGroup struct {
 	WafAllowUrlApi
 	WafLdpUrlApi
 	WafAntiCCApi
+	WafAntiCCRuleApi
 	WafIPFailureApi
 	WafBlockIpApi
 	WafIPGroupApi
@@ -84,14 +85,17 @@ type APIGroup struct {
 
 var APIGroupAPP = new(APIGroup)
 var (
-	wafHostService     = waf_service.WafHostServiceApp
-	wafLogService      = waf_service.WafLogServiceApp
-	wafStatService     = waf_service.WafStatServiceApp
-	wafRuleService     = waf_service.WafRuleServiceApp
-	wafIpAllowService  = waf_service.WafWhiteIpServiceApp
-	wafUrlAllowService = waf_service.WafWhiteUrlServiceApp
-	wafLdpUrlService   = waf_service.WafLdpUrlServiceApp
-	wafAntiCCService   = waf_service.WafAntiCCServiceApp
+	wafHostService        = waf_service.WafHostServiceApp
+	wafLogService         = waf_service.WafLogServiceApp
+	wafStatService        = waf_service.WafStatServiceApp
+	wafRuleService        = waf_service.WafRuleServiceApp
+	wafIpAllowService     = waf_service.WafWhiteIpServiceApp
+	wafUrlAllowService    = waf_service.WafWhiteUrlServiceApp
+	wafLdpUrlService      = waf_service.WafLdpUrlServiceApp
+	wafAntiCCService      = waf_service.WafAntiCCServiceApp
+	wafAntiCCRuleService  = waf_service.WafAntiCCRuleServiceApp
+	wafCCEmergencyService = waf_service.WafCCEmergencyServiceApp
+	wafCCThresholdService = waf_service.WafCCThresholdServiceApp
 
 	wafIpBlockService  = waf_service.WafBlockIpServiceApp
 	wafUrlBlockService = waf_service.WafBlockUrlServiceApp

@@ -11,6 +11,7 @@ import (
 	"SamWaf/utils"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -170,7 +171,11 @@ func (s *CaptchaService) HandleCaptchaRequest(w http.ResponseWriter, r *http.Req
 	}
 	captchaPath := strings.TrimSuffix(pathPrefix, "/")
 
-	if captchaConfig.EngineType == "traditional" {
+	// 只对 capJs 做特判，其余一律走传统方式。
+	// 早先这里是「两个 if、没有 else」：配置里出现不认识的验证方式时两个分支都不进，
+	// 函数什么都不写就返回，调用方紧接着 return —— 响应体是空的、挑战永远发不出来。
+	// 解析入口 model.ParseCaptchaConfig 已做归一化，这里再兜一层，防止绕过解析的调用方。
+	if captchaConfig.EngineType != model.CaptchaEngineCapJs {
 		//传统方式的验证码处理
 		if strings.HasPrefix(path, captchaPath+"/click_basic") {
 			s.GetClickBasicCaptData(w, r)
@@ -184,12 +189,18 @@ func (s *CaptchaService) HandleCaptchaRequest(w http.ResponseWriter, r *http.Req
 		} else {
 			// 记录日志信息
 			weblog.ACTION = "禁止"
-			weblog.RULE = "显示图形验证码"
+			// 保留上游已写入的触发原因（例如 CC 规则的人机验证动作），
+			// 直接覆盖会让日志里只剩"显示图形验证码"，查不出是哪条规则要求验证的
+			if weblog.RULE != "" {
+				weblog.RULE = weblog.RULE + " / 显示图形验证码"
+			} else {
+				weblog.RULE = "显示图形验证码"
+			}
 			global.GQEQUE_LOG_DB.Enqueue(weblog)
 			// 默认显示验证码选择页面
-			s.ShowCaptchaHomePage(w, r, captchaConfig, pathPrefix)
+			s.ShowCaptchaHomePage(w, r, captchaConfig, pathPrefix, weblog.REQ_UUID)
 		}
-	} else if captchaConfig.EngineType == "capJs" {
+	} else {
 		//基于工作量证明的验证码处理
 		if strings.HasPrefix(path, captchaPath+"/challenge") {
 			s.GetCapJsChallenge(w, r, captchaConfig)
@@ -203,10 +214,16 @@ func (s *CaptchaService) HandleCaptchaRequest(w http.ResponseWriter, r *http.Req
 		} else {
 			// 记录日志信息
 			weblog.ACTION = "禁止"
-			weblog.RULE = "显示CapJs验证码"
+			// 保留上游已写入的触发原因（例如 CC 规则的人机验证动作），
+			// 直接覆盖会让日志里只剩"显示CapJs验证码"，查不出是哪条规则要求验证的
+			if weblog.RULE != "" {
+				weblog.RULE = weblog.RULE + " / 显示CapJs验证码"
+			} else {
+				weblog.RULE = "显示CapJs验证码"
+			}
 			global.GQEQUE_LOG_DB.Enqueue(weblog)
 			// 默认显示验证码选择页面
-			s.ShowCaptchaHomePage(w, r, captchaConfig, pathPrefix)
+			s.ShowCaptchaHomePage(w, r, captchaConfig, pathPrefix, weblog.REQ_UUID)
 		}
 	}
 
@@ -483,7 +500,7 @@ func (s *CaptchaService) VerifyCaptcha(w http.ResponseWriter, r *http.Request, c
 			Path:     "/",
 			HttpOnly: true,
 			Secure:   r.TLS != nil, // 如果是HTTPS请求则设置Secure
-			MaxAge:   captchaConfig.ExpireTime * 3600,
+			MaxAge:   int(captchaConfig.ExpireTime) * 3600,
 		}
 		http.SetCookie(w, cookie)
 
@@ -506,7 +523,81 @@ func (s *CaptchaService) VerifyCaptcha(w http.ResponseWriter, r *http.Request, c
 }
 
 // ShowCaptchaHomePage 显示验证码首页
-func (s *CaptchaService) ShowCaptchaHomePage(w http.ResponseWriter, r *http.Request, configStruct model.CaptchaConfig, pathPrefix string) {
+// injectReqUUID 把本次请求的访问识别码放进挑战页。
+//
+// 优先替换页面里的 [[.SAMWAF_REQ_UUID]] 占位符——改过挑战页的用户可以自己决定它出现在哪里；
+// 页面里没有占位符（用户用的是自己改造过的旧页面）就在 </body> 前补一块。
+// 这样识别码不依赖"把内置页面覆盖回去"才能生效，用户改过的挑战页一个字都不用动。
+func injectReqUUID(htmlStr, reqUUID string) string {
+	if reqUUID == "" {
+		return htmlStr
+	}
+	esc := html.EscapeString(reqUUID)
+	if strings.Contains(htmlStr, reqUUIDPlaceholder) {
+		return strings.ReplaceAll(htmlStr, reqUUIDPlaceholder, esc)
+	}
+	block := `<div style="margin:10px auto;text-align:center;font-size:12px;color:#8a8f99;word-break:break-all">` +
+		`识别码 / Ref: <code style="font-family:Consolas,Menlo,monospace">` + esc + `</code></div>`
+	if i := strings.LastIndex(htmlStr, "</body>"); i >= 0 {
+		return htmlStr[:i] + block + htmlStr[i:]
+	}
+	return htmlStr + block
+}
+
+// reqUUIDPlaceholder 与拦截页模板同名，改过挑战页的用户照抄这个占位符即可自定义位置
+const reqUUIDPlaceholder = "[[.SAMWAF_REQ_UUID]]"
+
+// 挑战页上的「管理员联系方式」占位与包裹标记。
+// 用一对注释把整块圈起来，是为了让「没填就不显示」能干净地做到——
+// 只替换占位符的话，留下的空壳 div 还占着边距，看起来像页面坏了一块。
+const (
+	contactPlaceholder = "[[.SAMWAF_CONTACT]]"
+	contactBeginMarker = "<!--SAMWAF_CONTACT_BEGIN-->"
+	contactEndMarker   = "<!--SAMWAF_CONTACT_END-->"
+)
+
+// injectContact 把管理员联系方式渲染进挑战页；contact 为空则整块不渲染。
+//
+// 挑战页是访客的死胡同：被挡下来之后进不去、也没地方问。填了联系方式就给一条出路。
+// 内容是管理端自由填写的文本，出现在**给访客看的公开页面**上，因此一律 HTML 转义后再放进文本节点，
+// 不拼进任何属性或脚本上下文。
+func injectContact(htmlStr, contact string) string {
+	contact = strings.TrimSpace(contact)
+	begin := strings.Index(htmlStr, contactBeginMarker)
+	end := strings.Index(htmlStr, contactEndMarker)
+	hasBlock := begin >= 0 && end > begin
+
+	if contact == "" {
+		if hasBlock {
+			return htmlStr[:begin] + htmlStr[end+len(contactEndMarker):]
+		}
+		// 模板被改过、标记不在了：把占位符擦掉，别把它原样显示给访客
+		return strings.ReplaceAll(htmlStr, contactPlaceholder, "")
+	}
+
+	esc := html.EscapeString(contact)
+	if hasBlock {
+		out := htmlStr[:begin] + htmlStr[begin+len(contactBeginMarker):end] + htmlStr[end+len(contactEndMarker):]
+		return strings.ReplaceAll(out, contactPlaceholder, esc)
+	}
+	if strings.Contains(htmlStr, contactPlaceholder) {
+		return strings.ReplaceAll(htmlStr, contactPlaceholder, esc)
+	}
+	// 模板里既没有标记也没有占位符（用户自定义过）：兜底追加，宁可样式朴素也别把联系方式弄丢
+	block := `<div style="margin:10px auto;text-align:center;font-size:12px;color:#8a8f99;` +
+		`word-break:break-all;white-space:pre-line">` + esc + `</div>`
+	if i := strings.LastIndex(htmlStr, "</body>"); i >= 0 {
+		return htmlStr[:i] + block + htmlStr[i:]
+	}
+	return htmlStr + block
+}
+
+// ShowCaptchaHomePage 渲染验证码挑战页。
+//
+// reqUUID 是本次请求的访问识别码，页面上以「[[.SAMWAF_REQ_UUID]]」占位。
+// 访客侧只给这个每请求随机的码：管理员拿它在防御日志里一搜，触发的规则、时间、来源 IP 全都有；
+// 而页面上放任何随请求稳定的标识，都会让人反复试探出自己命中或绕过了哪条规则。
+func (s *CaptchaService) ShowCaptchaHomePage(w http.ResponseWriter, r *http.Request, configStruct model.CaptchaConfig, pathPrefix string, reqUUID string) {
 	// 设置内容类型
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
@@ -517,7 +608,8 @@ func (s *CaptchaService) ShowCaptchaHomePage(w http.ResponseWriter, r *http.Requ
 		pathPrefix = "/samwaf_captcha"
 	}
 
-	if configStruct.EngineType == "traditional" {
+	// 同 HandleCaptchaRequest：只特判 capJs，其余走传统页，避免不认识的取值渲染出一个空响应
+	if configStruct.EngineType != model.CaptchaEngineCapJs {
 		// 读取HTML模板文件
 		htmlPath := utils.GetCurrentDir() + "/data/captcha/index.html"
 		htmlContent, err := ioutil.ReadFile(htmlPath)
@@ -531,9 +623,11 @@ func (s *CaptchaService) ShowCaptchaHomePage(w http.ResponseWriter, r *http.Requ
 		htmlStr = strings.ReplaceAll(htmlStr, "/samwaf_captcha/", pathPrefix+"/")
 		htmlStr = strings.ReplaceAll(htmlStr, "'/samwaf_captcha'", "'"+pathPrefix+"'")
 		htmlStr = strings.ReplaceAll(htmlStr, "\"/samwaf_captcha\"", "\""+pathPrefix+"\"")
+		htmlStr = injectReqUUID(htmlStr, reqUUID)
+		htmlStr = injectContact(htmlStr, configStruct.ContactInfo)
 
 		w.Write([]byte(htmlStr))
-	} else if configStruct.EngineType == "capJs" {
+	} else {
 		// 读取HTML模板文件
 		htmlPath := utils.GetCurrentDir() + "/data/capjs/index.html"
 		htmlContent, err := ioutil.ReadFile(htmlPath)
@@ -580,6 +674,9 @@ func (s *CaptchaService) ShowCaptchaHomePage(w http.ResponseWriter, r *http.Requ
 		htmlStr = strings.Replace(htmlStr, "<h2 id=\"info-title\">安全验证</h2>", fmt.Sprintf("<h2 id=\"info-title\">%s</h2>", zhInfoTitle), 1)
 		htmlStr = strings.Replace(htmlStr, "<p id=\"info-text\">为了确保您的访问安全，请完成以下验证</p>", fmt.Sprintf("<p id=\"info-text\">%s</p>", zhInfoText), 1)
 
+		htmlStr = injectReqUUID(htmlStr, reqUUID)
+		htmlStr = injectContact(htmlStr, configStruct.ContactInfo)
+
 		// 输出修改后的HTML
 		w.Write([]byte(htmlStr))
 	}
@@ -594,10 +691,10 @@ func (s *CaptchaService) GetCapJsChallenge(w http.ResponseWriter, r *http.Reques
 	w.Header().Set("Content-Type", "application/json")
 
 	config := &capserver.ChallengeConfig{
-		ChallengeCount:      configStruct.CapJsConfig.ChallengeCount,
-		ChallengeSize:       configStruct.CapJsConfig.ChallengeSize,
-		ChallengeDifficulty: configStruct.CapJsConfig.ChallengeDifficulty,
-		ExpiresMs:           configStruct.CapJsConfig.ExpiresMs,
+		ChallengeCount:      int(configStruct.CapJsConfig.ChallengeCount),
+		ChallengeSize:       int(configStruct.CapJsConfig.ChallengeSize),
+		ChallengeDifficulty: int(configStruct.CapJsConfig.ChallengeDifficulty),
+		ExpiresMs:           int(configStruct.CapJsConfig.ExpiresMs),
 		Store:               true,
 	}
 
@@ -711,7 +808,7 @@ func (s *CaptchaService) ValidateCapJsCaptcha(w http.ResponseWriter, r *http.Req
 			Path:     "/",
 			HttpOnly: true,
 			Secure:   r.TLS != nil, // 如果是HTTPS请求则设置Secure
-			MaxAge:   configStruct.ExpireTime * 3600,
+			MaxAge:   int(configStruct.ExpireTime) * 3600,
 		}
 		http.SetCookie(w, cookie)
 

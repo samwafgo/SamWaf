@@ -297,8 +297,8 @@ func LoadAndInitConfig() {
 		configChanged = true
 	}
 
-	//用户可配的对外拉取地址允许清单（主机名/IP/CIDR，逗号分隔）。覆盖：批量任务远端来源、
-	//威胁情报订阅、CDN 回源段拉取。默认只允许公网目标；确有内网镜像源的部署，
+	//用户可配的对外地址允许清单（主机名/IP/CIDR，逗号分隔）。覆盖：通知渠道 Webhook、
+	//批量任务远端来源、威胁情报订阅、CDN 回源段拉取。默认只允许公网目标；确有内网目标的部署，
 	if config.IsSet("security.outbound_allowed_hosts") {
 		global.GCONFIG_OUTBOUND_ALLOWED_HOSTS = config.GetString("security.outbound_allowed_hosts")
 	} else {

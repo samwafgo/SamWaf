@@ -467,3 +467,18 @@ notes:
       effect_on: Before you need it, open the website editor - Human verification and make sure "Never challenge these paths" already lists your App/API endpoints, so hitting the button does not lock those clients out. When enabling it, pick an auto turn-off time - forgetting about it costs your real visitors.
       effect_off: Leaving it alone has no effect at all. It is off by default and only applies when you turn it on yourself.
       revert: Turn it off in the same dialog; the website immediately returns to its previous behaviour.
+
+  - id: v1_3_25_notify_webhook_intranet
+    version: v1.3.25
+    kind: notice
+    level: normal
+    page: /notify/channel
+    doc: https://doc.samwaf.com/guide/NotifyChannel.html
+    apply:
+      type: navigate
+    zh:
+      title: 通知渠道 Webhook 支持内网告警平台，需在 config.yml 声明放行
+      detail: 通知渠道（钉钉/飞书/企业微信/自定义 Webhook）的目标地址默认仍只允许公网；自建在内网的告警平台（如 ntfy、Gotify、内部工单系统）此前会被直接拒绝，现在可在 conf/config.yml 的 security.outbound_allowed_hosts 里按主机名、IP 或网段（逗号分隔）声明放行，保存并重启后该目标即可保存与发送。该文件只能由能改服务器配置的人维护，管理端界面与 API 不提供修改入口。不配置则行为与之前完全一致。
+    en:
+      title: Notification channel Webhooks can now reach intranet alerting platforms when declared in config.yml
+      detail: Notification channel targets (DingTalk, Feishu, WeCom, custom Webhook) still default to public addresses only. Self-hosted alerting platforms on the intranet (such as ntfy, Gotify or an internal ticketing system) were previously rejected outright; they can now be allowed by declaring the host name, IP or CIDR (comma separated) in security.outbound_allowed_hosts in conf/config.yml, then saving and restarting. That file can only be maintained by someone with access to the server configuration - the console UI and API offer no way to change it. Without this setting, behavior is exactly as before.

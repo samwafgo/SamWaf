@@ -137,7 +137,8 @@ func IsSafeOutboundHost(host string) (bool, string) {
 }
 
 // IsSafeOutboundURL 校验对外请求 URL 是否安全（防 SSRF）：仅允许 http/https，
-// 且主机(域名解析后的所有IP)必须为公网。用于通知渠道 WebhookURL 等用户可控的对外地址。
+// 且主机(域名解析后的所有IP)必须为公网。只用于程序自身的固定对外地址（升级检测）；
+// 用户可配的对外地址一律走 IsAllowedOutboundURL（带 config.yml 允许清单逃生门）。
 func IsSafeOutboundURL(rawURL string) (bool, string) {
 	u, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil {

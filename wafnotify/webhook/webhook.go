@@ -12,6 +12,7 @@ import (
 	"strings"
 	"text/template"
 	"text/template/parse"
+	"time"
 )
 
 /*
@@ -24,8 +25,10 @@ ntfy、Gotify、内部工单系统…）报文格式各不相同，所以这里�
 
 三条硬约束：
 
- 1. 用户可控的对外地址一律走 IsSafeOutboundURL + SafeHTTPClient，跳转链上每一跳都重新校验，
-    否则这就是一个现成的 SSRF 打内网的入口。
+ 1. 用户可控的对外地址一律走 IsAllowedOutboundURL + SafeOutboundHTTPClient，跳转链上每一跳
+    都重新校验、连接期按真实解析 IP 再判一次，否则这就是一个现成的 SSRF 打内网的入口。
+    默认只允许公网目标；内网告警平台（自建 ntfy/Gotify 等）须由运营方在 config.yml 的
+    security.outbound_allowed_hosts 带外声明（issue #990）。
  2. 自定义请求头是拼进 HTTP 报文的原始数据：头名必须是 RFC token，头值不得含 CR/LF，
     并且禁止覆盖 Host/Content-Length/Transfer-Encoding 这类由传输层决定的头（请求走私）。
  3. 模板变量（Title/Content）里含攻击者可控内容，塞进 JSON 报文前必须按 Content-Type 转义，
@@ -214,11 +217,15 @@ func (c *Config) normalize() {
 }
 
 // Validate 配置校验（新增/编辑保存时与发送时都会调用）
+//
+// 地址用 PrecheckOutboundURL 而非严格版：保存配置的时刻内网 DNS 可能还没通，
+// 因一次临时解析失败就不让人保存是过度拦截；真正的边界在 Send() 里的
+// IsAllowedOutboundURL + SafeOutboundHTTPClient（fail-closed）。
 func (c *Config) Validate() error {
 	if c.URL == "" {
 		return errors.New("Webhook 地址不能为空")
 	}
-	if ok, reason := utils.IsSafeOutboundURL(c.URL); !ok {
+	if ok, reason := utils.PrecheckOutboundURL(c.URL); !ok {
 		return fmt.Errorf("Webhook 地址不被允许: %s", reason)
 	}
 	if !allowedMethods[c.Method] {
@@ -393,7 +400,7 @@ func (w *WebhookNotifier) SendMarkdown(title, content string) error {
 // Send 渲染报文并投递
 func (w *WebhookNotifier) Send(msg Message) error {
 	// 配置可能是很久以前存下的（甚至被直接改过库），发送前重新校验一次目标地址
-	if ok, reason := utils.IsSafeOutboundURL(w.Config.URL); !ok {
+	if ok, reason := utils.IsAllowedOutboundURL(w.Config.URL); !ok {
 		return fmt.Errorf("Webhook 地址不被允许: %s", reason)
 	}
 
@@ -419,7 +426,7 @@ func (w *WebhookNotifier) Send(msg Message) error {
 		req.Header.Set(h.Key, h.Value)
 	}
 
-	resp, err := utils.SafeHTTPClient().Do(req)
+	resp, err := utils.SafeOutboundHTTPClient(30 * time.Second).Do(req)
 	if err != nil {
 		return fmt.Errorf("发送HTTP请求失败: %v", err)
 	}

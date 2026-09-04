@@ -339,8 +339,8 @@ func (receiver *WafSslConfigService) GetListApi(req request.SslConfigSearchReq) 
 	global.GWAF_LOCAL_DB.Model(&model.SslConfig{}).Where(whereField, whereValues...).Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Order("valid_to desc").Find(&list)
 	global.GWAF_LOCAL_DB.Model(&model.SslConfig{}).Where(whereField, whereValues...).Count(&total)
 
-	// 初始化返回结果列表
-	var repList []response.WafSslConfigRep
+	// 初始化返回结果列表（空列表也要序列化成 [] 而不是 null，前端直接当数组用）
+	repList := make([]response.WafSslConfigRep, 0)
 
 	// 遍历查询结果，构建返回数据
 	for _, sslConfig := range list {

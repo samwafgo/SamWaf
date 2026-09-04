@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"SamWaf/global"
 )
 
-// 说明：Send() 会强制走 IsSafeOutboundURL，httptest 起在 127.0.0.1 上必然被拒，
+// 说明：Send() 会强制走 IsAllowedOutboundURL，httptest 起在 127.0.0.1 上必然被拒，
 // 所以这里只测「配置校验」和「报文渲染」两段纯逻辑，真实投递用管理端的"测试"按钮验证。
 
 func mustConfig(t *testing.T, cfg Config) *WebhookNotifier {
@@ -252,5 +254,40 @@ func TestValidateCatchesInvalidJSONAtSaveTime(t *testing.T) {
 	cfg.normalize()
 	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "不是合法 JSON") {
 		t.Fatalf("期望保存时就报非法 JSON，实际: %v", err)
+	}
+}
+
+// issue #990：内网告警平台（自建 ntfy/Gotify 等）经 config.yml 的
+// security.outbound_allowed_hosts 带外声明后必须能保存；未声明的内网字面量仍拒。
+func TestValidateAllowlistedIntranetHost(t *testing.T) {
+	old := global.GCONFIG_OUTBOUND_ALLOWED_HOSTS
+	t.Cleanup(func() { global.GCONFIG_OUTBOUND_ALLOWED_HOSTS = old })
+
+	cfg := Config{URL: "http://192.168.10.8:8080/hook", Method: "POST"}
+	cfg.normalize()
+
+	global.GCONFIG_OUTBOUND_ALLOWED_HOSTS = ""
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "不被允许") {
+		t.Fatalf("未声明时内网地址应被拒，实际: %v", err)
+	}
+
+	global.GCONFIG_OUTBOUND_ALLOWED_HOSTS = "192.168.10.0/24"
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("已声明网段内的地址应放行，实际被拒: %v", err)
+	}
+
+	// 声明的网段之外仍拒（清单不泛化）
+	cfg2 := Config{URL: "http://192.168.20.8/hook", Method: "POST"}
+	cfg2.normalize()
+	if err := cfg2.Validate(); err == nil {
+		t.Fatal("清单外内网地址必须仍被拒")
+	}
+
+	// 主机名精确匹配
+	global.GCONFIG_OUTBOUND_ALLOWED_HOSTS = "notify.intranet.lan"
+	cfg3 := Config{URL: "http://notify.intranet.lan/hook", Method: "POST"}
+	cfg3.normalize()
+	if err := cfg3.Validate(); err != nil {
+		t.Fatalf("已声明主机名应放行（保存侧不做解析），实际被拒: %v", err)
 	}
 }

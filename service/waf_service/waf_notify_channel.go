@@ -155,7 +155,7 @@ func (receiver *WafNotifyChannelService) TestChannelApi(req request.WafNotifyCha
 
 	// N5
 	if channel.Type == "dingtalk" || channel.Type == "feishu" || channel.Type == "wechatwork" {
-		if ok, reason := utils.IsSafeOutboundURL(channel.WebhookURL); !ok {
+		if ok, reason := utils.IsAllowedOutboundURL(channel.WebhookURL); !ok {
 			return errors.New("WebhookURL 目标不被允许：" + reason)
 		}
 	}

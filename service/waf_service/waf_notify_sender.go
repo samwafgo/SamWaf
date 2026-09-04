@@ -216,21 +216,21 @@ func (receiver *WafNotifySenderService) deliverToChannel(channel model.NotifyCha
 	subscription model.NotifySubscription, messageType, title, content string) (recipients string, err error) {
 	switch channel.Type {
 	case "dingtalk":
-		if ok, reason := utils.IsSafeOutboundURL(channel.WebhookURL); !ok {
+		if ok, reason := utils.IsAllowedOutboundURL(channel.WebhookURL); !ok {
 			err = fmt.Errorf("WebhookURL 目标不被允许: %s", reason)
 		} else {
 			notifier := dingtalk.NewDingTalkNotifier(channel.WebhookURL, channel.Secret)
 			err = notifier.SendMarkdown(title, content)
 		}
 	case "feishu":
-		if ok, reason := utils.IsSafeOutboundURL(channel.WebhookURL); !ok {
+		if ok, reason := utils.IsAllowedOutboundURL(channel.WebhookURL); !ok {
 			err = fmt.Errorf("WebhookURL 目标不被允许: %s", reason)
 		} else {
 			notifier := feishu.NewFeishuNotifier(channel.WebhookURL, channel.Secret)
 			err = notifier.SendMarkdown(title, content)
 		}
 	case "wechatwork":
-		if ok, reason := utils.IsSafeOutboundURL(channel.WebhookURL); !ok {
+		if ok, reason := utils.IsAllowedOutboundURL(channel.WebhookURL); !ok {
 			err = fmt.Errorf("WebhookURL 目标不被允许: %s", reason)
 		} else {
 			notifier := wechatwork.NewWechatWorkNotifier(channel.WebhookURL)

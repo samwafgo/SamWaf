@@ -190,3 +190,24 @@ func TestPrecheckOutboundURL_保存阶段的判定(t *testing.T) {
 		t.Fatalf("已带外声明的内网地址应可保存，实际被拒: %s", reason)
 	}
 }
+
+// 清单只写 CIDR、URL 用主机名（解析结果落在该 CIDR 内）时也必须放行——
+// 与连接期 safeOutboundDialContext 的按 IP 判定保持同口径（issue #990 评审发现的两层口径差）。
+func TestIsAllowedOutboundURL_主机名解析进清单CIDR(t *testing.T) {
+	// localhost 经 hosts 文件解析到 127.0.0.1，不依赖外部 DNS
+	setOutboundAllowHosts(t, "")
+	if ok, _ := IsAllowedOutboundURL("http://localhost/x"); ok {
+		t.Fatal("未声明时 localhost 必须被拒")
+	}
+	// localhost 通常同时解析出 127.0.0.1 与 ::1，与连接期"混进一个未声明内网地址就整体拒绝"
+	// 同口径：两条解析结果都必须被清单覆盖
+	setOutboundAllowHosts(t, "127.0.0.0/8,::1/128")
+	if ok, reason := IsAllowedOutboundURL("http://localhost/x"); !ok {
+		t.Fatalf("解析结果落在清单 CIDR 内的主机名应放行，实际被拒: %s", reason)
+	}
+	// 清单之外的网段仍拒
+	setOutboundAllowHosts(t, "10.0.0.0/8")
+	if ok, _ := IsAllowedOutboundURL("http://localhost/x"); ok {
+		t.Fatal("解析结果不在清单内的主机名必须仍被拒")
+	}
+}

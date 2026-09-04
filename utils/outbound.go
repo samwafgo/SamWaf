@@ -128,9 +128,30 @@ func IsAllowedOutboundURL(rawURL string) (bool, string) {
 	}
 	ok, reason := IsSafeOutboundHost(host)
 	if !ok {
+		// 主机名解析到内网时，若所有非公网解析结果都落在清单的 IP/CIDR 条目内，同样放行。
+		// 连接期 safeOutboundDialContext 对每个真实拨号 IP 做同一判定，两层口径一致。
+		if isHostCoveredByAllowlist(host) {
+			return true, ""
+		}
 		return false, reason + "（确需访问内网源请在 config.yml 的 security.outbound_allowed_hosts 中声明该主机）"
 	}
 	return true, ""
+}
+
+// isHostCoveredByAllowlist 主机名的每条解析结果要么是公网、要么落在清单 IP/CIDR 条目内时才放行。
+// 解析失败/无结果一律 false（fail-closed，与 IsSafeOutboundHost 同口径）。
+func isHostCoveredByAllowlist(host string) bool {
+	ips, err := net.LookupIP(host)
+	if err != nil || len(ips) == 0 {
+		return false
+	}
+	for _, ip := range ips {
+		if isPublicIP(ip) || isOutboundIPAllowlisted(ip) {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 // PrecheckOutboundURL 保存配置时的对外地址预检（协议 / 主机字面量），供 api·service 层早报错用。

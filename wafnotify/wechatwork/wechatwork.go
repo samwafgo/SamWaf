@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"time"
 )
 
 // WechatWorkNotifier 企业微信通知器
@@ -59,7 +60,7 @@ func (w *WechatWorkNotifier) send(message WechatWorkMessage) error {
 
 	// 发送HTTP请求
 	// N5
-	resp, err := utils.SafeHTTPClient().Post(w.WebhookURL, "application/json", bytes.NewBuffer(payload))
+	resp, err := utils.SafeOutboundHTTPClient(30 * time.Second).Post(w.WebhookURL, "application/json", bytes.NewBuffer(payload))
 	if err != nil {
 		return fmt.Errorf("发送HTTP请求失败: %v", err)
 	}

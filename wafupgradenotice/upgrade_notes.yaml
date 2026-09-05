@@ -482,3 +482,47 @@ notes:
     en:
       title: Notification channel Webhooks can now reach intranet alerting platforms when declared in config.yml
       detail: Notification channel targets (DingTalk, Feishu, WeCom, custom Webhook) still default to public addresses only. Self-hosted alerting platforms on the intranet (such as ntfy, Gotify or an internal ticketing system) were previously rejected outright; they can now be allowed by declaring the host name, IP or CIDR (comma separated) in security.outbound_allowed_hosts in conf/config.yml, then saving and restarting. That file can only be maintained by someone with access to the server configuration - the console UI and API offer no way to change it. Without this setting, behavior is exactly as before.
+
+  - id: v1_3_25_httpauth_session
+    version: v1.3.25
+    kind: notice
+    level: normal
+    page: /waf-host/list
+    doc: https://doc.samwaf.com/guide/HttpAuthBase.html
+    apply:
+      type: navigate
+    zh:
+      title: 网站密码访问新增有效期与在线会话管理，认证链路改用真实访客 IP
+      detail: >-
+        网站编辑 - 网站密码访问里新增三项配置：登录有效期（默认 1440 分钟，与旧版本一致）、
+        空闲超时（默认 0 不启用，仅「自定义页面」方式支持）、绑定登录 IP（默认开启，与旧版本一致）。
+        同一页新增「在线会话」列表，可以看到谁在什么时候从哪个 IP 登录的、还剩多久到期，
+        并支持踢下线（单条 / 按用户 / 本站全部）。登录成败、锁定、踢下线现在会记入
+        系统设置 - 安全审计，分类为「网站密码访问」。
+        同时，认证链路的客户端 IP 由「连接 IP」改为按站点「真实IP来源」解析，与访问日志同源。
+      effect_on: >-
+        两处变化需要留意。其一，站点挂在 CDN 或前置 Nginx 后面、且「绑定登录 IP」开着时：
+        升级前绑的是边缘节点地址（对所有访客都一样，等于没绑），升级后绑的是访客真实 IP，
+        访客切换基站或重新拨号就会被要求重新登录；频繁掉线可以在同一页把「绑定登录 IP」关掉。
+        其二，升级后已经登录的访客需要重新登录一次。
+      effect_off: 没有开启「网站密码访问」的站点完全不受影响。
+      revert: 把「登录有效期」设回 1440、「空闲超时」设回 0、「绑定登录 IP」保持开启，即为旧版本行为。
+    en:
+      title: Website password access gains session lifetime and online session management; auth now uses the real visitor IP
+      detail: >-
+        Website editor - Website password access has three new settings: session lifetime (default 1440 minutes,
+        same as before), idle timeout (default 0 = off, supported only by the Custom page method) and bind to
+        login IP (on by default, same as before). The same page now lists online sessions - who signed in, from
+        which IP, at what time and how long is left - and lets you kick them (one session, one user, or all
+        sessions of the site). Sign-in success and failure, lockout and kick are now recorded under
+        System settings - Security audit in the "Website password" category.
+        The client IP used by this authentication path also changed from the connection IP to the site's
+        configured Real client IP source, the same one used by access logs.
+      effect_on: >-
+        Two things to watch. First, for sites behind a CDN or a front Nginx with "bind to login IP" enabled:
+        before the upgrade this bound to the edge node address (identical for every visitor, so effectively no
+        binding), and now it binds to the visitor's real IP, so switching mobile towers or reconnecting will
+        require signing in again - turn "bind to login IP" off on the same page if that happens too often.
+        Second, visitors who are already signed in must sign in once more after the upgrade.
+      effect_off: Sites that do not have Website password access enabled are not affected at all.
+      revert: Set session lifetime back to 1440, idle timeout back to 0 and keep bind to login IP enabled - that is the previous behaviour.

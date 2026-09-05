@@ -30,6 +30,7 @@ type WafHostAddReq struct {
 	IsEnableHttpAuthBase      int    `json:"is_enable_http_auth_base"`     //是否 HTTPAuthBase  1 激活  非1 没有激活
 	HttpAuthBaseType          string `json:"http_auth_base_type"`          //认证类型 authorization(默认Basic Auth) custom(自定义页面)
 	HttpAuthPathPrefix        string `json:"http_auth_path_prefix"`        //HTTP认证路径前缀，用于隐藏系统特征，默认为随机生成
+	HttpAuthJSON              string `json:"http_auth_json"`               //网站密码访问的会话时效配置 json
 	ResponseTimeOut           int    `json:"response_time_out"`            //响应超时时间
 	HealthyJSON               string `json:"healthy_json"`                 //后端健康度检测 json
 	InsecureSkipVerify        int    `json:"insecure_skip_verify"`         //是否开启后端https证书有效性验证 默认 0 是校验 1 是不校验
@@ -96,6 +97,7 @@ type WafHostEditReq struct {
 	IsEnableHttpAuthBase      int    `json:"is_enable_http_auth_base"`     //是否 HTTPAuthBase  1 激活  非1 没有激活
 	HttpAuthBaseType          string `json:"http_auth_base_type"`          //认证类型 authorization(默认Basic Auth) custom(自定义页面)
 	HttpAuthPathPrefix        string `json:"http_auth_path_prefix"`        //HTTP认证路径前缀，用于隐藏系统特征，默认为随机生成
+	HttpAuthJSON              string `json:"http_auth_json"`               //网站密码访问的会话时效配置 json
 	ResponseTimeOut           int    `json:"response_time_out"`            //响应超时时间
 	HealthyJSON               string `json:"healthy_json"`                 //后端健康度检测 json
 	InsecureSkipVerify        int    `json:"insecure_skip_verify"`         //是否开启后端https证书有效性验证 默认 0 是校验 1 是不校验

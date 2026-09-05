@@ -31,6 +31,16 @@ const (
 	CACHE_ACCESS_AUDIT   = "CACHE_ACCESS_AUDIT_"   //审计节流标记，防止 denied 事件把审计表刷爆
 	CACHE_ACCESS_NOTIFY  = "CACHE_ACCESS_NOTIFY_"  //通知节流标记，审计表扛得住高频，用户的钉钉/邮箱扛不住
 
+	// —— 网站密码访问(站点级 Basic/自定义登录页) ——
+	// 与上面的 Access 模式是两套独立功能，keyspace 也必须分开：
+	// 前者是全局统一认证，这里是每个站点自己的一道门，账号体系互不相干。
+	// 会话真相源同样是数据库，缓存只做热路径；正向缓存 TTL 即「踢下线」的最坏生效延迟。
+	CACHE_HTTPAUTH_SESSION = "CACHE_HTTPAUTH_SESSION_" //会话正向缓存，键后缀是 hostCode:token_code
+	CACHE_HTTPAUTH_BAD     = "CACHE_HTTPAUTH_BAD_"     //无效令牌负向缓存，挡住拿废弃 Cookie 反复打库的请求
+	CACHE_HTTPAUTH_TOUCH   = "CACHE_HTTPAUTH_TOUCH_"   //last_active 刷新节流标记，避免每个请求写一次库
+	CACHE_HTTPAUTH_KICK    = "CACHE_HTTPAUTH_KICK_"    //Basic 模式踢下线窗口，值是 realm nonce，见 waf_httpauthsession_service.go
+	CACHE_HTTPAUTH_AUDIT   = "CACHE_HTTPAUTH_AUDIT_"   //审计节流标记，防止未登录拦截把审计表刷爆
+
 	// —— 主机远程登录爆破防护(SSH/RDP) ——
 	// 失败计数刻意不复用 CACHE_IP_FAILURE_PRE：那个 keyspace 会被自定义规则的
 	// MF.GetIPFailureCount(minutes) 读取，把 SSH 失败混进去会静默改变用户已有 WAF 规则的语义

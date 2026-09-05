@@ -846,7 +846,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		//基本验证是否开关是否开启
 		if hostTarget.Host.IsEnableHttpAuthBase == 1 {
-			bHttpAuthBaseResult, sHttpAuthBaseResult := waf.DoHttpAuthBase(hostTarget, w, r)
+			bHttpAuthBaseResult, sHttpAuthBaseResult := waf.DoHttpAuthBase(hostTarget, w, r, model.GetClientIPByMode(hostTarget.Host.IPMode, weblogbean.NetSrcIp, weblogbean.SRC_IP))
 			if bHttpAuthBaseResult == true {
 				// 记录日志
 				weblogbean.RES_BODY = sHttpAuthBaseResult

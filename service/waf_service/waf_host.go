@@ -98,6 +98,7 @@ func (receiver *WafHostService) AddApi(wafHostAddReq request.WafHostAddReq) (str
 		IsEnableHttpAuthBase:      wafHostAddReq.IsEnableHttpAuthBase,
 		HttpAuthBaseType:          wafHostAddReq.HttpAuthBaseType,
 		HttpAuthPathPrefix:        httpAuthPathPrefix,
+		HttpAuthJSON:              wafHostAddReq.HttpAuthJSON,
 		ResponseTimeOut:           wafHostAddReq.ResponseTimeOut,
 		HealthyJSON:               wafHostAddReq.HealthyJSON,
 		InsecureSkipVerify:        wafHostAddReq.InsecureSkipVerify,
@@ -188,6 +189,7 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 		"IsEnableHttpAuthBase":      wafHostEditReq.IsEnableHttpAuthBase,
 		"HttpAuthBaseType":          wafHostEditReq.HttpAuthBaseType,
 		"HttpAuthPathPrefix":        wafHostEditReq.HttpAuthPathPrefix,
+		"HttpAuthJSON":              wafHostEditReq.HttpAuthJSON,
 		"ResponseTimeOut":           wafHostEditReq.ResponseTimeOut,
 		"HealthyJSON":               wafHostEditReq.HealthyJSON,
 		"InsecureSkipVerify":        wafHostEditReq.InsecureSkipVerify,
@@ -222,8 +224,15 @@ func (receiver *WafHostService) ModifyApi(wafHostEditReq request.WafHostEditReq)
 		hostMap["PortListensJSON"] = *wafHostEditReq.PortListensJSON
 	}
 	err := global.GWAF_LOCAL_DB.Debug().Model(model.Hosts{}).Where("CODE=?", wafHostEditReq.CODE).Updates(hostMap).Error
-
-	return err
+	if err != nil {
+		return err
+	}
+	// 关掉「网站密码访问」时把在线会话一并作废：留着的话，等哪天再打开开关，
+	// 那批旧 Cookie 会直接复活，用户看到的是「刚开的门里已经站着人」。
+	if oldHost.IsEnableHttpAuthBase == 1 && wafHostEditReq.IsEnableHttpAuthBase != 1 {
+		WafHttpAuthSessionServiceApp.RevokeByHostCode(wafHostEditReq.CODE, model.HttpAuthRevokeByHost)
+	}
+	return nil
 }
 func (receiver *WafHostService) GetDetailApi(req request.WafHostDetailReq) model.Hosts {
 	var webHost model.Hosts
@@ -377,6 +386,8 @@ func (receiver *WafHostService) DelHostApi(req request.WafHostDelReq) (model.Hos
 	err = global.GWAF_LOCAL_DB.Where("Host_Code = ?", req.CODE).Delete(model.URLAllowList{}).Error
 	//删除用户名和密码访问
 	err = global.GWAF_LOCAL_DB.Where("Host_Code = ?", req.CODE).Delete(model.HttpAuthBase{}).Error
+	//站点没了，它的在线会话也一起作废：站点若被同名重建，旧 Cookie 不该还能用
+	WafHttpAuthSessionServiceApp.RevokeByHostCode(req.CODE, model.HttpAuthRevokeByHost)
 
 	// 统一访问认证的残留清理。这三件事必须一起做，否则站点删了配置还在到处生效：
 	//   ① 该站点上已签发的子令牌作废（站点若被同名重建，旧 Cookie 不该还能用）

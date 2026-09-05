@@ -148,6 +148,7 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		router.ApiGroupApp.InitSslOrderRouter(RouterGroup)
 		router.ApiGroupApp.InitWafSslExpireRouter(RouterGroup)
 		router.ApiGroupApp.InitWafHttpAuthBaseRouter(RouterGroup)
+		router.ApiGroupApp.InitWafHttpAuthSessionRouter(RouterGroup)
 		router.ApiGroupApp.InitWafTaskRouter(RouterGroup)
 		router.ApiGroupApp.InitWafBlockingPageRouter(RouterGroup)
 		router.ApiGroupApp.InitGPTRouter(RouterGroup)

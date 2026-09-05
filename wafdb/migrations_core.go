@@ -2187,6 +2187,38 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		{
+			ID: "202609040001_add_hosts_http_auth_json",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202609040001: 网站密码访问新增会话时效配置列")
+				if !tx.Migrator().HasColumn(&model.Hosts{}, "http_auth_json") {
+					if err := tx.Migrator().AddColumn(&model.Hosts{}, "HttpAuthJSON"); err != nil {
+						return fmt.Errorf("新增网站密码访问时效配置列失败: %w", err)
+					}
+				}
+				// 存量站点留空即可：DecodeHttpAuthConfig 对空值的解析结果就是改造前的行为
+				// （24 小时有效期 + 绑定登录 IP），不需要也不应该在这里回填具体数值。
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202609040001: 删除网站密码访问会话时效配置列")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "http_auth_json") {
+					return tx.Migrator().DropColumn(&model.Hosts{}, "HttpAuthJSON")
+				}
+				return nil
+			},
+		},
+		{
+			ID: "202609040002_add_http_auth_session",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202609040002: 新增网站密码访问会话表")
+				return tx.AutoMigrate(&model.HttpAuthSession{})
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202609040002: 删除网站密码访问会话表")
+				return tx.Migrator().DropTable(&model.HttpAuthSession{})
+			},
+		},
 	})
 
 	// 执行迁移

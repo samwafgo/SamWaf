@@ -48,6 +48,9 @@ var sensitiveTableSubstrings = []string{
 	"notifychannel",
 	"http_auth", // http_auth_base_configs（访问密码）
 	"httpauth",
+	// 网站密码访问的在线会话：登录IP/归属地/UA 属访客隐私。上面的 "http_auth" 子串已经覆盖它，
+	// 这里仍显式列出，免得日后有人动了那个子串就把这张表悄悄放开了。
+	"http_auth_session",
 	"token",        // 任何令牌表
 	"secret",       // 任何以 secret 命名的表
 	"config",       // system_configs / *config* 键值配置表（可能明文存密钥）

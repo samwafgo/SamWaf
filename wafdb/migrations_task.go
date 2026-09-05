@@ -544,6 +544,46 @@ func RunTaskInitMigrations(db *gorm.DB) error {
 				return tx.Where("task_method = ?", enums.TASK_ACCESS_CLEAN).Delete(&model.Task{}).Error
 			},
 		},
+		// 迁移: 网站密码访问的会话清理任务
+		// 10 分钟一次：只做「把到期会话的状态标对 + 删超保留期的历史行」，
+		// 校验链路本来就独立判过期时间，这个任务跑不跑都不影响拦不拦。
+		{
+			ID: "202609040001_add_httpauth_clean_task",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202609040001: 创建网站密码访问会话清理任务")
+
+				var count int64
+				tx.Model(&model.Task{}).Where("task_method = ?", enums.TASK_HTTPAUTH_CLEAN).Count(&count)
+				if count > 0 {
+					zlog.Info("网站密码访问会话清理任务已存在，跳过", "task_method", enums.TASK_HTTPAUTH_CLEAN)
+					return nil
+				}
+
+				task := model.Task{
+					BaseOrm: baseorm.BaseOrm{
+						Id:          uuid.GenUUID(),
+						USER_CODE:   global.GWAF_USER_CODE,
+						Tenant_ID:   global.GWAF_TENANT_ID,
+						CREATE_TIME: customtype.JsonTime(time.Now()),
+						UPDATE_TIME: customtype.JsonTime(time.Now()),
+					},
+					TaskName:   "每10分钟清理网站密码访问的到期会话与历史记录",
+					TaskUnit:   enums.TASK_MIN,
+					TaskValue:  10,
+					TaskAt:     "",
+					TaskMethod: enums.TASK_HTTPAUTH_CLEAN,
+				}
+				if err := tx.Create(&task).Error; err != nil {
+					return fmt.Errorf("创建网站密码访问会话清理任务失败: %w", err)
+				}
+				zlog.Info("网站密码访问会话清理任务创建成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202609040001: 删除网站密码访问会话清理任务")
+				return tx.Where("task_method = ?", enums.TASK_HTTPAUTH_CLEAN).Delete(&model.Task{}).Error
+			},
+		},
 		// 迁移: 站点流量计量落库任务
 		// 30 秒一次：内存里累计的真实进出字节按天/小时增量落库。周期越短掉进程时丢得越少，
 		// 但每轮只有 2N 条 UPDATE(N=有流量的站点数)，30 秒对 SQLite 毫无压力。

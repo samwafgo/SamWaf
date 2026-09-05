@@ -42,6 +42,7 @@ type APIGroup struct {
 	WafSslOrderApi
 	WafSslExpireApi
 	WafHttpAuthBaseApi
+	WafHttpAuthSessionApi
 	WafTaskApi
 	WafBlockingPageApi
 	WafGPTApi
@@ -134,6 +135,7 @@ var (
 	wafSslExpireService = waf_service.WafSslExpireServiceApp
 
 	wafHttpAuthBaseService = waf_service.WafHttpAuthBaseServiceApp
+	wafHttpAuthSessionService = waf_service.WafHttpAuthSessionServiceApp
 
 	wafTaskService = waf_service.WafTaskServiceApp
 

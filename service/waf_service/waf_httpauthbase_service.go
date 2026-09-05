@@ -121,9 +121,22 @@ func (receiver *WafHttpAuthBaseService) ModifyApi(req request.WafHttpAuthBaseEdi
 		"Password":    req.Password,
 		"UPDATE_TIME": customtype.JsonTime(time.Now()),
 	}
-	err := global.GWAF_LOCAL_DB.Model(model.HttpAuthBase{}).Where("id = ?", req.Id).Updates(beanMap).Error
+	// 改之前先把老身份记下来：改密/改名之后，凭旧密码建立的会话必须一并作废，
+	// 否则「改了密码」只挡住新登录，已经登进去的人照样在里面。
+	var old model.HttpAuthBase
+	global.GWAF_LOCAL_DB.Where("id = ?", req.Id).Limit(1).Find(&old)
 
-	return err
+	err := global.GWAF_LOCAL_DB.Model(model.HttpAuthBase{}).Where("id = ?", req.Id).Updates(beanMap).Error
+	if err != nil {
+		return err
+	}
+	if old.UserName != "" {
+		WafHttpAuthSessionServiceApp.RevokeByUser(old.HostCode, old.UserName, model.HttpAuthRevokeByAccount)
+	}
+	if req.UserName != old.UserName || req.HostCode != old.HostCode {
+		WafHttpAuthSessionServiceApp.RevokeByUser(req.HostCode, req.UserName, model.HttpAuthRevokeByAccount)
+	}
+	return nil
 }
 func (receiver *WafHttpAuthBaseService) GetDetailApi(req request.WafHttpAuthBaseDetailReq) model.HttpAuthBase {
 	var bean model.HttpAuthBase
@@ -176,5 +189,10 @@ func (receiver *WafHttpAuthBaseService) DelApi(req request.WafHttpAuthBaseDelReq
 		return err
 	}
 	err = global.GWAF_LOCAL_DB.Where("id = ?", req.Id).Delete(model.HttpAuthBase{}).Error
-	return err
+	if err != nil {
+		return err
+	}
+	// 账号没了，他的在线会话也不该继续有效
+	WafHttpAuthSessionServiceApp.RevokeByUser(bean.HostCode, bean.UserName, model.HttpAuthRevokeByAccount)
+	return nil
 }

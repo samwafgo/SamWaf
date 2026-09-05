@@ -39,6 +39,7 @@ type ApiGroup struct {
 	SslOrderRouter
 	WafSslExpireRouter
 	WafHttpAuthBaseRouter
+	WafHttpAuthSessionRouter
 	WafTaskRouter
 	WafBlockingPageRouter
 	WafGPTRouter

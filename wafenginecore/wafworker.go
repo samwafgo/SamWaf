@@ -539,50 +539,87 @@ func (waf *WafEngine) CheckResponseSensitive() bool {
 }
 
 // DoHttpAuthBase Http auth base 检测
-func (waf *WafEngine) DoHttpAuthBase(hostSafe *wafenginmodel.HostSafe, w http.ResponseWriter, r *http.Request) (bool, string) {
-	isStop := false
-
-	// 获取认证类型，默认为 authorization（Basic Auth）
-	authType := hostSafe.Host.HttpAuthBaseType
-	if authType == "" {
-		authType = "authorization"
+//
+// clientIP 由调用方按站点「真实IP来源」解析后传入，与访问日志的 SRC_IP 同源。
+// 认证链路自己再取一次连接 IP 的话，站点挂在 CDN／前置 Nginx 后面时会话列表里
+// 全站都是同一个边缘节点地址，「绑定登录 IP」这条约束也会一并失效。
+func (waf *WafEngine) DoHttpAuthBase(hostSafe *wafenginmodel.HostSafe, w http.ResponseWriter, r *http.Request, clientIP string) (bool, string) {
+	cfg := model.DecodeHttpAuthConfig(hostSafe.Host.HttpAuthJSON)
+	if hostSafe.Host.HttpAuthBaseType == model.HttpAuthTypeCustom {
+		return waf.doCustomAuth(hostSafe, w, r, clientIP, cfg)
 	}
-
-	// 根据认证类型选择不同的认证方式
-	if authType == "authorization" {
-		// 使用Basic Auth方式
-		return waf.doBasicAuth(hostSafe, w, r)
-	} else if authType == "custom" {
-		// 使用自定义页面方式
-		return waf.doCustomAuth(hostSafe, w, r)
-	}
-
-	return isStop, ""
+	// 空值(存量站点)与未知取值都按 Basic 走：开关已经开了，认不出类型就放行等于这道门形同虚设
+	return waf.doBasicAuth(hostSafe, w, r, clientIP, cfg)
 }
 
-// doBasicAuth 使用Basic Auth方式认证（原有逻辑）
-func (waf *WafEngine) doBasicAuth(hostSafe *wafenginmodel.HostSafe, w http.ResponseWriter, r *http.Request) (bool, string) {
-	isStop := false
+// writeBasicChallenge 发 401 并要求浏览器输入密码。
+//
+// nonce 非空时 realm 会跟着变——浏览器按 realm 缓存凭证，realm 不变就只会拿旧凭证
+// 自动重试，用户永远看不到弹窗。这是 Basic 模式下让「踢下线/到期」生效的唯一手段。
+func (waf *WafEngine) writeBasicChallenge(w http.ResponseWriter, nonce, tip string) {
+	realm := "Restricted"
+	if nonce != "" {
+		realm = "Restricted-" + nonce
+	}
+	w.Header().Set("WWW-Authenticate", "Basic realm=\""+realm+"\"")
+	http.Error(w, tip, http.StatusUnauthorized)
+}
+
+// cutAuditName 截断用户名。用户名来自请求头或登录表单，是攻击者可控的任意长度字符串，
+// 直接入库会撞 account_name 的列宽。
+//
+// 按字节切完还要过一次 ToValidUTF8：128 字节的边界可能落在一个多字节字符中间，
+// 留下的半个字符会被 MySQL 的 utf8mb4 列拒收，那条审计记录就没了——
+// 等于给了攻击者一个「用超长多字节用户名让自己的爆破不被记录」的口子。
+func cutAuditName(name string) string {
+	if len(name) <= 128 {
+		return name
+	}
+	return strings.ToValidUTF8(name[:128], "")
+}
+
+// httpAuthAudit 组装一条网站密码访问的审计流水。
+func (waf *WafEngine) httpAuthAudit(hostSafe *wafenginmodel.HostSafe, r *http.Request,
+	clientIP, userName string) waf_service.AuditEntry {
+	return waf_service.AuditEntry{
+		AccountName: cutAuditName(userName),
+		Host:        hostSafe.Host.Host,
+		HostCode:    hostSafe.Host.Code,
+		URL:         r.URL.Path, // 只记路径：查询串里可能带业务参数，审计表没有必要留
+		ClientIP:    clientIP,
+		UserAgent:   r.UserAgent(),
+	}
+}
+
+// auditHttpAuthDenied 记一条「未登录被拦」。
+// 这是本功能唯一的高频事件——一次目录扫描就是几千个未登录请求，必须走节流。
+func (waf *WafEngine) auditHttpAuthDenied(hostSafe *wafenginmodel.HostSafe, r *http.Request, clientIP, msg string) {
+	entry := waf.httpAuthAudit(hostSafe, r, clientIP, "")
+	entry.Event = model.HttpAuthEventDenied
+	entry.Result = model.AccessAuditFail
+	entry.Message = msg
+	waf_service.WafSecurityAuditServiceApp.WriteThrottled(entry)
+}
+
+// doBasicAuth 浏览器弹窗方式（HTTP Basic）
+func (waf *WafEngine) doBasicAuth(hostSafe *wafenginmodel.HostSafe, w http.ResponseWriter, r *http.Request,
+	clientIP string, cfg model.HttpAuthConfig) (bool, string) {
 
 	// 获取 Authorization 头部
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
 		tip := "当前网站需要授权方可访问"
-		// 如果没有 Authorization 头部，返回 401
-		w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
-		http.Error(w, tip, http.StatusUnauthorized)
-		isStop = true
-		return isStop, tip
+		waf.writeBasicChallenge(w, "", tip)
+		waf.auditHttpAuthDenied(hostSafe, r, clientIP, tip)
+		return true, tip
 	}
 
-	// 验证 Authorization 头部格式
-	// "Basic base64(username:password)"
+	// 验证 Authorization 头部格式 "Basic base64(username:password)"
 	authParts := strings.SplitN(authHeader, " ", 2)
 	if len(authParts) != 2 || authParts[0] != "Basic" {
 		tip := "密码格式不正确 Invalid authorization header format"
 		http.Error(w, tip, http.StatusBadRequest)
-		isStop = true
-		return isStop, tip
+		return true, tip
 	}
 
 	// 解码 base64 编码的用户名和密码
@@ -590,8 +627,7 @@ func (waf *WafEngine) doBasicAuth(hostSafe *wafenginmodel.HostSafe, w http.Respo
 	if err != nil {
 		tip := "Invalid base64 encoding"
 		http.Error(w, tip, http.StatusBadRequest)
-		isStop = true
-		return isStop, tip
+		return true, tip
 	}
 
 	// 解码后的结果是 "username:password"
@@ -599,66 +635,90 @@ func (waf *WafEngine) doBasicAuth(hostSafe *wafenginmodel.HostSafe, w http.Respo
 	if len(credentials) != 2 {
 		tip := "密码格式不正确 Invalid authorization format"
 		http.Error(w, tip, http.StatusBadRequest)
-		isStop = true
-		return isStop, tip
+		return true, tip
 	}
 
 	// 校验用户名和密码
 	username, password := credentials[0], credentials[1]
 	if !waf.checkCredentials(hostSafe, username, password) {
 		tip := "密码错误"
-		// 如果验证失败，返回 401
-		w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
-		http.Error(w, tip, http.StatusUnauthorized)
-		isStop = true
-		return isStop, tip
+		waf.writeBasicChallenge(w, "", tip)
+		// Basic 模式没有登录表单，爆破就是一串带头的普通请求，逐条记会把审计表刷爆，走节流
+		entry := waf.httpAuthAudit(hostSafe, r, clientIP, username)
+		entry.Event = model.HttpAuthEventLoginFail
+		entry.Result = model.AccessAuditFail
+		entry.Message = "网站密码错误"
+		waf_service.WafSecurityAuditServiceApp.WriteThrottled(entry)
+		return true, tip
 	}
 
-	return isStop, ""
+	// 凭证过关，接着做会话记账：到期或被踢时要换 realm 把浏览器重新逼回弹窗
+	res := waf_service.WafHttpAuthSessionServiceApp.TouchBasicSession(hostSafe.Host, username,
+		clientIP, r.UserAgent(), cfg)
+	if res.Challenge {
+		tip := "登录状态已失效，请重新输入密码"
+		if res.Expired {
+			tip = "登录已到期，请重新输入密码"
+			entry := waf.httpAuthAudit(hostSafe, r, clientIP, username)
+			entry.Event = model.HttpAuthEventExpired
+			entry.Result = model.AccessAuditOK
+			entry.Message = "网站密码会话到期，要求重新认证"
+			waf_service.WafSecurityAuditServiceApp.WriteThrottled(entry)
+		}
+		waf.writeBasicChallenge(w, res.RealmNonce, tip)
+		return true, tip
+	}
+
+	// 只有真正建了会话行才算一次登录：Basic 每个请求都带凭证，逐个请求记就是成百上千条
+	if res.Created {
+		entry := waf.httpAuthAudit(hostSafe, r, clientIP, username)
+		entry.Event = model.HttpAuthEventLoginOK
+		entry.Result = model.AccessAuditOK
+		entry.Message = "网站密码登录成功(浏览器弹窗方式)"
+		if res.Session != nil {
+			entry.SessionCode = res.Session.TokenCode
+		}
+		waf_service.WafSecurityAuditServiceApp.Write(entry)
+	}
+	return false, ""
 }
 
-// doCustomAuth 使用自定义页面方式认证
-func (waf *WafEngine) doCustomAuth(hostSafe *wafenginmodel.HostSafe, w http.ResponseWriter, r *http.Request) (bool, string) {
-	// 获取HTTP认证路径前缀
-	authPathPrefix := hostSafe.Host.HttpAuthPathPrefix
-	if authPathPrefix == "" {
-		authPathPrefix = "/samwaf_httpauth"
-	}
+// doCustomAuth 自定义登录页方式
+func (waf *WafEngine) doCustomAuth(hostSafe *wafenginmodel.HostSafe, w http.ResponseWriter, r *http.Request,
+	clientIP string, cfg model.HttpAuthConfig) (bool, string) {
 
-	// 处理登录页面的静态资源请求
+	authPathPrefix := utils.GetHttpAuthPathOrDefault(hostSafe.Host.HttpAuthPathPrefix)
+
+	// 处理登录页面自身的请求
 	if strings.HasPrefix(r.URL.Path, authPathPrefix+"/") {
-		waf.handleHttpAuthRequest(hostSafe, w, r, authPathPrefix)
+		waf.handleHttpAuthRequest(hostSafe, w, r, authPathPrefix, clientIP, cfg)
 		return true, "处理HTTP Auth请求"
 	}
 
 	// 检查是否已经通过认证
-	clientIP := utils.GetSourceClientIP(r.RemoteAddr)
-
-	// 尝试从Cookie中获取认证令牌
 	cookie, err := r.Cookie("samwaf_httpauth_token")
 	if err == nil && cookie.Value != "" {
-		// 验证令牌是否有效
-		cacheKey := "httpauth_pass:" + cookie.Value + ":" + clientIP
-		val := global.GCACHE_WAFCACHE.Get(cacheKey)
-		if val != nil && val == "ok" {
-			// 认证有效，允许访问
+		if _, ok := waf_service.WafHttpAuthSessionServiceApp.ValidateCustom(hostSafe.Host.Code,
+			cookie.Value, clientIP, cfg); ok {
 			return false, ""
 		}
 	}
 
 	// 未通过认证，显示登录页面
 	tip := "需要登录认证"
+	waf.auditHttpAuthDenied(hostSafe, r, clientIP, tip)
 	waf.serveLoginPage(w, r, authPathPrefix)
 	return true, tip
 }
 
 // handleHttpAuthRequest 处理HTTP Auth相关请求
-func (waf *WafEngine) handleHttpAuthRequest(hostSafe *wafenginmodel.HostSafe, w http.ResponseWriter, r *http.Request, pathPrefix string) {
+func (waf *WafEngine) handleHttpAuthRequest(hostSafe *wafenginmodel.HostSafe, w http.ResponseWriter, r *http.Request,
+	pathPrefix, clientIP string, cfg model.HttpAuthConfig) {
 	path := strings.TrimPrefix(r.URL.Path, pathPrefix+"/")
 
 	// 处理验证接口
 	if path == "validate" && r.Method == "POST" {
-		waf.handleHttpAuthValidate(hostSafe, w, r)
+		waf.handleHttpAuthValidate(hostSafe, w, r, clientIP, cfg)
 		return
 	}
 
@@ -667,8 +727,8 @@ func (waf *WafEngine) handleHttpAuthRequest(hostSafe *wafenginmodel.HostSafe, w 
 }
 
 // handleHttpAuthValidate 处理登录验证
-func (waf *WafEngine) handleHttpAuthValidate(hostSafe *wafenginmodel.HostSafe, w http.ResponseWriter, r *http.Request) {
-	clientIP := utils.GetSourceClientIP(r.RemoteAddr)
+func (waf *WafEngine) handleHttpAuthValidate(hostSafe *wafenginmodel.HostSafe, w http.ResponseWriter, r *http.Request,
+	clientIP string, cfg model.HttpAuthConfig) {
 
 	// 安全策略：检查IP是否被锁定
 	lockKey := "httpauth_lock:" + clientIP
@@ -712,15 +772,21 @@ func (waf *WafEngine) handleHttpAuthValidate(hostSafe *wafenginmodel.HostSafe, w
 			zap.String("username", req.Username),
 			zap.Int("fail_count", failCount))
 
+		entry := waf.httpAuthAudit(hostSafe, r, clientIP, req.Username)
+		entry.Result = model.AccessAuditFail
+
 		// 失败次数超过10次，锁定IP 3分钟
 		if failCount >= 10 {
 			global.GCACHE_WAFCACHE.SetWithTTl(lockKey, "locked", 3*time.Minute)
 			// 清除失败计数
 			global.GCACHE_WAFCACHE.Remove(failCountKey)
-
 			zlog.Error("HTTP Auth登录失败次数过多，锁定IP",
 				zap.String("ip", clientIP),
 				zap.Int("fail_count", failCount))
+
+			entry.Event = model.HttpAuthEventLocked
+			entry.Message = "网站密码连续输错10次，该IP已锁定3分钟"
+			waf_service.WafSecurityAuditServiceApp.Write(entry)
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusTooManyRequests)
@@ -730,6 +796,10 @@ func (waf *WafEngine) handleHttpAuthValidate(hostSafe *wafenginmodel.HostSafe, w
 
 		// 记录失败次数，5分钟内有效
 		global.GCACHE_WAFCACHE.SetWithTTl(failCountKey, failCount, 5*time.Minute)
+
+		entry.Event = model.HttpAuthEventLoginFail
+		entry.Message = fmt.Sprintf("网站密码错误，剩余尝试次数：%d", 10-failCount)
+		waf_service.WafSecurityAuditServiceApp.Write(entry)
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
@@ -741,25 +811,37 @@ func (waf *WafEngine) handleHttpAuthValidate(hostSafe *wafenginmodel.HostSafe, w
 	failCountKey := "httpauth_fail:" + clientIP
 	global.GCACHE_WAFCACHE.Remove(failCountKey)
 
-	// 生成令牌
-	authToken := uuid.GenUUID()
+	// 建会话：明文令牌只出现在 Cookie 里，库与缓存存的都是它的 sha256
+	authToken, sess, err := waf_service.WafHttpAuthSessionServiceApp.CreateCustomSession(hostSafe.Host,
+		req.Username, clientIP, r.UserAgent(), cfg)
+	if err != nil {
+		zlog.Error("HTTP Auth建立会话失败", zap.Error(err))
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"success": false, "message": "服务器错误"}`))
+		return
+	}
 
 	zlog.Info("HTTP Auth登录成功",
 		zap.String("ip", clientIP),
 		zap.String("username", req.Username))
 
-	// 将令牌存入缓存，默认24小时有效
-	cacheKey := "httpauth_pass:" + authToken + ":" + clientIP
-	global.GCACHE_WAFCACHE.SetWithTTl(cacheKey, "ok", 24*time.Hour)
+	entry := waf.httpAuthAudit(hostSafe, r, clientIP, req.Username)
+	entry.Event = model.HttpAuthEventLoginOK
+	entry.Result = model.AccessAuditOK
+	entry.SessionCode = sess.TokenCode
+	entry.Message = "网站密码登录成功(自定义页面方式)"
+	waf_service.WafSecurityAuditServiceApp.Write(entry)
 
-	// 设置Cookie
+	// 设置Cookie，有效期跟随站点配置的会话时长
 	cookie := &http.Cookie{
 		Name:     "samwaf_httpauth_token",
 		Value:    authToken,
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   r.TLS != nil,
-		MaxAge:   24 * 3600, // 24小时
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   int(cfg.SessionTTL) * 60,
 	}
 	http.SetCookie(w, cookie)
 

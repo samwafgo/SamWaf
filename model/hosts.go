@@ -39,6 +39,7 @@ type Hosts struct {
 	IsEnableHttpAuthBase      int    `json:"is_enable_http_auth_base"`                      //是否 HTTPAuthBase  1 激活  非1 没有激活
 	HttpAuthBaseType          string `gorm:"size:50" json:"http_auth_base_type"`            //认证类型 authorization(默认Basic Auth) custom(自定义页面)
 	HttpAuthPathPrefix        string `gorm:"size:255" json:"http_auth_path_prefix"`         //HTTP认证路径前缀，用于隐藏系统特征，默认为随机生成
+	HttpAuthJSON              string `gorm:"type:text" json:"http_auth_json"`               //网站密码访问的会话时效配置 json（有效期/空闲超时/绑定登录IP），空=按 DecodeHttpAuthConfig 的默认值
 	ResponseTimeOut           int    `json:"response_time_out"`                             //响应超时时间 默认60秒,为0则无限等待
 	HealthyJSON               string `gorm:"type:text" json:"healthy_json"`                 //后端健康度检测 json
 	InsecureSkipVerify        int    `json:"insecure_skip_verify"`                          //是否开启后端https证书有效性验证 默认 0 是校验 1 是不校验
@@ -726,4 +727,63 @@ func GetClientIPByMode(ipMode string, netSrcIp string, srcIP string) string {
 	}
 	// 默认使用网卡模式
 	return netSrcIp
+}
+
+// HttpAuthConfig 「网站密码访问」的会话时效配置（hosts.HttpAuthJSON）。
+//
+// 兼容硬约束：HttpAuthJSON 为空串时（全部存量站点），DecodeHttpAuthConfig 必须还原成
+// 「24 小时绝对有效期 + 绑定登录 IP + 不启用空闲超时」，即与加这套配置之前的行为逐条一致。
+// 数值字段用 FlexInt 是因为前端表单回传的是字符串，普通 int 会让该字段悄悄回落默认值。
+type HttpAuthConfig struct {
+	SessionTTL  FlexInt `json:"session_ttl"`  // 绝对有效期(分钟)，<=0 视为默认 1440
+	IdleTimeout FlexInt `json:"idle_timeout"` // 空闲超时(分钟)，0=不启用
+	BindIP      FlexInt `json:"bind_ip"`      // 1=登录令牌绑定登录时的 IP(默认) 0=不绑
+}
+
+// 默认值。DefaultHttpAuthSessionTTL 对齐改造前硬编码的 24 小时。
+const (
+	DefaultHttpAuthSessionTTL = 1440 // 分钟
+)
+
+// DecodeHttpAuthConfig 解析站点的 http_auth_json。
+//
+// 空串、非法 JSON、字段缺省一律回落到「等价现状」而不是零值：
+// 时效为 0 会让所有人一登录就掉线，BindIP 为 0 会静默放宽一条既有约束——
+// 两者都属于「解析失败反而改变了防护行为」，这里不允许发生。
+func DecodeHttpAuthConfig(raw string) HttpAuthConfig {
+	cfg := HttpAuthConfig{
+		SessionTTL:  DefaultHttpAuthSessionTTL,
+		IdleTimeout: 0,
+		BindIP:      1,
+	}
+	if strings.TrimSpace(raw) == "" {
+		return cfg
+	}
+	var parsed HttpAuthConfig
+	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+		return cfg
+	}
+	if parsed.SessionTTL > 0 {
+		cfg.SessionTTL = parsed.SessionTTL
+	}
+	if parsed.IdleTimeout > 0 {
+		cfg.IdleTimeout = parsed.IdleTimeout
+	}
+	// BindIP 是显式三态：JSON 里给了 0 就是「用户主动关掉」，不能当成缺省再拉回 1。
+	// 但整份 JSON 都没这个键时（老配置升级上来）必须保持 1，所以靠下面这次单独探测区分。
+	cfg.BindIP = parsed.BindIP
+	if !jsonHasKey(raw, "bind_ip") {
+		cfg.BindIP = 1
+	}
+	return cfg
+}
+
+// jsonHasKey 判断顶层是否显式出现过某个键，用于区分「用户填了 0」与「压根没这个字段」。
+func jsonHasKey(raw, key string) bool {
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		return false
+	}
+	_, ok := m[key]
+	return ok
 }

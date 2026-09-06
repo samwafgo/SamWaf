@@ -140,27 +140,44 @@ func (w *WafVpConfigApi) UpdateManageTrustedProxiesApi(c *gin.Context) {
 		response.FailWithMessage("解析请求失败", c)
 		return
 	}
-	// 校验每个条目是合法 CIDR 或 IP（留空=不信任任何代理头，允许）
+	// 校验每个条目是合法 CIDR / IP / private 关键字（留空=不信任任何代理头，允许）
 	for _, entry := range strings.Split(req.TrustedProxies, ",") {
 		entry = strings.TrimSpace(entry)
 		if entry == "" {
 			continue
 		}
-		if strings.Contains(entry, "/") {
-			if _, _, err := net.ParseCIDR(entry); err != nil {
+		if !utils.IsValidManageTrustedProxyEntry(entry) {
+			if strings.Contains(entry, "/") {
 				response.FailWithMessage(fmt.Sprintf("非法的CIDR: %s", entry), c)
-				return
+			} else {
+				response.FailWithMessage(fmt.Sprintf("非法的IP: %s", entry), c)
 			}
-		} else if net.ParseIP(entry) == nil {
-			response.FailWithMessage(fmt.Sprintf("非法的IP: %s", entry), c)
 			return
 		}
 	}
 	if err := wafconfig.UpdateManageTrustedProxies(req.TrustedProxies); err != nil {
 		response.FailWithMessage("更新管理端可信代理网段失败: "+err.Error(), c)
-	} else {
-		response.OkWithMessage("更新管理端可信代理网段成功", c)
+		return
 	}
+	// 过宽的网段等于没有闸门，代理头不予采信、仍按网络层 IP 识别客户端，保存后明确告知一次
+	if broad, entry := utils.ManageTrustedProxiesHasOverBroad(req.TrustedProxies); broad {
+		zlog.Warn(fmt.Sprintf("管理端可信代理网段包含过宽条目 %s：该条目只能放行闸门，代理头里的客户端IP不予采信，仍按网络层IP识别。容器部署请改填网关地址或 private", entry))
+		response.OkWithMessage(fmt.Sprintf("更新成功，但 %s 过宽：这种网段无法用来判定代理头里的哪个IP是客户端，代理头将不被采信、仍按网络层IP识别（IP白名单与登录失败锁定也按它判定）。容器/内网部署请改填上游代理的地址或 private", entry), c)
+		return
+	}
+	response.OkWithMessage("更新管理端可信代理网段成功", c)
+}
+
+// GetManageClientIPProbeApi 管理端「本次访问」真实IP诊断
+// @Summary      管理端真实IP诊断
+// @Description  回显本次请求的直连对端、可信代理判定、各代理头原始值与逐跳判定、最终采信的客户端IP及原因
+// @Tags         管理端配置
+// @Produce      json
+// @Success      200  {object}  response.Response  "获取成功"
+// @Security     ApiKeyAuth
+// @Router       /vipconfig/manageClientIpProbe [get]
+func (w *WafVpConfigApi) GetManageClientIPProbeApi(c *gin.Context) {
+	response.OkWithDetailed(utils.TraceManageClientIP(c), "获取管理端真实IP诊断成功", c)
 }
 
 // GetManageCDNProviderApi 获取管理端引用的 CDN 厂商码

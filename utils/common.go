@@ -4,7 +4,6 @@ import (
 	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/model"
-	"SamWaf/wafenginecore/clientip"
 	"SamWaf/wafenginecore/ipset"
 	"crypto/tls"
 	"errors"
@@ -19,8 +18,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/gin-gonic/gin"
 )
 
 // isPublicIP 判断 IP 是否为可安全对外访问的公网地址（用于防 SSRF）。
@@ -648,78 +645,3 @@ func IsIP(input string) bool {
 	return net.ParseIP(input) != nil
 }
 
-// GetManageClientIP 获取管理端客户端真实IP。
-// 安全默认：未配置代理头（GCONFIG_MANAGE_PROXY_HEADER 为空）时直接返回网络层 IP（c.RemoteIP()）。
-// 即便配置了代理头，也仅当“直连对端 c.RemoteIP() 属于可信代理网段 GCONFIG_MANAGE_TRUSTED_PROXIES”
-// 时才采信代理头；否则一律用网络层 IP。防止任意直连客户端伪造 X-Forwarded-For/X-Real-IP 绕过
-// 登录错误锁定 / 管理端 IP 白名单 / 令牌 IP 绑定。
-func GetManageClientIP(c *gin.Context) string {
-	remoteIP := c.RemoteIP()
-	// 未配置代理头 → 直接用网络层 IP
-	if global.GCONFIG_MANAGE_PROXY_HEADER == "" {
-		return remoteIP
-	}
-	// 配了代理头，但只信任来自“可信代理”的头；否则用网络层 IP
-	if !isTrustedManageProxy(remoteIP) {
-		return remoteIP
-	}
-	for _, header := range strings.Split(global.GCONFIG_MANAGE_PROXY_HEADER, ",") {
-		header = strings.TrimSpace(header)
-		if header == "" {
-			continue
-		}
-		val := c.GetHeader(header)
-		if val == "" {
-			continue
-		}
-		// 从右往左取第一个“非可信代理”的 IP：反向代理按追加语义
-		// (nginx $proxy_add_x_forwarded_for) 把真实客户端 IP 追加在右侧、客户端伪造的值留在左侧，
-		// 故取最右侧的非可信 hop 才是真实客户端；逐个跳过可信代理链。取最左会取到伪造值。
-		parts := strings.Split(val, ",")
-		for i := len(parts) - 1; i >= 0; i-- {
-			ip := strings.TrimSpace(parts[i])
-			if !IsValidIPv4(ip) && !IsValidIPv6(ip) {
-				continue
-			}
-			if isTrustedManageProxy(ip) {
-				continue // 跳过可信代理 hop
-			}
-			return ip
-		}
-	}
-	return remoteIP
-}
-
-// isTrustedManageProxy 判断直连对端 IP 是否落在管理端可信代理网段
-// GCONFIG_MANAGE_TRUSTED_PROXIES（CIDR 或单 IP，逗号分隔）内。
-// 留空 → 返回 false（不信任任何代理头，安全默认）。
-func isTrustedManageProxy(remoteIP string) bool {
-	// 管理端引用了某 CDN 厂商 → 直连对端属于该厂商中心库最新回源段即视为可信(自动跟随更新)
-	if global.GCONFIG_MANAGE_CDN_PROVIDER != "" &&
-		clientip.IsProviderIP(global.GCONFIG_MANAGE_CDN_PROVIDER, strings.TrimSpace(remoteIP)) {
-		return true
-	}
-	if global.GCONFIG_MANAGE_TRUSTED_PROXIES == "" {
-		return false
-	}
-	ip := net.ParseIP(strings.TrimSpace(remoteIP))
-	if ip == nil {
-		return false
-	}
-	for _, entry := range strings.Split(global.GCONFIG_MANAGE_TRUSTED_PROXIES, ",") {
-		entry = strings.TrimSpace(entry)
-		if entry == "" {
-			continue
-		}
-		if strings.Contains(entry, "/") {
-			if _, ipnet, err := net.ParseCIDR(entry); err == nil && ipnet.Contains(ip) {
-				return true
-			}
-			continue
-		}
-		if single := net.ParseIP(entry); single != nil && single.Equal(ip) {
-			return true
-		}
-	}
-	return false
-}

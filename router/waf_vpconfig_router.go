@@ -33,6 +33,10 @@ func (receiver *WafVpConfigRouter) InitWafVpConfigRouter(group *gin.RouterGroup)
 	writeRouter.Use(middleware.RequireRole(enums.ROLE_SYSTEM_ADMIN))
 	writeRouter.POST("/api/v1/vipconfig/updateIpWhitelist", wafVpConfigApi.UpdateIpWhitelistApi)
 	writeRouter.POST("/api/v1/vipconfig/updateManageTrustedProxies", wafVpConfigApi.UpdateManageTrustedProxiesApi)
+	// 只读诊断：仅回显本次请求自身的判定过程，不接受任何入参指定IP。
+	// 放在系统管理员组：回显内容含代理头名(原本只在系统参数页可见)+可信网段，
+	// 凑齐即可推出"如何让自己在审计日志里显示成别的IP"，不给审计/安全角色。
+	writeRouter.GET("/api/v1/vipconfig/manageClientIpProbe", wafVpConfigApi.GetManageClientIPProbeApi)
 	// CDN厂商快捷填充回源段(会触发对厂商官方端点的匿名拉取，故限系统管理员)
 	writeRouter.GET("/api/v1/vipconfig/cdnProviderRanges", wafVpConfigApi.GetCDNProviderRangesApi)
 	writeRouter.POST("/api/v1/vipconfig/updateManageCDNProvider", wafVpConfigApi.UpdateManageCDNProviderApi)

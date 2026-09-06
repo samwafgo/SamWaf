@@ -526,3 +526,44 @@ notes:
         Second, visitors who are already signed in must sign in once more after the upgrade.
       effect_off: Sites that do not have Website password access enabled are not affected at all.
       revert: Set session lifetime back to 1440, idle timeout back to 0 and keep bind to login IP enabled - that is the previous behaviour.
+
+  - id: v1_3_25_manage_client_ip
+    version: v1.3.25
+    kind: check
+    level: high
+    page: /sys/SystemConfig
+    doc: https://doc.samwaf.com/quickstart/Update.html
+    apply:
+      type: navigate
+    zh:
+      title: 检查「管理端可信代理网段」是否填得过宽
+      detail: >-
+        这项决定管理端把哪个 IP 当成真实客户端，而管理端 IP 白名单、登录失败锁定、令牌 IP 绑定、
+        登录历史与安全审计全部按它判定。本版本修正了一处取值错误：当网段填得比真实客户端 IP 还宽时
+        （典型是填了 10.0.0.0/8 而管理员本身也在 10.x 内网访问），代理头里的真实 IP 会被当成代理节点跳过，
+        最终记成上一跳地址。修正后这种情况按代理链起点取真实 IP，并且不会再抢在后面那个更可信的头前面下结论。
+        另外网段现在支持直接填关键字 private（展开为 10/8、172.16/12、192.168/16、环回与 fc00::/7），
+        容器部署不必再去查网关地址。请顺手确认这里没有填 0.0.0.0/0 之类覆盖全网的写法：
+        这种网段无法用来判断代理头里哪个 IP 才是客户端，程序会拒绝采信代理头、继续按网络层 IP 识别
+        （容器里就是网关地址，所有人看起来是同一个 IP），启动日志里也会提示。
+      effect_on: 填上游代理自身的地址（容器部署可直接填 private）后：管理端按真实客户端 IP 判定白名单与登录锁定，登录历史与安全审计记的也是真实来源。
+      effect_off: 填 0.0.0.0/0 或留空：代理头不被采信，所有请求都记成代理机/网关的同一个地址——IP 白名单失去区分能力，一次爆破尝试就可能把所有人一起挡在门外。
+      revert: 清空该配置即恢复为"只认直连 IP"。
+    en:
+      title: Check whether the console trusted proxy ranges are set too wide
+      detail: >-
+        This setting decides which address the console treats as the real client, and the console IP allowlist,
+        login failure lockout, token IP binding, login history and security audit are all judged by it. This
+        version fixes a case where the value came out wrong: when the ranges were wider than the real client IP
+        (typically 10.0.0.0/8 while administrators themselves connect from 10.x), the real IP inside the proxy
+        header was skipped as a proxy hop and the previous hop was recorded instead. It now takes the start of
+        the proxy chain in that situation, and no longer jumps ahead of a later, more trustworthy header. The
+        ranges also accept the keyword private, which expands to 10/8, 172.16/12, 192.168/16, loopback and
+        fc00::/7, so container deployments need not look up the gateway address. While you are there, make sure
+        the value is not something like 0.0.0.0/0: a range that wide cannot tell which address in the proxy
+        header is the client, so the proxy header is not honoured at all and the network layer address is used
+        instead (the gateway address in a container, making every visitor look identical). The startup log points
+        this out as well.
+      effect_on: With the upstream proxy's own address (or simply private in containers), the console judges the allowlist and login lockout by the real client IP, and login history and security audit record the real source.
+      effect_off: With 0.0.0.0/0 or an empty value the proxy header is not honoured and every request is recorded as the same proxy or gateway address - the IP allowlist can no longer tell anyone apart, and a single brute-force burst can lock everyone out at once.
+      revert: Clearing the setting restores the "direct peer only" behaviour.

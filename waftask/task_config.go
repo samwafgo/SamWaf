@@ -8,6 +8,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/request"
 	"SamWaf/service/waf_service"
+	"SamWaf/utils"
 	"SamWaf/wafenginecore"
 	"SamWaf/wafhostguard"
 	"SamWaf/wafipban"
@@ -735,7 +736,7 @@ func TaskLoadSetting(initLoad bool) {
 
 	updateConfigStringItem(initLoad, "system", "record_log_type", global.GWAF_RUNTIME_RECORD_LOG_TYPE, "日志记录类型", "options", "all|全部,abnormal|非正常", configMap)
 	updateConfigStringItem(initLoad, "system", "gwaf_proxy_header", global.GCONFIG_RECORD_PROXY_HEADER, "获取访客IP头信息（按照顺序）比如:X-Forwarded-For,X-Real-IP ,留空则提取的是直接访客IP", "string", "", configMap)
-	updateConfigStringItem(initLoad, "system", "gwaf_manage_proxy_header", global.GCONFIG_MANAGE_PROXY_HEADER, "管理端获取客户端IP头信息（按优先级逗号分隔，如 X-Forwarded-For,X-Real-IP,CF-Connecting-IP），留空则直接取网络IP。安全起见需配合 conf/config.yml 的 security.manage_trusted_proxies：仅当直连来源属可信代理时才采信此头", "string", "", configMap)
+	updateConfigStringItem(initLoad, "system", "gwaf_manage_proxy_header", global.GCONFIG_MANAGE_PROXY_HEADER, "管理端获取客户端IP头信息（按优先级逗号分隔，如 X-Forwarded-For,X-Real-IP,CF-Connecting-IP），留空则直接取网络IP。安全起见需配合 conf/config.yml 的 security.manage_trusted_proxies：仅当直连来源属可信代理时才采信此头（容器/内网部署可直接填 private）", "string", "", configMap)
 
 	updateConfigIntItem(initLoad, "kafka", "kafka_enable", global.GCONFIG_RECORD_KAFKA_ENABLE, "kafka 是否激活", "int", "", configMap)
 	updateConfigStringItem(initLoad, "kafka", "kafka_url", global.GCONFIG_RECORD_KAFKA_URL, "kafka url地址", "string", "", configMap)
@@ -880,6 +881,12 @@ func TaskLoadSetting(initLoad bool) {
 	// 提醒反向代理后的部署在 conf/config.yml 配置 security.manage_trusted_proxies，
 	// 以免 IP白名单/登录锁定误按代理IP生效（该项放 config.yml 便于被白名单挡住时改文件+重启自救）。
 	if initLoad && global.GCONFIG_MANAGE_PROXY_HEADER != "" && global.GCONFIG_MANAGE_TRUSTED_PROXIES == "" {
-		zlog.Warn("管理端已配置代理头(gwaf_manage_proxy_header)但未设可信代理网段：出于安全，代理头将被忽略、按网络层IP识别客户端。若本机在反向代理之后，请在 conf/config.yml 填写 security.manage_trusted_proxies（如 10.0.0.0/8）后重启")
+		zlog.Warn("管理端已配置代理头(gwaf_manage_proxy_header)但未设可信代理网段：出于安全，代理头将被忽略、按网络层IP识别客户端。若本机在反向代理之后，请在 conf/config.yml 填写 security.manage_trusted_proxies（如 10.0.0.0/8，容器部署可填 private）后重启")
+	}
+	// 可信代理网段过宽 → 无法据此判定代理头里哪个 IP 是客户端，代理头不予采信。
+	if initLoad {
+		if broad, entry := utils.ManageTrustedProxiesHasOverBroad(global.GCONFIG_MANAGE_TRUSTED_PROXIES); broad {
+			zlog.Warn("管理端可信代理网段包含过宽条目(" + entry + ")：这种网段无法用来判定代理头里的哪个IP是客户端，代理头将不被采信、仍按网络层IP识别客户端(管理端IP白名单/登录失败锁定/令牌IP绑定也按它判定)。请在 conf/config.yml 把 security.manage_trusted_proxies 改成上游代理自身的地址，容器部署可填 private")
+		}
 	}
 }

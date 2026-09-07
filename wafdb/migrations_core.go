@@ -2219,6 +2219,48 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return tx.Migrator().DropTable(&model.HttpAuthSession{})
 			},
 		},
+		// 迁移: access_config 表增加跨源(CORS)四列。
+		// access_config 是 202608040001 用 AutoMigrate 一次性建的，存量库不会自动跟着结构体加列，
+		// 只改结构体的话存量 MySQL 库会直接报 1054 Unknown column。
+		// 四列全空即「不启用」，存量站点行为完全不变。
+		{
+			ID: "202609060001_add_access_config_cors",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202609060001: 为 access_config 表添加跨源(CORS)字段")
+				cols := []struct {
+					col   string
+					field string
+				}{
+					{"cors_allow_origins", "CorsAllowOrigins"},
+					{"cors_allow_methods", "CorsAllowMethods"},
+					{"cors_allow_headers", "CorsAllowHeaders"},
+					{"cors_max_age", "CorsMaxAge"},
+				}
+				for _, c := range cols {
+					if tx.Migrator().HasColumn(&model.AccessConfig{}, c.col) {
+						continue
+					}
+					if err := tx.Migrator().AddColumn(&model.AccessConfig{}, c.field); err != nil {
+						return fmt.Errorf("添加 access_config.%s 失败: %w", c.col, err)
+					}
+				}
+				zlog.Info("access_config 跨源字段添加成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202609060001: 删除 access_config 跨源字段")
+				for _, col := range []string{"cors_allow_origins", "cors_allow_methods",
+					"cors_allow_headers", "cors_max_age"} {
+					if !tx.Migrator().HasColumn(&model.AccessConfig{}, col) {
+						continue
+					}
+					if err := tx.Migrator().DropColumn(&model.AccessConfig{}, col); err != nil {
+						return err
+					}
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

@@ -85,6 +85,12 @@ type WafAccessConfigSaveReq struct {
 	// 空字符串 = 保持原样不动；填 "-" = 清空。这样前端不必回显密文也能安全编辑。
 	ServiceTokens string `json:"service_tokens"`
 
+	// 跨源（CORS）。全空 = 不启用，站点级可按字段覆盖。
+	CorsAllowOrigins string `json:"cors_allow_origins"`
+	CorsAllowMethods string `json:"cors_allow_methods"`
+	CorsAllowHeaders string `json:"cors_allow_headers"`
+	CorsMaxAge       int    `json:"cors_max_age"`
+
 	UnauthAction        string `json:"unauth_action"`
 	PassIdentityHeader  int    `json:"pass_identity_header"`
 	ForceSecureCookie   int    `json:"force_secure_cookie"`

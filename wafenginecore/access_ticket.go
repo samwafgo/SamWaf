@@ -332,13 +332,22 @@ func (waf *WafEngine) accessIssueTokenCookie(w http.ResponseWriter, r *http.Requ
 	sess model.AccessSession, hostTarget *wafenginmodel.HostSafe, cfg *accessgate.Config,
 	clientIP, fingerprint string) error {
 
-	plain, err := accessSessionService.IssueToken(sess, r.Host, hostTarget.Host.Code,
+	nhost := accessNormalizedHost(r)
+	plain, err := accessSessionService.IssueToken(sess, nhost, hostTarget.Host.Code,
 		clientIP, fingerprint, cfg)
 	if err != nil {
 		return err
 	}
-	http.SetCookie(w, buildAccessCookie(cfg.CookieTokenName, plain,
-		int(cfg.TokenTTL.Seconds()), accessCookieSecure(r, hostTarget, cfg)))
+	secure := accessCookieSecure(r, hostTarget, cfg)
+	http.SetCookie(w, buildAccessCookie(accessgate.TokenCookieName(cfg.CookiePrefix, nhost), plain,
+		int(cfg.TokenTTL.Seconds()), secure))
+
+	// 顺手清掉改造前那个所有站点共用的固定名字。
+	//
+	// 只在这里（签发时）发删除，绝不在未认证请求上发：否则任意人构造一个请求
+	// 就能让受害者浏览器丢弃 Cookie，等于免认证的强制登出。
+	// 这条路径只在登录回调走到，不是热路径，多一个响应头无所谓。
+	clearAccessCookie(w, accessgate.LegacyTokenCookieName(cfg.CookiePrefix), secure)
 	return nil
 }
 

@@ -2,6 +2,7 @@ package model
 
 import (
 	"SamWaf/model/baseorm"
+	"strings"
 )
 
 // 未认证时的响应方式
@@ -21,7 +22,8 @@ const (
 	AccessDefaultIdleMin       = 0 // 0=不启用空闲超时
 	AccessDefaultMaxFail       = 10
 	AccessDefaultLockMinutes   = 3
-	AccessDefaultCachePosTTL   = 60 // 正向缓存上限(秒)，同时也是踢下线的最坏生效延迟
+	AccessDefaultCachePosTTL   = 60   // 正向缓存上限(秒)，同时也是踢下线的最坏生效延迟
+	AccessCorsMaxAgeCap        = 7200 // 预检缓存秒数上限，与 accessgate 侧的封顶一致
 )
 
 // AccessConfig 是统一访问认证的租户级全局配置，全表只有一行。
@@ -66,6 +68,15 @@ type AccessConfig struct {
 	BypassIPGroupCode  string `gorm:"size:64" json:"bypass_ip_group_code"`   //免认证 IP 组，复用 ip_group
 	ServiceTokenHeader string `gorm:"size:64" json:"service_token_header"`   //服务令牌请求头名，如 X-Service-Token
 	ServiceTokenHashes string `gorm:"type:text" json:"-"`                    //可用令牌的 sha256，换行分隔，永不回显
+
+	// —— 跨源（CORS）——
+	// 默认全空 = 不启用，存量站点行为完全不变。
+	// 只影响「认证之前」的两种响应：预检代答与未认证的 401/302；
+	// 认证通过放行后的响应一律不补头，那是后端自己的事（补了会撞成两个 ACAO）。
+	CorsAllowOrigins string `gorm:"type:text" json:"cors_allow_origins"` //允许的完整 Origin，换行分隔，精确匹配
+	CorsAllowMethods string `gorm:"size:255" json:"cors_allow_methods"`  //空=GET,POST,PUT,PATCH,DELETE,OPTIONS
+	CorsAllowHeaders string `gorm:"size:1024" json:"cors_allow_headers"` //空=回显请求的 Access-Control-Request-Headers
+	CorsMaxAge       int    `json:"cors_max_age"`                        //预检缓存秒数，空=600，上限7200
 
 	// —— 行为 ——
 	UnauthAction        string `gorm:"size:16" json:"unauth_action"` //auto | redirect | 401
@@ -143,4 +154,26 @@ func (c *AccessConfig) FillDefaults() {
 	if c.CachePositiveTTLSec <= 0 || c.CachePositiveTTLSec > AccessDefaultCachePosTTL {
 		c.CachePositiveTTLSec = d.CachePositiveTTLSec
 	}
+	// 跨源：不给 Origin 补默认值（空=不启用是刻意的），只做越界与非法字符收敛。
+	// 这三个值会被原样拼进响应头，CR/LF 必须在落库前就消掉。
+	if c.CorsMaxAge < 0 || c.CorsMaxAge > AccessCorsMaxAgeCap {
+		c.CorsMaxAge = 0
+	}
+	c.CorsAllowMethods = stripHeaderCtrlChars(c.CorsAllowMethods)
+	c.CorsAllowHeaders = stripHeaderCtrlChars(c.CorsAllowHeaders)
+	// Origin 清单是多行文本，换行是合法分隔符，只清 CR 与制表
+	c.CorsAllowOrigins = strings.NewReplacer("\r", "\n", "\t", " ").Replace(c.CorsAllowOrigins)
+}
+
+// stripHeaderCtrlChars 去掉会破坏响应头的控制字符。
+// 引擎侧（accessgate）另有一道同样的清理，这里是落库前的第一道。
+func stripHeaderCtrlChars(v string) string {
+	var b strings.Builder
+	b.Grow(len(v))
+	for i := 0; i < len(v); i++ {
+		if c := v[i]; c >= 0x20 && c != 0x7f {
+			b.WriteByte(c)
+		}
+	}
+	return strings.TrimSpace(b.String())
 }

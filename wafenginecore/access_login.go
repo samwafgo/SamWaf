@@ -87,7 +87,7 @@ func (waf *WafEngine) handleAccessRequest(w http.ResponseWriter, r *http.Request
 	case sub == "logout":
 		waf.accessHandleLogout(w, r, hostTarget, cfg, clientIP)
 	case sub == "status" && r.Method == http.MethodGet:
-		waf.accessHandleStatus(w, r, cfg, clientIP)
+		waf.accessHandleStatus(w, r, hostTarget, cfg, clientIP)
 	case sub == "ping":
 		// 恒 204，给用户做健康检查白名单时有个现成的探测点
 		w.WriteHeader(http.StatusNoContent)
@@ -410,10 +410,13 @@ func (waf *WafEngine) accessHandleLogout(w http.ResponseWriter, r *http.Request,
 		}
 		clearAccessCookie(w, cfg.CookieSSOName, secure)
 	}
-	if ck, err := r.Cookie(cfg.CookieTokenName); err == nil && ck.Value != "" {
+	tokenName := accessTokenCookieName(cfg, r)
+	if ck, err := r.Cookie(tokenName); err == nil && ck.Value != "" {
 		accessSessionService.RevokeToken(ck.Value)
-		clearAccessCookie(w, cfg.CookieTokenName, secure)
+		clearAccessCookie(w, tokenName, secure)
 	}
+	// 改造前所有站点共用一个固定名字，升级后它不再被读取，一并清掉免得残留占位
+	clearAccessCookie(w, accessgate.LegacyTokenCookieName(cfg.CookiePrefix), secure)
 
 	accessAuditService.Write(waf_service.AuditEntry{
 		Event: model.AccessEventLogout, AccountName: accountName, Host: r.Host,
@@ -434,11 +437,12 @@ func (waf *WafEngine) accessHandleLogout(w http.ResponseWriter, r *http.Request,
 // accessHandleStatus 供 SPA 探测登录态。
 // 未登录时不返回任何账号信息——这个端点是免认证可达的，不能变成账号枚举入口。
 func (waf *WafEngine) accessHandleStatus(w http.ResponseWriter, r *http.Request,
-	cfg *accessgate.Config, clientIP string) {
+	hostTarget *wafenginmodel.HostSafe, cfg *accessgate.Config, clientIP string) {
 
 	fingerprint := utils.GenerateFingerprint(r)
-	if ck, err := r.Cookie(cfg.CookieTokenName); err == nil && ck.Value != "" {
-		if st := accessSessionService.ValidateToken(ck.Value, r.Host, clientIP, fingerprint, cfg); st != nil {
+	if ck, err := r.Cookie(accessTokenCookieName(cfg, r)); err == nil && ck.Value != "" {
+		if st := accessSessionService.ValidateToken(ck.Value, accessNormalizedHost(r), hostTarget.Host.Code,
+			clientIP, fingerprint, cfg); st != nil {
 			writeAccessJSON(w, http.StatusOK, map[string]interface{}{
 				"authenticated": true,
 				"account":       st.AccountName,
@@ -458,7 +462,7 @@ func (waf *WafEngine) accessCurrentSSOSession(r *http.Request, cfg *accessgate.C
 	if err != nil || ck.Value == "" {
 		return nil
 	}
-	return accessSessionService.ValidateSSOSession(ck.Value, r.Host, clientIP, fingerprint, cfg)
+	return accessSessionService.ValidateSSOSession(ck.Value, accessNormalizedHost(r), clientIP, fingerprint, cfg)
 }
 
 // ─────────────────────────── 失败锁定 ───────────────────────────

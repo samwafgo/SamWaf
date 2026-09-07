@@ -45,10 +45,13 @@ type Config struct {
 	CenterOrigin string
 	CenterHost   string
 
-	PathPrefix      string // 已归一化：小写、以 / 开头、无尾部 /
-	CookieSSOName   string // 中心会话 Cookie 名，= CookiePrefix + "_sso"
-	CookieTokenName string // 业务域子令牌 Cookie 名，= CookiePrefix + "_tk"
-	CookiePrefix    string // 剥离 Cookie 时按此前缀匹配
+	PathPrefix    string // 已归一化：小写、以 / 开头、无尾部 /
+	CookieSSOName string // 中心会话 Cookie 名，= CookiePrefix + "_sso"
+	// CookiePrefix 有两个用途：剥离 Cookie 时按它前缀匹配，
+	// 以及派生每个站点各自的子令牌 Cookie 名（见 hostkey.go 的 TokenCookieName）。
+	// 这里刻意不再存一个固定的子令牌名——所有站点共用一个名字正是
+	// 「同域名不同端口互相覆盖登录态」的成因。
+	CookiePrefix string
 
 	HmacSecret []byte // rq 签名密钥（已解密）
 
@@ -68,6 +71,10 @@ type Config struct {
 	ServiceTokenHeader string
 	ServiceTokenHashes []string // sha256hex，已小写
 
+	// CORS 是全局跨源策略，站点级用 ResolveCORSPolicy 按字段覆盖它。
+	// AllowOrigins 为空即功能未启用 —— 默认关，存量用户升级后行为完全不变。
+	CORS CORSPolicy
+
 	UnauthAction       string
 	PassIdentityHeader bool
 	ForceSecureCookie  bool
@@ -84,7 +91,6 @@ var disabledDefault = &Config{
 	GlobalEnable:     false,
 	PathPrefix:       "/samwaf_access",
 	CookieSSOName:    "samwaf_ac_sso",
-	CookieTokenName:  "samwaf_ac_tk",
 	CookiePrefix:     "samwaf_ac",
 	UnauthAction:     "auto",
 	MaxFailCount:     10,

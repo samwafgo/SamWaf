@@ -493,6 +493,13 @@ type HostAccessConfig struct {
 	RequireOtp       int    `json:"require_otp"`         //0继承全局 1本站强制 2本站豁免
 	UnauthAction     string `json:"unauth_action"`       //""继承全局 auto|redirect|401
 	AllowIPGroupCode string `json:"allow_ip_group_code"` //本站额外的免认证 IP 组
+
+	// 跨源（CORS）：按字段覆盖全局，空值即沿用全局，让用户只改 Origin 清单就能生效。
+	// 两级都为空 = 不启用，存量站点行为完全不变。
+	CorsAllowOrigins string `json:"cors_allow_origins"` //本站允许的完整 Origin，换行分隔，精确匹配
+	CorsAllowMethods string `json:"cors_allow_methods"` //空=沿用全局
+	CorsAllowHeaders string `json:"cors_allow_headers"` //空=沿用全局
+	CorsMaxAge       int    `json:"cors_max_age"`       //空=沿用全局
 }
 
 // ParseAccessConfig 解析站点级 Access 配置。
@@ -516,6 +523,15 @@ func ParseAccessConfig(jsonStr string) HostAccessConfig {
 	default:
 		c.UnauthAction = ""
 	}
+	// 越界的预检缓存时长归零（=沿用全局），非法字符在这里就消掉：
+	// 这三个值会被原样拼进响应头，而站点配置是一整串 JSON 透传进来的，
+	// 不像全局配置那样必然经过 FillDefaults。
+	if c.CorsMaxAge < 0 || c.CorsMaxAge > AccessCorsMaxAgeCap {
+		c.CorsMaxAge = 0
+	}
+	c.CorsAllowMethods = stripHeaderCtrlChars(c.CorsAllowMethods)
+	c.CorsAllowHeaders = stripHeaderCtrlChars(c.CorsAllowHeaders)
+	c.CorsAllowOrigins = strings.NewReplacer("\r", "\n", "\t", " ").Replace(c.CorsAllowOrigins)
 	return c
 }
 

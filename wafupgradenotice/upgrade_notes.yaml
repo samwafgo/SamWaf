@@ -567,3 +567,28 @@ notes:
       effect_on: With the upstream proxy's own address (or simply private in containers), the console judges the allowlist and login lockout by the real client IP, and login history and security audit record the real source.
       effect_off: With 0.0.0.0/0 or an empty value the proxy header is not honoured and every request is recorded as the same proxy or gateway address - the IP allowlist can no longer tell anyone apart, and a single brute-force burst can lock everyone out at once.
       revert: Clearing the setting restores the "direct peer only" behaviour.
+
+  - id: v1_3_25_access_cookie_per_site
+    version: v1.3.25
+    kind: notice
+    level: low
+    page: ''
+    doc: https://doc.samwaf.com/quickstart/Update.html
+    apply:
+      type: none
+    zh:
+      title: 统一访问认证的登录凭据改为按站点区分
+      detail: >-
+        只影响开启了「统一访问认证」的部署，其余部署无感。凭据 Cookie 过去所有站点共用一个名字，
+        而浏览器保存 Cookie 时不区分端口，于是同一域名下不同端口的两个站点会互相覆盖对方的登录状态——
+        表现为「明明登录过，换个端口的站点却一直要求重新登录」。现在按站点各自命名，不再冲突。
+        升级后所有人需要重新认证一次，浏览器访问时会自动跳转完成，无需人工操作。
+    en:
+      title: Unified Access credentials are now scoped per site
+      detail: >-
+        This only affects deployments with Unified Access enabled; everything else is unchanged. The credential
+        cookie previously used one shared name for every site, and browsers do not scope cookies by port, so two
+        sites on the same hostname but different ports overwrote each other's login state - which looked like
+        "I am logged in, yet this other port keeps asking me to log in again". Each site now gets its own cookie
+        name, so they no longer collide. Everyone has to authenticate once more after the upgrade; browsers
+        complete that automatically on the next page load, with nothing to do by hand.

@@ -34,15 +34,34 @@ type AccessState struct {
 	AccountName string `json:"account_name"`
 	ExpireUnix  int64  `json:"expire_unix"`
 	Host        string `json:"host"`
+	HostCode    string `json:"host_code"`
 	ClientIP    string `json:"client_ip"`
 	Fingerprint string `json:"fingerprint"`
 }
 
 // matchBindings 校验令牌的绑定条件。慢路径(回库)与快路径(缓存命中)都必须走它，
 // 保证两条路径的判定完全一致。
-func (s *AccessState) matchBindings(host, clientIP, fingerprint string, cfg *accessgate.Config) bool {
-	// 令牌只在签发它的那个域名上有效。缺了这一条，从 a.com 拿到的 Cookie
-	// 就能在 b.com 上用——跨域 SSO 的每域独立令牌设计也就失去意义了。
+//
+// 绑定分两层，缺一不可：
+//
+//	hostCode —— 站点记录的主键，与 Hosts 表 1:1。它是权威判据。
+//	            只比 host 字符串是不够的：域名归一化（去默认端口、去尾点、去 userinfo）
+//	            会制造「两个不同站点记录 → 同一个 host 串」的等价类，
+//	            典型如 oa.x:80(HTTP 站) 与 oa.x:443(HTTPS 站)，浏览器两边都发 Host: oa.x。
+//	            少了这一层，在 A 站点拿到的令牌能直接在 B 站点用。
+//	host     —— 同一个站点记录可以服务多个域名（泛域名 *.oa.x、*:port catch-all），
+//	            此时 hostCode 相同，必须靠 host 串把各域名隔开。
+//
+// 【调用约定】host 必须是 accessgate.NormalizeHost 的输出，签发侧(IssueToken)
+// 存进库的也必须是同一函数的输出；hostCode 取当前请求路由到的 hostTarget.Host.Code。
+func (s *AccessState) matchBindings(host, hostCode, clientIP, fingerprint string, cfg *accessgate.Config) bool {
+	// 站点记录必须是同一条。存量令牌的 host_code 从功能上线起就一直在写，不存在空值兼容问题；
+	// 真为空则说明数据被手工改过，按不通过处理（fail-closed）。
+	if s.HostCode == "" || hostCode == "" || s.HostCode != hostCode {
+		return false
+	}
+	// 令牌只在签发它的那个域名上有效。缺了这一条，泛域名站点下
+	// 从 a.oa.x 拿到的 Cookie 就能在 b.oa.x 上用。
 	if !strings.EqualFold(s.Host, host) {
 		return false
 	}
@@ -130,6 +149,8 @@ func (receiver *WafAccessSessionService) CreateSession(acct model.AccessAccount,
 //
 // 过期时间取 min(会话过期, now+TokenTTL)：子令牌绝不能活得比它所属的中心会话久，
 // 否则「注销中心会话」就无法真正让所有站点下线。
+//
+// 【调用约定】host 必须是 accessgate.NormalizeHost 的输出，与 matchBindings 同源。
 func (receiver *WafAccessSessionService) IssueToken(sess model.AccessSession, host, hostCode,
 	clientIP, fingerprint string, cfg *accessgate.Config) (string, error) {
 
@@ -178,7 +199,7 @@ func (receiver *WafAccessSessionService) IssueToken(sess model.AccessSession, ho
 // 正向缓存 TTL 有 60 秒硬上限，这同时就是「管理端踢下线」的最坏生效延迟——
 // 内存缓存 + 优雅升级期间双 Worker 并存时，精确驱逐只能清掉本进程的缓存，
 // 另一个进程要等 TTL 到期才会回库发现会话已撤销。不要为了性能把这个上限调大。
-func (receiver *WafAccessSessionService) ValidateToken(plain, host, clientIP, fingerprint string,
+func (receiver *WafAccessSessionService) ValidateToken(plain, host, hostCode, clientIP, fingerprint string,
 	cfg *accessgate.Config) *AccessState {
 
 	if plain == "" {
@@ -195,7 +216,7 @@ func (receiver *WafAccessSessionService) ValidateToken(plain, host, clientIP, fi
 		// 缓存命中也必须重新比对绑定条件。缓存键只有 token_code，
 		// 若在这里直接返回，攻击者只要先在自己有权的域名上刷一次缓存，
 		// 60 秒内就能拿同一个 Cookie 访问任意其它站点。
-		if !cached.matchBindings(host, clientIP, fingerprint, cfg) {
+		if !cached.matchBindings(host, hostCode, clientIP, fingerprint, cfg) {
 			return nil
 		}
 		return &cached
@@ -227,6 +248,7 @@ func (receiver *WafAccessSessionService) ValidateToken(plain, host, clientIP, fi
 		AccountName: sess.AccountName,
 		ExpireUnix:  time.Time(token.ExpireTime).Unix(),
 		Host:        token.Host,
+		HostCode:    token.HostCode,
 		ClientIP:    token.ClientIP,
 		Fingerprint: token.Fingerprint,
 	}
@@ -234,7 +256,7 @@ func (receiver *WafAccessSessionService) ValidateToken(plain, host, clientIP, fi
 	// 与本次请求是否满足这些条件无关。反过来做会导致合法用户的令牌
 	// 因为一次跨域探测就无法进入缓存，每请求都打库。
 	global.GCACHE_WAFCACHE.SetWithTTl(enums.CACHE_ACCESS_TOKEN+code, *st, cfg.CachePositiveTTL)
-	if !st.matchBindings(host, clientIP, fingerprint, cfg) {
+	if !st.matchBindings(host, hostCode, clientIP, fingerprint, cfg) {
 		return nil
 	}
 	receiver.touchToken(token, now)

@@ -106,8 +106,12 @@ func (waf *WafEngine) DoAccessGate(w http.ResponseWriter, r *http.Request,
 		return accessHandled
 	}
 
+	// 站点身份，Cookie 名派生与令牌绑定共用同一份，两者必须同源，
+	// 否则会出现「Cookie 找得到、绑定判不过」的死循环。
+	nhost := accessNormalizedHost(r)
+
 	// 先把令牌取出来，再剥 Cookie：剥离之后请求头里就读不到它了。
-	tokenCookie := accessCookieValue(r, cfg.CookieTokenName)
+	tokenCookie := accessCookieValue(r, accessgate.TokenCookieName(cfg.CookiePrefix, nhost))
 
 	// 从这里往下，任何放行都不能把本模块的 Cookie 带给后端：
 	// 会话令牌是 WAF 与浏览器之间的凭据，后端记一行 access log 就等于把它写进了明文日志。
@@ -169,10 +173,43 @@ func (waf *WafEngine) DoAccessGate(w http.ResponseWriter, r *http.Request,
 		return accessPass
 	}
 
+	// ⑦' CORS 预检代答。
+	//
+	// 必须给预检开口子：它按规范不携带任何凭据（浏览器行为，withCredentials 也改不了），
+	// 走到 ⑧ 验票必然失败，于是所有需要预检的跨源请求——带自定义头的、
+	// Content-Type 为 application/json 的、PUT/DELETE 的——全军覆没。
+	// 业界统一做法（oauth2-proxy --skip-auth-preflight / Pomerium cors_allow_preflight /
+	// IAP allow_http_options / Cloudflare Access）都是给它单开一条路。
+	//
+	// 我们比它们多收一层：不把 OPTIONS 透传给后端，而是由 WAF 代答 204。
+	// 透传的风险在于非标准后端可能把 OPTIONS 和业务方法走同一个 handler，
+	// 那等于让未认证的人能触发业务逻辑；代答则请求根本到不了后端。
+	// Cloudflare 自己也给透传加了限定：只有源站已做 CORS 强制时才该用。
+	//
+	// 位置刻意排在 ⑤⑥⑦ 三条旁路**之后**：
+	// 那三条本来就会把请求整个放行给后端，预检自然也该由后端自己回答。
+	// 抢在它们前面代答，等于 WAF 替一个从未参与过这件事的后端批准了
+	// 「带凭据的跨源写」——而免认证路径恰恰是健康检查、webhook 这类
+	// 最不该被浏览器脚本碰的入口。排在后面就完全保持了改动前的行为。
+	//
+	// 另外两条硬约束：
+	//   - 只在配了 Origin 白名单且精确命中时才代答，没配就落回原流程(401) —— 默认关
+	//   - 不查库、不校验会话、不写审计：这是认证之前任何人可达的端点，
+	//     任何一样都会把它变成免认证的放大器
+	if accessgate.IsPreflight(r) {
+		policy := accessCORSPolicy(cfg, hostCfg)
+		if allowed, ok := accessgate.MatchOrigin(accessgate.RequestOrigin(r.Header), policy.AllowOrigins); ok {
+			accessgate.WritePreflightHeaders(w, r, allowed, policy)
+			w.WriteHeader(http.StatusNoContent)
+			return accessHandled
+		}
+	}
+
 	// ⑧ 验票（用剥离前取出的令牌值）
 	if tokenCookie != "" {
 		fingerprint := utils.GenerateFingerprint(r)
-		if st := accessSessionService.ValidateToken(tokenCookie, r.Host, clientIP, fingerprint, cfg); st != nil {
+		if st := accessSessionService.ValidateToken(tokenCookie, nhost, hostTarget.Host.Code,
+			clientIP, fingerprint, cfg); st != nil {
 			if cfg.PassIdentityHeader {
 				// 顺序要紧：⓪ 已经删过客户端可能伪造的同名头，这里才是可信写入。
 				// 反过来先 Set 再 Del 等于把身份头的控制权交给客户端。
@@ -188,9 +225,29 @@ func (waf *WafEngine) DoAccessGate(w http.ResponseWriter, r *http.Request,
 
 	// ⑩ 浏览器导航 302，API/WebSocket 401 JSON
 	entry := waf.buildAccessEntryURL(r, cfg)
+
+	// 跨源请求先补 CORS 头。不补的话浏览器只会报一句
+	// 「No 'Access-Control-Allow-Origin' header」，前端既读不到 401
+	// 也拿不到 login_url，用户完全无从定位到是认证网关拦的。
+	//
+	// 只对白名单精确命中的 Origin 回显，且回显的是白名单里那一条而不是请求头里那一条：
+	// 比对与输出只要来自两个来源，任何归一化差异都会长成绕过。
+	if origin := accessgate.RequestOrigin(r.Header); origin != "" {
+		policy := accessCORSPolicy(cfg, hostCfg)
+		if allowed, ok := accessgate.MatchOrigin(origin, policy.AllowOrigins); ok {
+			accessgate.WriteCORSHeaders(w, allowed)
+		} else {
+			// 不命中也要声明随 Origin 变化，命中与不命中的缓存行为才对称
+			accessgate.AddVaryOrigin(w)
+		}
+	}
+
 	if waf.accessShouldReturnJSON(r, cfg, hostCfg) {
 		writeAccessUnauthorizedJSON(w, entry)
 	} else {
+		// 跳登录页的 302 绝不能被缓存：中间缓存留下它，用户登录之后再访问同一地址
+		// 还会被弹回登录页。401 那条路径已经有 no-store，这里补齐。
+		w.Header().Set("Cache-Control", "no-store")
 		http.Redirect(w, r, entry, http.StatusFound)
 	}
 	return accessHandled
@@ -198,6 +255,32 @@ func (waf *WafEngine) DoAccessGate(w http.ResponseWriter, r *http.Request,
 
 // isACMEChallengePath 已移到 acme_challenge.go：请求侧快速通道与本网关共用同一份判定，
 // 免得两处各写一份、日后只改了其中一处。
+
+// accessNormalizedHost 本请求所属站点的归一化标识。
+//
+// 令牌 Cookie 名的派生与令牌绑定的比对都必须用它，且必须是同一份结果：
+// 两边各归一化一次，一旦出现差异就会变成「Cookie 找得到、绑定判不过」的死循环。
+//
+// isTLS 传 r.TLS != nil：默认端口的去除必须按 scheme 判定，
+// 否则 HTTP 的 oa.x:443 与 HTTPS 的 oa.x 会归一化成同一个值，令牌跨站点互通。
+func accessNormalizedHost(r *http.Request) string {
+	return accessgate.NormalizeHost(r.Host, r.TLS != nil)
+}
+
+// accessTokenCookieName 本站点的令牌 Cookie 名。
+func accessTokenCookieName(cfg *accessgate.Config, r *http.Request) string {
+	return accessgate.TokenCookieName(cfg.CookiePrefix, accessNormalizedHost(r))
+}
+
+// accessCORSPolicy 站点级按字段覆盖全局的跨源策略。
+//
+// 每次调用都会重新解析站点级 Origin 清单。这条路径只在「预检」或
+// 「未认证且带 Origin」时才走到，且与既有的 BuildExcludePaths(hostCfg.ExcludePaths)
+// 是同一种做法，成本相当。
+func accessCORSPolicy(cfg *accessgate.Config, hostCfg model.HostAccessConfig) accessgate.CORSPolicy {
+	return accessgate.ResolveCORSPolicy(hostCfg.CorsAllowOrigins, hostCfg.CorsAllowMethods,
+		hostCfg.CorsAllowHeaders, hostCfg.CorsMaxAge, cfg.CORS)
+}
 
 // accessCookieValue 读一个 Cookie 的值，不存在返回空串。
 // 必须在 stripAccessCookies 之前调用 —— 剥离之后请求头里就没有它了。

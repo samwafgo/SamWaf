@@ -433,6 +433,15 @@ func LoadAndInitConfig() {
 	if config.IsSet("cache.redis.password") {
 		global.GCACHE_REDIS_PASSWORD = config.GetString("cache.redis.password")
 	}
+	if config.IsSet("cache.redis.pool_size") {
+		global.GCACHE_REDIS_POOL_SIZE = config.GetInt("cache.redis.pool_size")
+	}
+	if config.IsSet("cache.redis.pool_timeout_seconds") {
+		global.GCACHE_REDIS_POOL_TIMEOUT_SEC = config.GetInt("cache.redis.pool_timeout_seconds")
+	}
+	if config.IsSet("cache.redis.op_timeout_seconds") {
+		global.GCACHE_REDIS_OP_TIMEOUT_SEC = config.GetInt("cache.redis.op_timeout_seconds")
+	}
 	if config.IsSet("cache.redis.db") {
 		global.GCACHE_REDIS_DB = config.GetInt("cache.redis.db")
 	}

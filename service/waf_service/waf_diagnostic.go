@@ -1,6 +1,7 @@
 package waf_service
 
 import (
+	"SamWaf/cache"
 	"SamWaf/global"
 	"SamWaf/model/response"
 	"SamWaf/wafdb"
@@ -83,16 +84,22 @@ func (receiver *WafDiagnosticService) GetTrend() response.WafDiagnosticTrend {
 // diagMeta 诊断包元信息。字段白名单制：只放定位性能问题需要的环境事实，
 // 不含任何密钥、账号、请求体、站点域名类数据。
 type diagMeta struct {
-	Version     string `json:"version"`
-	VersionTag  string `json:"version_tag"`
-	OS          string `json:"os"`
-	Arch        string `json:"arch"`
-	GoVersion   string `json:"go_version"`
-	GoMaxProcs  int    `json:"gomaxprocs"`
-	NumCPU      int    `json:"num_cpu"`
-	DbDriver    string `json:"db_driver"`
-	CacheType   string `json:"cache_type"`
-	GeneratedAt string `json:"generated_at"`
+	Version    string `json:"version"`
+	VersionTag string `json:"version_tag"`
+	OS         string `json:"os"`
+	Arch       string `json:"arch"`
+	GoVersion  string `json:"go_version"`
+	GoMaxProcs int    `json:"gomaxprocs"`
+	NumCPU     int    `json:"num_cpu"`
+	DbDriver   string `json:"db_driver"`
+	CacheType  string `json:"cache_type"`
+	// 缓存后端形态与累计失败次数。后端不可用会表现为管理端频繁提示"服务暂时不可用"，
+	// 这两项能一眼区分是缓存的问题还是业务的问题。
+	CacheBackend   string `json:"cache_backend,omitempty"`
+	CacheErrCount  uint64 `json:"cache_err_count,omitempty"`
+	CacheLastErrAt string `json:"cache_last_err_at,omitempty"`
+	CacheLastErr   string `json:"cache_last_err,omitempty"`
+	GeneratedAt    string `json:"generated_at"`
 }
 
 // BuildDiagnosticPackage 把快照/趋势/goroutine dump/heap profile（以及已完成的
@@ -135,6 +142,15 @@ func (receiver *WafDiagnosticService) BuildDiagnosticPackage() ([]byte, error) {
 		DbDriver:    global.GWAF_DB_DRIVER,
 		CacheType:   global.GCACHE_TYPE,
 		GeneratedAt: time.Now().Format("2006-01-02 15:04:05"),
+	}
+	if stater, ok := global.GCACHE_WAFCACHE.(cache.BackendStater); ok {
+		st := stater.BackendStats()
+		meta.CacheBackend = st.Backend
+		meta.CacheErrCount = st.ErrCount
+		meta.CacheLastErr = st.LastErr
+		if !st.LastErrAt.IsZero() {
+			meta.CacheLastErrAt = st.LastErrAt.Format("2006-01-02 15:04:05")
+		}
 	}
 	metaJSON, _ := json.MarshalIndent(meta, "", "  ")
 	if err := writeFile("meta.json", metaJSON); err != nil {

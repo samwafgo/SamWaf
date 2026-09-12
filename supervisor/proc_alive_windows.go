@@ -25,3 +25,9 @@ func isProcessAlive(pid int) bool {
 	}
 	return code == stillActive
 }
+
+// isWorkerProcessAlive Windows 上没有 /proc 可核对命令行，沿用存活判断。
+// 这里 PID 复用的风险远低于容器：Supervisor 以服务形式常驻，PID 不会从 1 重新分配。
+func isWorkerProcessAlive(pid int) bool {
+	return isProcessAlive(pid)
+}

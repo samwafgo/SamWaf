@@ -210,6 +210,7 @@ func (receiver *WafAccessSessionService) ValidateToken(plain, host, hostCode, cl
 	if global.GCACHE_WAFCACHE.IsKeyExist(enums.CACHE_ACCESS_BAD + code) {
 		return nil
 	}
+	// 读取失败（未命中或后端故障）一律回落查库，缓存抖动不会让访客掉线。
 	var cached AccessState
 	if err := global.GCACHE_WAFCACHE.GetAs(enums.CACHE_ACCESS_TOKEN+code, &cached); err == nil &&
 		cached.SessionCode != "" && cached.ExpireUnix > time.Now().Unix() {

@@ -144,6 +144,11 @@ var (
 	GCACHE_REDIS_PORT     int    = 6379
 	GCACHE_REDIS_PASSWORD string = ""
 	GCACHE_REDIS_DB       int    = 0
+	// 连接池与单次操作上限，0 表示用 go-redis 默认值(池大小 10 × GOMAXPROCS)。
+	// 管理端鉴权与业务检测共用同一个池，机器核数多时不宜固定成小值。
+	GCACHE_REDIS_POOL_SIZE        int = 0
+	GCACHE_REDIS_POOL_TIMEOUT_SEC int = 0
+	GCACHE_REDIS_OP_TIMEOUT_SEC   int = 0
 
 	/*********HTTP相关**************/
 	GWAF_HTTP_SENSITIVE_REPLACE_STRING = "**" //HTTP 敏感内容替换成

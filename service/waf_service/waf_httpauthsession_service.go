@@ -2,6 +2,7 @@ package waf_service
 
 import (
 	"SamWaf/common/uuid"
+	"SamWaf/common/zlog"
 	"SamWaf/customtype"
 	"SamWaf/enums"
 	"SamWaf/global"
@@ -193,8 +194,16 @@ func (receiver *WafHttpAuthSessionService) TouchBasicSession(host model.Hosts, u
 	// 以「键还在不在」决定挑不挑战，而不是以「值读没读出来」：换 Redis 后端时取回的
 	// 可能不是 string，类型断言失败就当没被踢，踢下线会静默失效。读不出来就现生成一个
 	// 新 nonce——realm 变了才是挑战生效的关键，nonce 具体是什么并不重要。
+	//
+	// 缓存后端读不到（故障）时按"未被踢"处理：走到这里凭证已经校验通过，
+	// 而反过来一律挑战会在故障期间让所有访客反复弹框——冷却期 nonce 自己也写不进缓存，
+	// realm 每次都变，等于无限重认证。会话是否到期另有数据库兜底，不依赖这个键。
 	kickKey := enums.CACHE_HTTPAUTH_KICK + tokenCode
-	if global.GCACHE_WAFCACHE.IsKeyExist(kickKey) {
+	kicked, kickErr := global.GCACHE_WAFCACHE.ExistsE(kickKey)
+	if kickErr != nil {
+		zlog.Debug("[网站密码访问] 踢下线标记读取失败，本次按未被踢处理 err:" + kickErr.Error())
+	}
+	if kicked {
 		nonce, _ := global.GCACHE_WAFCACHE.Get(kickKey).(string)
 		if nonce == "" {
 			nonce = receiver.startKickCooldown(tokenCode)
@@ -234,6 +243,7 @@ func (receiver *WafHttpAuthSessionService) TouchBasicSession(host model.Hosts, u
 
 // loadSession 先查缓存再回落数据库，未命中不缓存空值（负向缓存另有 CACHE_HTTPAUTH_BAD）。
 // 回落查库这一步是重启后会话仍然有效的关键。
+// 缓存读取失败（后端故障）与未命中在这里同样处理：都回落查库，所以缓存抖动不会让访客掉线。
 func (receiver *WafHttpAuthSessionService) loadSession(hostCode, tokenCode string) *model.HttpAuthSession {
 	key := httpAuthSessionCacheKey(hostCode, tokenCode)
 	var cached model.HttpAuthSession

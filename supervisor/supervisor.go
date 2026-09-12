@@ -192,7 +192,26 @@ func (s *Supervisor) Shutdown() {
 	if s.ln != nil {
 		_ = s.ln.Close()
 	}
+	// 正常退出且确认没有残留 Worker 时才清掉持久化状态：留着的话下次启动会拿这批
+	// 已经退出的 PID 去找孤儿，而 PID 号此时多半已被新进程或其线程占用。
+	// 仍有 Worker 没退干净时必须保留，否则下次启动收编不回来。
+	s.mu.Lock()
+	remaining := len(s.workers)
+	s.mu.Unlock()
+	if remaining == 0 {
+		s.clearState()
+	} else {
+		zlog.Warn("[Supervisor] 仍有 " + strconv.Itoa(remaining) + " 个 Worker 未在超时内退出，保留 supervisor.state 供下次启动收编")
+	}
 	close(s.done)
+}
+
+// clearState 删除持久化的监护状态文件
+func (s *Supervisor) clearState() {
+	if s.opts.DataDir == "" {
+		return
+	}
+	_ = os.Remove(filepath.Join(s.opts.DataDir, "supervisor.state"))
 }
 
 // acceptLoop 接受 Worker 的控制连接。
@@ -602,7 +621,7 @@ func (s *Supervisor) adoptOrphans(prev *stateFile) bool {
 	self := os.Getpid()
 	var candidates []int
 	for _, pid := range prev.PIDs {
-		if pid > 0 && pid != self && isProcessAlive(pid) {
+		if pid > 0 && pid != self && isWorkerProcessAlive(pid) {
 			candidates = append(candidates, pid)
 		}
 	}

@@ -233,16 +233,25 @@ func (m *wafSystenService) run() {
 	//初始化cache
 	{
 		cacheStore, err := cache.NewCacheStore(global.GCACHE_TYPE, &cache.RedisCacheConfig{
-			Host:     global.GCACHE_REDIS_HOST,
-			Port:     global.GCACHE_REDIS_PORT,
-			Password: global.GCACHE_REDIS_PASSWORD,
-			DB:       global.GCACHE_REDIS_DB,
+			Host:        global.GCACHE_REDIS_HOST,
+			Port:        global.GCACHE_REDIS_PORT,
+			Password:    global.GCACHE_REDIS_PASSWORD,
+			DB:          global.GCACHE_REDIS_DB,
+			PoolSize:    global.GCACHE_REDIS_POOL_SIZE,
+			PoolTimeout: time.Duration(global.GCACHE_REDIS_POOL_TIMEOUT_SEC) * time.Second,
+			OpTimeout:   time.Duration(global.GCACHE_REDIS_OP_TIMEOUT_SEC) * time.Second,
 		})
 		if err != nil {
 			zlog.Error("初始化缓存失败，程序退出，请检查conf/config.yml缓存配置是否正确", "error", err)
 			os.Exit(1)
 		}
 		global.GCACHE_WAFCACHE = cacheStore
+		// 缓存后端决定了令牌等凭证放在哪里，排障时是第一个要确认的事实，启动就写进日志。
+		if d, ok := cacheStore.(cache.BackendDescriber); ok {
+			zlog.Info("缓存后端: " + d.Describe())
+		} else {
+			zlog.Info("缓存后端: memory(进程内)")
+		}
 	}
 	//初始化验证码服务
 	wafcaptcha.InitCaptchaService(global.GCACHE_WAFCACHE)

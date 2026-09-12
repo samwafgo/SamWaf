@@ -1,11 +1,19 @@
 package cache
 
+import "time"
+
 // RedisCacheConfig Redis连接配置
 type RedisCacheConfig struct {
 	Host     string
-	Port     int
 	Password string
+	Port     int
 	DB       int
+	// PoolSize 连接池大小，<=0 时用 go-redis 默认值(10 × GOMAXPROCS)
+	PoolSize int
+	// PoolTimeout 等待空闲连接的上限，<=0 时用 go-redis 默认值(ReadTimeout + 1s)
+	PoolTimeout time.Duration
+	// OpTimeout 单次操作总上限，<=0 时用 defaultRedisOpTimeout
+	OpTimeout time.Duration
 }
 
 // NewCacheStore 根据cacheType创建缓存实例

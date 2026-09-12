@@ -3,7 +3,6 @@ package cache
 import (
 	"SamWaf/common/zlog"
 	"encoding/json"
-	"errors"
 	"strings"
 	"sync"
 	"time"
@@ -75,7 +74,7 @@ func (wafCache *WafCache) SetWithTTlRenewTime(key string, value interface{}, ttl
 func (wafCache *WafCache) GetAs(key string, out interface{}) error {
 	val := wafCache.Get(key)
 	if val == nil {
-		return errors.New("数据不存在")
+		return ErrCacheMiss
 	}
 	b, err := json.Marshal(val)
 	if err != nil {
@@ -89,21 +88,21 @@ func (wafCache *WafCache) GetBytes(key string) ([]byte, error) {
 	if str, ok := key1Value.([]byte); ok {
 		return str, nil
 	}
-	return nil, errors.New("数据不存在")
+	return nil, ErrCacheMiss
 }
 func (wafCache *WafCache) GetString(key string) (string, error) {
 	key1Value := wafCache.Get(key)
 	if str, ok := key1Value.(string); ok {
 		return str, nil
 	}
-	return "", errors.New("数据不存在")
+	return "", ErrCacheMiss
 }
 func (wafCache *WafCache) GetInt(key string) (int, error) {
 	key1Value := wafCache.Get(key)
 	if str, ok := key1Value.(int); ok {
 		return str, nil
 	}
-	return -1, errors.New("数据不存在")
+	return -1, ErrCacheMiss
 }
 func (wafCache *WafCache) IsKeyExist(key string) bool {
 	wafCache.mu.Lock()
@@ -118,6 +117,64 @@ func (wafCache *WafCache) IsKeyExist(key string) bool {
 	delete(wafCache.cache, key)
 	return false
 }
+// ExistsE 内存实现不会有后端故障，error 恒为 nil
+func (wafCache *WafCache) ExistsE(key string) (bool, error) {
+	return wafCache.IsKeyExist(key), nil
+}
+
+// GetAsEx 读取并续期。与 SetWithTTlRenewTime 一致，续期从当前时刻重新计时。
+func (wafCache *WafCache) GetAsEx(key string, out interface{}, ttl time.Duration) error {
+	wafCache.mu.Lock()
+	item, found := wafCache.cache[key]
+	if found && time.Since(item.createTime) > item.ttl {
+		delete(wafCache.cache, key)
+		found = false
+	}
+	if found && ttl > 0 {
+		now := time.Now()
+		wafCache.cache[key] = WafCacheItem{
+			value:      item.value,
+			createTime: now,
+			expireTime: now.Add(ttl),
+			ttl:        ttl,
+		}
+	}
+	wafCache.mu.Unlock()
+
+	if !found {
+		return ErrCacheMiss
+	}
+	b, err := json.Marshal(item.value)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(b, out)
+}
+
+// Touch 只续期不取值
+func (wafCache *WafCache) Touch(key string, ttl time.Duration) error {
+	wafCache.mu.Lock()
+	defer wafCache.mu.Unlock()
+	item, found := wafCache.cache[key]
+	if !found {
+		return ErrCacheMiss
+	}
+	if time.Since(item.createTime) > item.ttl {
+		delete(wafCache.cache, key)
+		return ErrCacheMiss
+	}
+	if ttl > 0 {
+		now := time.Now()
+		wafCache.cache[key] = WafCacheItem{
+			value:      item.value,
+			createTime: now,
+			expireTime: now.Add(ttl),
+			ttl:        ttl,
+		}
+	}
+	return nil
+}
+
 func (wafCache *WafCache) Get(key string) interface{} {
 	wafCache.mu.Lock()
 	defer wafCache.mu.Unlock()
@@ -147,14 +204,14 @@ func (wafCache *WafCache) GetExpireTime(key string) (time.Time, error) {
 	defer wafCache.mu.Unlock()
 	item, found := wafCache.cache[key]
 	if !found {
-		return time.Time{}, errors.New("数据不存在")
+		return time.Time{}, ErrCacheMiss
 	}
 	if time.Since(item.createTime) <= item.ttl {
 		return item.expireTime, nil
 	}
 	zlog.Debug("GetExpireTime CLEAR CACHE EXPIRE :" + key)
 	delete(wafCache.cache, key)
-	return time.Time{}, errors.New("数据已过期")
+	return time.Time{}, ErrCacheMiss
 }
 func (wafCache *WafCache) ClearExpirationCache() {
 	wafCache.mu.Lock()

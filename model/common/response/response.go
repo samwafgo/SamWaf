@@ -23,8 +23,11 @@ const (
 	// NEED_REHANDSHAKE 告诉客户端本次没有可用的会话密钥，请重新握手后重试。
 	// 只在 legacy 通道被运维关掉时出现（开着的话直接回落 legacy，旧客户端无感）。
 	NEED_REHANDSHAKE = -5
-	FORBIDDEN        = -403
-	AUTHFAIL         = -999
+	// BACKEND_UNAVAILABLE 依赖的存储/缓存后端本次不可用，请求未能完成。
+	// 与 AUTHFAIL 的区别：登录状态没有问题，客户端应保留登录态并稍后重试。
+	BACKEND_UNAVAILABLE = -6
+	FORBIDDEN           = -403
+	AUTHFAIL            = -999
 )
 
 // HeaderKeyID 是客户端声明本次会话密钥的请求头，与 X-Sec-Ver: 2 配套。
@@ -132,6 +135,11 @@ func AuthFailWithMessage(message string, c *gin.Context) {
 // ForbiddenWithMessage 已认证但无权限（角色不满足），不触发重新登录
 func ForbiddenWithMessage(message string, c *gin.Context) {
 	Result(FORBIDDEN, map[string]interface{}{}, message, c)
+}
+
+// BackendUnavailableWithMessage 后端存储本次不可用，登录状态不受影响，客户端保留登录态稍后重试
+func BackendUnavailableWithMessage(message string, c *gin.Context) {
+	Result(BACKEND_UNAVAILABLE, map[string]interface{}{}, message, c)
 }
 func SecretCodeFailWithMessage(message string, c *gin.Context) {
 	Result(INPUT_SECRET_CODE, map[string]interface{}{}, message, c)

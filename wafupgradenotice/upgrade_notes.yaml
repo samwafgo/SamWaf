@@ -592,3 +592,36 @@ notes:
         "I am logged in, yet this other port keeps asking me to log in again". Each site now gets its own cookie
         name, so they no longer collide. Everyone has to authenticate once more after the upgrade; browsers
         complete that automatically on the next page load, with nothing to do by hand.
+
+  - id: v1_3_25_redis_cache_error_semantics
+    version: v1.3.25
+    kind: notice
+    level: normal
+    page: ''
+    doc: https://doc.samwaf.com/quickstart/Update.html
+    apply:
+      type: none
+    zh:
+      title: 使用 Redis 缓存时不再因为一次读取失败而要求重新登录
+      detail: >-
+        只影响把 conf/config.yml 的 cache.type 设成 redis 的部署，默认的 memory 缓存无感。
+        缓存读取失败此前与"令牌不存在"是同一个结果，管理端据此判定登录状态失效，
+        表现为登录后随机跳回登录页。现在两者分开：确实读不到令牌才要求重新登录，
+        缓存后端本身不可用时提示"服务暂时不可用，请稍后重试"并保留登录状态，恢复后继续操作即可。
+        同时管理端鉴权对 Redis 的访问次数从每个请求 4 次降为 1 次，Redis 连接池大小改为跟随 CPU 核数
+        （可用 cache.redis.pool_size 指定），启动日志会打印当前使用的缓存后端，缓存错误也会记入日志与运行诊断包。
+        另外，令牌有效期改为每次访问都续期，与该配置项「空闲多久未操作即失效」的说明一致。
+    en:
+      title: A single failed cache read no longer forces a new login when Redis is used
+      detail: >-
+        This only affects deployments that set cache.type to redis in conf/config.yml; the default memory cache
+        is unaffected. A failed cache read used to be indistinguishable from "the token is not there", so the
+        console treated it as an expired session - which looked like being bounced back to the login page at
+        random shortly after signing in. The two cases are now separate: only a genuinely missing token asks for
+        a new login, while a cache backend that is temporarily unavailable reports "service temporarily
+        unavailable, please retry" and keeps the session, so work continues once it recovers. Console
+        authentication also went from four Redis round trips per request down to one, the Redis connection pool
+        now scales with CPU count (set cache.redis.pool_size to pin it), the startup log states which cache
+        backend is in use, and cache errors are recorded in the log and in the diagnostic package. Token
+        lifetime is now refreshed on every request, matching the "expires after this long without activity"
+        wording of that setting.

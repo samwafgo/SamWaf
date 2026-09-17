@@ -282,6 +282,12 @@ func handleIPBanMessage(msg innerbean.IPBanMessageInfo) {
 // 写入必须走 global.GWebSocket.Broadcast：它按连接加锁串行化并带写超时，
 // 直接对裸连接 WriteMessage 会与 ping 回显、定时任务撞成 concurrent write panic。
 func sendToWebSocket(messageType, messageData string, messageAttach interface{}, cmdType string) {
+	// 在线表尚未建好时直接丢弃：本协程可能早于初始化跑起来，对 nil 调方法会 panic。
+	// 正常启动顺序下不会走到这里，留着是防止将来调整启动顺序时再踩一次。
+	if global.GWebSocket == nil {
+		zlog.Debug("WebSocket 在线表未就绪，跳过本条通知", messageType)
+		return
+	}
 	dataPacket := model.MsgDataPacket{
 		MessageId:           uuid.GenUUID(),
 		MessageType:         messageType,

@@ -400,6 +400,10 @@ func (m *wafSystenService) run() {
 		// 插件系统初始化失败不影响主程序启动
 	}
 
+	// WebSocket 在线表必须先于下面的消费协程和管理端建好：消息队列一开始消费就可能广播，
+	// 管理端一起来就可能有连接注册进来，而这里只是建两个空 map，没有任何外部依赖，放早没有副作用。
+	global.GWebSocket = gwebsocket.InitWafWebSocket()
+
 	//初始化队列引擎
 	wafqueue.InitDequeEngine()
 	//启动队列消费
@@ -498,8 +502,6 @@ func (m *wafSystenService) run() {
 		webmanager.StartLocalServer()
 	}()
 
-	//启动websocket
-	global.GWebSocket = gwebsocket.InitWafWebSocket()
 	//定时取规则并更新（考虑后期定时拉取公共规则 待定，可能会影响实际生产）
 
 	// 创建任务调度器

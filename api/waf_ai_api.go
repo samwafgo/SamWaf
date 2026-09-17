@@ -5,6 +5,7 @@ import (
 	"SamWaf/innerbean"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
+	"SamWaf/service/waf_service"
 	"SamWaf/utils"
 	"SamWaf/wafai"
 	"encoding/json"
@@ -299,6 +300,13 @@ func runAIExport(req request.WafAIExportReq, maxCount int) (outPath string, nAtt
 		return "", 0, 0, 0, 0, fmt.Errorf("查询日志失败: %w", err)
 	}
 	total = len(rows)
+
+	// BODY/POST_FORM 已搬到 event_payload，批量补回来再导出，否则样本只剩 URL
+	fillRows := make([]*innerbean.WebLog, 0, len(rows))
+	for i := range rows {
+		fillRows = append(fillRows, &rows[i])
+	}
+	waf_service.FillLivePayloads(fillRows)
 
 	dir := filepath.Join(utils.GetCurrentDir(), "data", aiExportDir)
 	if err = os.MkdirAll(dir, 0750); err != nil {

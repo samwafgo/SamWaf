@@ -164,6 +164,14 @@ func TaskShareDbInfo() {
 			if err := dialect.Get().ShardSwapTable(global.GWAF_LOCAL_LOG_DB, "web_logs", archiveName); err != nil {
 				zlog.Error(innerLogName, "分表失败:", err)
 			} else {
+				// 报文表跟着日志表一起归档，两张表的分片边界才对得上。
+				// 换不过去也不回滚：报文按 req_uuid 寻址，留在实时表里读侧照样找得到（见 ResolveLogTables）。
+				payloadArchive := model.EventPayloadTableName + fmt.Sprintf("_%v", ts)
+				if dialect.Get().TableExists(global.GWAF_LOCAL_LOG_DB, model.EventPayloadTableName) {
+					if err := dialect.Get().ShardSwapTable(global.GWAF_LOCAL_LOG_DB, model.EventPayloadTableName, payloadArchive); err != nil {
+						zlog.Warn(innerLogName, "报文表分表失败，报文留在实时表:", err)
+					}
+				}
 				global.GWAF_LOCAL_DB.Create(sharDbBean)
 				zlog.Info(innerLogName, "分表完成，归档表:", archiveName)
 			}

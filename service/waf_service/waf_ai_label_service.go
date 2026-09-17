@@ -43,6 +43,9 @@ func (receiver *WafAILabelService) MarkApi(req request.WafAILabelMarkReq) error 
 	global.GWAF_LOCAL_LOG_DB.
 		Select("METHOD", "URL", "RawQuery", "BODY", "POST_FORM", "USER_AGENT", "ACTION", "RULE", "SRC_IP", "HOST_CODE", "LogOnlyMode").
 		Where("REQ_UUID = ?", req.ReqUuid).Limit(1).Find(&wl)
+	// BODY/POST_FORM 已搬到 event_payload，补回来才有东西做快照
+	wl.REQ_UUID = req.ReqUuid
+	FillLivePayloads([]*innerbean.WebLog{&wl})
 
 	body := wl.BODY
 	if body == "" {
@@ -246,6 +249,13 @@ func (receiver *WafAILabelService) ListApi(req request.WafAILabelListReq) respon
 		"RawQuery", "BODY", "POST_FORM", "USER_AGENT", "AI_SCORE", "RULE", "LogOnlyMode").
 		Order("ai_score desc").Order("unix_add_time desc").
 		Offset((pageIndex - 1) * pageSize).Limit(pageSize).Find(&rows)
+
+	// BODY/POST_FORM 已搬到 event_payload，整页一次补回
+	fillRows := make([]*innerbean.WebLog, 0, len(rows))
+	for i := range rows {
+		fillRows = append(fillRows, &rows[i])
+	}
+	FillLivePayloads(fillRows)
 
 	for i := range rows {
 		r := &rows[i]

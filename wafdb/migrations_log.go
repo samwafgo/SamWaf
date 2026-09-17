@@ -466,6 +466,24 @@ func RunLogDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 报文垂直拆表：新写入的报文进 event_payload，web_logs 只留窄列。
+		// 建表不搬历史——存量行的报文仍在 web_logs 自己的列里，读侧按 req_uuid 找不到报文行时回落读原列，
+		// 所以升级当下任何一条老日志的详情都照旧能看。
+		{
+			ID: "202609170003_add_event_payload_table",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202609170003: 创建报文表 event_payload")
+				if err := tx.AutoMigrate(&model.EventPayload{}); err != nil {
+					return fmt.Errorf("创建 event_payload 表失败: %w", err)
+				}
+				zlog.Info("event_payload 表创建成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202609170003: 删除 event_payload 表")
+				return tx.Migrator().DropTable(&model.EventPayload{})
+			},
+		},
 	})
 
 	// 执行迁移

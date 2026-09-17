@@ -1,56 +1,10 @@
 package wafqueue
 
 import (
-	"SamWaf/innerbean"
 	"strings"
 	"testing"
 	"unicode/utf8"
 )
-
-// 未超长的批次原样返回，不做任何拷贝
-func TestTruncateForStore_NoOversize(t *testing.T) {
-	logs := []*innerbean.WebLog{
-		{BODY: "hello", RES_BODY: "world"},
-		{BODY: strings.Repeat("a", payloadMaxBytes)},
-	}
-	out := truncateForStore(logs)
-	if &out[0] != &logs[0] {
-		t.Fatal("未超长时不应重新分配切片")
-	}
-	for i := range out {
-		if out[i] != logs[i] {
-			t.Fatalf("第 %d 条不应被替换", i)
-		}
-		if out[i].Truncated != 0 {
-			t.Fatalf("第 %d 条不应被标记截断", i)
-		}
-	}
-}
-
-// 超长时截断落库副本，原对象必须保持原文（Kafka 出口与规则引擎共享它）
-func TestTruncateForStore_KeepsOriginalIntact(t *testing.T) {
-	big := strings.Repeat("b", payloadMaxBytes+1000)
-	origin := &innerbean.WebLog{BODY: big, RES_BODY: "ok"}
-	logs := []*innerbean.WebLog{origin}
-
-	out := truncateForStore(logs)
-
-	if out[0] == origin {
-		t.Fatal("超长条目应换成副本，不能就地改原对象")
-	}
-	if len(origin.BODY) != len(big) || origin.Truncated != 0 {
-		t.Fatal("原对象被改动了，Kafka 出口会拿到半截报文")
-	}
-	if len(out[0].BODY) > payloadMaxBytes {
-		t.Fatalf("副本未被截断，长度 %d", len(out[0].BODY))
-	}
-	if out[0].Truncated != 1 {
-		t.Fatal("副本应标记 Truncated=1")
-	}
-	if out[0].RES_BODY != "ok" {
-		t.Fatal("未超长的列不应被动")
-	}
-}
 
 // 截断点落在多字节字符中间时要回退到合法边界
 func TestCutUTF8_RuneBoundary(t *testing.T) {

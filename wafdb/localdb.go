@@ -234,74 +234,62 @@ func InitLogDb(currentDir string) (bool, error) {
 	}
 }
 
-// 手工切换日志数据源
-func InitManaulLogDb(currentDir string, custFileName string) {
+// InitManaulLogDb 按需打开一个归档日志分片，已打开的直接复用。
+// 连接统一由 log_shard_cache 托管（加锁、数量上限、空闲释放）。
+// 打开或迁移失败返回 error 交调用方降级：一个坏掉的归档文件不该让整个进程退出。
+func InitManaulLogDb(currentDir string, custFileName string) error {
 	if dialect.Get().Name() != "sqlite" {
 		// MySQL 模式下所有日志写入同一个库，无需手动切换分库
-		return
+		return nil
+	}
+	if db := getShardDB(custFileName); db != nil {
+		zlog.Debug("自定义的库已存在", custFileName)
+		return nil
 	}
 	if currentDir == "" {
 		currentDir = utils.GetCurrentDir()
 	}
-	if global.GDATA_CURRENT_LOG_DB_MAP[custFileName] == nil {
-		zlog.Debug("初始化自定义的库", custFileName)
-		path := currentDir + "/data/" + custFileName
-		key := url.QueryEscape(global.GWAF_PWD_LOGDB)
-		dns := fmt.Sprintf("%s?_db_key=%s", path, key)
-		db, err := gorm.Open(sqlite.Open(dns), &gorm.Config{})
-		if err != nil {
-			panic("failed to connect database")
-		}
-		// 日志/统计库使用 synchronous=NORMAL 提升高频写入吞吐，其余性能 pragma 统一设置
-		applyPerfPragmas(db, true)
-		// 创建自定义日志记录器
-		gormLogger := NewGormZLogger()
-		if global.GWAF_LOG_DEBUG_DB_ENABLE == true {
-			gormLogger = gormLogger.LogMode(logger.Info).(*GormZLogger)
-			// 启用调试模式
-			db = db.Session(&gorm.Session{
-				Logger: logger.Default.LogMode(logger.Info), // 设置为Info表示启用调试模式
-			})
-		}
-		global.GDATA_CURRENT_LOG_DB_MAP[custFileName] = db
-		//logDB.Use(crypto.NewCryptoPlugin())
-		// 注册默认的AES加解密策略
-		//crypto.RegisterCryptoStrategy(strategy.NewAesCryptoStrategy("3Y)(27EtO^tK8Bj~"))
-
-		// ============ 使用 gormigrate 替代 AutoMigrate（完全向后兼容） ============
-		zlog.Info("开始执行手动log数据库迁移...", "file", custFileName)
-		if err := RunLogDBMigrations(db); err != nil {
-			errStr := fmt.Sprintf("%v", err)
-			zlog.Error("手动log数据库迁移失败", "file", custFileName, "error_string", errStr, "error_type", fmt.Sprintf("%T", err))
-			zlog.Error("手动log数据库迁移失败详细信息: " + errStr)
-			panic("manual log database migration failed: " + errStr)
-		}
-		// ============ 迁移代码结束 ============
-
-		global.GDATA_CURRENT_LOG_DB_MAP[custFileName].Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
-		global.GDATA_CURRENT_LOG_DB_MAP[custFileName].Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
-
-	} else {
-		zlog.Debug("自定义的库已存在", custFileName)
+	zlog.Debug("初始化自定义的库", custFileName)
+	path := currentDir + "/data/" + custFileName
+	key := url.QueryEscape(global.GWAF_PWD_LOGDB)
+	dns := fmt.Sprintf("%s?_db_key=%s", path, key)
+	db, err := gorm.Open(sqlite.Open(dns), &gorm.Config{})
+	if err != nil {
+		return fmt.Errorf("打开归档分片 %s 失败: %w", custFileName, err)
 	}
+	// 日志/统计库使用 synchronous=NORMAL 提升高频写入吞吐，其余性能 pragma 统一设置
+	applyPerfPragmas(db, true)
+	// 创建自定义日志记录器
+	gormLogger := NewGormZLogger()
+	if global.GWAF_LOG_DEBUG_DB_ENABLE == true {
+		gormLogger = gormLogger.LogMode(logger.Info).(*GormZLogger)
+		// 启用调试模式
+		db = db.Session(&gorm.Session{
+			Logger: logger.Default.LogMode(logger.Info), // 设置为Info表示启用调试模式
+		})
+	}
+
+	zlog.Info("开始执行手动log数据库迁移...", "file", custFileName)
+	if err := RunLogDBMigrations(db); err != nil {
+		zlog.Error("手动log数据库迁移失败", "file", custFileName, "error", fmt.Sprintf("%v", err))
+		closeShardConn(custFileName, db)
+		return fmt.Errorf("归档分片 %s 迁移失败: %w", custFileName, err)
+	}
+
+	db.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
+	db.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
+
+	// 并发下可能已有别的协程抢先放入，这时关掉自己开的这一份
+	if _, duplicated := putShardDB(custFileName, db); duplicated {
+		closeShardConn(custFileName, db)
+	}
+	return nil
 }
 
 // CloseManualLogDb 关闭并移除一个按需打开的归档日志分片连接（若存在），
 // 供归档清理删除文件前调用，避免删正在被打开查询的 .db 文件。
 func CloseManualLogDb(custFileName string) {
-	if global.GDATA_CURRENT_LOG_DB_MAP == nil {
-		return
-	}
-	db := global.GDATA_CURRENT_LOG_DB_MAP[custFileName]
-	if db == nil {
-		return
-	}
-	if sqlDB, err := db.DB(); err == nil {
-		if cerr := sqlDB.Close(); cerr != nil {
-			zlog.Warn("关闭归档分片连接失败", "file", custFileName, "error", cerr.Error())
-		}
-	}
-	delete(global.GDATA_CURRENT_LOG_DB_MAP, custFileName)
+	closeShardDB(custFileName)
 }
 
 func InitStatsDb(currentDir string) (bool, error) {

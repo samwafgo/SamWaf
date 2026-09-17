@@ -1,6 +1,7 @@
 package wafdb
 
 import (
+	"SamWaf/common/zlog"
 	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/wafdb/dialect"
@@ -43,8 +44,11 @@ func ResolveLogDB(currentDbName string) (*gorm.DB, string) {
 	// Historical shard.
 	if dialect.Get().IsFileBased() {
 		// SQLite: open the archived .db file on demand and query its web_logs table.
-		InitManaulLogDb("", currentDbName)
-		if db := global.GDATA_CURRENT_LOG_DB_MAP[currentDbName]; db != nil {
+		if err := InitManaulLogDb("", currentDbName); err != nil {
+			zlog.Warn("归档分片不可用，降级查实时库", "file", currentDbName, "error", err.Error())
+			return global.GWAF_LOCAL_LOG_DB, LogTableName
+		}
+		if db := getShardDB(currentDbName); db != nil {
 			return db, LogTableName
 		}
 		// Shard file unavailable — degrade to live DB instead of panicking.

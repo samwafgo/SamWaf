@@ -43,6 +43,12 @@ func (d *SQLiteDialect) InsertIgnoreSQL(table, quotedCols, rowPlaceholders strin
 		sqliteQuote(table), quotedCols, rowPlaceholders)
 }
 
+// UpsertExcludedRef SQLite 的 upsert 用 excluded 伪表引用待插入行。
+func (d *SQLiteDialect) UpsertExcludedRef(col string) string {
+	return "excluded." + col
+}
+
+
 // FormatLocalTime adds the local UTC offset back: go-wxsqlite3 stores time.Time
 // as text carrying a zone suffix ('+08:00'), which SQLite normalizes to UTC
 // before applying the modifier.

@@ -119,6 +119,13 @@ type DBDialect interface {
 	// plain INSERT (web_logs has no primary key on any engine).
 	InsertIgnoreSQL(table, quotedCols, rowPlaceholders string) string
 
+	// UpsertExcludedRef returns how the conflict branch of an upsert refers to the
+	// value the statement tried to insert, for accumulating updates such as
+	// "cnt = table.cnt + <incoming cnt>".
+	//   SQLite / PostgreSQL: excluded.<col>
+	//   MySQL:               VALUES(<col>)
+	UpsertExcludedRef(col string) string
+
 	// FormatLocalTime returns a SQL expression that renders a DATETIME column as
 	// 'YYYY-MM-DD HH:MM:SS' in local time, matching customtype.JsonTime.MarshalJSON.
 	//

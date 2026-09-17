@@ -61,7 +61,9 @@ func ProcessLogDequeEngine() {
 						}
 					}
 					if global.GCONFIG_LOG_PERSIST_ENABLED == 1 {
-						global.GWAF_LOCAL_LOG_DB.CreateInBatches(webLogArray, len(webLogArray))
+						// 只有落库这一份做超长截断；下面的统计与出口仍用原始报文
+						storeArray := truncateForStore(webLogArray)
+						global.GWAF_LOCAL_LOG_DB.CreateInBatches(storeArray, len(storeArray))
 					}
 					// 日志流做统计
 					waftask.CollectStatsFromLogs(webLogArray)

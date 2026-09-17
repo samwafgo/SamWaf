@@ -38,6 +38,13 @@ func (d *MySQLDialect) InsertIgnoreSQL(table, quotedCols, rowPlaceholders string
 		mysqlQuote(table), quotedCols, rowPlaceholders)
 }
 
+// UpsertExcludedRef MySQL 的 ON DUPLICATE KEY UPDATE 用 VALUES() 引用待插入行。
+// 8.0.20 起官方推荐改用行别名，但 VALUES() 在 5.7/8.x 都仍然可用，这里取兼容面最广的写法。
+func (d *MySQLDialect) UpsertExcludedRef(col string) string {
+	return "VALUES(" + col + ")"
+}
+
+
 // FormatLocalTime formats the column as-is: with loc=Local in the DSN the
 // DATETIME column already holds the local wall clock, so any timezone
 // conversion here would shift the value a second time.

@@ -64,6 +64,12 @@ func (d *PostgresDialect) InsertIgnoreSQL(table, quotedCols, rowPlaceholders str
 		pgQuote(table), quotedCols, rowPlaceholders)
 }
 
+// UpsertExcludedRef PostgreSQL 的 ON CONFLICT 用 excluded 伪表引用待插入行。
+func (d *PostgresDialect) UpsertExcludedRef(col string) string {
+	return "excluded." + col
+}
+
+
 func (d *PostgresDialect) RenameTable(db *gorm.DB, src, dst string) error {
 	return db.Exec(fmt.Sprintf("ALTER TABLE %s RENAME TO %s", pgQuote(src), pgQuote(dst))).Error
 }

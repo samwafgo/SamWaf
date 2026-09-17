@@ -415,6 +415,57 @@ func RunLogDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// web_logs 增加 truncated 标记：报文列超过单列上限被截断时置 1，
+		// 让详情页知道看到的报文不完整，也让 AI 导出能跳过残缺样本。
+		{
+			ID: "202609170001_add_web_logs_truncated",
+			Migrate: func(tx *gorm.DB) error {
+				if tx.Migrator().HasColumn(&innerbean.WebLog{}, "Truncated") {
+					return nil
+				}
+				zlog.Info("迁移 202609170001: web_logs 增加 truncated 列")
+				return tx.Migrator().AddColumn(&innerbean.WebLog{}, "Truncated")
+			},
+			Rollback: func(tx *gorm.DB) error {
+				return tx.Migrator().DropColumn(&innerbean.WebLog{}, "Truncated")
+			},
+		},
+		// 按 IP / 规则 / 日期查询的索引。原有索引首列全是 unix_add_time，
+		// 「某 IP 全时段」「某规则全时段」只能扫整段时间索引再逐行过滤。
+		// 大表上本次建索引耗时可能到分钟级，启动日志里有每条的耗时。
+		{
+			ID: "202609170002_add_web_logs_query_indexes",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202609170002: web_logs 增加 IP/规则/日期 查询索引")
+				// rule 是 text 列：MySQL 对 text 建索引必须给前缀长度，sqlite/pg 不需要
+				ruleCol := "rule"
+				if tx.Dialector.Name() == "mysql" {
+					ruleCol = "rule(191)"
+				}
+				for _, ix := range []struct{ name, ddl string }{
+					{"idx_web_ip_time", "CREATE INDEX IF NOT EXISTS idx_web_ip_time ON web_logs (tenant_id, user_code, src_ip, unix_add_time desc)"},
+					{"idx_web_rule_time", "CREATE INDEX IF NOT EXISTS idx_web_rule_time ON web_logs (tenant_id, user_code, " + ruleCol + ", unix_add_time desc)"},
+					{"idx_web_day_isbot", "CREATE INDEX IF NOT EXISTS idx_web_day_isbot ON web_logs (day, is_bot)"},
+				} {
+					start := time.Now()
+					if err := safeCreateIndex(tx, "web_logs", ix.name, ix.ddl); err != nil {
+						// 建索引失败不阻断启动：查询只是慢，不是不能用
+						zlog.Warn("创建索引失败", "index", ix.name, "error", err.Error())
+						continue
+					}
+					zlog.Info("索引创建完成", "index", ix.name, "耗时", time.Since(start).String())
+				}
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				for _, name := range []string{"idx_web_ip_time", "idx_web_rule_time", "idx_web_day_isbot"} {
+					if err := safeDropIndex(tx, "web_logs", name); err != nil {
+						zlog.Warn("删除索引失败", "index", name, "error", err.Error())
+					}
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

@@ -625,3 +625,37 @@ notes:
         backend is in use, and cache errors are recorded in the log and in the diagnostic package. Token
         lifetime is now refreshed on every request, matching the "expires after this long without activity"
         wording of that setting.
+  - id: v1_3_25_weblog_payload_truncate_and_index
+    version: v1.3.25
+    kind: notice
+    level: normal
+    page: ''
+    doc: https://doc.samwaf.com/quickstart/Update.html
+    apply:
+      type: none
+    zh:
+      title: 超长报文落库时截断，并为访问日志按 IP / 规则查询补索引
+      detail: >-
+        单条请求的报文列（请求体、响应体、表单、请求头、Cookie、响应头）超过 64KB 时，
+        只保留前 64KB 落库，该条日志会带上"已截断"标记，详情页据此提示报文不完整。
+        截断只发生在写入数据库这一步：检测引擎、自定义规则、Kafka 推送拿到的仍是完整报文，
+        判定结果与推送内容都不受影响。日志库体积此前没有任何单条上限，一次大文件响应就能撑出一条巨大的记录。
+        本次同时为访问日志补了三条索引：按来源 IP 查、按触发规则查、按日期查机器人流量。
+        原有索引的首列都是时间，这三类查询只能扫完整段时间再逐行过滤，数据量大时明显变慢。
+        升级后首次启动会创建索引，日志量大的实例这一步可能需要数分钟，启动日志里会打印每条索引的耗时，
+        期间请勿强制结束进程。另外 IP 标签的写入改为整批一条语句，高并发下对数据库的往返次数明显下降。
+    en:
+      title: Oversized payloads are truncated on write, plus new access-log indexes for IP and rule lookups
+      detail: >-
+        When a request's payload columns (request body, response body, form data, headers, cookies, response
+        headers) exceed 64KB, only the first 64KB is stored and the entry is flagged as truncated, which the
+        detail page uses to warn that the payload is incomplete. Truncation happens only on the database write:
+        the detection engine, custom rules and the Kafka feed still receive the complete payload, so verdicts and
+        exported records are unaffected. Until now no per-record limit existed at all, so a single large response
+        could produce one enormous row. This release also adds three indexes to the access log: by source IP, by
+        triggered rule, and by date for bot traffic. Every existing index starts with the timestamp column, so
+        those three lookups had to scan the whole time range and filter row by row, which gets slow on large
+        datasets. The indexes are built on the first start after upgrading; on instances with a large log volume
+        this can take several minutes, the startup log prints the time each index took, and the process should
+        not be killed while it runs. IP tag counters are now written with a single batched statement, cutting
+        database round trips considerably under load.

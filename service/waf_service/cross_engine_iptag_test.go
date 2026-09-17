@@ -50,7 +50,14 @@ func findAttackIP(list []model.AttackIPTag, ip string) (model.AttackIPTag, bool)
 func runIPTagCases(t *testing.T, coredb *gorm.DB) {
 	svc := WafLogService{}
 	oldExclude := global.GCONFIG_ATTACK_TAG_EXCLUDE
-	defer func() { global.GCONFIG_ATTACK_TAG_EXCLUDE = oldExclude }()
+	// 本用例直接往核心库塞数据，读取走 GetIPTagDB()，所以归属必须钉在核心库。
+	// 新装默认已经是统计库，不钉住的话读的是另一个库，查出来全是空。
+	oldTagDB := global.GDATA_IP_TAG_DB
+	global.GDATA_IP_TAG_DB = 0
+	defer func() {
+		global.GCONFIG_ATTACK_TAG_EXCLUDE = oldExclude
+		global.GDATA_IP_TAG_DB = oldTagDB
+	}()
 
 	// 干净起步：本用例独占 ip_tags
 	must(t, coredb.Exec("DELETE FROM ip_tags").Error)

@@ -22,4 +22,5 @@ func (receiver *LogRouter) InitLogRouter(group *gin.RouterGroup) {
 	wafLogRouter.POST("/api/v1/waflog/attack/attackiplist", logApi.GetAttackIPListApi)
 	wafLogRouter.GET("/api/v1/waflog/attack/alliptag", logApi.GetAllIpTagApi)
 	wafLogRouter.POST("/api/v1/waflog/attack/deletetagbyname", logApi.DeleteTagByNameApi)
+	wafLogRouter.GET("/api/v1/waflog/attack/iptagdbstatus", logApi.GetIPTagDBStatusApi)
 }

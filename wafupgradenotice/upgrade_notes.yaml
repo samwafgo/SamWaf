@@ -659,3 +659,39 @@ notes:
         this can take several minutes, the startup log prints the time each index took, and the process should
         not be killed while it runs. IP tag counters are now written with a single batched statement, cutting
         database round trips considerably under load.
+  - id: v1_3_25_weblog_payload_split_and_iptag_merge
+    version: v1.3.25
+    kind: notice
+    level: normal
+    page: ''
+    doc: https://doc.samwaf.com/quickstart/Update.html
+    apply:
+      type: none
+    zh:
+      title: 报文改存独立表，IP 标签切换存放位置时自动合并历史
+      detail: >-
+        访问日志的报文（请求体、响应体、表单、Cookie、响应头、原始字节）不再和日志记录存在同一张表里，
+        改为写入新的报文表，按请求编号一对一存放。日志列表、按 IP / 规则检索、统计扫描都不再顺带读这些大字段，
+        看报文时才按主键取一次。升级后首次启动会自动建表，不搬历史数据：升级之前的日志报文仍在原处，
+        详情页照常能看，随保留期自然到期。日志页面的展示与筛选没有变化。
+        另外，风险日志页的"标签数据存放位置"切换后，会自动把原库里已积累的标签并到新库：
+        相同 IP + 标签的次数相加，首次访问时间取早的、最近访问时间取晚的，合并完清空原库的这部分数据。
+        以前切换会让历史标签看起来消失（数据其实还在原库），现在不会了；合并期间页面会显示"正在合并"，
+        完成后自动刷新。新安装的实例默认把标签放统计库，已有实例保持你当前的设置不变。
+    en:
+      title: Payloads move to their own table, and switching the IP tag location now merges the history
+      detail: >-
+        Access log payloads (request body, response body, form data, cookies, response headers, raw bytes) no
+        longer live in the same table as the log record. They are written to a new payload table, one row per
+        request id. Listing logs, searching by IP or rule, and statistics scans no longer drag those large
+        columns along; the payload is fetched by primary key only when someone opens it. The table is created on
+        the first start after upgrading and no history is moved: payloads recorded before the upgrade stay where
+        they are, remain visible in the detail view, and expire with the retention period as usual. Nothing
+        changes in what the log page shows or how it filters.
+        Separately, switching "tag data location" on the risk log page now merges the tags already accumulated in
+        the other database: counts for the same IP and tag are added up, the first-seen time keeps the earlier
+        value and the last-seen time the later one, and the merged rows are cleared from the source. Switching
+        used to make tag history look like it had vanished (the data was still in the old database); that no
+        longer happens. The page shows a merging indicator and refreshes itself when it finishes. New
+        installations store tags in the stats database by default; existing installations keep their current
+        setting.

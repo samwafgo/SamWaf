@@ -214,7 +214,16 @@ func setConfigIntValue(name string, value int64, change int) {
 		global.GCONFIG_ENABLE_SYSTEM_STATS_PUSH = value
 		break
 	case "ip_tag_db":
+		if value != 0 {
+			value = 1
+		}
+		changed := global.GDATA_IP_TAG_DB != value
 		global.GDATA_IP_TAG_DB = value
+		if changed {
+			// 归属换了：把另一个库里的历史标签并过来，否则界面按新库查，看起来像"切一下历史就没了"。
+			// 合并可能要搬几十万行，放后台跑，界面用 GDATA_IP_TAG_MERGING 显示"合并中"。
+			go waf_service.MergeIPTagsInto(value)
+		}
 		break
 	case "ip_failure_ban_enabled":
 		global.GCONFIG_IP_FAILURE_BAN_ENABLED = value
@@ -888,5 +897,11 @@ func TaskLoadSetting(initLoad bool) {
 		if broad, entry := utils.ManageTrustedProxiesHasOverBroad(global.GCONFIG_MANAGE_TRUSTED_PROXIES); broad {
 			zlog.Warn("管理端可信代理网段包含过宽条目(" + entry + ")：这种网段无法用来判定代理头里的哪个IP是客户端，代理头将不被采信、仍按网络层IP识别客户端(管理端IP白名单/登录失败锁定/令牌IP绑定也按它判定)。请在 conf/config.yml 把 security.manage_trusted_proxies 改成上游代理自身的地址，容器部署可填 private")
 		}
+	}
+
+	// 把落在另一个库里的 IP 标签收回当前归属。按内容判断、源库空即返回，
+	// 所以更早版本切换归属时留下的历史也能在这里被收回来，重复跑无副作用。
+	if initLoad {
+		go waf_service.MergeIPTagsInto(global.GDATA_IP_TAG_DB)
 	}
 }

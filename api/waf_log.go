@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -252,6 +253,16 @@ func (w *WafLogAPi) GetHttpCopyMaskApi(c *gin.Context) {
 	} else {
 		response.FailWithMessage("解析失败", c)
 	}
+}
+
+// GetIPTagDBStatusApi 报告 IP 标签的当前归属库与合并进度。
+// 切换归属会把另一个库里的历史标签并过来，量大时要跑一会儿，
+// 页面据此显示「合并中」并在合并结束后重新拉取列表。
+func (w *WafLogAPi) GetIPTagDBStatusApi(c *gin.Context) {
+	response.OkWithData(gin.H{
+		"db":      global.GDATA_IP_TAG_DB,
+		"merging": atomic.LoadInt32(&global.GDATA_IP_TAG_MERGING) == 1,
+	}, c)
 }
 
 // GetAttackIPListApi 获取风险数据列表

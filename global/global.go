@@ -196,7 +196,13 @@ var (
 	GDATA_SHARE_DB_SIZE      int64 = 100 * 10000 //100w 进行分库 100*10000
 	GDATA_SHARE_DB_FILE_SIZE int64 = 1024        //1024M 进行分库
 	GDATA_CURRENT_CHANGE     bool  = false       //当前是否正在切换
-	GDATA_IP_TAG_DB          int64 = 0           //IP Tag 存放位置 0 是主库  1是读取 stat库
+	// GDATA_IP_TAG_DB IP Tag 存放位置：0 核心库，1 统计库。
+	// 新装默认统计库——ip_tags 是派生索引，写入量跟着攻击量走，和配置共用核心库会拖慢每一次配置读写。
+	// 存量用户的取值来自 system_configs 里已有的那一行，不受这个默认值影响；
+	// 切换归属时 MergeIPTagsInto 会把另一个库里的历史标签并过来。
+	GDATA_IP_TAG_DB int64 = 1
+	// GDATA_IP_TAG_MERGING 标签合并任务是否在跑（atomic 读写）。界面据此显示"合并中"。
+	GDATA_IP_TAG_MERGING int32 = 0
 	// GCONFIG_ATTACK_TAG_EXCLUDE 风险日志里不算风险的标签（逗号分隔）。"正常"永远排除，不用写这里。
 	// 这些标签既不出现在规则筛选列表里，也不计入「阻止数量」，而是算作放行。
 	GCONFIG_ATTACK_TAG_EXCLUDE string = "ACME证书校验,静态文件访问成功"

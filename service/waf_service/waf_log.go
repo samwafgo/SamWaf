@@ -2,8 +2,10 @@ package waf_service
 
 import (
 	"SamWaf/common/validfield"
+	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/innerbean"
+	"SamWaf/model"
 	"SamWaf/model/request"
 	"SamWaf/wafdb"
 	"SamWaf/wafdb/dialect"
@@ -13,6 +15,7 @@ import (
 	"strings"
 	"sync"
 
+	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 )
 
@@ -34,32 +37,72 @@ var detailExcludeColumns = map[string]bool{
 var (
 	webLogListSelectOnce    sync.Once
 	webLogDetailSelectOnce  sync.Once
-	webLogListSelectCache   string
-	webLogDetailSelectCache string
+	webLogListSelectCache   []string
+	webLogDetailSelectCache []string
+
+	// webLogShardSelect 每个分片一份可用列，key = 分片标识|表名|用途。
+	webLogShardSelect sync.Map
 )
 
-// getWebLogListSelect 动态从 WebLog 结构体反射出列名并排除大字段，结果缓存复用。
-// 新增字段会自动纳入，旧版本数据库缺列也不影响（GORM 会忽略不存在的列）。
-func getWebLogListSelect() string {
+// getWebLogListColumns 动态从 WebLog 结构体反射出列名并排除大字段，结果缓存复用。
+func getWebLogListColumns() []string {
 	webLogListSelectOnce.Do(func() {
-		webLogListSelectCache = buildSelectExcluding(&innerbean.WebLog{}, listExcludeColumns)
+		webLogListSelectCache = columnsExcluding(&innerbean.WebLog{}, listExcludeColumns)
 	})
 	return webLogListSelectCache
 }
 
-// getWebLogDetailSelect 详情查询字段，包含文本 body 类字段，排除 blob。
-func getWebLogDetailSelect() string {
+// getWebLogDetailColumns 详情查询字段，包含文本 body 类字段，排除 blob。
+func getWebLogDetailColumns() []string {
 	webLogDetailSelectOnce.Do(func() {
-		webLogDetailSelectCache = buildSelectExcluding(&innerbean.WebLog{}, detailExcludeColumns)
+		webLogDetailSelectCache = columnsExcluding(&innerbean.WebLog{}, detailExcludeColumns)
 	})
 	return webLogDetailSelectCache
 }
 
-// buildSelectExcluding 通过 GORM schema 解析模型字段，返回排除指定列后的 SELECT 子句。
-func buildSelectExcluding(model interface{}, excludeDBNames map[string]bool) string {
+// webLogSelect 给出这个分片上真正查得到的列。
+//
+// 归档分片是分库那一刻的结构快照，之后给 web_logs 加的列它没有；而 SELECT 是按当前结构体
+// 反射出来的显式列名，少一列整条查询就报错。偏偏同一次请求里的 Count 不带列、照样数得出来，
+// 页面于是变成「有分页、没数据」，错误还被 Find 吞掉，查都无从查起。
+// 所以按分片实际存在的列取一次交集，结果按分片缓存（归档分片的结构不会再变）。
+func webLogSelect(db *gorm.DB, shard, table string, want []string, usage string) string {
+	key := shard + "|" + table + "|" + usage
+	if v, ok := webLogShardSelect.Load(key); ok {
+		return v.(string)
+	}
+	sel := strings.Join(want, ", ")
+	if cols, err := dialect.Get().ColumnInfo(db, table); err == nil && len(cols) > 0 {
+		have := make(map[string]bool, len(cols))
+		for _, c := range cols {
+			have[strings.ToLower(c.Name)] = true
+		}
+		kept := make([]string, 0, len(want))
+		var missing []string
+		for _, w := range want {
+			if have[w] {
+				kept = append(kept, w)
+				continue
+			}
+			missing = append(missing, w)
+		}
+		// 一列都对不上多半是取列信息取错了表，这时宁可按结构体来，别把查询改成空
+		if len(kept) > 0 {
+			sel = strings.Join(kept, ", ")
+			if len(missing) > 0 {
+				zlog.Info("归档分片缺列，本次查询跳过", "table", table, "columns", strings.Join(missing, ","))
+			}
+		}
+	}
+	webLogShardSelect.Store(key, sel)
+	return sel
+}
+
+// columnsExcluding 通过 GORM schema 解析模型字段，返回排除指定列后的列名（保持结构体顺序）。
+func columnsExcluding(model interface{}, excludeDBNames map[string]bool) []string {
 	s, err := schema.Parse(model, &sync.Map{}, schema.NamingStrategy{})
 	if err != nil {
-		return "*"
+		return []string{"*"}
 	}
 	cols := make([]string, 0, len(s.Fields))
 	for _, field := range s.Fields {
@@ -68,7 +111,7 @@ func buildSelectExcluding(model interface{}, excludeDBNames map[string]bool) str
 		}
 		cols = append(cols, field.DBName)
 	}
-	return strings.Join(cols, ", ")
+	return cols
 }
 
 func (receiver *WafLogService) AddApi(log innerbean.WebLog) error {
@@ -83,7 +126,12 @@ func (receiver *WafLogService) GetDetailApi(req request.WafAttackLogDetailReq) (
 	var weblog innerbean.WebLog
 	// 解析当前应查询的日志连接与表（live 或历史分片：SQLite 历史文件 / MySQL 历史表）
 	logDB, logTable := wafdb.ResolveLogDB(req.CurrrentDbName)
-	logDB.Table(logTable).Select(getWebLogDetailSelect()).Where("REQ_UUID=?", req.REQ_UUID).Find(&weblog)
+	sel := webLogSelect(logDB, req.CurrrentDbName, logTable, getWebLogDetailColumns(), "detail")
+	if err := logDB.Table(logTable).Select(sel).Where("REQ_UUID=?", req.REQ_UUID).Find(&weblog).Error; err != nil {
+		return weblog, fmt.Errorf("查询日志详情失败: %w", err)
+	}
+	// 报文单独存在 event_payload 里，按主键点查补回来
+	FillShardPayloads(req.CurrrentDbName, []*innerbean.WebLog{&weblog})
 	return weblog, nil
 }
 func (receiver *WafLogService) GetListApi(req request.WafAttackLogSearch) ([]innerbean.WebLog, int64, error) {
@@ -238,8 +286,14 @@ func (receiver *WafLogService) GetListApi(req request.WafAttackLogSearch) ([]inn
 	} else {
 		return nil, 0, errors.New("输入排序字段不合法")
 	}
-	logDB.Select(getWebLogListSelect()).Table(forceIndex).Limit(req.PageSize).Where(whereField, whereValues...).Offset(req.PageSize * (req.PageIndex - 1)).Order(orderInfo).Find(&weblogs)
-	logDB.Table(forceIndex).Where(whereField, whereValues...).Count(&total)
+	sel := webLogSelect(logDB, req.CurrrentDbName, logTable, getWebLogListColumns(), "list")
+	// 错误必须往上抛：吞掉它就只剩「有分页、没数据」，连从哪查起都不知道
+	if err := logDB.Select(sel).Table(forceIndex).Limit(req.PageSize).Where(whereField, whereValues...).Offset(req.PageSize * (req.PageIndex - 1)).Order(orderInfo).Find(&weblogs).Error; err != nil {
+		return nil, 0, fmt.Errorf("查询日志失败: %w", err)
+	}
+	if err := logDB.Table(forceIndex).Where(whereField, whereValues...).Count(&total).Error; err != nil {
+		return nil, 0, fmt.Errorf("统计日志条数失败: %w", err)
+	}
 	return weblogs, total, nil
 }
 func (receiver *WafLogService) GetListByHostCodeApi(log request.WafAttackLogSearch) ([]innerbean.WebLog, int64, error) {
@@ -252,6 +306,11 @@ func (receiver *WafLogService) GetListByHostCodeApi(log request.WafAttackLogSear
 }
 func (receiver *WafLogService) DeleteHistory(day string) {
 	global.GWAF_LOCAL_LOG_DB.Where("create_time < ?", day).Delete(&innerbean.WebLog{})
+	// 报文表自带同格式的 create_time，按同一条件删，不必回表对 req_uuid
+	if err := global.GWAF_LOCAL_LOG_DB.Where("create_time < ?", day).
+		Delete(&model.EventPayload{}).Error; err != nil {
+		zlog.Warn("清理过期报文失败", "截止", day, "error", err.Error())
+	}
 }
 
 // GetUnixTimeByCounter 依据开始时间和到期时间获取一个最新的时间戳

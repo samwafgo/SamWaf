@@ -285,6 +285,15 @@ func TestCrossEngine(t *testing.T) {
 			// —— ip_tags 排除逻辑（见 cross_engine_iptag_test.go）——
 			t.Run("iptag", func(t *testing.T) { runIPTagCases(t, x.core) })
 
+			// —— 归档分片缺列（见 cross_engine_shard_column_test.go）——
+			t.Run("shardcolumn", func(t *testing.T) { runShardColumnCases(t, x.logdb) })
+
+			// —— 报文拆表读写（见 cross_engine_payload_test.go）——
+			t.Run("payload", func(t *testing.T) { runPayloadCases(t, x.logdb) })
+
+			// —— ip_tags 跨库合并（见 cross_engine_payload_test.go）——
+			t.Run("iptagmerge", func(t *testing.T) { runIPTagMergeCases(t, x) })
+
 			// —— 有副作用 service 的 DB-only 路径（见 cross_engine_side_test.go）——
 			t.Run("side", func(t *testing.T) { runSideCases(t, x) })
 

@@ -90,8 +90,8 @@ func (w *WafLogAPi) GetListApi(c *gin.Context) {
 	}
 }
 func (w *WafLogAPi) ExportDBApi(c *gin.Context) {
-	// 该导出走 BackupDatabase 备份 .db 文件，仅文件型数据库(SQLite)支持；
-	// MySQL 等无日志文件，直接屏蔽，避免进入后台 goroutine 后才失败。
+	// 导出物是「按时间段导出选定层」的新加密 SQLite 文件（见 wafdb.ExportLogRangeDb），
+	// 仅文件型数据库(SQLite)支持；MySQL 等无日志文件，直接屏蔽，避免进入后台 goroutine 后才失败。
 	if !dialect.Get().SupportsBackup() {
 		response.FailWithMessage("当前数据库不支持日志文件导出（仅 SQLite 支持）", c)
 		return
@@ -125,6 +125,38 @@ func (w *WafLogAPi) ExportDBApi(c *gin.Context) {
 		return
 	}
 
+	// 导出物重定义（C11）：不再是备份整个日志库文件，而是「按时间段导出选定层」。
+	// start_time/end_time 形如 2006-01-02 15:04:05，留空不限；tiers 逗号分隔（access,event,payload,weblog），默认全选。
+	startTime := strings.TrimSpace(c.Query("start_time"))
+	endTime := strings.TrimSpace(c.Query("end_time"))
+	for _, tm := range []string{startTime, endTime} {
+		if tm == "" {
+			continue
+		}
+		if _, err := time.ParseInLocation("2006-01-02 15:04:05", tm, time.Local); err != nil {
+			response.FailWithMessage("时间格式不正确（应为 2006-01-02 15:04:05）", c)
+			return
+		}
+	}
+	tiers := map[string]bool{}
+	tierParam := strings.TrimSpace(c.Query("tiers"))
+	if tierParam == "" {
+		tiers[wafdb.ExportTierAccess] = true
+		tiers[wafdb.ExportTierEvent] = true
+		tiers[wafdb.ExportTierPayload] = true
+		tiers[wafdb.ExportTierWeblog] = true
+	} else {
+		for _, t := range strings.Split(tierParam, ",") {
+			switch strings.TrimSpace(t) {
+			case wafdb.ExportTierAccess, wafdb.ExportTierEvent, wafdb.ExportTierPayload, wafdb.ExportTierWeblog:
+				tiers[strings.TrimSpace(t)] = true
+			default:
+				response.FailWithMessage("未知的导出层: "+t, c)
+				return
+			}
+		}
+	}
+
 	go func() {
 		currentDir := utils.GetCurrentDir()
 		downLoadDir := currentDir + "/download"
@@ -140,22 +172,25 @@ func (w *WafLogAPi) ExportDBApi(c *gin.Context) {
 		utils.DeleteOldFiles(downLoadDir, duration)
 
 		// 创建下载文件
-		downloadFileName := fmt.Sprintf("local_log_backup_%s.db", time.Now().Format("20060102150405"))
+		downloadFileName := fmt.Sprintf("local_log_export_%s.db", time.Now().Format("20060102150405"))
 		downloadFilePath := filepath.Join(downLoadDir, downloadFileName)
-		err := wafdb.BackupDatabase(global.GWAF_LOCAL_LOG_DB, downloadFilePath)
+		counts, err := wafdb.ExportLogRangeDb(downloadFilePath, startTime, endTime, tiers)
 		if err != nil {
+			_ = os.Remove(downloadFilePath)
 			global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OpResultMessageInfo{
 				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "DOWNLOAD_LOG", Server: global.GWAF_CUSTOM_SERVER_NAME},
-				Msg:             "导出失败",
-				Success:         "true",
+				Msg:             "导出失败: " + err.Error(),
+				Success:         "false",
 			})
 		} else {
 			global.GWAF_RUNTIME_CURRENT_EXPORT_DB_LOG_FILE_PATH = downloadFilePath
 			//发送websocket 推送消息
 			global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.ExportResultMessageInfo{
 				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "DOWNLOAD_LOG", Server: global.GWAF_CUSTOM_SERVER_NAME},
-				Msg:             "导出完毕",
-				Success:         "true",
+				Msg: fmt.Sprintf("导出完毕（访问日志%d条/安全事件%d条/报文%d条/旧版日志%d条）",
+					counts[wafdb.ExportTierAccess], counts[wafdb.ExportTierEvent],
+					counts[wafdb.ExportTierPayload], counts[wafdb.ExportTierWeblog]),
+				Success: "true",
 			})
 		}
 	}()

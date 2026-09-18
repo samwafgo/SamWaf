@@ -2261,6 +2261,21 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移: 创建重点 IP 观察名单表（命中后该 IP 的请求全量留痕）
+		{
+			ID: "202609180002_add_ip_watchlist",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202609180002: 创建 ip_watchlist 表（重点IP观察名单）")
+				if err := tx.AutoMigrate(&model.IPWatchlist{}); err != nil {
+					return fmt.Errorf("创建 ip_watchlist 表失败: %w", err)
+				}
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202609180002: 删除 ip_watchlist 表")
+				return tx.Migrator().DropTable(&model.IPWatchlist{})
+			},
+		},
 	})
 
 	// 执行迁移

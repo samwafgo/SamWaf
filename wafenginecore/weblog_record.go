@@ -40,7 +40,7 @@ func shouldRecordWebLog(weblog *innerbean.WebLog, excludeURLLog string) bool {
 	case "all":
 		return true
 	case "abnormal":
-		return weblog.ACTION != "放行" || weblog.RULE != "" || weblog.LogOnlyMode == 1
+		return weblog.IsSecurityEvent()
 	}
 	return false
 }

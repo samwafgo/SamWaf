@@ -123,6 +123,13 @@ func (w *WebLog) IsSafeBot() bool {
 	return w.IsBot == 1 && w.RISK_LEVEL == 0
 }
 
+// IsSecurityEvent 判断这条请求算不算「安全事件」——命中了规则、被拦了、或处于仅记录模式。
+// 判定与引擎侧 weblog_record.go 的 abnormal 分支同一条规则，落库分层（security_event /
+// access_log 双写窄行）与记录类型开关都靠它，改一处要同步另一处。
+func (w *WebLog) IsSecurityEvent() bool {
+	return w.ACTION != "放行" || w.RULE != "" || w.LogOnlyMode == 1
+}
+
 // GetIPFailureCount 获取IP在指定时间窗口内的失败次数（用于规则引擎）
 // minutes: 时间窗口（分钟）
 // 返回: 失败次数

@@ -283,7 +283,7 @@ func TestCrossEngine(t *testing.T) {
 			t.Run("stats", func(t *testing.T) { runStatsCases(t, x.stats) })
 
 			// —— ip_tags 排除逻辑（见 cross_engine_iptag_test.go）——
-			t.Run("iptag", func(t *testing.T) { runIPTagCases(t, x.core) })
+			t.Run("iptag", func(t *testing.T) { runIPTagCases(t, x.core, x.stats) })
 
 			// —— 归档分片缺列（见 cross_engine_shard_column_test.go）——
 			t.Run("shardcolumn", func(t *testing.T) { runShardColumnCases(t, x.logdb) })

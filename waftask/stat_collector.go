@@ -144,12 +144,12 @@ func CollectStatsFromLogs(logs []*innerbean.WebLog) {
 		}
 		cityAgg[ck]++
 
-		// IPTag 聚合
-		rule := lg.RULE
-		if rule == "" {
-			rule = "正常"
+		// IPTag 聚合：只记风险标签（RULE 非空，含「自定义规则放行/验证通过/ACME证书校验」这类）。
+		// 未命中规则的请求不再生成「正常」标签——放行数量由 stats_ip_days 承担（同一份数据的
+		// 重复记录，也是 ip_tags 行数与写入量的大头，D7）；存量「正常」行由启动任务清掉。
+		if lg.RULE != "" {
+			ipTagAgg[ipTagKey{IP: lg.SRC_IP, Rule: lg.RULE}]++
 		}
-		ipTagAgg[ipTagKey{IP: lg.SRC_IP, Rule: rule}]++
 
 		// 站点天级聚合
 		sdk := siteDayKey{

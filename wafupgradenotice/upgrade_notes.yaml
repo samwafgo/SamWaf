@@ -695,3 +695,42 @@ notes:
         longer happens. The page shows a merging indicator and refreshes itself when it finishes. New
         installations store tags in the stats database by default; existing installations keep their current
         setting.
+
+  - id: v1_3_25_log_tiered_storage
+    version: v1.3.25
+    kind: notice
+    level: normal
+    page: ''
+    doc: https://doc.samwaf.com/quickstart/Update.html
+    apply:
+      type: none
+    zh:
+      title: 日志分层存储：访问窄行与安全事件分表，新增观察名单，日志导出改按时间段
+      detail: >-
+        日志现在按用途分层存放：命中规则或被拦截的请求进「安全事件」表并保留完整报文（随日志保留天数）；
+        所有被记录的请求另写一行窄行进「访问日志」表（默认保留 30 天，可在日志配置里调）。
+        默认档位「全部入库」，升级后行为与之前一致；流量很大的站点可在日志配置里把「访问日志档位」调成
+        「仅安全事件」或「采样入库」，但这样会失去 CC 阈值推荐、AI 训练负样本与异常 IP 的正常行为回溯，
+        CC 阈值推荐界面在「仅安全事件」档会说明不可用原因。
+        IP 标签不再为每个 IP 记「正常」标签，放行榜的次数改由统计数据给出，标签列表更干净。
+        风险日志页可以把可疑 IP「加入观察」：观察期内该 IP 的所有请求带完整报文留痕（默认 7 天）。
+        「导出日志库」不再是整库拷贝，改为按时间段导出选定层（访问日志/安全事件/报文/历史库），产物仍是一个加密 SQLite 文件。
+        升级后首次启动自动建表，历史数据不动、照旧可查。
+    en:
+      title: Tiered log storage, an IP watchlist, and time-ranged log export
+      detail: >-
+        Logs are now stored in tiers by purpose: requests that hit a rule or get blocked go to the security-event
+        table with their full payload (kept for the log retention period); every recorded request also writes a
+        narrow row to the access-log table (kept 30 days by default, adjustable in log settings).
+        The default mode "store everything" behaves exactly as before. Very busy sites can switch the access-log
+        mode to "security events only" or "sampled" in log settings, at the cost of CC threshold
+        recommendations, AI training negative samples and the ability to look back at a suspicious IP's normal
+        traffic; the CC recommendation panel explains why it is unavailable in "security events only" mode.
+        IP tags no longer record a "normal" tag for every IP - pass counts on the pass ranking now come from
+        statistics data, keeping the tag list clean.
+        The risk log page can put a suspicious IP under observation: while observed, every request from that IP
+        is captured with its full payload (7 days by default).
+        "Export log database" no longer copies the whole database; it exports a chosen time range and tiers
+        (access log / security events / payloads / legacy) into a fresh encrypted SQLite file.
+        Tables are created on the first start after upgrading; existing data is untouched and stays readable.
+

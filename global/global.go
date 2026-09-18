@@ -196,6 +196,11 @@ var (
 	GDATA_SHARE_DB_SIZE      int64 = 100 * 10000 //100w 进行分库 100*10000
 	GDATA_SHARE_DB_FILE_SIZE int64 = 1024        //1024M 进行分库
 	GDATA_CURRENT_CHANGE     bool  = false       //当前是否正在切换
+	// GDATA_ACCESS_LOG_MODE 访问日志窄行档位：off=只留安全事件，db=全量入库，sample=事件+采样。
+	// off 会失去：CC 阈值推荐、AI 训练负样本、异常 IP 的正常行为回溯（全都要正常请求的全量/样本）。
+	GDATA_ACCESS_LOG_MODE string = "db"
+	// GDATA_ACCESS_LOG_RETENTION_DAYS access_log 保留天数。它直接决定 CC 阈值推荐能回看多少天。
+	GDATA_ACCESS_LOG_RETENTION_DAYS int64 = 30
 	// GDATA_IP_TAG_DB IP Tag 存放位置：0 核心库，1 统计库。
 	// 新装默认统计库——ip_tags 是派生索引，写入量跟着攻击量走，和配置共用核心库会拖慢每一次配置读写。
 	// 存量用户的取值来自 system_configs 里已有的那一行，不受这个默认值影响；

@@ -29,6 +29,18 @@ func seedIPTag(t *testing.T, db *gorm.DB, ip, tag string, cnt int64) {
 	}).Error)
 }
 
+// seedIPDay 种一条 stats_ip_days 放行/阻止计数（D7 后放行数量的真实来源）
+func seedIPDay(t *testing.T, db *gorm.DB, ip, typ string, cnt int) {
+	t.Helper()
+	must(t, db.Create(&model.StatsIPDay{
+		BaseOrm: newBase(uuid.GenUUID()),
+		IP:      ip,
+		Type:    typ,
+		Count:   cnt,
+		Day:     20260918,
+	}).Error)
+}
+
 func findAllTag(list []model.AllIPTag, value string) (model.AllIPTag, bool) {
 	for _, item := range list {
 		if item.Value == value {
@@ -47,7 +59,7 @@ func findAttackIP(list []model.AttackIPTag, ip string) (model.AttackIPTag, bool)
 	return model.AttackIPTag{}, false
 }
 
-func runIPTagCases(t *testing.T, coredb *gorm.DB) {
+func runIPTagCases(t *testing.T, coredb *gorm.DB, statsdb *gorm.DB) {
 	svc := WafLogService{}
 	oldExclude := global.GCONFIG_ATTACK_TAG_EXCLUDE
 	// 本用例直接往核心库塞数据，读取走 GetIPTagDB()，所以归属必须钉在核心库。
@@ -59,16 +71,21 @@ func runIPTagCases(t *testing.T, coredb *gorm.DB) {
 		global.GDATA_IP_TAG_DB = oldTagDB
 	}()
 
-	// 干净起步：本用例独占 ip_tags
+	// 干净起步：本用例独占 ip_tags 与 stats_ip_days
 	must(t, coredb.Exec("DELETE FROM ip_tags").Error)
+	must(t, statsdb.Exec("DELETE FROM stats_ip_days").Error)
 
-	// 1.1.1.1 真攻击；2.2.2.2 只做过 ACME 校验；3.3.3.3 只有历史遗留的静态访问标签
-	seedIPTag(t, coredb, "1.1.1.1", "正常", 10)
+	// 1.1.1.1 真攻击；2.2.2.2 只做过 ACME 校验；3.3.3.3 只有历史遗留的静态访问标签。
+	// 「正常」标签不再产生（D7）：放行数量改由 stats_ip_days 的按天放行计数提供，
+	// 这里种两条验证跨库取数（ip_tags 在 core、stats_ip_days 在 stats，不能 join）。
 	seedIPTag(t, coredb, "1.1.1.1", "SQL注入", 3)
-	seedIPTag(t, coredb, "2.2.2.2", "正常", 5)
 	seedIPTag(t, coredb, "2.2.2.2", "ACME证书校验", 7)
 	seedIPTag(t, coredb, "3.3.3.3", "静态文件访问成功", 100)
 	seedIPTag(t, coredb, "4.4.4.4", "XSS跨站注入", 2)
+	seedIPDay(t, statsdb, "1.1.1.1", "放行", 6)
+	seedIPDay(t, statsdb, "1.1.1.1", "放行", 4) // 同 IP 多天合计 = 10
+	seedIPDay(t, statsdb, "1.1.1.1", "阻止", 3)
+	seedIPDay(t, statsdb, "2.2.2.2", "放行", 5)
 
 	global.GCONFIG_ATTACK_TAG_EXCLUDE = "ACME证书校验,静态文件访问成功"
 

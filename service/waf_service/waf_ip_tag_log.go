@@ -70,9 +70,11 @@ func ValidateAttackTagExclude(value string) (string, bool) {
 	return "", true
 }
 
-// benignTags 返回「不算风险」的标签清单：固定的"正常" + 用户配置的 attack_tag_exclude。
-// 这些标签既不进规则筛选列表，也算放行而不是阻止——例如 ACME 证书校验是正常业务流量，
+// benignTags 返回「不算风险」的标签清单：用户配置的 attack_tag_exclude，外加固定的"正常"。
+// 这些标签不进规则筛选列表，也算放行而不是阻止——例如 ACME 证书校验是正常业务流量，
 // 不排除的话「只做过证书校验」的 IP 会带着阻止数量>0 出现在风险日志里。
+// 分层后「正常」标签不再产生（D7），存量行由启动任务清掉；保留它在名单里是为了
+// 清理跑完之前的过渡期不把旧行当成风险。
 func benignTags() []string {
 	tags := []string{"正常"}
 	seen := map[string]bool{"正常": true}
@@ -135,13 +137,14 @@ func (receiver *WafLogService) GetAttackIpListApi(req request.WafAttackIpTagSear
 	var results []model.AttackIPTag
 	var total int64
 
-	// 基础查询部分（update_time 落库即本地时间，方言层只负责渲染，不做时区换算）
-	firstTimeExpr := dialect.Get().FormatLocalTime("MIN(update_time)")
-	latestTimeExpr := dialect.Get().FormatLocalTime("MAX(update_time)")
 	// 不算风险的标签（正常 + 用户配置的排除项）走参数绑定，SQL 里出现几次就补几份参数
 	tags := benignTags()
 	notBenign := benignNotCond(len(tags))
-	isBenign := benignIsCond(len(tags))
+	// 首次/最近时间只看风险行：「正常」标签分层后不再更新，用户排除项（如 ACME 证书校验）
+	// 也不是风险活动——这个口径是「第一次/最近一次触发规则」，正是风险日志该有的语义。
+	// （update_time 落库即本地时间，方言层只负责渲染，不做时区换算）
+	firstTimeExpr := dialect.Get().FormatLocalTime("MIN(CASE WHEN " + notBenign + " THEN update_time END)")
+	latestTimeExpr := dialect.Get().FormatLocalTime("MAX(CASE WHEN " + notBenign + " THEN update_time END)")
 	// 聚合去重拼接：SQLite/MySQL 用 GROUP_CONCAT，PostgreSQL 用 string_agg
 	ipTotalTagExpr := dialect.Get().GroupConcatDistinct("CASE WHEN " + notBenign + " THEN ip_tag END")
 	query := `
@@ -149,7 +152,6 @@ func (receiver *WafLogService) GetAttackIpListApi(req request.WafAttackIpTagSear
 		tenant_id,
 		user_code,
 		ip,
-		SUM(CASE WHEN ` + isBenign + ` THEN cnt ELSE 0 END) AS pass_num,
 		SUM(CASE WHEN ` + notBenign + ` THEN cnt ELSE 0 END) AS deny_num,
 		` + firstTimeExpr + ` AS first_time,
 		` + latestTimeExpr + ` AS latest_time,
@@ -168,21 +170,22 @@ func (receiver *WafLogService) GetAttackIpListApi(req request.WafAttackIpTagSear
 
 	// 完成查询的其他部分
 	query += `
-	GROUP BY 
-		tenant_id, 
-		user_code, 
+	GROUP BY
+		tenant_id,
+		user_code,
 		ip
-	HAVING  
-		SUM(CASE WHEN ` + notBenign + ` THEN cnt ELSE 0 END) > 0 
-	ORDER BY 
+	HAVING
+		SUM(CASE WHEN ` + notBenign + ` THEN cnt ELSE 0 END) > 0
+	ORDER BY
 		MAX(update_time) DESC
 	LIMIT ? OFFSET ?`
 
 	// 构建查询参数：顺序必须与占位符在 SQL 里出现的先后一致
-	// pass_num -> deny_num -> ip_total_tag -> tenant/user -> [rule] -> [ip] -> having -> limit/offset
+	// deny_num -> first_time -> latest_time -> ip_total_tag -> tenant/user -> [rule] -> [ip] -> having -> limit/offset
 	params := []interface{}{}
-	params = appendTags(params, tags) // pass_num
 	params = appendTags(params, tags) // deny_num
+	params = appendTags(params, tags) // first_time
+	params = appendTags(params, tags) // latest_time
 	params = appendTags(params, tags) // ip_total_tag
 	params = append(params, global.GWAF_TENANT_ID, global.GWAF_USER_CODE)
 
@@ -206,7 +209,7 @@ func (receiver *WafLogService) GetAttackIpListApi(req request.WafAttackIpTagSear
 	}
 
 	// 获取总记录数：等价于「至少有一条非排除标签且 cnt>0」的 IP 数。
-	// 用 COUNT(DISTINCT ip) 而不是 GROUP BY+HAVING 子查询：97 万行实测 572ms -> 207ms，
+	// 用 COUNT(DISTINCT ip) 而不是 GROUP BY+HAVING 子查询：97 万行实测 NOT IN 572ms -> 207ms，
 	// 因为过滤发生在分组之前，只有少量风险行需要去重（cnt 是计数器不会为负，两者结果一致）。
 	countQuery := `
 	SELECT
@@ -238,7 +241,48 @@ func (receiver *WafLogService) GetAttackIpListApi(req request.WafAttackIpTagSear
 		return nil, 0, err
 	}
 
+	// 放行数量改取 stats_ip_days（D7）：ip_tags 不再记「正常」，而 stats_ip_days 本就按
+	// 「每 IP 每天 放行/阻止」计数，是同一份数据不重复的源头。它在统计库，跟 ip_tags
+	// 可能不在一个库，不能 join——按本页 IP 单独查一回（每页一条查询）。
+	fillPassNumFromStats(results)
+
 	return results, total, nil
+}
+
+// fillPassNumFromStats 给本页结果补放行数量（stats_ip_days 的 放行 计数合计）。
+func fillPassNumFromStats(results []model.AttackIPTag) {
+	if len(results) == 0 || global.GWAF_LOCAL_STATS_DB == nil {
+		return
+	}
+	ips := make([]string, 0, len(results))
+	for _, r := range results {
+		ips = append(ips, r.IP)
+	}
+	// SQLite 绑定变量上限 999，一页的 IP 分块查
+	passes := map[string]int64{}
+	for i := 0; i < len(ips); i += 500 {
+		end := i + 500
+		if end > len(ips) {
+			end = len(ips)
+		}
+		var rows []struct {
+			IP  string
+			Cnt int64
+		}
+		if err := global.GWAF_LOCAL_STATS_DB.Model(&model.StatsIPDay{}).
+			Select("ip, SUM(count) as cnt").
+			Where("tenant_id = ? and user_code = ? and type = ? and ip in ?", global.GWAF_TENANT_ID, global.GWAF_USER_CODE, "放行", ips[i:end]).
+			Group("ip").Scan(&rows).Error; err != nil {
+			zlog.Warn("放行数量查询失败", "error", err.Error())
+			return
+		}
+		for _, row := range rows {
+			passes[row.IP] = row.Cnt
+		}
+	}
+	for i := range results {
+		results[i].PassNum = passes[results[i].IP]
+	}
 }
 
 // GetAllAttackIPTagListApi 获取所有攻击Tag
@@ -299,10 +343,29 @@ func (receiver *WafLogService) DeleteTagByNameApi(tagName string, deleteLogs boo
 
 	// 2. 如果需要删除关联的日志数据
 	if deleteLogs {
+		batchSize := 1000 // 每批删除1000条
+		// 分层后事件行在 security_event，报文按 req_uuid 跟着删；
+		// 存量 web_logs（不再写入、尚在保留期内的部分）照旧按老路径清。
+		if dialect.Get().TableExists(global.GWAF_LOCAL_LOG_DB, model.SecurityEventTableName) {
+			for {
+				var ids []string
+				if err := global.GWAF_LOCAL_LOG_DB.Model(&model.SecurityEvent{}).
+					Where("tenant_id=? AND user_code=? AND rule=?", global.GWAF_TENANT_ID, global.GWAF_USER_CODE, tagName).
+					Limit(batchSize).Pluck("req_uuid", &ids).Error; err != nil {
+					return fmt.Errorf("查询关联安全事件失败: %v", err)
+				}
+				if len(ids) == 0 {
+					break
+				}
+				global.GWAF_LOCAL_LOG_DB.Where("req_uuid in ?", ids).Delete(&model.EventPayload{})
+				if err := global.GWAF_LOCAL_LOG_DB.Where("req_uuid in ?", ids).Delete(&model.SecurityEvent{}).Error; err != nil {
+					return fmt.Errorf("删除关联安全事件失败: %v", err)
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+		}
 		// 使用批量删除，避免内存溢出
 		// 每次删除一批数据，直到全部删除完成
-		batchSize := 1000 // 每批删除1000条
-
 		for {
 			// 分批删除日志。web_logs 无主键，只能走各引擎的物理行标识（rowid/ctid），
 			// MySQL 两者都没有则退化成 DELETE ... LIMIT —— 统一交给方言层构造。

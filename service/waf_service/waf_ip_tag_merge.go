@@ -103,6 +103,45 @@ func MergeIPTagsInto(target int64) {
 	zlog.Info("IP标签合并完成", "来源", srcName, "目标", dstName, "条数", merged, "耗时", time.Since(start).String())
 }
 
+// CleanLegacyBenignIPTags 一次性清掉存量「正常」标签行（核心库与统计库都清）。
+//
+// 分层后不再为未命中规则的请求生成「正常」标签（D7）——放行数量改由 stats_ip_days 承担，
+// 那是同一份数据的重复记录，也是 ip_tags 行数的大头。存量行切换后不再更新但仍占表，
+// 这里按批删掉；必须在归属合并（MergeIPTagsInto）之前跑，否则大表用户要先把一堆
+// 马上要删的行白搬一遍。
+func CleanLegacyBenignIPTags() {
+	for _, db := range []*gorm.DB{global.GWAF_LOCAL_DB, global.GWAF_LOCAL_STATS_DB} {
+		if db == nil || !db.Migrator().HasTable(&model.IPTag{}) {
+			continue
+		}
+		var total int64
+		if err := db.Model(&model.IPTag{}).Where("ip_tag = ?", "正常").Count(&total).Error; err != nil || total == 0 {
+			continue
+		}
+		zlog.Info("清理存量「正常」IP标签", "条数", total)
+		start := time.Now()
+		var deleted int64
+		for {
+			// 分批 + 让锁：这张表可能有几百万上千万行，一口气删会把日志落库顶死（SQLite 单写者）。
+			// 各引擎的批量删法不同（PG 不认 DELETE...LIMIT），统一走方言层。
+			res := db.Exec(dialect.Get().BatchDeleteSQL("ip_tags", "ip_tag=?", ipTagMergeBatch), "正常")
+			if res.Error != nil {
+				zlog.Warn("清理「正常」IP标签失败", "已删", deleted, "error", res.Error.Error())
+				break
+			}
+			if res.RowsAffected == 0 {
+				break
+			}
+			deleted += res.RowsAffected
+			if deleted%ipTagMergeLogEvery < ipTagMergeBatch {
+				zlog.Info("清理「正常」IP标签进行中", "已删", deleted, "共", total, "耗时", time.Since(start).String())
+			}
+			time.Sleep(ipTagMergePause)
+		}
+		zlog.Info("清理「正常」IP标签完成", "条数", deleted, "耗时", time.Since(start).String())
+	}
+}
+
 // upsertIPTags 按唯一索引 uni_iptags_full 合并写入：cnt 相加，首次时间取早、最近时间取晚。
 // 冲突分支要引用"本次待插入的值"，三个引擎写法不同，由方言给出。
 func upsertIPTags(dst *gorm.DB, rows []model.IPTag) error {

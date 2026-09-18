@@ -38,12 +38,19 @@ func (receiver *WafAILabelService) MarkApi(req request.WafAILabelMarkReq) error 
 		return errors.New("非法的标记类型")
 	}
 
-	// 读取原始日志做快照（标记时日志通常仍存在）
+	// 读取原始日志做快照（标记时日志通常仍存在）。AI 命中的请求必是安全事件，先查 security_event；
+	// 升级前的存量行还在 web_logs 里，查不到再回落一次。
 	var wl innerbean.WebLog
-	global.GWAF_LOCAL_LOG_DB.
-		Select("METHOD", "URL", "RawQuery", "BODY", "POST_FORM", "USER_AGENT", "ACTION", "RULE", "SRC_IP", "HOST_CODE", "LogOnlyMode").
+	narrowCols := []string{"METHOD", "URL", "RawQuery", "USER_AGENT", "ACTION", "RULE", "SRC_IP", "HOST_CODE", "LogOnlyMode"}
+	res := global.GWAF_LOCAL_LOG_DB.Model(&model.SecurityEvent{}).
+		Select(narrowCols).
 		Where("REQ_UUID = ?", req.ReqUuid).Limit(1).Find(&wl)
-	// BODY/POST_FORM 已搬到 event_payload，补回来才有东西做快照
+	if res.RowsAffected == 0 {
+		global.GWAF_LOCAL_LOG_DB.Model(&innerbean.WebLog{}).
+			Select(append(append([]string{}, narrowCols...), "BODY", "POST_FORM")).
+			Where("REQ_UUID = ?", req.ReqUuid).Limit(1).Find(&wl)
+	}
+	// BODY/POST_FORM 在 event_payload 里，补回来才有东西做快照
 	wl.REQ_UUID = req.ReqUuid
 	FillLivePayloads([]*innerbean.WebLog{&wl})
 
@@ -222,7 +229,7 @@ func (receiver *WafAILabelService) ListApi(req request.WafAILabelListReq) respon
 	}
 
 	buildQ := func() *gorm.DB {
-		q := global.GWAF_LOCAL_LOG_DB.Model(&innerbean.WebLog{}).Where("ai_score > 0")
+		q := global.GWAF_LOCAL_LOG_DB.Model(&model.SecurityEvent{}).Where("ai_score > 0")
 		if req.StartDay > 0 && req.EndDay > 0 {
 			q = q.Where("day between ? and ?", req.StartDay, req.EndDay)
 		}
@@ -245,8 +252,9 @@ func (receiver *WafAILabelService) ListApi(req request.WafAILabelListReq) respon
 	buildQ().Count(&res.Total)
 
 	var rows []innerbean.WebLog
+	// BODY/POST_FORM 不在窄行上（security_event 没有这两列），整页一次从 event_payload 补回
 	buildQ().Select("REQ_UUID", "CREATE_TIME", "HOST_CODE", "SRC_IP", "METHOD", "URL",
-		"RawQuery", "BODY", "POST_FORM", "USER_AGENT", "AI_SCORE", "RULE", "LogOnlyMode").
+		"RawQuery", "USER_AGENT", "AI_SCORE", "RULE", "LogOnlyMode").
 		Order("ai_score desc").Order("unix_add_time desc").
 		Offset((pageIndex - 1) * pageSize).Limit(pageSize).Find(&rows)
 

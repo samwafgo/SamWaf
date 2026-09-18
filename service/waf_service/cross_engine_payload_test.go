@@ -99,11 +99,52 @@ func runPayloadCases(t *testing.T, logdb *gorm.DB) {
 			ReqUUID: uid, TenantId: xtestTenant, UserCode: xtestUser,
 			Kind: "event", BODY: "expired", CreateTime: old,
 		}).Error)
+		// 分层行：安全事件随长保留期删；访问窄行按 accessDay 删（更短）；
+		// 采样报文 30 天、观察名单报文 7 天
+		must(t, logdb.Create(&model.SecurityEvent{LogNarrow: model.LogNarrow{
+			ReqUUID: uid + "_se", UserCode: xtestUser, TenantId: xtestTenant,
+			UNIX_ADD_TIME: now.AddDate(0, 0, -30).Unix(), CREATE_TIME: old,
+		}}).Error)
+		must(t, logdb.Create(&model.AccessLog{LogNarrow: model.LogNarrow{
+			ReqUUID: uid + "_al", UserCode: xtestUser, TenantId: xtestTenant,
+			UNIX_ADD_TIME: now.AddDate(0, 0, -8).Unix(), CREATE_TIME: now.AddDate(0, 0, -8).Format("2006-01-02 15:04:05"),
+		}}).Error)
+		must(t, logdb.Create(&model.EventPayload{
+			ReqUUID: uid + "_watch", TenantId: xtestTenant, UserCode: xtestUser,
+			Kind: "watch", BODY: "expired-watch", CreateTime: now.AddDate(0, 0, -8).Format("2006-01-02 15:04:05"),
+		}).Error)
+		// 未到期对照组：2 天前的事件报文与访问行都应留下
+		must(t, logdb.Create(&model.EventPayload{
+			ReqUUID: uid + "_fresh", TenantId: xtestTenant, UserCode: xtestUser,
+			Kind: "event", BODY: "fresh", CreateTime: now.AddDate(0, 0, -2).Format("2006-01-02 15:04:05"),
+		}).Error)
+		must(t, logdb.Create(&model.AccessLog{LogNarrow: model.LogNarrow{
+			ReqUUID: uid + "_al2", UserCode: xtestUser, TenantId: xtestTenant,
+			UNIX_ADD_TIME: now.AddDate(0, 0, -2).Unix(), CREATE_TIME: now.AddDate(0, 0, -2).Format("2006-01-02 15:04:05"),
+		}}).Error)
 
-		WafLogServiceApp.DeleteHistory(now.AddDate(0, 0, -1).Format("2006-01-02 15:04"))
+		// securityDay=4 天前（30 天前的删掉、2 天前的留下）、accessDay=7 天前
+		WafLogServiceApp.DeleteHistory(
+			now.AddDate(0, 0, -4).Format("2006-01-02 15:04"),
+			now.AddDate(0, 0, -7).Format("2006-01-02 15:04"))
 
 		if n := countBy(t, logdb, &model.EventPayload{}, "req_uuid = ?", uid); n != 0 {
 			t.Fatalf("过期报文没被清掉，还剩 %d 行", n)
+		}
+		if n := countBy(t, logdb, &model.SecurityEvent{}, "req_uuid = ?", uid+"_se"); n != 0 {
+			t.Fatalf("过期安全事件没被清掉，还剩 %d 行", n)
+		}
+		if n := countBy(t, logdb, &model.AccessLog{}, "req_uuid = ?", uid+"_al"); n != 0 {
+			t.Fatalf("超过访问日志保留期的窄行没被清掉，还剩 %d 行", n)
+		}
+		if n := countBy(t, logdb, &model.EventPayload{}, "req_uuid = ?", uid+"_watch"); n != 0 {
+			t.Fatalf("超过 7 天的观察名单报文没被清掉，还剩 %d 行", n)
+		}
+		if n := countBy(t, logdb, &model.EventPayload{}, "req_uuid = ?", uid+"_fresh"); n != 1 {
+			t.Fatalf("未到期报文被误删了")
+		}
+		if n := countBy(t, logdb, &model.AccessLog{}, "req_uuid = ?", uid+"_al2"); n != 1 {
+			t.Fatalf("未到期访问行被误删了")
 		}
 	})
 }

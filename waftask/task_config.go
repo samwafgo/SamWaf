@@ -86,6 +86,12 @@ func setConfigIntValue(name string, value int64, change int) {
 	case "db_file_size":
 		global.GDATA_SHARE_DB_FILE_SIZE = value
 		break
+	case "access_log_retention_days":
+		if value < 1 {
+			value = 1
+		}
+		global.GDATA_ACCESS_LOG_RETENTION_DAYS = value
+		break
 	case "auto_load_ssl_file":
 		global.GCONFIG_RECORD_AUTO_LOAD_SSL = value
 		break
@@ -356,6 +362,12 @@ func setConfigStringValue(name string, value string, change int) {
 		break
 	case "record_log_type":
 		global.GWAF_RUNTIME_RECORD_LOG_TYPE = value
+		break
+	case "access_log_mode":
+		if value != "off" && value != "sample" {
+			value = "db"
+		}
+		global.GDATA_ACCESS_LOG_MODE = value
 		break
 	case "attack_tag_exclude":
 		global.GCONFIG_ATTACK_TAG_EXCLUDE = value
@@ -744,6 +756,8 @@ func TaskLoadSetting(initLoad bool) {
 	updateConfigIntItem(initLoad, "system", "dns_timeout", global.GWAF_RUNTIME_DNS_TIMEOUT, "DNS 查询超时时间 单位毫秒", "int", "", configMap)
 
 	updateConfigStringItem(initLoad, "system", "record_log_type", global.GWAF_RUNTIME_RECORD_LOG_TYPE, "日志记录类型", "options", "all|全部,abnormal|非正常", configMap)
+	updateConfigStringItem(initLoad, "system", "access_log_mode", global.GDATA_ACCESS_LOG_MODE, "访问日志窄行档位：db=全部请求入库(默认,保留期见下项)；sample=安全事件+采样入库；off=只留安全事件(高流量推荐，但会失去CC阈值推荐/AI训练负样本/异常IP的正常行为回溯)。db/sample 档均按站点每天采样 500 条正常请求报文供 AI 训练", "options", "db|全部入库,sample|采样入库,off|仅安全事件", configMap)
+	updateConfigIntItem(initLoad, "system", "access_log_retention_days", global.GDATA_ACCESS_LOG_RETENTION_DAYS, "访问日志窄行保留天数（默认30）。安全事件仍按「日志保留天数」走；本项直接决定CC阈值推荐能回看多少天", "int", "", configMap)
 	updateConfigStringItem(initLoad, "system", "gwaf_proxy_header", global.GCONFIG_RECORD_PROXY_HEADER, "获取访客IP头信息（按照顺序）比如:X-Forwarded-For,X-Real-IP ,留空则提取的是直接访客IP", "string", "", configMap)
 	updateConfigStringItem(initLoad, "system", "gwaf_manage_proxy_header", global.GCONFIG_MANAGE_PROXY_HEADER, "管理端获取客户端IP头信息（按优先级逗号分隔，如 X-Forwarded-For,X-Real-IP,CF-Connecting-IP），留空则直接取网络IP。安全起见需配合 conf/config.yml 的 security.manage_trusted_proxies：仅当直连来源属可信代理时才采信此头（容器/内网部署可直接填 private）", "string", "", configMap)
 
@@ -901,7 +915,11 @@ func TaskLoadSetting(initLoad bool) {
 
 	// 把落在另一个库里的 IP 标签收回当前归属。按内容判断、源库空即返回，
 	// 所以更早版本切换归属时留下的历史也能在这里被收回来，重复跑无副作用。
+	// 合并前先清存量「正常」行（分层后不再记它）：那是表里的大头，清完合并要搬的行数能少几个数量级。
 	if initLoad {
-		go waf_service.MergeIPTagsInto(global.GDATA_IP_TAG_DB)
+		go func() {
+			waf_service.CleanLegacyBenignIPTags()
+			waf_service.MergeIPTagsInto(global.GDATA_IP_TAG_DB)
+		}()
 	}
 }

@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
@@ -124,13 +125,28 @@ func (receiver *WafLogService) ModifyApi(log innerbean.WebLog) error {
 }
 func (receiver *WafLogService) GetDetailApi(req request.WafAttackLogDetailReq) (innerbean.WebLog, error) {
 	var weblog innerbean.WebLog
-	// 解析当前应查询的日志连接与表（live 或历史分片：SQLite 历史文件 / MySQL 历史表）
-	logDB, logTable := wafdb.ResolveLogDB(req.CurrrentDbName)
-	sel := webLogSelect(logDB, req.CurrrentDbName, logTable, getWebLogDetailColumns(), "detail")
-	if err := logDB.Table(logTable).Select(sel).Where("REQ_UUID=?", req.REQ_UUID).Find(&weblog).Error; err != nil {
-		return weblog, fmt.Errorf("查询日志详情失败: %w", err)
+	// 解析当前分片的三层表：安全事件 → 访问日志 → 存量 web_logs，按 req_uuid 逐层点查。
+	// 事件双写了窄行，内容一致，但事件表保留期更长，优先从它读。
+	tier := wafdb.ResolveTierTables(req.CurrrentDbName)
+	found := false
+	for _, table := range []string{tier.Event, tier.Access, tier.WebLog} {
+		if table == "" {
+			continue
+		}
+		sel := webLogSelect(tier.DB, req.CurrrentDbName, table, getWebLogDetailColumns(), "detail")
+		res := tier.DB.Table(table).Select(sel).Where("REQ_UUID=?", req.REQ_UUID).Find(&weblog)
+		if res.Error != nil {
+			return weblog, fmt.Errorf("查询日志详情失败: %w", res.Error)
+		}
+		if res.RowsAffected > 0 {
+			found = true
+			break
+		}
 	}
-	// 报文单独存在 event_payload 里，按主键点查补回来
+	if !found {
+		return weblog, nil
+	}
+	// 报文单独存在 event_payload 里，按主键点查补回来；没有报文行的（正常请求未采样）保持窄字段
 	FillShardPayloads(req.CurrrentDbName, []*innerbean.WebLog{&weblog})
 	return weblog, nil
 }
@@ -140,10 +156,25 @@ func (receiver *WafLogService) GetListApi(req request.WafAttackLogSearch) ([]inn
 
 	splitFilterBys := strings.Split(req.FilterBy, "|")
 	splitFilterValues := strings.Split(req.FilterValue, "|")
-	// 解析当前应查询的日志连接与表（live 或历史分片：SQLite 历史文件 / MySQL 历史表）
-	logDB, logTable := wafdb.ResolveLogDB(req.CurrrentDbName)
-	/*强制索引*/
-	var forceIndex = logTable
+	// 解析当前分片的三层表：访问日志视图读 access_log，安全事件视图读 security_event；
+	// 分层改造之前切出去的归档只有 web_logs，回落到它（列交集会自适应它的结构）。
+	tier := wafdb.ResolveTierTables(req.CurrrentDbName)
+	logDB := tier.DB
+	isEventView := req.ViewType == "event"
+	logTable := tier.Access
+	if isEventView {
+		logTable = tier.Event
+	}
+	if logTable == "" {
+		logTable = tier.WebLog
+	}
+	if logTable == "" {
+		return nil, 0, errors.New("该分片没有可查询的日志表")
+	}
+	// 老分片上的安全事件视图：web_logs 里按事件条件过滤（与引擎 abnormal 判定同一条规则）
+	legacyEventView := isEventView && logTable == tier.WebLog
+	isLegacyTable := strings.HasPrefix(logTable, wafdb.LogTableName)
+
 	/*where条件*/
 	var whereField = ""
 	var whereValues []interface{}
@@ -151,6 +182,9 @@ func (receiver *WafLogService) GetListApi(req request.WafAttackLogSearch) ([]inn
 	//where字段
 	{
 		whereField = whereField + " (unix_add_time>=? and unix_add_time<=?)"
+		if legacyEventView {
+			whereField = whereField + " and (action<>? or rule<>? or log_only_mode=1)"
+		}
 		if len(req.HostCode) > 0 {
 			if len(whereField) > 0 {
 				whereField = whereField + " and "
@@ -211,16 +245,35 @@ func (receiver *WafLogService) GetListApi(req request.WafAttackLogSearch) ([]inn
 				if by == "guest_identification" {
 					by = "guest_id_entification"
 				}
-				whereField = whereField + " " + by + " like ? "
+				if by == "header" && !isLegacyTable {
+					// header 随报文搬进 event_payload：访问日志视图没有这一列，
+					// 安全事件视图走报文子查询（该视图行数小、且必有报文）。
+					if !isEventView {
+						return nil, 0, errors.New("「请求」全文筛选仅在安全事件视图可用，访问日志视图请改用 UA / Referer 筛选")
+					}
+					if tier.Payload == "" {
+						return nil, 0, errors.New("该分片没有报文表，无法按「请求」内容筛选")
+					}
+					whereField = whereField + " req_uuid in (select req_uuid from " + tier.Payload + " where header like ?) "
+				} else {
+					whereField = whereField + " " + by + " like ? "
+				}
 			}
 		}
 	}
 	//强制索引
+	forceIndex := logTable
 	{
+		idxTime, idxIP := "idx_web_time_desc_tenant_user_code", "idx_web_time_desc_tenant_user_code_ip"
+		if strings.HasPrefix(logTable, model.AccessLogTableName) {
+			idxTime, idxIP = "idx_al_time", "idx_al_ip_time"
+		} else if strings.HasPrefix(logTable, model.SecurityEventTableName) {
+			idxTime, idxIP = "idx_se_time", "idx_se_ip_time"
+		}
 		if strings.Contains(whereField, "unix_add_time") && !strings.Contains(whereField, "src_ip") {
-			forceIndex = dialect.Get().ForceIndexClause(logTable, "idx_web_time_desc_tenant_user_code")
+			forceIndex = dialect.Get().ForceIndexClause(logTable, idxTime)
 		} else if strings.Contains(whereField, "src_ip") {
-			forceIndex = dialect.Get().ForceIndexClause(logTable, "idx_web_time_desc_tenant_user_code_ip")
+			forceIndex = dialect.Get().ForceIndexClause(logTable, idxIP)
 		}
 	}
 
@@ -241,6 +294,9 @@ func (receiver *WafLogService) GetListApi(req request.WafAttackLogSearch) ([]inn
 	{
 		whereValues = append(whereValues, unixBegin)
 		whereValues = append(whereValues, unixEnd)
+		if legacyEventView {
+			whereValues = append(whereValues, "放行", "")
+		}
 		if len(req.HostCode) > 0 {
 			whereValues = append(whereValues, req.HostCode)
 		}
@@ -294,6 +350,14 @@ func (receiver *WafLogService) GetListApi(req request.WafAttackLogSearch) ([]inn
 	if err := logDB.Table(forceIndex).Where(whereField, whereValues...).Count(&total).Error; err != nil {
 		return nil, 0, fmt.Errorf("统计日志条数失败: %w", err)
 	}
+	// 安全事件视图每页补一回报文（事件必有报文）：「请求」列与详情都靠它
+	if isEventView && len(weblogs) > 0 {
+		rows := make([]*innerbean.WebLog, 0, len(weblogs))
+		for i := range weblogs {
+			rows = append(rows, &weblogs[i])
+		}
+		FillShardPayloads(req.CurrrentDbName, rows)
+	}
 	return weblogs, total, nil
 }
 func (receiver *WafLogService) GetListByHostCodeApi(log request.WafAttackLogSearch) ([]innerbean.WebLog, int64, error) {
@@ -304,14 +368,35 @@ func (receiver *WafLogService) GetListByHostCodeApi(log request.WafAttackLogSear
 	global.GWAF_LOCAL_LOG_DB.Where("host_code = ?", log.HostCode).Model(&innerbean.WebLog{}).Count(&total)
 	return weblogs, total, nil
 }
-func (receiver *WafLogService) DeleteHistory(day string) {
-	global.GWAF_LOCAL_LOG_DB.Where("create_time < ?", day).Delete(&innerbean.WebLog{})
-	// 报文表自带同格式的 create_time，按同一条件删，不必回表对 req_uuid
-	if err := global.GWAF_LOCAL_LOG_DB.Where("create_time < ?", day).
+// DeleteHistory 分层保留期清理：
+//   - security_event 与 web_logs（存量，不再写入）按「日志保留天数」删
+//   - access_log 按 access_log_retention_days 删（更短）
+//   - event_payload 跟属主走：kind=event 随安全事件，kind=sample 只留 30 天，
+//     kind=watch（观察名单全量留痕）只留 watchPayloadRetentionDays 天
+//
+// 三张新表都带同格式的 create_time，按各自条件删，不必回表对 req_uuid。
+func (receiver *WafLogService) DeleteHistory(securityDay, accessDay string) {
+	global.GWAF_LOCAL_LOG_DB.Where("create_time < ?", securityDay).Delete(&innerbean.WebLog{})
+	global.GWAF_LOCAL_LOG_DB.Where("create_time < ?", securityDay).Delete(&model.SecurityEvent{})
+	if err := global.GWAF_LOCAL_LOG_DB.Where("create_time < ?", accessDay).
+		Delete(&model.AccessLog{}).Error; err != nil {
+		zlog.Warn("清理过期访问日志失败", "截止", accessDay, "error", err.Error())
+	}
+	sampleDay := time.Now().AddDate(0, 0, -sampleRetentionDays).Format("2006-01-02 15:04")
+	watchDay := time.Now().AddDate(0, 0, -watchPayloadRetentionDays).Format("2006-01-02 15:04")
+	if err := global.GWAF_LOCAL_LOG_DB.
+		Where("(kind = ? and create_time < ?) or (kind = ? and create_time < ?) or (kind = ? and create_time < ?) or (kind = '' and create_time < ?)",
+			"event", securityDay, "sample", sampleDay, "watch", watchDay, securityDay).
 		Delete(&model.EventPayload{}).Error; err != nil {
-		zlog.Warn("清理过期报文失败", "截止", day, "error", err.Error())
+		zlog.Warn("清理过期报文失败", "截止", securityDay, "error", err.Error())
 	}
 }
+
+// sampleRetentionDays 采样负样本池的保留天数（D2）。比 access_log 独立：它喂的是 AI 训练。
+const sampleRetentionDays = 30
+
+// watchPayloadRetentionDays 观察名单全量留痕报文的保留天数（D9）。窄行仍随 access_log 保留期。
+const watchPayloadRetentionDays = 7
 
 // GetUnixTimeByCounter 依据开始时间和到期时间获取一个最新的时间戳
 func (receiver *WafLogService) GetUnixTimeByCounter(lastStartCreateUnix int64, lastEndCreateUnix int64) innerbean.WebLog {

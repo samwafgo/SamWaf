@@ -1,6 +1,8 @@
 package wafqueue
 
 import (
+	"SamWaf/innerbean"
+	"SamWaf/model"
 	"crypto/sha1"
 	"encoding/hex"
 	"strings"
@@ -10,11 +12,11 @@ import (
 // 归一化规则一改，历史数据与新数据就不可比（汇总失真），所以规则由 log_keys_test.go 钉死：
 // 改这里的判定必须连测试一起改，并在提交记录里说明。
 
-// ActorKey 访问者身份：有访客身份识别码就用它（换 IP 也认得出来），否则退回 IP。
-func ActorKey(guestID, ip string) string {
-	if guestID != "" {
-		return "g:" + guestID
-	}
+// ActorKey 访问者身份：只有 IP 可用。
+// 注意不能拿 GUEST_IDENTIFICATION 当身份——它是引擎写的分类标签
+// （正常访客/可疑用户/bot 名/触发敏感词…），全站只有几个取值，
+// 当键会把所有正常访客聚成一个 actor。分类聚合直接查窄行的 guest_id_entification 列。
+func ActorKey(ip string) string {
 	if ip != "" {
 		return "ip:" + ip
 	}
@@ -130,4 +132,29 @@ func isUUID(s string) bool {
 		}
 	}
 	return true
+}
+
+// AnalysisRowsFromLogs 把一批日志投影成分析层要的最小行，三个键就地算好。
+// 键在这边算是刻意的：waftask 不能反向 import wafqueue（日志队列正在调它，会成环），
+// 而键又必须和落进 access_log / security_event 的列出自同一套函数，否则汇总口径会和明细漂移。
+//
+// 不看档位：明细写多少由 tierForStore 决定，汇总永远吃全量请求流。
+func AnalysisRowsFromLogs(logs []*innerbean.WebLog) []model.LogAnalysisRow {
+	rows := make([]model.LogAnalysisRow, 0, len(logs))
+	for _, lg := range logs {
+		if lg == nil {
+			continue
+		}
+		rows = append(rows, model.LogAnalysisRow{
+			HostCode:   lg.HOST_CODE,
+			Day:        lg.Day,
+			ActorKey:   ActorKey(lg.SRC_IP),
+			PathNorm:   NormalizePath(lg.URL),
+			UaHash:     UaHash(lg.USER_AGENT),
+			Rule:       lg.RULE,
+			Action:     lg.ACTION,
+			StatusCode: lg.STATUS_CODE,
+		})
+	}
+	return rows
 }

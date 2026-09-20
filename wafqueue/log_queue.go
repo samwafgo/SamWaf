@@ -70,6 +70,9 @@ func ProcessLogDequeEngine() {
 					}
 					// 日志流做统计
 					waftask.CollectStatsFromLogs(webLogArray)
+					// 分析层天级汇总（行为 / 目标 / 手法三视角）。键在本包算好再传过去：
+					// waftask 不能反向 import 本包，而键必须与窄行同源。
+					waftask.CollectAnalysisStats(AnalysisRowsFromLogs(webLogArray))
 					global.GNOTIFY_KAKFA_SERVICE.ProcessBatchLogs(webLogArray)
 					// 文件日志写入
 					global.GNOTIFY_LOG_FILE_WRITER.ProcessBatchLogs(webLogArray)

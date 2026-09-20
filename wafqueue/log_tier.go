@@ -141,7 +141,7 @@ func narrowFromLog(lg *innerbean.WebLog) model.LogNarrow {
 		BalanceInfo:        lg.BalanceInfo,
 		BodyHash:           lg.BodyHash,
 		Truncated:          truncated,
-		ActorKey:           ActorKey(lg.GUEST_IDENTIFICATION, lg.SRC_IP),
+		ActorKey:           ActorKey(lg.SRC_IP),
 		UaHash:             UaHash(lg.USER_AGENT),
 		PathNorm:           NormalizePath(lg.URL),
 		CREATE_TIME:        lg.CREATE_TIME,

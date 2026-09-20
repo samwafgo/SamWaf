@@ -56,7 +56,7 @@ type LogNarrow struct {
 	// 分析键（M5 汇总与 facet 的数据地基，写入时算好）。
 	// actor_key 的索引不在 tag 里建：LogNarrow 同时嵌进 access_log 与 security_event，
 	// 而 SQLite/PG 的索引名全库唯一，同名会撞——改在迁移里按表各建各的（idx_al_actor/idx_se_actor）。
-	ActorKey string `gorm:"size:100" json:"actor_key"` // 访客身份优先，其次 IP
+	ActorKey string `gorm:"size:100" json:"actor_key"` // 访问者身份，目前只有 ip: 前缀的来源 IP
 	UaHash   string `gorm:"size:64" json:"ua_hash"`                       // UA 指纹，供「同一人多少种 UA」
 	PathNorm string `gorm:"size:512" json:"path_norm"`                    // 路径模板：数字段/UUID/hex 归一
 

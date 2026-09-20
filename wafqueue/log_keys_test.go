@@ -28,21 +28,16 @@ func TestNormalizePath(t *testing.T) {
 }
 
 func TestActorKey(t *testing.T) {
-	if got := ActorKey("guest-1", "1.2.3.4"); got != "g:guest-1" {
-		t.Fatalf("有访客身份时优先用它，实际 %q", got)
+	if got := ActorKey("1.2.3.4"); got != "ip:1.2.3.4" {
+		t.Fatalf("actor_key 取来源 IP，实际 %q", got)
 	}
-	if got := ActorKey("", "1.2.3.4"); got != "ip:1.2.3.4" {
-		t.Fatalf("没访客身份退回 IP，实际 %q", got)
+	if got := ActorKey(""); got != "" {
+		t.Fatalf("没有 IP 应为空，实际 %q", got)
 	}
-	if got := ActorKey("", ""); got != "" {
-		t.Fatalf("都没有应为空，实际 %q", got)
-	}
-	// 同一个访客换 IP 仍同键；同一 IP 不同访客不同键
-	if ActorKey("guest-1", "1.2.3.4") != ActorKey("guest-1", "9.9.9.9") {
-		t.Fatal("换 IP 不该改变 actor_key")
-	}
-	if ActorKey("a", "1.2.3.4") == ActorKey("b", "1.2.3.4") {
-		t.Fatal("不同访客不该同键")
+	// 钉死：GUEST_IDENTIFICATION 是分类标签（正常访客/可疑用户/bot 名），
+	// 不是身份，绝不能进 actor_key——否则全站正常访客聚成一个 actor。
+	if ActorKey("1.2.3.4") == ActorKey("5.6.7.8") {
+		t.Fatal("不同 IP 不该同键")
 	}
 }
 

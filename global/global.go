@@ -201,6 +201,11 @@ var (
 	GDATA_ACCESS_LOG_MODE string = "db"
 	// GDATA_ACCESS_LOG_RETENTION_DAYS access_log 保留天数。它直接决定 CC 阈值推荐能回看多少天。
 	GDATA_ACCESS_LOG_RETENTION_DAYS int64 = 30
+	// GDATA_ANALYSIS_SCAN_PATH_THRESHOLD 来源分析里「疑似扫目录」的判定线：一天摸过多少个不同路径模板。
+	// 只影响界面上的提示与筛选，不落库、不改任何拦截行为。
+	GDATA_ANALYSIS_SCAN_PATH_THRESHOLD int64 = 20
+	// GDATA_ANALYSIS_UA_THRESHOLD 来源分析里「疑似换 UA 试探」的判定线：一天用过多少种 UA 指纹。
+	GDATA_ANALYSIS_UA_THRESHOLD int64 = 5
 	// GDATA_IP_TAG_DB IP Tag 存放位置：0 核心库，1 统计库。
 	// 新装默认统计库——ip_tags 是派生索引，写入量跟着攻击量走，和配置共用核心库会拖慢每一次配置读写。
 	// 存量用户的取值来自 system_configs 里已有的那一行，不受这个默认值影响；

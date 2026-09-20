@@ -145,6 +145,7 @@ var (
 	wafOtpService = waf_service.WafOtpServiceApp
 
 	wafAnalysisService = waf_service.WafAnalysisServiceApp
+	wafAnalysisViewService = waf_service.WafAnalysisViewServiceApp
 
 	wafAIService      = waf_service.WafAIServiceApp
 	wafAILabelService = waf_service.WafAILabelServiceApp

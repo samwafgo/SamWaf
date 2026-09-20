@@ -92,6 +92,18 @@ func setConfigIntValue(name string, value int64, change int) {
 		}
 		global.GDATA_ACCESS_LOG_RETENTION_DAYS = value
 		break
+	case "analysis_scan_path_threshold":
+		if value < 1 {
+			value = 1
+		}
+		global.GDATA_ANALYSIS_SCAN_PATH_THRESHOLD = value
+		break
+	case "analysis_ua_threshold":
+		if value < 1 {
+			value = 1
+		}
+		global.GDATA_ANALYSIS_UA_THRESHOLD = value
+		break
 	case "auto_load_ssl_file":
 		global.GCONFIG_RECORD_AUTO_LOAD_SSL = value
 		break
@@ -758,6 +770,8 @@ func TaskLoadSetting(initLoad bool) {
 	updateConfigStringItem(initLoad, "system", "record_log_type", global.GWAF_RUNTIME_RECORD_LOG_TYPE, "日志记录类型", "options", "all|全部,abnormal|非正常", configMap)
 	updateConfigStringItem(initLoad, "system", "access_log_mode", global.GDATA_ACCESS_LOG_MODE, "访问日志窄行档位：db=全部请求入库(默认,保留期见下项)；sample=安全事件+采样入库；off=只留安全事件(高流量推荐，但会失去CC阈值推荐/AI训练负样本/异常IP的正常行为回溯)。db/sample 档均按站点每天采样 500 条正常请求报文供 AI 训练", "options", "db|全部入库,sample|采样入库,off|仅安全事件", configMap)
 	updateConfigIntItem(initLoad, "system", "access_log_retention_days", global.GDATA_ACCESS_LOG_RETENTION_DAYS, "访问日志窄行保留天数（默认30）。安全事件仍按「日志保留天数」走；本项直接决定CC阈值推荐能回看多少天", "int", "", configMap)
+	updateConfigIntItem(initLoad, "system", "analysis_scan_path_threshold", global.GDATA_ANALYSIS_SCAN_PATH_THRESHOLD, "来源分析：一天摸过多少个不同路径模板判为「疑似扫目录」（默认20）。只影响界面提示与筛选，不改拦截行为", "int", "", configMap)
+	updateConfigIntItem(initLoad, "system", "analysis_ua_threshold", global.GDATA_ANALYSIS_UA_THRESHOLD, "来源分析：一天用过多少种UA指纹判为「疑似换UA试探」（默认5）。只影响界面提示与筛选，不改拦截行为", "int", "", configMap)
 	updateConfigStringItem(initLoad, "system", "gwaf_proxy_header", global.GCONFIG_RECORD_PROXY_HEADER, "获取访客IP头信息（按照顺序）比如:X-Forwarded-For,X-Real-IP ,留空则提取的是直接访客IP", "string", "", configMap)
 	updateConfigStringItem(initLoad, "system", "gwaf_manage_proxy_header", global.GCONFIG_MANAGE_PROXY_HEADER, "管理端获取客户端IP头信息（按优先级逗号分隔，如 X-Forwarded-For,X-Real-IP,CF-Connecting-IP），留空则直接取网络IP。安全起见需配合 conf/config.yml 的 security.manage_trusted_proxies：仅当直连来源属可信代理时才采信此头（容器/内网部署可直接填 private）", "string", "", configMap)
 

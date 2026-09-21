@@ -614,7 +614,7 @@ func (waf *WafEngine) logStaticFileAccess(path, remoteAddr string, fileSize int6
 
 	// 按照全局日志记录策略决定是否记录
 	// abnormal 模式下静态文件成功访问(ACTION=放行)通常不记录，但若命中过自定义规则(RULE 非空)仍要留痕
-	if shouldRecordWebLog(weblog, hostsafe.Host.EXCLUDE_URL_LOG) {
+	if shouldRecordWebLog(weblog, hostsafe) {
 		global.GQEQUE_LOG_DB.Enqueue(weblog)
 	}
 }

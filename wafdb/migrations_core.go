@@ -2342,6 +2342,28 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return tx.Migrator().DropTable(&model.IPWatchlist{})
 			},
 		},
+		// 迁移: 网站表新增「排除记录日志的IP」清单列（M6 H1，全局级清单走系统配置 exclude_ip_log）
+		{
+			ID: "202609210001_add_hosts_exclude_ip_log",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202609210001: 网站新增排除记录日志的IP清单列")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "EXCLUDE_IP_LOG") {
+					return nil
+				}
+				if err := tx.Migrator().AddColumn(&model.Hosts{}, "EXCLUDE_IP_LOG"); err != nil {
+					return fmt.Errorf("新增网站排除IP列失败: %w", err)
+				}
+				zlog.Info("迁移 202609210001: 完成")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202609210001: 删除网站排除记录日志的IP清单列")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "EXCLUDE_IP_LOG") {
+					return tx.Migrator().DropColumn(&model.Hosts{}, "EXCLUDE_IP_LOG")
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

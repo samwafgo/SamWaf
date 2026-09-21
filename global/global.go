@@ -56,6 +56,7 @@ var (
 	GWAF_RUNTIME_DNS_TIMEOUT int64  = 500            // DNS 查询超时时间 单位毫秒
 
 	GWAF_RUNTIME_RECORD_LOG_TYPE string = "all" // 记录日志形式： 全部(all),非正常(abnormal)
+	GCONFIG_EXCLUDE_IP_LOG   string = ""    // 全局排除记录日志的IP清单(所有站点生效)，语法同站点级 exclude_ip_log
 	GWAF_RUNTIME_IS_UPDATETING   bool   = false //是否正在升级中
 
 	GWAF_RUNTIME_CURRENT_EXEPATH                 string = "" //当前程序运行路径

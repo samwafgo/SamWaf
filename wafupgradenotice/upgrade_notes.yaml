@@ -734,3 +734,94 @@ notes:
         (access log / security events / payloads / legacy) into a fresh encrypted SQLite file.
         Tables are created on the first start after upgrading; existing data is untouched and stays readable.
 
+  - id: v1_3_25_log_source_path_analysis
+    version: v1.3.25
+    kind: notice
+    level: normal
+    page: /wafanalysis/wafanalysissourcepath
+    doc: https://doc.samwaf.com/quickstart/Update.html
+    apply:
+      type: navigate
+    zh:
+      title: 新增「来源与路径分析」：从来源和路径两个视角看流量构成
+      detail: >-
+        「数据分析 - 来源与路径分析」是本版本新增的独立页面，把访问日志按天汇总后分两个视角呈现：
+        按来源看哪些 IP 或访客打得最多（请求数、命中规则次数、去重路径数、UA 分布），
+        按路径看哪些接口被访问得最多（请求数、去重来源数、规则分布）。两个视角都可以按站点和天数筛选，
+        表格里可以直接对某个来源 IP 加黑或加白（需要先选定站点，因为黑白名单是按站点生效的）。
+        数据来自本版本新增的按天汇总表，在日志写入时同步累加，不去扫原始日志表，
+        所以即便把「访问日志档位」调成「采样入库」或「仅安全事件」，这个页面依然有数。
+        路径先模板化再汇总——数字段、UUID、hex 串归一成占位符，/user/1001 与 /user/1002 会聚成同一条；
+        每个站点每天的模板数封顶 5000，超出的归入一条 {overflow}，避免随机路径把表刷爆。
+        需要知道的是：汇总只从升级之后的流量开始积累，历史日志不回填，
+        所以刚升完级这个页面是空的，跑满一天之后才有完整的昨天数据。
+        新增的汇总表已经列入「数据保留策略」页，默认不自动清理，与现有各表的默认一致，
+        觉得占空间可以自己在那里开启定期清理。
+    en:
+      title: New Source and Path Analysis page, viewing traffic by origin and by path
+      detail: >-
+        Data Analysis - Source and Path Analysis is a new standalone page in this version. It rolls up access
+        logs per day and presents them from two angles: by source, showing which IPs or visitors send the most
+        requests (request count, rule hits, distinct paths, UA distribution), and by path, showing which
+        endpoints are hit the most (request count, distinct sources, rule distribution). Both angles filter by
+        website and number of days, and the table lets you block or allow a source IP directly - you pick the
+        website first, since block and allow lists apply per website.
+        The data comes from new daily rollup tables accumulated as logs are written rather than by scanning the
+        raw log tables, so the page still has data even when the access-log mode is set to sampled or
+        security-events-only.
+        Paths are templated before being rolled up - numeric segments, UUIDs and hex strings become
+        placeholders, so /user/1001 and /user/1002 collapse into one row. Each website is capped at 5000
+        templates per day and anything beyond that lands in a single {overflow} row, so random paths cannot
+        flood the table.
+        Worth knowing: the rollups only start accumulating from traffic after the upgrade and historical logs
+        are not backfilled, so the page is empty right after upgrading and gives a complete picture of
+        yesterday only once a full day has passed.
+        The new rollup tables are listed on the Data Retention page with automatic cleanup off by default,
+        matching every other table there; turn it on yourself if the space matters to you.
+
+  - id: v1_3_25_weblog_exclude_ip
+    version: v1.3.25
+    kind: notice
+    level: normal
+    page: /waf/wafvisitlog
+    doc: https://doc.samwaf.com/quickstart/Update.html
+    apply:
+      type: navigate
+    zh:
+      title: 可按来源IP排除日志记录：办公出口与探测机的噪音不再进日志
+      detail: >-
+        以往只能按 URL 前缀排除记录（在网站编辑里），本版本新增按来源 IP 排除，两个作用域各一份：
+        全局清单在「防护日志 - 访问日志」页的「日志配置」里，站点清单在网站编辑的「记录日志时排除IP」里。
+        清单语法与黑白名单完全一致——单个 IP、CIDR、通配符、区间，或者 group:组短码 引用一个 IP 组
+        （改组内容对所有引用它的站点立即生效），逗号或换行分隔，# 开头为注释。
+        写错的模式在保存时就被拒绝并指出是哪一条，不会静默忽略；两份清单都不需要重启，保存即生效。
+        只静音正常请求：被排除 IP 的安全事件（命中规则、被拦截）照常记录。这是刻意这样定的——
+        办公出口往往是一个 NAT 共享地址，一刀切静音等于「真被人打了也看不见」。
+        被排除的请求不写日志、不计入请求数统计、也不进新的来源与路径汇总；
+        但站点的进出流量字节仍然照计（字节计量在引擎侧，不经日志队列），所以流量图上还能看到它们，
+        这是预期行为，不是漏排。
+        默认两份清单都是空的，升级后行为与之前完全一致，不需要任何操作。
+        另外顺带说明：SamWaf 自带的访问认证探测点（`/<访问认证前缀>/ping`，恒回 204）从来不产生访问日志，
+        不需要也无法为它配置排除。
+    en:
+      title: Exclude log recording by source IP, keeping office exits and probes out of the logs
+      detail: >-
+        Until now records could only be excluded by URL prefix in the website editor. This version adds
+        exclusion by source IP, with one list per scope: the global list lives in Log Settings on the
+        Protection Logs - Access Log page, and the per-site list in the website editor as "Exclude IP When
+        Logging".
+        The syntax matches the block and allow lists exactly - a single IP, CIDR, wildcard, range, or
+        group:CODE referencing an IP group (changing the group's contents takes effect immediately for every
+        website naming it). Entries are comma- or newline-separated and # starts a comment.
+        A malformed pattern is rejected when you save, naming the offending line rather than being silently
+        ignored, and neither list needs a restart - saving is enough.
+        Only plain requests are silenced: security events from an excluded IP (rule hits, blocked requests) are
+        still recorded. That is deliberate - an office exit is often one NAT-shared address, and silencing it
+        outright would mean a real attack from behind it becomes invisible.
+        Excluded requests write no log row, are not counted in request statistics, and do not reach the new
+        source and path rollups. Their inbound and outbound bytes are still metered, because byte accounting
+        happens in the engine and never passes through the log queue, so they remain visible on the traffic
+        charts - that is expected, not a missed exclusion.
+        Both lists are empty by default, so behavior after upgrading is exactly as before and nothing needs to
+        be done. As a side note, SamWaf's own access-authentication probe endpoint (`/<access prefix>/ping`,
+        always 204) never produces an access log, so there is nothing to exclude for it.

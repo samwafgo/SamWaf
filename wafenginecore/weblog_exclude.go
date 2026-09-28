@@ -3,7 +3,6 @@ package wafenginecore
 import (
 	"SamWaf/model/wafenginmodel"
 	"SamWaf/wafenginecore/ipset"
-	"strings"
 	"sync/atomic"
 )
 
@@ -18,43 +17,22 @@ import (
 // 一刀切静音意味着真被打了也看不见。判定挂在 shouldRecordWebLog（入队前），
 // 被排除的请求同样不进三层落库 / stats_* / 分析层汇总。
 
-// parseIPLogExcludeLines 把清单文本拆成 IP 模式与组短码两组；组短码去重且保持出现顺序。
+// 清单文本的解析与编译统一放在 ipset（叶子包）里：引擎按它决定记不记日志，
+// IP归属查询按它回答「这个 IP 为什么没有日志」，两边必须是同一套解析。
+
+// parseIPLogExcludeLines 把清单文本拆成 IP 模式与组短码两组
 func parseIPLogExcludeLines(raw string) (patterns []string, groupCodes []string) {
-	seen := map[string]struct{}{}
-	for _, line := range strings.FieldsFunc(raw, func(r rune) bool { return r == '\n' || r == '\r' || r == ',' }) {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		if len(line) >= len("group:") && strings.EqualFold(line[:len("group:")], "group:") {
-			code := strings.TrimSpace(line[len("group:"):])
-			if code == "" {
-				continue
-			}
-			if _, dup := seen[code]; !dup {
-				seen[code] = struct{}{}
-				groupCodes = append(groupCodes, code)
-			}
-			continue
-		}
-		patterns = append(patterns, line)
-	}
-	return patterns, groupCodes
+	return ipset.ParseListText(raw)
 }
 
 // BuildIPLogExcludeIndex 编译站点级清单里的 IP 模式；空清单返回 nil。
 func BuildIPLogExcludeIndex(raw string) *ipset.MatchSet {
-	patterns, _ := parseIPLogExcludeLines(raw)
-	if len(patterns) == 0 {
-		return nil
-	}
-	return ipset.BuildMatchSet(patterns)
+	return ipset.BuildFromListText(raw)
 }
 
 // ExtractIPLogExcludeGroupCodes 抽出站点级清单里引用的组短码（去重保序）。
 func ExtractIPLogExcludeGroupCodes(raw string) []string {
-	_, codes := parseIPLogExcludeLines(raw)
-	return codes
+	return ipset.GroupCodesOf(raw)
 }
 
 // ipLogExcludeCompiled 是全局清单的编译结果，配置热更新时整体替换。

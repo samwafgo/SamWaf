@@ -70,6 +70,11 @@ type WebLog struct {
 	// 避免 `MF.COUNTRY != "中国"` 这类规则在 IPv6 地区库缺失时把访客整片误杀。
 	// 仅运行期使用，不落库、不出接口。
 	GeoUnresolved bool `gorm:"-" json:"-"`
+
+	// ShardName 这条记录是从哪个分区读出来的。**只在读侧回填**（列表扇出与详情定位时），
+	// 不落库；引擎侧的对象恒为空，omitempty 保证它不会混进 Kafka 出口的报文里。
+	// 界面靠它标注「这条在哪个分区」，详情链接也靠它直达而不必再逐个分区找。
+	ShardName string `gorm:"-" json:"shard_name,omitempty"`
 }
 
 // GetHeaderValue 从HEADER字段中提取指定header的值

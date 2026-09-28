@@ -382,6 +382,8 @@ func (m *wafSystenService) run() {
 		zlog.Error("初始化统计数据库失败，程序退出，请检查conf/config.yml数据库配置是否正确", "error", err)
 		os.Exit(1)
 	}
+	// 分层改造的边界切换要赶在接流量之前：条件是新表为空，一旦有请求写进来就不再成立
+	waftask.CutTierBoundaryIfNeeded()
 
 	// 全新安装引导：账户表为空(新用户判定)时创建默认管理员并生成随机初始口令。
 	// 放在启动初始化(核心库就绪后)执行，不再等首次登录才触发，便于新装即时拿到 data/initial_password.txt。

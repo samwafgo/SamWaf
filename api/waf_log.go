@@ -91,6 +91,7 @@ func (w *WafLogAPi) GetListApi(c *gin.Context) {
 				"sort_forced_time": meta.SortForcedTime,
 				"partial":          meta.Partial,
 				"took_ms":          meta.TookMs,
+				"issues":           meta.Issues,
 			}, "获取成功", c)
 		}
 
@@ -272,6 +273,7 @@ func (w *WafLogAPi) GetAllShareDbApi(c *gin.Context) {
 			IsCurrent: wafShareList[i].FileName == liveName,
 			PeriodKey: wafShareList[i].PeriodKey,
 			Tiers:     wafShareList[i].Tiers,
+			Missing:   wafShareList[i].Missing,
 		}
 
 	}

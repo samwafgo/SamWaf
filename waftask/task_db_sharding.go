@@ -84,19 +84,9 @@ func TaskShareDbInfo() {
 		return
 	}
 
-	// 分层改造的一次性边界：升级后 web_logs 里还躺着改造前的数据，而写入已切到
-	// access_log / security_event / event_payload。先把它整体切成一个归档分片，
-	// 新表从空开始——此后「实时」与「归档」各归各位，旧数据照旧能在归档下拉里读（D6）。
-	// 无标记可记：web_logs 不再写入，access_log 一旦有行就说明边界已经切过，天然幂等。
-	if dialect.Get().TableExists(global.GWAF_LOCAL_LOG_DB, model.AccessLogTableName) {
-		var legacyCnt, accessCnt int64
-		global.GWAF_LOCAL_LOG_DB.Model(&innerbean.WebLog{}).Count(&legacyCnt)
-		global.GWAF_LOCAL_LOG_DB.Model(&model.AccessLog{}).Count(&accessCnt)
-		if legacyCnt > 0 && accessCnt == 0 {
-			// 存量 web_logs 里的数据跨很多个月，给它安一个周期键是假的，沿用时间戳命名
-			doLogShardCut(innerLogName, fmt.Sprintf("分层改造边界切换（存量 %d 行转入归档）", legacyCnt), true, "")
-			return
-		}
+	// 启动时已同步做过一次（CutTierBoundaryIfNeeded），这里是兜底
+	if CutTierBoundaryIfNeeded() {
+		return
 	}
 
 	// 周期边界优先：实时库里最早一条日志落在上一个周期，就把这一段整体切成那个周期的分区。
@@ -166,6 +156,32 @@ func TaskShareDbInfo() {
 		// 同周期内被写爆了：仍然按当前周期命名，序号从 02 起，读侧与过期判断照样认得出周期
 		doLogShardCut(innerLogName, shardingReason+"（同周期内兜底切分）", false, curKey)
 	}
+}
+
+// CutTierBoundaryIfNeeded 分层改造的一次性边界：升级后 web_logs 里还躺着改造前的数据，而写入已切到
+// access_log / security_event / event_payload。先把它整体切成一个归档分片，新表从空开始——
+// 此后「实时」与「归档」各归各位，旧数据照旧能在归档下拉里读（D6）。
+//
+// 必须在开始接流量之前调用：判定条件是 access_log 为空，一旦有新请求写进来就不再成立，
+// 存量数据会一直留在实时库的 web_logs 里，而实时视图只读新表。
+// 无标记可记：web_logs 不再写入，access_log 一旦有行就说明边界已经切过，天然幂等。
+// 返回 true 表示本次做了切分。
+func CutTierBoundaryIfNeeded() bool {
+	if global.GWAF_LOCAL_DB == nil || global.GWAF_LOCAL_LOG_DB == nil {
+		return false
+	}
+	if !dialect.Get().TableExists(global.GWAF_LOCAL_LOG_DB, model.AccessLogTableName) {
+		return false
+	}
+	var legacyCnt, accessCnt int64
+	global.GWAF_LOCAL_LOG_DB.Model(&innerbean.WebLog{}).Count(&legacyCnt)
+	global.GWAF_LOCAL_LOG_DB.Model(&model.AccessLog{}).Count(&accessCnt)
+	if legacyCnt == 0 || accessCnt > 0 {
+		return false
+	}
+	// 存量 web_logs 里的数据跨很多个月，给它安一个周期键是假的，沿用时间戳命名
+	doLogShardCut("TaskDBSharding", fmt.Sprintf("分层改造边界切换（存量 %d 行转入归档）", legacyCnt), true, "")
+	return true
 }
 
 // doLogShardCut 执行一次日志库切分。swapWebLog=true 只用于分层改造的一次性边界切换

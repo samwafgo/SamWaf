@@ -854,6 +854,9 @@ notes:
         SQLite 的一个分区是一个文件、三层都在里面，只能按较长的「日志保留天数」整体回收。
         升级前切出来的旧分片（包括最早那种只有 web_logs 的）**照旧可以查**，不需要任何迁移动作，
         读取时会自动适配它实际有哪些表和哪些列，到期后同样整体回收。
+        历史归档文件一律**只读**打开，查询不会再改动它们（不补表、不补列、不建索引），
+        同时打开多个历史分区时内存占用也收小了。分片记录还在、文件却已不在（例如被手工删掉）的分区，
+        归档下拉里会标「文件缺失」且不可选，查询时会说明跳过了哪些分区，可在「分区管理」里删除这条记录。
     en:
       title: Log archives are now cut per month and expired by dropping whole partitions (MySQL/PostgreSQL archive tables start being recycled)
       detail: >-
@@ -882,6 +885,11 @@ notes:
         Shards cut before the upgrade, including the earliest ones that only hold web_logs, **remain
         queryable** with no migration on your part: reads adapt to whichever tables and columns a shard
         actually has, and they are recycled whole once they expire.
+        Archived history files are always opened **read-only**: queries never modify them (no tables, columns
+        or indexes are added), and opening several history partitions at once uses much less memory. A
+        partition whose record still exists but whose file is gone (for example deleted by hand) is marked
+        "file missing" and cannot be selected in the archive dropdown; queries say which partitions were
+        skipped, and the record can be removed under Partitions.
 
   - id: v1_3_25_log_auto_partition_and_uuid
     version: v1.3.25

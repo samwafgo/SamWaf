@@ -58,13 +58,55 @@ type LogShardHit struct {
 
 // LogQueryMeta 告诉前端这次查询到底查了哪里
 type LogQueryMeta struct {
-	Shards         []LogShardHit `json:"shards"`           // 本次覆盖的分区（按时间从新到旧）
-	FoundIn        string        `json:"found_in"`         // 识别码直查命中的分区
-	Scanned        int           `json:"scanned"`          // 识别码直查翻了几个分区
-	UuidLookup     bool          `json:"uuid_lookup"`      // 是否走了识别码直查
-	SortForcedTime bool          `json:"sort_forced_time"` // 跨分区时排序被强制成时间
-	Partial        bool          `json:"partial"`          // 查询超出时间预算，结果与总数都只是一部分
-	TookMs         int64         `json:"took_ms"`          // 本次耗时，界面用来解释「为什么只给了一部分」
+	Shards         []LogShardHit   `json:"shards"`           // 本次覆盖的分区（按时间从新到旧）
+	FoundIn        string          `json:"found_in"`         // 识别码直查命中的分区
+	Scanned        int             `json:"scanned"`          // 识别码直查翻了几个分区
+	UuidLookup     bool            `json:"uuid_lookup"`      // 是否走了识别码直查
+	SortForcedTime bool            `json:"sort_forced_time"` // 跨分区时排序被强制成时间
+	Partial        bool            `json:"partial"`          // 查询超出时间预算，结果与总数都只是一部分
+	TookMs         int64           `json:"took_ms"`          // 本次耗时，界面用来解释「为什么只给了一部分」
+	Issues         []LogShardIssue `json:"issues"`           // 本次碰到的存储缺失 / 空壳分区
+}
+
+// 分区问题的两种类型
+const (
+	ShardIssueMissing = "missing" // 登记还在，文件（或分区表）已不在
+	ShardIssueEmpty   = "empty"   // 文件在，但一行数据都没有，而登记有条数
+)
+
+// LogShardIssue 一个有问题的分区，界面据此提示用户去「分区管理」处理
+type LogShardIssue struct {
+	Name       string `json:"name"`
+	Kind       string `json:"kind"`
+	Registered int64  `json:"registered"` // share_dbs 登记的条数
+}
+
+// errShardNoTable 分区里没有任何可查询的日志表
+var errShardNoTable = errors.New("该分片没有可查询的日志表")
+
+// shardIssueOf 查询某个分区出错或读到空壳时，归成一条问题；不属于这两类返回 nil。
+func shardIssueOf(name string, registered int64, err error, tier wafdb.TierTables) *LogShardIssue {
+	if err != nil && errors.Is(err, wafdb.ErrShardMissing) {
+		return &LogShardIssue{Name: name, Kind: ShardIssueMissing, Registered: registered}
+	}
+	if registered > 0 && (errors.Is(err, errShardNoTable) || (err == nil && tier.Empty)) {
+		return &LogShardIssue{Name: name, Kind: ShardIssueEmpty, Registered: registered}
+	}
+	return nil
+}
+
+// registeredShardCount share_dbs 里某个分区登记的条数，找不到返回 0
+func registeredShardCount(name string) int64 {
+	all, err := WafShareDbServiceApp.GetAllShareDbApi()
+	if err != nil {
+		return 0
+	}
+	for _, s := range all {
+		if s.FileName == name {
+			return s.Cnt
+		}
+	}
+	return 0
 }
 
 // shardCountCache 归档分区的计数缓存。
@@ -89,6 +131,11 @@ func InvalidateShardCounts() {
 		return true
 	})
 	shardCountCacheN.Store(0)
+	webLogShardSelect.Range(func(k, _ any) bool {
+		webLogShardSelect.Delete(k)
+		return true
+	})
+	wafdb.InvalidateShardTierCache()
 }
 
 // countCacheKey 非时间条件的签名 + 分区名。时间条件不进键——只有完整覆盖时才会用到本缓存。
@@ -120,6 +167,9 @@ func buildLogQuery(req request.WafAttackLogSearch, shardName string, ignoreTime 
 	// 解析当前分片的三层表：访问日志视图读 access_log，安全事件视图读 security_event；
 	// 分层改造之前切出去的归档只有 web_logs，回落到它（列交集会自适应它的结构）。
 	tier := wafdb.ResolveTierTables(shardName)
+	if tier.Err != nil {
+		return nil, tier.Err
+	}
 	logDB := tier.DB
 	isEventView := req.ViewType == "event"
 	logTable := tier.Access
@@ -130,7 +180,7 @@ func buildLogQuery(req request.WafAttackLogSearch, shardName string, ignoreTime 
 		logTable = tier.WebLog
 	}
 	if logTable == "" {
-		return nil, errors.New("该分片没有可查询的日志表")
+		return nil, errShardNoTable
 	}
 	// 老分片上的安全事件视图：web_logs 里按事件条件过滤（与引擎 abnormal 判定同一条规则）
 	legacyEventView := isEventView && logTable == tier.WebLog
@@ -237,10 +287,15 @@ func buildLogQuery(req request.WafAttackLogSearch, shardName string, ignoreTime 
 		} else if strings.HasPrefix(logTable, model.SecurityEventTableName) {
 			idxTime, idxIP = "idx_se_time", "idx_se_ip_time"
 		}
+		// 历史分区不跑迁移，早年切出来的可能没有这些索引：有才强制，没有交给优化器
 		if strings.Contains(whereField, "unix_add_time") && !strings.Contains(whereField, "src_ip") {
-			forceIndex = dialect.Get().ForceIndexClause(logTable, idxTime)
+			if wafdb.ShardHasIndex(logDB, shardName, logTable, idxTime) {
+				forceIndex = dialect.Get().ForceIndexClause(logTable, idxTime)
+			}
 		} else if strings.Contains(whereField, "src_ip") {
-			forceIndex = dialect.Get().ForceIndexClause(logTable, idxIP)
+			if wafdb.ShardHasIndex(logDB, shardName, logTable, idxIP) {
+				forceIndex = dialect.Get().ForceIndexClause(logTable, idxIP)
+			}
 		}
 	}
 
@@ -367,10 +422,11 @@ func (q *logQuery) find(ctx context.Context, offset, limit int, orderOverride st
 
 // logShard 一个候选分区：标识 + 它装着的时间范围
 type logShard struct {
-	Name  string
-	Start time.Time
-	End   time.Time
-	Live  bool
+	Name       string
+	Start      time.Time
+	End        time.Time
+	Live       bool
+	Registered int64 // share_dbs 登记的条数
 }
 
 // candidateShards 挑出与 [fromMs, toMs] 有交集的分区，按时间**从新到旧**排列。
@@ -399,7 +455,7 @@ func candidateShards(fromMs, toMs int64, ignoreTime bool) []logShard {
 		if en.After(live.Start) {
 			live.Start = en
 		}
-		shards = append(shards, logShard{Name: s.FileName, Start: st, End: en})
+		shards = append(shards, logShard{Name: s.FileName, Start: st, End: en, Registered: s.Cnt})
 	}
 	shards = append(shards, live)
 	sort.Slice(shards, func(i, j int) bool { return shards[i].End.After(shards[j].End) })
@@ -446,16 +502,37 @@ func (receiver *WafLogService) GetListApiWithMeta(req request.WafAttackLogSearch
 
 	if !auto {
 		q, err := buildLogQuery(req, shardName, false)
+		var tier wafdb.TierTables
+		if q != nil {
+			tier = q.tier
+		}
+		if issue := shardIssueOf(shardName, registeredShardCount(shardName), err, tier); issue != nil {
+			meta.Issues = append(meta.Issues, *issue)
+			if issue.Kind == ShardIssueMissing {
+				return nil, 0, meta, fmt.Errorf("该分区的存储已不存在（登记 %d 条），可在「分区管理」里删除这条登记", issue.Registered)
+			}
+			if err != nil {
+				return []innerbean.WebLog{}, 0, meta, nil
+			}
+		}
+		if err != nil {
+			return nil, 0, meta, err
+		}
+		// 先取数再统计：取一页走时间索引、凑够一页就停；统计要数完整个分区。
+		// 分层改造之前的大分片上，安全事件视图得逐行看 action/rule，统计可能超出时间预算——
+		// 这时仍把这一页给出去并标 partial，而不是整页报错。
+		offset := req.PageSize * (req.PageIndex - 1)
+		rows, err := q.find(ctx, offset, req.PageSize, "")
 		if err != nil {
 			return nil, 0, meta, err
 		}
 		total, err := q.count(ctx)
 		if err != nil {
-			return nil, 0, meta, err
-		}
-		rows, err := q.find(ctx, req.PageSize*(req.PageIndex-1), req.PageSize, "")
-		if err != nil {
-			return nil, 0, meta, err
+			if ctx.Err() == nil {
+				return nil, 0, meta, err
+			}
+			meta.Partial = true
+			total = int64(offset + len(rows))
 		}
 		meta.Shards = []LogShardHit{{Name: shardName, Count: total}}
 		return rows, total, meta, nil
@@ -482,34 +559,27 @@ func (receiver *WafLogService) GetListApiWithMeta(req request.WafAttackLogSearch
 		}
 	}
 
-	// 先把各分区的查询组装出来（只是探表拼条件，很便宜），统计放到后面并发做。
-	// 组装不并发：SQLite 下解析分区会按需打开归档文件，串行更稳。
+	// 分区用到才打开：统计命中缓存的不打开，统计与取数各自在时间预算内解析分区。
+	// 先把全部候选一次性打开，候选一多就会超出分片连接缓存的上限，也不受时间预算约束。
 	type plan struct {
 		q      *logQuery
+		err    error
+		built  bool
 		sh     logShard
 		cnt    int64
 		name   string
 		cached bool
 	}
-	plans := make([]plan, 0, len(shards))
-	var firstErr error
-	for _, sh := range shards {
-		q, err := buildLogQuery(req, sh.Name, false)
-		if err != nil {
-			// 某个分区没有可查的表（改造前的老分片）不该让整次查询失败，跳过即可
-			if firstErr == nil {
-				firstErr = err
-			}
-			zlog.Debug("日志分区扇出", "跳过分区", sh.Name, "原因", err.Error())
-			continue
-		}
-		plans = append(plans, plan{q: q, sh: sh, name: sh.Name})
+	plans := make([]plan, len(shards))
+	for i, sh := range shards {
+		plans[i] = plan{sh: sh, name: sh.Name}
 	}
-	if len(plans) == 0 {
-		if firstErr != nil {
-			return nil, 0, meta, firstErr
+	build := func(p *plan) error {
+		if !p.built {
+			p.q, p.err = buildLogQuery(req, p.name, false)
+			p.built = true
 		}
-		return []innerbean.WebLog{}, 0, meta, nil
+		return p.err
 	}
 
 	// 时间范围完整覆盖的归档分区：计数与具体区间无关，可以复用上次算过的值。
@@ -539,6 +609,14 @@ func (receiver *WafLogService) GetListApiWithMeta(req request.WafAttackLogSearch
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }()
+			if ctx.Err() != nil {
+				plans[i].cnt = -1
+				return
+			}
+			if err := build(&plans[i]); err != nil {
+				plans[i].cnt = 0
+				return
+			}
 			cnt, err := plans[i].q.count(ctx)
 			if err != nil {
 				zlog.Warn("日志分区扇出", "统计分区失败", plans[i].name, "error", err.Error())
@@ -557,13 +635,36 @@ func (receiver *WafLogService) GetListApiWithMeta(req request.WafAttackLogSearch
 	wg.Wait()
 
 	var total int64
+	var firstErr error
+	usable := 0
 	for i := range plans {
-		if plans[i].cnt < 0 {
-			meta.Partial = true // 有分区没统计上，总数只是一部分
-			plans[i].cnt = 0
+		p := &plans[i]
+		var tier wafdb.TierTables
+		if p.q != nil {
+			tier = p.q.tier
+		}
+		if issue := shardIssueOf(p.name, p.sh.Registered, p.err, tier); issue != nil {
+			meta.Issues = append(meta.Issues, *issue)
+		}
+		if p.err != nil {
+			if !errors.Is(p.err, wafdb.ErrShardMissing) && !errors.Is(p.err, errShardNoTable) {
+				zlog.Warn("日志分区扇出", "跳过分区", p.name, "原因", p.err.Error())
+				if firstErr == nil {
+					firstErr = p.err
+				}
+			}
 			continue
 		}
-		total += plans[i].cnt
+		usable++
+		if p.cnt < 0 {
+			meta.Partial = true // 有分区没统计上，总数只是一部分
+			p.cnt = 0
+			continue
+		}
+		total += p.cnt
+	}
+	if usable == 0 && firstErr != nil {
+		return nil, 0, meta, firstErr
 	}
 	if ctx.Err() != nil {
 		meta.Partial = true
@@ -572,11 +673,12 @@ func (receiver *WafLogService) GetListApiWithMeta(req request.WafAttackLogSearch
 	offset := int64(req.PageSize * (req.PageIndex - 1))
 	remaining := req.PageSize
 	rows := make([]innerbean.WebLog, 0, req.PageSize)
-	for _, p := range plans {
+	for i := range plans {
+		p := &plans[i]
 		if p.cnt > 0 {
 			meta.Shards = append(meta.Shards, LogShardHit{Name: p.name, Count: p.cnt})
 		}
-		if remaining <= 0 || p.cnt == 0 {
+		if remaining <= 0 || p.cnt <= 0 {
 			continue
 		}
 		if offset >= p.cnt {
@@ -588,6 +690,14 @@ func (receiver *WafLogService) GetListApiWithMeta(req request.WafAttackLogSearch
 			// 让界面提示「缩小时间范围或锁定分区」，而不是让浏览器那边干等到超时
 			meta.Partial = true
 			break
+		}
+		// 计数来自缓存的分区到这里才打开
+		if err := build(p); err != nil {
+			if issue := shardIssueOf(p.name, p.sh.Registered, err, wafdb.TierTables{}); issue != nil {
+				meta.Issues = append(meta.Issues, *issue)
+			}
+			meta.Partial = true
+			continue
 		}
 		part, err := p.q.find(ctx, int(offset), remaining, order)
 		if err != nil {
@@ -630,6 +740,10 @@ func (receiver *WafLogService) lookupByUuid(req request.WafAttackLogSearch) ([]i
 		meta.Scanned = i + 1
 		q, err := buildLogQuery(req, sh.Name, true)
 		if err != nil {
+			if issue := shardIssueOf(sh.Name, sh.Registered, err, wafdb.TierTables{}); issue != nil {
+				meta.Issues = append(meta.Issues, *issue)
+				continue
+			}
 			if firstErr == nil {
 				firstErr = err
 			}

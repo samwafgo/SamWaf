@@ -297,6 +297,9 @@ func TestCrossEngine(t *testing.T) {
 			// —— 日志分区扇出与识别码直查（见 cross_engine_logfanout_test.go）——
 			t.Run("logfanout", func(t *testing.T) { runLogFanoutCases(t, x.core, x.logdb) })
 
+			// —— SQLite 历史分区只读与缺失标注（见 cross_engine_sqlite_archive_test.go）——
+			t.Run("sqlitearchive", func(t *testing.T) { runSQLiteArchiveCases(t, x.core, x.logdb) })
+
 			// —— ip_tags 跨库合并（见 cross_engine_payload_test.go）——
 			t.Run("iptagmerge", func(t *testing.T) { runIPTagMergeCases(t, x) })
 

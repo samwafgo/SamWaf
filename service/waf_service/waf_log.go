@@ -8,6 +8,7 @@ import (
 	"SamWaf/model/request"
 	"SamWaf/wafdb"
 	"SamWaf/wafdb/dialect"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -128,6 +129,12 @@ func (receiver *WafLogService) GetDetailApi(req request.WafAttackLogDetailReq) (
 	// 用户手里只有一串识别码，不知道那次访问落在哪个分区
 	shardName := ResolveDetailShard(req.CurrrentDbName, req.REQ_UUID)
 	tier := wafdb.ResolveTierTables(shardName)
+	if tier.Err != nil {
+		if errors.Is(tier.Err, wafdb.ErrShardMissing) {
+			return weblog, fmt.Errorf("该分区的存储已不存在，可在「分区管理」里删除这条登记")
+		}
+		return weblog, fmt.Errorf("打开日志分区失败: %w", tier.Err)
+	}
 	found := false
 	for _, table := range []string{tier.Event, tier.Access, tier.WebLog} {
 		if table == "" {

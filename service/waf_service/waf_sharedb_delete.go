@@ -51,7 +51,8 @@ func ArchiveSuffix(name string) string {
 // ShardTierInfo 一个分片 + 它现在还剩哪些层
 type ShardTierInfo struct {
 	model.ShareDb
-	Tiers []string `json:"tiers"`
+	Tiers   []string `json:"tiers"`
+	Missing bool     `json:"missing"` // 登记还在，存储已不在
 }
 
 // GetAllShareDbWithTiers 列出分片，并（仅服务型数据库）标出每个分片还剩哪些层。
@@ -78,13 +79,19 @@ func (receiver *WafShareDbService) GetAllShareDbWithTiers() ([]ShardTierInfo, er
 
 	for _, s := range shards {
 		info := ShardTierInfo{ShareDb: s}
-		if existing != nil && !IsLiveShardName(s.FileName) {
-			if suffix := ArchiveSuffix(s.FileName); suffix != "" {
-				for _, base := range ShardTierBases {
-					if _, ok := existing[base+"_"+suffix]; ok {
-						info.Tiers = append(info.Tiers, base)
+		if !IsLiveShardName(s.FileName) {
+			if dialect.Get().IsFileBased() {
+				// 只看文件在不在，不打开：分片文件多时列表照样秒回
+				info.Missing = wafdb.ShardFileMissing(s.FileName)
+			} else if existing != nil {
+				if suffix := ArchiveSuffix(s.FileName); suffix != "" {
+					for _, base := range ShardTierBases {
+						if _, ok := existing[base+"_"+suffix]; ok {
+							info.Tiers = append(info.Tiers, base)
+						}
 					}
 				}
+				info.Missing = len(info.Tiers) == 0
 			}
 		}
 		out = append(out, info)

@@ -4,13 +4,9 @@ package wafdb
 // Mirrors mysql_localdb.go; see that file for the shape this follows.
 
 import (
-	"SamWaf/common/uuid"
 	"SamWaf/common/zlog"
-	"SamWaf/customtype"
 	"SamWaf/global"
-	"SamWaf/innerbean"
 	"SamWaf/model"
-	"SamWaf/model/baseorm"
 	"SamWaf/wafdb/dialect"
 	"fmt"
 	"time"
@@ -199,32 +195,8 @@ func InitLogDbPostgres() (bool, error) {
 
 	pathLogSql(db)
 
-	// 确保存在一条 live 分片记录(web_logs)。幂等：仅当该记录不存在时创建。
-	// 不能用 share_dbs 总数判断——从 SQLite 迁移过来时表里已有 .db 历史分片，总数!=0 会导致 live 记录缺失。
-	var liveCount int64
-	global.GWAF_LOCAL_DB.Model(&model.ShareDb{}).Where("file_name = ?", "web_logs").Count(&liveCount)
-	if liveCount == 0 {
-		var logTotal int64
-		global.GWAF_LOCAL_LOG_DB.Model(&innerbean.WebLog{}).Count(&logTotal)
-
-		sharDbBean := model.ShareDb{
-			BaseOrm: baseorm.BaseOrm{
-				Id:          uuid.GenUUID(),
-				USER_CODE:   global.GWAF_USER_CODE,
-				Tenant_ID:   global.GWAF_TENANT_ID,
-				CREATE_TIME: customtype.JsonTime(time.Now()),
-				UPDATE_TIME: customtype.JsonTime(time.Now()),
-			},
-			DbLogicType: "log",
-			StartTime:   customtype.JsonTime(time.Now()),
-			EndTime:     customtype.JsonTime(time.Now()),
-			// live 分片标识用 web_logs 表名（与 ResolveLogDB 的 live 判定一致）；
-			// 历史分片由分表任务写入 web_logs_<ts> 表名。不能用库名，否则读取会误入历史分支。
-			FileName: "web_logs",
-			Cnt:      logTotal,
-		}
-		global.GWAF_LOCAL_DB.Create(sharDbBean)
-	}
+	// live 分片标识用 web_logs 表名（与 ResolveLogDB 的 live 判定一致），不能用库名，否则读取会误入历史分支
+	ensureLiveShardRecord(global.GWAF_LOCAL_DB, global.GWAF_LOCAL_LOG_DB, LiveLogName())
 
 	return false, nil
 }

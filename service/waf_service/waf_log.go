@@ -1,7 +1,6 @@
 package waf_service
 
 import (
-	"SamWaf/common/validfield"
 	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/innerbean"
@@ -9,9 +8,7 @@ import (
 	"SamWaf/model/request"
 	"SamWaf/wafdb"
 	"SamWaf/wafdb/dialect"
-	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -127,13 +124,16 @@ func (receiver *WafLogService) GetDetailApi(req request.WafAttackLogDetailReq) (
 	var weblog innerbean.WebLog
 	// 解析当前分片的三层表：安全事件 → 访问日志 → 存量 web_logs，按 req_uuid 逐层点查。
 	// 事件双写了窄行，内容一致，但事件表保留期更长，优先从它读。
-	tier := wafdb.ResolveTierTables(req.CurrrentDbName)
+	// 分区标识为空或 auto 时先按识别码定位分区：详情最常见的来路就是
+	// 用户手里只有一串识别码，不知道那次访问落在哪个分区
+	shardName := ResolveDetailShard(req.CurrrentDbName, req.REQ_UUID)
+	tier := wafdb.ResolveTierTables(shardName)
 	found := false
 	for _, table := range []string{tier.Event, tier.Access, tier.WebLog} {
 		if table == "" {
 			continue
 		}
-		sel := webLogSelect(tier.DB, req.CurrrentDbName, table, getWebLogDetailColumns(), "detail")
+		sel := webLogSelect(tier.DB, shardName, table, getWebLogDetailColumns(), "detail")
 		res := tier.DB.Table(table).Select(sel).Where("REQ_UUID=?", req.REQ_UUID).Find(&weblog)
 		if res.Error != nil {
 			return weblog, fmt.Errorf("查询日志详情失败: %w", res.Error)
@@ -146,220 +146,23 @@ func (receiver *WafLogService) GetDetailApi(req request.WafAttackLogDetailReq) (
 	if !found {
 		return weblog, nil
 	}
+	// 告诉界面这条是在哪个分区找到的：auto 时用户并没有选分区，得有个地方说清楚
+	weblog.ShardName = shardName
+	if weblog.ShardName == "" {
+		weblog.ShardName = wafdb.LiveLogName()
+	}
 	// 报文单独存在 event_payload 里，按主键点查补回来；没有报文行的（正常请求未采样）保持窄字段
-	FillShardPayloads(req.CurrrentDbName, []*innerbean.WebLog{&weblog})
+	FillShardPayloads(shardName, []*innerbean.WebLog{&weblog})
 	return weblog, nil
 }
+
+// GetListApi 日志列表查询。条件组装、分区解析与跨分区扇出都在 waf_log_query.go，
+// 这里保留旧签名给不关心「这次查了哪些分区」的调用方。
 func (receiver *WafLogService) GetListApi(req request.WafAttackLogSearch) ([]innerbean.WebLog, int64, error) {
-	var total int64 = 0
-	var weblogs []innerbean.WebLog
-
-	splitFilterBys := strings.Split(req.FilterBy, "|")
-	splitFilterValues := strings.Split(req.FilterValue, "|")
-	// 解析当前分片的三层表：访问日志视图读 access_log，安全事件视图读 security_event；
-	// 分层改造之前切出去的归档只有 web_logs，回落到它（列交集会自适应它的结构）。
-	tier := wafdb.ResolveTierTables(req.CurrrentDbName)
-	logDB := tier.DB
-	isEventView := req.ViewType == "event"
-	logTable := tier.Access
-	if isEventView {
-		logTable = tier.Event
-	}
-	if logTable == "" {
-		logTable = tier.WebLog
-	}
-	if logTable == "" {
-		return nil, 0, errors.New("该分片没有可查询的日志表")
-	}
-	// 老分片上的安全事件视图：web_logs 里按事件条件过滤（与引擎 abnormal 判定同一条规则）
-	legacyEventView := isEventView && logTable == tier.WebLog
-	isLegacyTable := strings.HasPrefix(logTable, wafdb.LogTableName)
-
-	/*where条件*/
-	var whereField = ""
-	var whereValues []interface{}
-
-	//where字段
-	{
-		whereField = whereField + " (unix_add_time>=? and unix_add_time<=?)"
-		if legacyEventView {
-			whereField = whereField + " and (action<>? or rule<>? or log_only_mode=1)"
-		}
-		if len(req.HostCode) > 0 {
-			if len(whereField) > 0 {
-				whereField = whereField + " and "
-			}
-			whereField = whereField + " host_code=? "
-		}
-		if len(req.Rule) > 0 {
-			if len(whereField) > 0 {
-				whereField = whereField + " and "
-			}
-			whereField = whereField + " rule=? "
-		}
-		if len(req.ReqUuid) > 0 {
-			if len(whereField) > 0 {
-				whereField = whereField + " and "
-			}
-			whereField = whereField + " req_uuid=? "
-		}
-		if len(req.Action) > 0 {
-			if len(whereField) > 0 {
-				whereField = whereField + " and "
-			}
-			whereField = whereField + " action=? "
-		}
-		if len(req.SrcIp) > 0 {
-			if len(whereField) > 0 {
-				whereField = whereField + " and "
-			}
-			whereField = whereField + " src_ip=? "
-		}
-		if len(req.StatusCode) > 0 {
-			if len(whereField) > 0 {
-				whereField = whereField + " and "
-			}
-			whereField = whereField + " status_code=? "
-		}
-		if len(req.Method) > 0 {
-			if len(whereField) > 0 {
-				whereField = whereField + " and "
-			}
-			whereField = whereField + " method=? "
-		}
-		if len(req.LogOnlyMode) > 0 {
-			if len(whereField) > 0 {
-				whereField = whereField + " and "
-			}
-			whereField = whereField + " log_only_mode=? "
-		}
-		for _, by := range splitFilterBys {
-
-			if len(by) > 0 {
-				if !validfield.IsValidWebLogFilterField(by) {
-					return nil, 0, errors.New("输入过滤字段不合法")
-				}
-				if len(whereField) > 0 {
-					whereField = whereField + " and "
-				}
-				if by == "guest_identification" {
-					by = "guest_id_entification"
-				}
-				if by == "header" && !isLegacyTable {
-					// header 随报文搬进 event_payload：访问日志视图没有这一列，
-					// 安全事件视图走报文子查询（该视图行数小、且必有报文）。
-					if !isEventView {
-						return nil, 0, errors.New("「请求」全文筛选仅在安全事件视图可用，访问日志视图请改用 UA / Referer 筛选")
-					}
-					if tier.Payload == "" {
-						return nil, 0, errors.New("该分片没有报文表，无法按「请求」内容筛选")
-					}
-					whereField = whereField + " req_uuid in (select req_uuid from " + tier.Payload + " where header like ?) "
-				} else {
-					whereField = whereField + " " + by + " like ? "
-				}
-			}
-		}
-	}
-	//强制索引
-	forceIndex := logTable
-	{
-		idxTime, idxIP := "idx_web_time_desc_tenant_user_code", "idx_web_time_desc_tenant_user_code_ip"
-		if strings.HasPrefix(logTable, model.AccessLogTableName) {
-			idxTime, idxIP = "idx_al_time", "idx_al_ip_time"
-		} else if strings.HasPrefix(logTable, model.SecurityEventTableName) {
-			idxTime, idxIP = "idx_se_time", "idx_se_ip_time"
-		}
-		if strings.Contains(whereField, "unix_add_time") && !strings.Contains(whereField, "src_ip") {
-			forceIndex = dialect.Get().ForceIndexClause(logTable, idxTime)
-		} else if strings.Contains(whereField, "src_ip") {
-			forceIndex = dialect.Get().ForceIndexClause(logTable, idxIP)
-		}
-	}
-
-	// 将字符串转换为 int64 类型
-	unixBegin, err := strconv.ParseInt(req.UnixAddTimeBegin, 10, 64)
-	if err != nil {
-		fmt.Println("Error converting UnixAddTimeBegin to int64:", err)
-
-	}
-
-	unixEnd, err := strconv.ParseInt(req.UnixAddTimeEnd, 10, 64)
-	if err != nil {
-		fmt.Println("Error converting UnixAddTimeEnd to int64:", err)
-
-	}
-
-	//where字段赋值
-	{
-		whereValues = append(whereValues, unixBegin)
-		whereValues = append(whereValues, unixEnd)
-		if legacyEventView {
-			whereValues = append(whereValues, "放行", "")
-		}
-		if len(req.HostCode) > 0 {
-			whereValues = append(whereValues, req.HostCode)
-		}
-		if len(req.Rule) > 0 {
-			whereValues = append(whereValues, req.Rule)
-		}
-		if len(req.ReqUuid) > 0 {
-			whereValues = append(whereValues, req.ReqUuid)
-		}
-		if len(req.Action) > 0 {
-			whereValues = append(whereValues, req.Action)
-		}
-		if len(req.SrcIp) > 0 {
-			whereValues = append(whereValues, req.SrcIp)
-		}
-		if len(req.StatusCode) > 0 {
-			whereValues = append(whereValues, req.StatusCode)
-		}
-		if len(req.Method) > 0 {
-			whereValues = append(whereValues, req.Method)
-		}
-		if len(req.LogOnlyMode) > 0 {
-			whereValues = append(whereValues, req.LogOnlyMode)
-		}
-		for _, val := range splitFilterValues {
-			if len(val) > 0 {
-				whereValues = append(whereValues, "%"+val+"%")
-			}
-		}
-	}
-
-	orderInfo := ""
-
-	/**
-	排序
-	*/
-	if receiver.isValidSortField(req.SortBy) {
-		if req.SortDescending == "desc" {
-			orderInfo = req.SortBy + " desc"
-		} else {
-			orderInfo = req.SortBy + " asc"
-		}
-	} else {
-		return nil, 0, errors.New("输入排序字段不合法")
-	}
-	sel := webLogSelect(logDB, req.CurrrentDbName, logTable, getWebLogListColumns(), "list")
-	// 错误必须往上抛：吞掉它就只剩「有分页、没数据」，连从哪查起都不知道
-	if err := logDB.Select(sel).Table(forceIndex).Limit(req.PageSize).Where(whereField, whereValues...).Offset(req.PageSize * (req.PageIndex - 1)).Order(orderInfo).Find(&weblogs).Error; err != nil {
-		return nil, 0, fmt.Errorf("查询日志失败: %w", err)
-	}
-	if err := logDB.Table(forceIndex).Where(whereField, whereValues...).Count(&total).Error; err != nil {
-		return nil, 0, fmt.Errorf("统计日志条数失败: %w", err)
-	}
-	// 安全事件视图每页补一回报文（事件必有报文）：「请求」列与详情都靠它
-	if isEventView && len(weblogs) > 0 {
-		rows := make([]*innerbean.WebLog, 0, len(weblogs))
-		for i := range weblogs {
-			rows = append(rows, &weblogs[i])
-		}
-		FillShardPayloads(req.CurrrentDbName, rows)
-	}
-	return weblogs, total, nil
+	rows, total, _, err := receiver.GetListApiWithMeta(req)
+	return rows, total, err
 }
+
 func (receiver *WafLogService) GetListByHostCodeApi(log request.WafAttackLogSearch) ([]innerbean.WebLog, int64, error) {
 	var total int64 = 0
 	var weblogs []innerbean.WebLog
@@ -368,6 +171,7 @@ func (receiver *WafLogService) GetListByHostCodeApi(log request.WafAttackLogSear
 	global.GWAF_LOCAL_LOG_DB.Where("host_code = ?", log.HostCode).Model(&innerbean.WebLog{}).Count(&total)
 	return weblogs, total, nil
 }
+
 // DeleteHistory 分层保留期清理：
 //   - security_event 与 web_logs（存量，不再写入）按「日志保留天数」删
 //   - access_log 按 access_log_retention_days 删（更短）

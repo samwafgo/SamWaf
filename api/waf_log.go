@@ -73,15 +73,24 @@ func (w *WafLogAPi) GetListApi(c *gin.Context) {
 			response.FailWithMessage("正在切换数据库请等待", c)
 			return
 		}
-		wafLogs, total, err2 := wafLogService.GetListApi(req)
+		wafLogs, total, meta, err2 := wafLogService.GetListApiWithMeta(req)
 		if err2 != nil {
 			response.FailWithMessage("访问列表失败:"+err2.Error(), c)
 		} else {
-			response.OkWithDetailed(response.PageResult{
-				List:      wafLogs,
-				Total:     total,
-				PageIndex: req.PageIndex,
-				PageSize:  req.PageSize,
+			// 除了列表本身，还要告诉前端这次到底查了哪些分区：
+			// 自动模式下用户没选分区，界面得能说明数据是从哪来的、识别码是在哪找到的
+			response.OkWithDetailed(gin.H{
+				"list":             wafLogs,
+				"total":            total,
+				"pageIndex":        req.PageIndex,
+				"pageSize":         req.PageSize,
+				"shards":           meta.Shards,
+				"found_in":         meta.FoundIn,
+				"scanned":          meta.Scanned,
+				"uuid_lookup":      meta.UuidLookup,
+				"sort_forced_time": meta.SortForcedTime,
+				"partial":          meta.Partial,
+				"took_ms":          meta.TookMs,
 			}, "获取成功", c)
 		}
 
@@ -250,7 +259,7 @@ func (w *WafLogAPi) GetListByHostCodeApi(c *gin.Context) {
 }
 
 func (w *WafLogAPi) GetAllShareDbApi(c *gin.Context) {
-	wafShareList, _ := wafShareDbService.GetAllShareDbApi()
+	wafShareList, _ := wafShareDbService.GetAllShareDbWithTiers()
 	liveName := wafdb.LiveLogName()                                     // 当前驱动的实时分片标识，用于标记默认选中项
 	allShareDbRep := make([]response2.AllShareDbRep, len(wafShareList)) // 创建数组
 	for i, _ := range wafShareList {
@@ -261,10 +270,37 @@ func (w *WafLogAPi) GetAllShareDbApi(c *gin.Context) {
 			FileName:  wafShareList[i].FileName,
 			Cnt:       wafShareList[i].Cnt,
 			IsCurrent: wafShareList[i].FileName == liveName,
+			PeriodKey: wafShareList[i].PeriodKey,
+			Tiers:     wafShareList[i].Tiers,
 		}
 
 	}
 	response.OkWithDetailed(allShareDbRep, "获取成功", c)
+}
+
+// DelShardApi 主动删除一个归档分区（不看保留期）。
+//
+// 以前想立刻腾空间只能去「文件管理」删 .db 文件——那条路只对 SQLite 有效，
+// 而且删完 share_dbs 记录还在，归档下拉里会留着一个已经不存在的分区。
+// 这里按分区删：文件型删文件、服务型丢表，两边都把记录与计数缓存一并清掉。
+func (w *WafLogAPi) DelShardApi(c *gin.Context) {
+	var req struct {
+		FileName string `json:"file_name"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage("解析失败", c)
+		return
+	}
+	if global.GDATA_CURRENT_CHANGE {
+		response.FailWithMessage("正在切换数据库请等待", c)
+		return
+	}
+	detail, err := wafShareDbService.ForceDeleteShard(req.FileName)
+	if err != nil {
+		response.FailWithMessage("删除分区失败："+err.Error(), c)
+		return
+	}
+	response.OkWithMessage(detail, c)
 }
 
 // http 原始请求并进行脱敏处理

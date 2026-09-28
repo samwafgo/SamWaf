@@ -291,6 +291,12 @@ func TestCrossEngine(t *testing.T) {
 			// —— 报文拆表读写（见 cross_engine_payload_test.go）——
 			t.Run("payload", func(t *testing.T) { runPayloadCases(t, x.logdb) })
 
+			// —— 时间分区三动词（见 cross_engine_partition_test.go）——
+			t.Run("partition", func(t *testing.T) { runPartitionCases(t, x.logdb) })
+
+			// —— 日志分区扇出与识别码直查（见 cross_engine_logfanout_test.go）——
+			t.Run("logfanout", func(t *testing.T) { runLogFanoutCases(t, x.core, x.logdb) })
+
 			// —— ip_tags 跨库合并（见 cross_engine_payload_test.go）——
 			t.Run("iptagmerge", func(t *testing.T) { runIPTagMergeCases(t, x) })
 

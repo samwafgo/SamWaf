@@ -825,3 +825,108 @@ notes:
         Both lists are empty by default, so behavior after upgrading is exactly as before and nothing needs to
         be done. As a side note, SamWaf's own access-authentication probe endpoint (`/<access prefix>/ping`,
         always 204) never produces an access log, so there is nothing to exclude for it.
+
+  - id: v1_3_25_log_time_partition
+    version: v1.3.25
+    kind: notice
+    level: high
+    page: /waf/wafvisitlog
+    doc: https://doc.samwaf.com/quickstart/Update.html
+    apply:
+      type: navigate
+    zh:
+      title: 日志归档改为按月切分区，过期回收改为丢整个分区（MySQL/PostgreSQL 的归档表首次开始回收）
+      detail: >-
+        日志归档以前由行数与文件大小决定什么时候切，现在改成**按月**切：一个月一个分区，
+        同一个月里真被写爆了才会提前切一次（分区名带序号）作为兜底。好处是「某段时间的日志在哪个分区」
+        变成算得出来的，不再需要挨个猜；「访问日志」页的归档下拉因此显示**时间段**而不是文件名或表名，
+        按月切的显示成 2026-09，升级前按体积切的显示它记录的起止日期，鼠标悬停仍能看到原始名字。
+        过期回收同时改成丢整个分区：SQLite 删掉整个归档文件，MySQL/PostgreSQL 丢掉整张归档表，
+        不再逐行删除加 VACUUM。判断过期用的是分片记录里那批数据真实的最晚时间，
+        所以停机几天或同月切了两次都不会把还在保留期内的数据算成过期。
+        **MySQL/PostgreSQL 用户请先看这一段**：此前归档表没有任何清理逻辑，很可能已经堆了多张
+        access_log_ 或 web_logs_ 开头的历史表；升级后第一次执行「删除历史日志」任务（每天 05:00）时，
+        其中**已超过保留期**的会被丢掉，系统日志里逐张记录表名、所用保留天数与数据截止时间。
+        这是保留期设置本来就承诺的行为，也让两种部署终于一致。如果有哪一段历史想留：
+        先把日志保留天数调长，或用数据库自己的工具把那张表复制到别处，再让清理继续。
+        另外 MySQL/PostgreSQL 上每一层是独立的表，因此可以按层各走各的保留期——
+        访问日志窄行走「访问日志保留天数」（默认 30 天），安全事件与报文走「日志保留天数」；
+        SQLite 的一个分区是一个文件、三层都在里面，只能按较长的「日志保留天数」整体回收。
+        升级前切出来的旧分片（包括最早那种只有 web_logs 的）**照旧可以查**，不需要任何迁移动作，
+        读取时会自动适配它实际有哪些表和哪些列，到期后同样整体回收。
+    en:
+      title: Log archives are now cut per month and expired by dropping whole partitions (MySQL/PostgreSQL archive tables start being recycled)
+      detail: >-
+        Log archives used to be cut when a row count or file size threshold was crossed. They are now cut
+        **per month**: one partition per month, with an extra numbered partition only as a fallback when a
+        single month really overflows. The point is that which partition holds a given time range becomes
+        something that can be computed instead of guessed, so the archive dropdown on the access log page now
+        shows a **time range** rather than a file or table name - 2026-09 for monthly partitions, and the
+        recorded start and end dates for shards cut by size before the upgrade. Hovering still shows the
+        original name.
+        Expiry now drops a whole partition: SQLite deletes the entire archive file and MySQL/PostgreSQL drops
+        the archive table, instead of deleting rows and running VACUUM. Expiry is judged by the real latest
+        timestamp of the data recorded for that shard, so being offline for days, or cutting twice within one
+        month, never marks data still inside the retention window as expired.
+        **MySQL/PostgreSQL users should read this part first**: archive tables previously had no cleanup at
+        all, so you may already have many history tables starting with access_log_ or web_logs_. The first run
+        of the daily 05:00 history cleanup after upgrading drops those **past their retention period**, writing
+        one log line per table with its name, the retention days applied and the data cutoff. This is what the
+        retention setting has always promised, and it finally makes both deployment types behave alike. To keep
+        a particular stretch of history, raise the log retention days first, or copy that table elsewhere with
+        your database tools, then let cleanup proceed.
+        On MySQL/PostgreSQL each tier is its own table, so tiers expire on their own schedules - access-log
+        narrow rows follow "access log retention days" (30 by default) while security events and payloads
+        follow "delete history log (days)". On SQLite one partition is one file holding all tiers, so it can
+        only be recycled as a whole on the longer "delete history log (days)".
+        Shards cut before the upgrade, including the earliest ones that only hold web_logs, **remain
+        queryable** with no migration on your part: reads adapt to whichever tables and columns a shard
+        actually has, and they are recycled whole once they expire.
+
+  - id: v1_3_25_log_auto_partition_and_uuid
+    version: v1.3.25
+    kind: notice
+    level: normal
+    page: /waf/wafvisitlog
+    doc: https://doc.samwaf.com/quickstart/Update.html
+    apply:
+      type: navigate
+    zh:
+      title: 查日志不用再挑分区：时间范围自动决定查哪里，按访问识别码可直接全库查找
+      detail: >-
+        「日志归档库」下拉的默认值改成了**自动（按时间范围）**：分区由你选的时间范围算出来，
+        跨多个分区时会自动合并翻页，列表上方会说明这次覆盖了哪几个分区。
+        此前日期与归档是两个互不联动的条件，选了上个月的日期却停在实时分区，结果永远是空的。
+        需要盯住某一个分区时（排障、导出），下拉里仍然可以手动锁定，并且按「实时 / 按月分区 /
+        升级前按体积切的旧分片」分了组。跨分区时列表统一按时间排序——分区之间只有时间是可比的。
+        **填了「访问识别码」时会忽略时间与分区，直接跨全部分区查找**，命中即停并告诉你是在哪个分区找到的。
+        访问识别码是日志表的主键，一次查找就是一次索引命中；最常见的场景正是访客把拦截页上的识别码
+        报给管理员——管理员手里只有这串码，并不知道那次访问是哪天、更不知道在哪个分区。
+        查不到时会明确列出三种可能：记录已过保留期被回收、识别码抄错或被截断、
+        那次请求本来就没有被记录（来源IP在排除清单里，或访问日志档位是「仅安全事件」而它是一次正常请求）。
+        另外两处顺带改了：归档下拉里同一天切出来的多个旧分片现在带上时分（2026-08-19 13:51~14:40）
+        并把条数写成「13.5 万条」，不再是七个一模一样的日期；风险日志的「访问 IP 明细」弹窗
+        补上了时间范围（默认最近 30 天），不用再一个归档一个归档地翻。
+    en:
+      title: "No more picking a partition - the time range decides where to look, and a visit identifier is looked up across all of them"
+      detail: >-
+        The archive dropdown now defaults to **Auto (by time range)**: partitions are derived from the time
+        range you pick, paging spans them automatically, and a line above the list names the partitions this
+        query covered. Previously the date and the archive were two conditions that knew nothing about each
+        other, so picking last month's dates while the archive stayed on the live partition always returned
+        nothing. A specific partition can still be locked from the dropdown when troubleshooting or exporting,
+        and the entries are grouped into Live, monthly partitions, and shards cut by size before the upgrade.
+        When a query spans partitions the list is sorted by time, since time is the only thing comparable
+        across them.
+        **Filling in the visit identifier ignores the time range and the partition and searches all of them**,
+        stopping at the first hit and telling you which partition it came from. The identifier is the primary
+        key of the log tables, so each check is a single index lookup. This is exactly the common case where a
+        visitor reports the identifier from a block page: the administrator has only that string and knows
+        neither the date nor the partition. When nothing is found, three possible reasons are stated: the
+        record passed its retention period and was recycled, the identifier was mistyped or truncated, or the
+        request was never recorded (its source IP is on an exclusion list, or the access log mode is
+        "security events only" and it was a plain request).
+        Two smaller fixes come along: several old shards cut on the same day now show their times
+        (2026-08-19 13:51~14:40) with counts written as readable numbers instead of seven identical dates, and
+        the Access IP Details dialog on the risk log page gained a time range (last 30 days by default) so it
+        no longer takes going through archives one by one.

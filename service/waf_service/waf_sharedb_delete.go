@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
+	"time"
 )
 
 // 分区的「还剩哪些层」与「主动删除」（E6）。
@@ -79,7 +81,11 @@ func (receiver *WafShareDbService) GetAllShareDbWithTiers() ([]ShardTierInfo, er
 
 	for _, s := range shards {
 		info := ShardTierInfo{ShareDb: s}
-		if !IsLiveShardName(s.FileName) {
+		if IsLiveShardName(s.FileName) {
+			// 实时行的 Cnt 只是补登那一刻对 web_logs 的快照，且该表分层后已停写，永远定格。
+			// 归档分区的 Cnt 是切库快照（归档不可变，快照即准确），实时的只能现场数。
+			info.Cnt = liveShardCnt()
+		} else {
 			if dialect.Get().IsFileBased() {
 				// 只看文件在不在，不打开：分片文件多时列表照样秒回
 				info.Missing = wafdb.ShardFileMissing(s.FileName)
@@ -97,6 +103,37 @@ func (receiver *WafShareDbService) GetAllShareDbWithTiers() ([]ShardTierInfo, er
 		out = append(out, info)
 	}
 	return out, nil
+}
+
+// 实时分片条数的 30 秒缓存：下拉每次打开都全表 COUNT 不值当，30 秒的滞后对「一直在涨」
+// 的实时库没有体感差别。
+var liveCntCache struct {
+	mu    sync.Mutex
+	at    time.Time
+	value int64
+}
+
+// liveShardCnt 数实时库当前有多少条日志。正常档位（db/sample）下事件双写窄行，
+// access_log 一条不缺；off 档不记窄行，退而数 security_event。
+func liveShardCnt() int64 {
+	liveCntCache.mu.Lock()
+	defer liveCntCache.mu.Unlock()
+	if time.Since(liveCntCache.at) < 30*time.Second {
+		return liveCntCache.value
+	}
+	if global.GWAF_LOCAL_LOG_DB == nil {
+		return liveCntCache.value
+	}
+	var n int64
+	if err := global.GWAF_LOCAL_LOG_DB.Model(&model.AccessLog{}).Count(&n).Error; err == nil && n > 0 {
+		liveCntCache.value, liveCntCache.at = n, time.Now()
+		return n
+	}
+	var ev int64
+	if err := global.GWAF_LOCAL_LOG_DB.Model(&model.SecurityEvent{}).Count(&ev).Error; err == nil {
+		liveCntCache.value, liveCntCache.at = ev, time.Now()
+	}
+	return liveCntCache.value
 }
 
 // ForceDeleteShard 主动删除一个归档分区，**不看保留期**。

@@ -2364,6 +2364,27 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移: 日志分片表新增周期键列（M3 E1/E2，按时间周期切分区；旧的按体积分片该列为空）
+		{
+			ID: "202609240001_add_share_dbs_period_key",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202609240001: 日志分片新增周期键列")
+				if tx.Migrator().HasColumn(&model.ShareDb{}, "PeriodKey") {
+					return nil
+				}
+				if err := tx.Migrator().AddColumn(&model.ShareDb{}, "PeriodKey"); err != nil {
+					return fmt.Errorf("新增分片周期键列失败: %w", err)
+				}
+				zlog.Info("迁移 202609240001: 完成")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				if !tx.Migrator().HasColumn(&model.ShareDb{}, "PeriodKey") {
+					return nil
+				}
+				return tx.Migrator().DropColumn(&model.ShareDb{}, "PeriodKey")
+			},
+		},
 	})
 
 	// 执行迁移

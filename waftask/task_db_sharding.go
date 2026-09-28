@@ -8,15 +8,67 @@ import (
 	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
+	"SamWaf/service/waf_service"
 	"SamWaf/utils"
 	"SamWaf/wafdb"
 	"SamWaf/wafdb/dialect"
+	"SamWaf/wafdb/partition"
 	"fmt"
 	"os"
 	"time"
 )
 
-// 检测库是否切换
+// livePeriodKey 返回实时库里最早一条日志所属的周期键。
+//
+// 「实时库现在装的是哪个周期」这件事不另存状态，直接问数据本身：
+// 最早一条落在上一个周期，就说明周期边界已经过了、该切了。这样重启、停机几天、
+// 手工删表都不会让状态和事实脱节（存一个全局变量反而要处理这些不一致）。
+// 表不存在或没有数据时返回 false —— 没数据就没什么可切的。
+func livePeriodKey() (string, bool) {
+	db := global.GWAF_LOCAL_LOG_DB
+	if db == nil {
+		return "", false
+	}
+	table := model.AccessLogTableName
+	if !dialect.Get().TableExists(db, table) {
+		table = "web_logs"
+		if !dialect.Get().TableExists(db, table) {
+			return "", false
+		}
+	}
+	var oldest *int64
+	if err := db.Table(table).Select("MIN(unix_add_time)").Scan(&oldest).Error; err != nil {
+		zlog.Debug("TaskDBSharding", "取最早日志时间失败", err.Error())
+		return "", false
+	}
+	if oldest == nil || *oldest <= 0 {
+		return "", false
+	}
+	// UNIX_ADD_TIME 是毫秒
+	return partition.KeyOf(time.UnixMilli(*oldest)), true
+}
+
+// nextPeriodSeq 返回某个周期下一个可用的序号：正常是 1（一个周期一个分区），
+// 已经有同周期分区时才往上加——那是「同周期内体积超限被迫再切」的异常兜底。
+func nextPeriodSeq(periodKey string) int {
+	if global.GWAF_LOCAL_DB == nil {
+		return 1
+	}
+	var cnt int64
+	if err := global.GWAF_LOCAL_DB.Model(&model.ShareDb{}).
+		Where("db_logic_type = ? and period_key = ?", "log", periodKey).Count(&cnt).Error; err != nil {
+		zlog.Debug("TaskDBSharding", "统计同周期分区数失败", err.Error())
+		return 1
+	}
+	return int(cnt) + 1
+}
+
+// 检测库是否切换。
+//
+// 切分口径（M3 E2）：**按时间周期切**，一个月一个分区。
+// 行数与体积超限降级为异常兜底——同一个周期内真被写爆了才提前切，分区名带序号
+// （access_log_202609_02）。这样「一段时间落在哪些分区上」是算出来的而不是猜的，
+// 过期也变成丢整个分区（见 CleanExpiredArchiveShard）。
 func TaskShareDbInfo() {
 	innerLogName := "TaskDBSharding"
 	zlog.Debug(innerLogName, "检测是否需要进行分库")
@@ -41,9 +93,18 @@ func TaskShareDbInfo() {
 		global.GWAF_LOCAL_LOG_DB.Model(&innerbean.WebLog{}).Count(&legacyCnt)
 		global.GWAF_LOCAL_LOG_DB.Model(&model.AccessLog{}).Count(&accessCnt)
 		if legacyCnt > 0 && accessCnt == 0 {
-			doLogShardCut(innerLogName, fmt.Sprintf("分层改造边界切换（存量 %d 行转入归档）", legacyCnt), true)
+			// 存量 web_logs 里的数据跨很多个月，给它安一个周期键是假的，沿用时间戳命名
+			doLogShardCut(innerLogName, fmt.Sprintf("分层改造边界切换（存量 %d 行转入归档）", legacyCnt), true, "")
 			return
 		}
+	}
+
+	// 周期边界优先：实时库里最早一条日志落在上一个周期，就把这一段整体切成那个周期的分区。
+	// 放在体积判断之前——常态就该按周期切，体积只是兜底。
+	curKey := partition.KeyOf(time.Now())
+	if oldKey, ok := livePeriodKey(); ok && oldKey != curKey {
+		doLogShardCut(innerLogName, fmt.Sprintf("跨周期切分（%s → %s）", oldKey, curKey), false, oldKey)
+		return
 	}
 
 	//获取当前日志数量（分层的写入主体是 access_log；老表不再写入，只作兜底）
@@ -102,7 +163,8 @@ func TaskShareDbInfo() {
 	}
 
 	if needSharding {
-		doLogShardCut(innerLogName, shardingReason, false)
+		// 同周期内被写爆了：仍然按当前周期命名，序号从 02 起，读侧与过期判断照样认得出周期
+		doLogShardCut(innerLogName, shardingReason+"（同周期内兜底切分）", false, curKey)
 	}
 }
 
@@ -110,17 +172,25 @@ func TaskShareDbInfo() {
 // （把存量 web_logs + event_payload 切出去）；常规切分换的是三层新表，
 // web_logs 不再写入也就无需再换。
 //
+// periodKey 非空则按周期命名（local_log_202609.db / access_log_202609，同周期第二个起带 _02 序号），
+// 为空则沿用 14 位时间戳命名——只有分层改造的边界切换会走后者，那批存量数据跨很多个月，
+// 安一个周期键是假的。
+//
 // 归档标识：SQLite 为新文件名(.db)，MySQL/PG 为归档表名（边界切换是 web_logs_<ts>，
-// 常规切分是 access_log_<ts>；读侧 ResolveTierTables 按前缀两种都认）。
+// 常规切分是 access_log_<周期或时间戳>；读侧 ResolveTierTables 按前缀两种都认）。
 // 注意：MySQL/PG 的归档表不再被 gormigrate 跟踪，今后给这些表加列时读旧分片可能缺列——
 // 读侧已按分片实际列取交集（webLogSelect），无需同步 ALTER。
-func doLogShardCut(innerLogName, reason string, swapWebLog bool) {
+func doLogShardCut(innerLogName, reason string, swapWebLog bool, periodKey string) {
 	global.GDATA_CURRENT_CHANGE = true
 	defer func() { global.GDATA_CURRENT_CHANGE = false }()
 	zlog.Info(innerLogName, "开始分库，原因:", reason)
 
 	ts := time.Now().Format("20060102150405")
 
+	cutTable := model.AccessLogTableName
+	if swapWebLog {
+		cutTable = "web_logs"
+	}
 	var total int64
 	if swapWebLog {
 		global.GWAF_LOCAL_LOG_DB.Model(&innerbean.WebLog{}).Count(&total)
@@ -128,21 +198,38 @@ func doLogShardCut(innerLogName, reason string, swapWebLog bool) {
 		global.GWAF_LOCAL_LOG_DB.Model(&model.AccessLog{}).Count(&total)
 	}
 
-	newDBFilename := fmt.Sprintf("local_log_%v.db", ts)
+	// 分区命名：有周期键按周期来，同周期第二个起带序号；没有则沿用时间戳
+	suffix := ts
+	seq := 1
+	if periodKey != "" {
+		seq = nextPeriodSeq(periodKey)
+		suffix = periodKey
+		if seq > 1 {
+			suffix = fmt.Sprintf("%s_%02d", periodKey, seq)
+		}
+	}
+	newDBFilename := fmt.Sprintf("local_log_%v.db", suffix)
 	archiveName := newDBFilename
 	if !dialect.Get().IsFileBased() {
 		if swapWebLog {
-			archiveName = fmt.Sprintf("web_logs_%v", ts)
+			archiveName = "web_logs_" + suffix
 		} else {
-			archiveName = fmt.Sprintf("access_log_%v", ts)
+			archiveName = model.AccessLogTableName + "_" + suffix
 		}
 	}
 
-	var lastedDb model.ShareDb
-	err := global.GWAF_LOCAL_DB.Limit(1).Order("create_time desc").Find(&lastedDb).Error
+	// 起止时间用**这批数据自己的**最早/最晚时间，而不是「上一个分片的结束时间 → 现在」。
+	// 过期回收按 EndTime 判（见 CleanExpiredArchiveShard），拿真实边界才不会把还在保留期内的
+	// 数据算成过期；停机几天再启动、或同周期内兜底切分时，这个差别很要紧。
 	startTime := customtype.JsonTime(time.Now())
-	if err == nil {
-		startTime = lastedDb.EndTime
+	endTime := customtype.JsonTime(time.Now())
+	if lo, hi, ok := cutDataRange(cutTable); ok {
+		startTime, endTime = customtype.JsonTime(lo), customtype.JsonTime(hi)
+	} else {
+		var lastedDb model.ShareDb
+		if err := global.GWAF_LOCAL_DB.Limit(1).Order("create_time desc").Find(&lastedDb).Error; err == nil {
+			startTime = lastedDb.EndTime
+		}
 	}
 	sharDbBean := model.ShareDb{
 		BaseOrm: baseorm.BaseOrm{
@@ -154,9 +241,10 @@ func doLogShardCut(innerLogName, reason string, swapWebLog bool) {
 		},
 		DbLogicType: "log",
 		StartTime:   startTime,
-		EndTime:     customtype.JsonTime(time.Now()),
+		EndTime:     endTime,
 		FileName:    archiveName,
 		Cnt:         total,
+		PeriodKey:   periodKey,
 	}
 
 	zlog.Info(innerLogName, "正在切库中...")
@@ -224,5 +312,29 @@ func doLogShardCut(innerLogName, reason string, swapWebLog bool) {
 		global.GWAF_LOCAL_DB.Create(sharDbBean)
 		zlog.Info(innerLogName, "分表完成，归档表:", archiveName)
 	}
+	// 分区构成变了，归档计数缓存跟着作废
+	waf_service.InvalidateShardCounts()
 	zlog.Info(innerLogName, "切库完成...")
+}
+
+// cutDataRange 返回待切表里数据的真实时间边界 [最早, 最晚]。
+// 表空或查不到返回 false，调用方回落到旧口径。
+func cutDataRange(table string) (time.Time, time.Time, bool) {
+	db := global.GWAF_LOCAL_LOG_DB
+	if db == nil || !dialect.Get().TableExists(db, table) {
+		return time.Time{}, time.Time{}, false
+	}
+	var row struct {
+		Lo *int64
+		Hi *int64
+	}
+	if err := db.Table(table).Select("MIN(unix_add_time) as lo, MAX(unix_add_time) as hi").Scan(&row).Error; err != nil {
+		zlog.Debug("TaskDBSharding", "取数据时间边界失败", err.Error())
+		return time.Time{}, time.Time{}, false
+	}
+	if row.Lo == nil || row.Hi == nil || *row.Lo <= 0 || *row.Hi <= 0 {
+		return time.Time{}, time.Time{}, false
+	}
+	// UNIX_ADD_TIME 是毫秒
+	return time.UnixMilli(*row.Lo), time.UnixMilli(*row.Hi), true
 }

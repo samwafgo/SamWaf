@@ -1,0 +1,49 @@
+name: '⭐️ Compile Issue'
+description: 'Questions about building and debugging the source code'
+title: '[Compile Issue] '
+labels: ['⭐️ Compile Issue']
+assignees:
+  - samwafgo
+body:
+  - type: input
+    attributes:
+      label: 'Build Environment'
+      description: |
+        Please provide detailed build environment information (OS, compiler version, etc.).
+    validations:
+      required: true
+
+  - type: checkboxes
+    attributes:
+      label: 'Issue Type'
+      options:
+        - label: 'Compile error'
+        - label: 'Link error'
+        - label: 'Runtime error'
+        - label: 'Performance issue'
+        - label: 'Other'
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: '⭐️ Issue Description'
+      description: |
+        Please describe the build issue in detail, including error logs, reproduction steps, etc.<br/>
+        Incomplete or vague reports may not be processed effectively.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: 'Reproduction Steps'
+      description: |
+        Please provide a list of steps to reproduce the issue, and a minimal code example if possible.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: 'Additional Information'
+      description: |
+        Add any other context or relevant links here, such as solutions you have already tried.

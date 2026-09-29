@@ -1,0 +1,50 @@
+name: '❓ 问题咨询'
+description: '使用过程中遇到问题，来这里提问（非缺陷反馈）'
+title: '[Question] '
+labels: ['❓ Question']
+assignees:
+  - samwafgo
+body:
+  - type: input
+    attributes:
+      label: '产品版本'
+      description: 你正在使用的 SamWaf 版本（如 v1.x.x）。
+    validations:
+      required: true
+
+  - type: checkboxes
+    attributes:
+      label: '版本类型'
+      options:
+        - label: '社区版'
+    validations:
+      required: true
+
+  - type: checkboxes
+    attributes:
+      label: '已查阅资料'
+      description: 提问前请先确认已查阅相关资料。
+      options:
+        - label: '我已查阅在线文档（https://doc.samwaf.com/）'
+        - label: '我已搜索历史 Issue，未找到相同问题'
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: '❓ 问题描述'
+      description: |
+        请提供一个清晰且简洁的问题描述，说明你想咨询的内容。<br/>
+        请尽量提供足够的上下文（如操作步骤、相关配置、截图等），以便更快得到解答。
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: '环境信息'
+      description: 操作系统、部署方式（Docker/直接部署）、数据库类型等（可选）。
+
+  - type: textarea
+    attributes:
+      label: '补充信息'
+      description: 在这里添加关于问题的任何其他背景信息。

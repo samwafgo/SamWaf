@@ -14,6 +14,7 @@ import (
 	"SamWaf/model/request"
 	response2 "SamWaf/model/response"
 	"SamWaf/wafdb"
+	"SamWaf/wafdb/dialect"
 
 	"gorm.io/gorm"
 )
@@ -82,10 +83,24 @@ func (receiver *WafCCThresholdService) RecommendApi(req request.WafCCThresholdRe
 	if days <= 0 {
 		days = ccThDefaultDays
 	}
-	if days > ccThMaxDays {
-		days = ccThMaxDays
+	// 可选天数上限跟随 access_log 的保留期：选到没有数据的区间只会算出偏小的推荐值
+	// （阈值过低 = 误杀，方向危险）。保留期以外即便归档里还有改造前的数据也不去借，
+	// 那些数据随保留期退场，借了反而把「推荐能看多远」搞成随升级时间漂移。
+	maxDays := ccThMaxDays
+	if global.GDATA_ACCESS_LOG_RETENTION_DAYS < int64(maxDays) {
+		maxDays = int(global.GDATA_ACCESS_LOG_RETENTION_DAYS)
+	}
+	if days > maxDays {
+		days = maxDays
 	}
 	rep.WindowSec = window
+
+	// off 档正常请求不入库，推荐功能失去数据基础——明说原因而不是算个偏小的值出来
+	if global.GDATA_ACCESS_LOG_MODE == "off" {
+		rep.Reason = "访问日志档位为 off（仅安全事件入库），正常请求不留存，无法按历史流量推荐阈值。" +
+			"需要这个功能请在系统配置把 access_log_mode 调回 db 或 sample。"
+		return rep
+	}
 
 	// ── 先判定这套口径能不能从日志里可靠还原 ──
 	switch req.StatDim {
@@ -286,10 +301,16 @@ func ccThURICond(c model.MatchCondition) (string, []interface{}) {
 
 // ccThResolveShards 列出需要查的日志分片：活跃表 + 时间范围有交集的归档分片。
 // 只查活跃表的话，天数一长就只算到最近一片，推荐值会偏小。
+// 分层后读 access_log（全量窄行，含命中的双写）；改造前切出去的归档没有 access_log，
+// 回落读它的 web_logs——两者都是「全量请求」，口径一致。
 func ccThResolveShards(days int) []ccThShard {
 	out := []ccThShard{}
 	if global.GWAF_LOCAL_LOG_DB != nil {
-		out = append(out, ccThShard{db: global.GWAF_LOCAL_LOG_DB, table: wafdb.LogTableName})
+		table := model.AccessLogTableName
+		if !dialect.Get().TableExists(global.GWAF_LOCAL_LOG_DB, table) {
+			table = wafdb.LogTableName
+		}
+		out = append(out, ccThShard{db: global.GWAF_LOCAL_LOG_DB, table: table})
 	}
 	from := time.Now().AddDate(0, 0, -days)
 	all, err := WafShareDbServiceApp.GetAllShareDbApi()
@@ -303,14 +324,21 @@ func ccThResolveShards(days int) []ccThShard {
 		if time.Time(s.EndTime).Before(from) {
 			continue
 		}
-		db, table := wafdb.ResolveLogDB(s.FileName)
-		if db == nil || !ccThTableRe.MatchString(table) {
+		tier := wafdb.ResolveTierTables(s.FileName)
+		if tier.DB == nil {
 			continue
 		}
-		if db == global.GWAF_LOCAL_LOG_DB && table == wafdb.LogTableName {
+		table := tier.Access
+		if table == "" {
+			table = tier.WebLog
+		}
+		if table == "" || !ccThTableRe.MatchString(table) {
+			continue
+		}
+		if tier.DB == global.GWAF_LOCAL_LOG_DB && (table == out[0].table) {
 			continue // 分片解析失败被降级回活跃表，别重复统计
 		}
-		out = append(out, ccThShard{db: db, table: table})
+		out = append(out, ccThShard{db: tier.DB, table: table})
 	}
 	return out
 }

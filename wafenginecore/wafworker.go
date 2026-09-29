@@ -204,6 +204,8 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 		IPBlockLists:        ipblocklist,
 		IPBlockIndex:        BuildIPBlockIndex(ipblocklist),
 		IPBlockGroupCodes:   ExtractBlockGroupCodes(ipblocklist),
+		IPLogExcludeIndex:      BuildIPLogExcludeIndex(inHost.EXCLUDE_IP_LOG),
+		IPLogExcludeGroupCodes: ExtractIPLogExcludeGroupCodes(inHost.EXCLUDE_IP_LOG),
 		UrlBlockLists:       urlblocklist,
 		AntiCCBean:          anticcBean,
 		HttpAuthBases:       httpAuthList,

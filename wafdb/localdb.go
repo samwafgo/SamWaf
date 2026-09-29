@@ -1,13 +1,9 @@
 package wafdb
 
 import (
-	"SamWaf/common/uuid"
 	"SamWaf/common/zlog"
-	"SamWaf/customtype"
 	"SamWaf/global"
-	"SamWaf/innerbean"
 	"SamWaf/model"
-	"SamWaf/model/baseorm"
 	"SamWaf/utils"
 	"bufio"
 	"context"
@@ -148,6 +144,13 @@ func InitCoreDb(currentDir string) (bool, error) {
 	}
 }
 
+// 归档分片只读连接的页缓存（负数为 KB）与连接数上限。实时库用 64MB 页缓存，
+// 归档若也按 64MB，同时打开 8 个分片扫一遍就要五六百 MB；只读查询 8MB 足够。
+const (
+	archiveCacheSizeKB  = -8192
+	archiveMaxOpenConns = 2
+)
+
 func InitLogDb(currentDir string) (bool, error) {
 	switch dialect.Get().Name() {
 	case "mysql":
@@ -204,29 +207,7 @@ func InitLogDb(currentDir string) (bool, error) {
 		global.GWAF_LOCAL_LOG_DB.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
 
 		pathLogSql(db)
-		var total int64 = 0
-		global.GWAF_LOCAL_DB.Model(&model.ShareDb{}).Count(&total)
-		if total == 0 {
-
-			var logtotal int64 = 0
-			global.GWAF_LOCAL_LOG_DB.Model(&innerbean.WebLog{}).Count(&logtotal)
-
-			sharDbBean := model.ShareDb{
-				BaseOrm: baseorm.BaseOrm{
-					Id:          uuid.GenUUID(),
-					USER_CODE:   global.GWAF_USER_CODE,
-					Tenant_ID:   global.GWAF_TENANT_ID,
-					CREATE_TIME: customtype.JsonTime(time.Now()),
-					UPDATE_TIME: customtype.JsonTime(time.Now()),
-				},
-				DbLogicType: "log",
-				StartTime:   customtype.JsonTime(time.Now()),
-				EndTime:     customtype.JsonTime(time.Now()),
-				FileName:    "local_log.db",
-				Cnt:         logtotal,
-			}
-			global.GWAF_LOCAL_DB.Create(sharDbBean)
-		}
+		ensureLiveShardRecord(global.GWAF_LOCAL_DB, global.GWAF_LOCAL_LOG_DB, LiveLogName())
 
 		return isNewDb, nil
 	} else {
@@ -234,74 +215,62 @@ func InitLogDb(currentDir string) (bool, error) {
 	}
 }
 
-// 手工切换日志数据源
-func InitManaulLogDb(currentDir string, custFileName string) {
+// InitManaulLogDb 按需只读打开一个 SQLite 归档日志分片，已打开的直接复用。
+//
+// 归档文件只读：不跑迁移、连接层 query_only，打开前先确认文件在——不在就返回 ErrShardMissing，
+// 不会在原位置建出一个空库。读侧按分片实际有的表与列取数（ResolveTierTables / webLogSelect），
+// 不需要归档跟着实时库补表补列。页缓存与连接数按只读场景收小，多个分片同时打开时内存可控。
+func InitManaulLogDb(currentDir string, custFileName string) error {
 	if dialect.Get().Name() != "sqlite" {
 		// MySQL 模式下所有日志写入同一个库，无需手动切换分库
-		return
+		return nil
 	}
-	if currentDir == "" {
-		currentDir = utils.GetCurrentDir()
+	if db := getShardDB(custFileName); db != nil {
+		return nil
 	}
-	if global.GDATA_CURRENT_LOG_DB_MAP[custFileName] == nil {
-		zlog.Debug("初始化自定义的库", custFileName)
-		path := currentDir + "/data/" + custFileName
-		key := url.QueryEscape(global.GWAF_PWD_LOGDB)
-		dns := fmt.Sprintf("%s?_db_key=%s", path, key)
-		db, err := gorm.Open(sqlite.Open(dns), &gorm.Config{})
-		if err != nil {
-			panic("failed to connect database")
-		}
-		// 日志/统计库使用 synchronous=NORMAL 提升高频写入吞吐，其余性能 pragma 统一设置
-		applyPerfPragmas(db, true)
-		// 创建自定义日志记录器
-		gormLogger := NewGormZLogger()
-		if global.GWAF_LOG_DEBUG_DB_ENABLE == true {
-			gormLogger = gormLogger.LogMode(logger.Info).(*GormZLogger)
-			// 启用调试模式
-			db = db.Session(&gorm.Session{
-				Logger: logger.Default.LogMode(logger.Info), // 设置为Info表示启用调试模式
-			})
-		}
-		global.GDATA_CURRENT_LOG_DB_MAP[custFileName] = db
-		//logDB.Use(crypto.NewCryptoPlugin())
-		// 注册默认的AES加解密策略
-		//crypto.RegisterCryptoStrategy(strategy.NewAesCryptoStrategy("3Y)(27EtO^tK8Bj~"))
-
-		// ============ 使用 gormigrate 替代 AutoMigrate（完全向后兼容） ============
-		zlog.Info("开始执行手动log数据库迁移...", "file", custFileName)
-		if err := RunLogDBMigrations(db); err != nil {
-			errStr := fmt.Sprintf("%v", err)
-			zlog.Error("手动log数据库迁移失败", "file", custFileName, "error_string", errStr, "error_type", fmt.Sprintf("%T", err))
-			zlog.Error("手动log数据库迁移失败详细信息: " + errStr)
-			panic("manual log database migration failed: " + errStr)
-		}
-		// ============ 迁移代码结束 ============
-
-		global.GDATA_CURRENT_LOG_DB_MAP[custFileName].Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
-		global.GDATA_CURRENT_LOG_DB_MAP[custFileName].Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
-
-	} else {
-		zlog.Debug("自定义的库已存在", custFileName)
+	path, err := ShardFilePath(custFileName)
+	if err != nil {
+		return err
 	}
+	if currentDir != "" {
+		path = currentDir + "/data/" + custFileName
+	}
+	if _, serr := os.Stat(path); serr != nil {
+		if os.IsNotExist(serr) {
+			return fmt.Errorf("%w: %s", ErrShardMissing, custFileName)
+		}
+		return fmt.Errorf("读取归档分片 %s 失败: %w", custFileName, serr)
+	}
+	key := url.QueryEscape(global.GWAF_PWD_LOGDB)
+	dns := fmt.Sprintf("%s?_db_key=%s&_query_only=1&_cache_size=%d&_busy_timeout=5000", path, key, archiveCacheSizeKB)
+	db, err := gorm.Open(sqlite.Open(dns), &gorm.Config{})
+	if err != nil {
+		return fmt.Errorf("打开归档分片 %s 失败: %w", custFileName, err)
+	}
+	if sqlDB, derr := db.DB(); derr == nil {
+		sqlDB.SetMaxOpenConns(archiveMaxOpenConns)
+		sqlDB.SetMaxIdleConns(archiveMaxOpenConns)
+	}
+	if global.GWAF_LOG_DEBUG_DB_ENABLE == true {
+		db = db.Session(&gorm.Session{
+			Logger: logger.Default.LogMode(logger.Info),
+		})
+	}
+
+	db.Callback().Query().Before("gorm:query").Register("tenant_plugin:before_query", before_query)
+	db.Callback().Query().Before("gorm:update").Register("tenant_plugin:before_update", before_update)
+
+	// 并发下可能已有别的协程抢先放入，这时关掉自己开的这一份
+	if _, duplicated := putShardDB(custFileName, db); duplicated {
+		closeShardConn(custFileName, db)
+	}
+	return nil
 }
 
 // CloseManualLogDb 关闭并移除一个按需打开的归档日志分片连接（若存在），
 // 供归档清理删除文件前调用，避免删正在被打开查询的 .db 文件。
 func CloseManualLogDb(custFileName string) {
-	if global.GDATA_CURRENT_LOG_DB_MAP == nil {
-		return
-	}
-	db := global.GDATA_CURRENT_LOG_DB_MAP[custFileName]
-	if db == nil {
-		return
-	}
-	if sqlDB, err := db.DB(); err == nil {
-		if cerr := sqlDB.Close(); cerr != nil {
-			zlog.Warn("关闭归档分片连接失败", "file", custFileName, "error", cerr.Error())
-		}
-	}
-	delete(global.GDATA_CURRENT_LOG_DB_MAP, custFileName)
+	closeShardDB(custFileName)
 }
 
 func InitStatsDb(currentDir string) (bool, error) {

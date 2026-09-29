@@ -1184,7 +1184,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 				weblogfrist.TASK_FLAG = 1
 
 				// 记录日志
-				if shouldRecordWebLog(weblogfrist, waf.rt().HostTarget[host].Host.EXCLUDE_URL_LOG) {
+				if shouldRecordWebLog(weblogfrist, waf.rt().HostTarget[host]) {
 					global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
 				}
 			}
@@ -1221,7 +1221,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 				datetimeNow := time.Now()
 				weblogfrist.TimeSpent = datetimeNow.UnixNano()/1e6 - weblogfrist.UNIX_ADD_TIME
 				weblogfrist.BackendCheckCost = datetimeNow.UnixNano()/1e6 - backendCheckStart
-				if shouldRecordWebLog(weblogfrist, hostTarget.Host.EXCLUDE_URL_LOG) {
+				if shouldRecordWebLog(weblogfrist, hostTarget) {
 					global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
 				}
 				return nil
@@ -1272,7 +1272,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 					weblogfrist.BackendCheckCost = time.Now().UnixNano()/1e6 - backendCheckStart //响应数据处理时间
 
 					// 记录流式访问日志
-					if shouldRecordWebLog(weblogfrist, waf.rt().HostTarget[host].Host.EXCLUDE_URL_LOG) {
+					if shouldRecordWebLog(weblogfrist, waf.rt().HostTarget[host]) {
 						global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
 					}
 
@@ -1439,7 +1439,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 						weblogfrist.BackendCheckCost = time.Now().UnixNano()/1e6 - backendCheckStart
 
 						// 记录日志 - 根据配置决定是否记录
-						if shouldRecordWebLog(weblogfrist, waf.rt().HostTarget[host].Host.EXCLUDE_URL_LOG) {
+						if shouldRecordWebLog(weblogfrist, waf.rt().HostTarget[host]) {
 							global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
 						}
 
@@ -1457,7 +1457,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 				weblogfrist.STATUS_CODE = resp.StatusCode
 				weblogfrist.TASK_FLAG = 1
 				weblogfrist.BackendCheckCost = time.Now().UnixNano()/1e6 - backendCheckStart //响应数据处理时间
-				if shouldRecordWebLog(weblogfrist, waf.rt().HostTarget[host].Host.EXCLUDE_URL_LOG) {
+				if shouldRecordWebLog(weblogfrist, waf.rt().HostTarget[host]) {
 					global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
 				}
 

@@ -3,6 +3,7 @@ package wafenginecore
 import (
 	"SamWaf/global"
 	"SamWaf/innerbean"
+	"SamWaf/model/wafenginmodel"
 	"strings"
 )
 
@@ -29,18 +30,23 @@ func isURLLogExcluded(url string, excludeURLLog string) bool {
 // 自定义规则放行/仅记录、站点仅记录模式(LogOnlyMode)、AI 观察命中，这些请求最终
 // ACTION 都会被 modifyResponse 覆写成"放行"，若只看 ACTION 就会被整条丢弃，
 // 导致白名单被谁用了、仅记录模式抓到了什么完全无法审计。
-func shouldRecordWebLog(weblog *innerbean.WebLog, excludeURLLog string) bool {
-	if weblog == nil {
+//
+// 排除清单两级：URL 前缀（彻底静音）与来源 IP（只静音正常请求，安全事件照记，见 weblog_exclude.go）。
+func shouldRecordWebLog(weblog *innerbean.WebLog, hostSafe *wafenginmodel.HostSafe) bool {
+	if weblog == nil || hostSafe == nil {
 		return false
 	}
-	if isURLLogExcluded(weblog.URL, excludeURLLog) {
+	if isURLLogExcluded(weblog.URL, hostSafe.Host.EXCLUDE_URL_LOG) {
+		return false
+	}
+	if !weblog.IsSecurityEvent() && isIPLogExcluded(weblog.SRC_IP, hostSafe) {
 		return false
 	}
 	switch global.GWAF_RUNTIME_RECORD_LOG_TYPE {
 	case "all":
 		return true
 	case "abnormal":
-		return weblog.ACTION != "放行" || weblog.RULE != "" || weblog.LogOnlyMode == 1
+		return weblog.IsSecurityEvent()
 	}
 	return false
 }

@@ -3,8 +3,8 @@ package enums
 const (
 	TASK_RUNTIME_QPS_CLEAN            = "task_runtime_qps_clean"            //清空运行QPS
 	TASK_HOST_QPS_CLEAN               = "task_host_qps_clean"               //清空主机QPS
-	TASK_SHARE_DB                     = "task_share_db"                     //分库检测(每天兜底)
-	TASK_SHARE_DB_CHECK               = "task_share_db_check"               //分库高频检测(每5分钟按大小切库)
+	TASK_SHARE_DB                     = "task_share_db"                     //分区检测(每天兜底)
+	TASK_SHARE_DB_CHECK               = "task_share_db_check"               //分区高频检测(每5分钟；按周期切，体积超限兜底)
 	TASK_COUNTER                      = "task_counter"                      //统计
 	TASK_DELAY_INFO                   = "task_delay_info"                   //延迟统计信息
 	TASK_LOAD_CONFIG                  = "task_load_config"                  //获取配置信息

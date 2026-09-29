@@ -415,6 +415,122 @@ func RunLogDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// web_logs 增加 truncated 标记：报文列超过单列上限被截断时置 1，
+		// 让详情页知道看到的报文不完整，也让 AI 导出能跳过残缺样本。
+		{
+			ID: "202609170001_add_web_logs_truncated",
+			Migrate: func(tx *gorm.DB) error {
+				if tx.Migrator().HasColumn(&innerbean.WebLog{}, "Truncated") {
+					return nil
+				}
+				zlog.Info("迁移 202609170001: web_logs 增加 truncated 列")
+				return tx.Migrator().AddColumn(&innerbean.WebLog{}, "Truncated")
+			},
+			Rollback: func(tx *gorm.DB) error {
+				return tx.Migrator().DropColumn(&innerbean.WebLog{}, "Truncated")
+			},
+		},
+		// 按 IP / 规则 / 日期查询的索引。原有索引首列全是 unix_add_time，
+		// 「某 IP 全时段」「某规则全时段」只能扫整段时间索引再逐行过滤。
+		// 大表上本次建索引耗时可能到分钟级，启动日志里有每条的耗时。
+		{
+			ID: "202609170002_add_web_logs_query_indexes",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202609170002: web_logs 增加 IP/规则/日期 查询索引")
+				// rule 是 text 列：MySQL 对 text 建索引必须给前缀长度，sqlite/pg 不需要
+				ruleCol := "rule"
+				if tx.Dialector.Name() == "mysql" {
+					ruleCol = "rule(191)"
+				}
+				for _, ix := range []struct{ name, ddl string }{
+					{"idx_web_ip_time", "CREATE INDEX IF NOT EXISTS idx_web_ip_time ON web_logs (tenant_id, user_code, src_ip, unix_add_time desc)"},
+					{"idx_web_rule_time", "CREATE INDEX IF NOT EXISTS idx_web_rule_time ON web_logs (tenant_id, user_code, " + ruleCol + ", unix_add_time desc)"},
+					{"idx_web_day_isbot", "CREATE INDEX IF NOT EXISTS idx_web_day_isbot ON web_logs (day, is_bot)"},
+				} {
+					start := time.Now()
+					if err := safeCreateIndex(tx, "web_logs", ix.name, ix.ddl); err != nil {
+						// 建索引失败不阻断启动：查询只是慢，不是不能用
+						zlog.Warn("创建索引失败", "index", ix.name, "error", err.Error())
+						continue
+					}
+					zlog.Info("索引创建完成", "index", ix.name, "耗时", time.Since(start).String())
+				}
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				for _, name := range []string{"idx_web_ip_time", "idx_web_rule_time", "idx_web_day_isbot"} {
+					if err := safeDropIndex(tx, "web_logs", name); err != nil {
+						zlog.Warn("删除索引失败", "index", name, "error", err.Error())
+					}
+				}
+				return nil
+			},
+		},
+		// 报文垂直拆表：新写入的报文进 event_payload，web_logs 只留窄列。
+		// 建表不搬历史——存量行的报文仍在 web_logs 自己的列里，读侧按 req_uuid 找不到报文行时回落读原列，
+		// 所以升级当下任何一条老日志的详情都照旧能看。
+		{
+			ID: "202609170003_add_event_payload_table",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202609170003: 创建报文表 event_payload")
+				if err := tx.AutoMigrate(&model.EventPayload{}); err != nil {
+					return fmt.Errorf("创建 event_payload 表失败: %w", err)
+				}
+				zlog.Info("event_payload 表创建成功")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202609170003: 删除 event_payload 表")
+				return tx.Migrator().DropTable(&model.EventPayload{})
+			},
+		},
+		// 分层写入的两张新表：access_log 装所有记录的窄行（安全事件双写一份进去），
+		// security_event 只装事件、保留期更长。报文仍在 event_payload，按 req_uuid 一对一。
+		// 三个分析键（actor_key/ua_hash/path_norm，事件表再加 payload_hash）随建表就位——
+		// 事后补列等于没有历史数据。
+		{
+			ID: "202609180001_add_tiered_log_tables",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202609180001: 创建分层日志表 access_log / security_event")
+				if err := tx.AutoMigrate(&model.AccessLog{}, &model.SecurityEvent{}); err != nil {
+					return fmt.Errorf("创建分层日志表失败: %w", err)
+				}
+				// rule 是 text 列：MySQL 对 text 建索引必须给前缀长度，sqlite/pg 不需要
+				ruleCol := "rule"
+				if tx.Dialector.Name() == "mysql" {
+					ruleCol = "rule(191)"
+				}
+				for _, ix := range []struct{ name, table, ddl string }{
+					// 访问日志页默认排序（时间倒序 + 租户）与按 IP 查
+					{"idx_al_time", "access_log", "CREATE INDEX IF NOT EXISTS idx_al_time ON access_log (tenant_id, user_code, unix_add_time desc)"},
+					{"idx_al_ip_time", "access_log", "CREATE INDEX IF NOT EXISTS idx_al_ip_time ON access_log (tenant_id, user_code, src_ip, unix_add_time desc)"},
+					// bot 分析按 day+is_bot 扫
+					{"idx_al_day_isbot", "access_log", "CREATE INDEX IF NOT EXISTS idx_al_day_isbot ON access_log (day, is_bot)"},
+					// 风险详情按 IP / 规则回查事件；事件视图默认按时间翻页
+					{"idx_se_time", "security_event", "CREATE INDEX IF NOT EXISTS idx_se_time ON security_event (tenant_id, user_code, unix_add_time desc)"},
+					{"idx_se_ip_time", "security_event", "CREATE INDEX IF NOT EXISTS idx_se_ip_time ON security_event (tenant_id, user_code, src_ip, unix_add_time desc)"},
+					{"idx_se_rule_time", "security_event", "CREATE INDEX IF NOT EXISTS idx_se_rule_time ON security_event (tenant_id, user_code, " + ruleCol + ", unix_add_time desc)"},
+					// 保留期清理按 create_time 删
+					{"idx_al_create_time", "access_log", "CREATE INDEX IF NOT EXISTS idx_al_create_time ON access_log (create_time)"},
+					{"idx_se_create_time", "security_event", "CREATE INDEX IF NOT EXISTS idx_se_create_time ON security_event (create_time)"},
+				// 行为视角按访客键汇总（索引名全库唯一，两张表各建各的）
+				{"idx_al_actor", "access_log", "CREATE INDEX IF NOT EXISTS idx_al_actor ON access_log (tenant_id, user_code, actor_key, day)"},
+				{"idx_se_actor", "security_event", "CREATE INDEX IF NOT EXISTS idx_se_actor ON security_event (tenant_id, user_code, actor_key, day)"},
+				} {
+					start := time.Now()
+					if err := safeCreateIndex(tx, ix.table, ix.name, ix.ddl); err != nil {
+						zlog.Warn("创建索引失败", "index", ix.name, "error", err.Error())
+						continue
+					}
+					zlog.Info("索引创建完成", "index", ix.name, "耗时", time.Since(start).String())
+				}
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202609180001: 删除分层日志表")
+				return tx.Migrator().DropTable(&model.AccessLog{}, &model.SecurityEvent{})
+			},
+		},
 	})
 
 	// 执行迁移

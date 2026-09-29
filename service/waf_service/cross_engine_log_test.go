@@ -47,18 +47,79 @@ func runLogCases(t *testing.T, logdb *gorm.DB) {
 			t.Fatalf("WebLog TASK_FLAG 期望默认 -1，实际 %d", got.TASK_FLAG)
 		}
 
-		// 列表查询：时间范围 + req_uuid 过滤（内部含 ForceIndexClause 方言分支）
-		list, total, err := WafLogServiceApp.GetListApi(req.WafAttackLogSearch{
+		// 分层后的列表查询：访问日志视图读 access_log、安全事件视图读 security_event，
+		// 「请求」全文筛选只在事件视图可用（走报文子查询），访问视图应明确拒绝
+		nowMs := time.Now().UnixNano() / 1e6
+		nowStr := time.Now().Format("2006-01-02 15:04:05")
+		must(t, logdb.Create(&model.AccessLog{LogNarrow: model.LogNarrow{
+			ReqUUID: uid, HostCode: "h1", URL: "/x", Method: "GET", SRC_IP: "1.2.3.4",
+			ACTION: "deny", RULE: "testrule", USER_AGENT: "crossdb-probe", UserCode: xtestUser, TenantId: xtestTenant,
+			UNIX_ADD_TIME: nowMs, CREATE_TIME: nowStr, Day: 20260918,
+		}}).Error)
+		must(t, logdb.Create(&model.SecurityEvent{LogNarrow: model.LogNarrow{
+			ReqUUID: uid, HostCode: "h1", URL: "/x", Method: "GET", SRC_IP: "1.2.3.4",
+			ACTION: "deny", RULE: "testrule", USER_AGENT: "crossdb-probe", UserCode: xtestUser, TenantId: xtestTenant,
+			UNIX_ADD_TIME: nowMs, CREATE_TIME: nowStr, Day: 20260918,
+		}}).Error)
+		must(t, logdb.Create(&model.EventPayload{
+			ReqUUID: uid, TenantId: xtestTenant, UserCode: xtestUser, HostCode: "h1",
+			Kind: "event", HEADER: "User-Agent: crossdb-probe",
+			CreateTime: nowStr, UnixAddTime: nowMs, Day: 20260918,
+		}).Error)
+
+		base := req.WafAttackLogSearch{
 			ReqUuid:          uid,
 			UnixAddTimeBegin: "0",
-			UnixAddTimeEnd:   fmt.Sprintf("%d", now+3600),
+			UnixAddTimeEnd:   fmt.Sprintf("%d", nowMs+3600000),
 			SortBy:           "unix_add_time",
 			SortDescending:   "desc",
 			PageInfo:         request.PageInfo{PageIndex: 1, PageSize: 20},
-		})
+		}
+
+		// 访问日志视图（默认）：按 req_uuid 查到窄行
+		list, total, err := WafLogServiceApp.GetListApi(base)
 		fatalIf(t, err)
 		if total < 1 || len(list) < 1 {
-			t.Fatalf("WebLog 列表未查到刚写入的日志: total=%d len=%d", total, len(list))
+			t.Fatalf("访问日志视图未查到刚写入的窄行: total=%d len=%d", total, len(list))
+		}
+
+		// 安全事件视图：同一 req_uuid 也查得到（事件双写），且报文被补回
+		evReq := base
+		evReq.ViewType = "event"
+		evList, evTotal, err := WafLogServiceApp.GetListApi(evReq)
+		fatalIf(t, err)
+		if evTotal < 1 || len(evList) < 1 {
+			t.Fatalf("安全事件视图未查到刚写入的事件: total=%d len=%d", evTotal, len(evList))
+		}
+		if evList[0].HEADER != "User-Agent: crossdb-probe" {
+			t.Fatalf("事件视图应按页补回报文，实际 header=%q", evList[0].HEADER)
+		}
+
+		// 「请求」全文筛选：事件视图走报文子查询命中，访问视图明确拒绝
+		hdrReq := base
+		hdrReq.ViewType = "event"
+		hdrReq.FilterBy = "header"
+		hdrReq.FilterValue = "crossdb-probe"
+		_, hdrTotal, err := WafLogServiceApp.GetListApi(hdrReq)
+		fatalIf(t, err)
+		if hdrTotal < 1 {
+			t.Fatal("事件视图的 header 全文筛选应命中报文子查询")
+		}
+		accHdr := base
+		accHdr.FilterBy = "header"
+		accHdr.FilterValue = "crossdb-probe"
+		if _, _, err = WafLogServiceApp.GetListApi(accHdr); err == nil {
+			t.Fatal("访问日志视图的 header 全文筛选应被拒绝（窄行没有这一列）")
+		}
+
+		// UA 筛选两个视图都可用（窄行列），访问视图应命中刚写的窄行
+		uaReq := base
+		uaReq.FilterBy = "user_agent"
+		uaReq.FilterValue = "crossdb-probe"
+		_, uaTotal, err := WafLogServiceApp.GetListApi(uaReq)
+		fatalIf(t, err)
+		if uaTotal < 1 {
+			t.Fatal("访问视图的 UA 筛选应命中窄行")
 		}
 	})
 

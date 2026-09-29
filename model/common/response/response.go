@@ -26,8 +26,11 @@ const (
 	// BACKEND_UNAVAILABLE 依赖的存储/缓存后端本次不可用，请求未能完成。
 	// 与 AUTHFAIL 的区别：登录状态没有问题，客户端应保留登录态并稍后重试。
 	BACKEND_UNAVAILABLE = -6
-	FORBIDDEN           = -403
-	AUTHFAIL            = -999
+	// EXPORT_DISABLED 日志导出被配置关闭（conf/config.yml 的 export_download 未开启）。
+	// 前端据此给出开启方法的指引，而不是一句「当前不允许导出」。
+	EXPORT_DISABLED = -7
+	FORBIDDEN       = -403
+	AUTHFAIL        = -999
 )
 
 // HeaderKeyID 是客户端声明本次会话密钥的请求头，与 X-Sec-Ver: 2 配套。

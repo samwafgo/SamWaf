@@ -148,7 +148,7 @@ func (r *WafIPLookupService) Lookup(ipStr string, sources []string) (*response2.
 		Degraded:  make([]string, 0),
 	}
 	for _, src := range []string{
-		srcIPWhite, srcIPBlack, srcIPGroup, srcThreatIP,
+		srcIPWhite, srcIPBlack, srcIPGroup, srcLogExclude, srcThreatIP,
 		srcIPFailure, srcCCBan, srcFirewall, srcCDN,
 	} {
 		if pick(src) {
@@ -177,6 +177,9 @@ func (r *WafIPLookupService) Lookup(ipStr string, sources []string) (*response2.
 	}
 	if pick(srcIPGroup) {
 		r.matchIPGroup(ipStr, resp)
+	}
+	if pick(srcLogExclude) {
+		r.matchLogExclude(ipStr, resp)
 	}
 	if pick(srcThreatIP) {
 		r.matchThreatIP(ipStr, parsed, resp)
@@ -317,6 +320,7 @@ func (r *WafIPLookupService) matchIPGroup(ip string, resp *response2.IPLookupRes
 	}
 
 	refs := r.groupRefs()
+	logRefs := r.logExcludeGroupRefs()
 	for _, g := range groups {
 		for _, it := range byGroup[g.GroupCode] {
 			if it.Ip == "" || !utils.MatchIPPattern(ip, it.Ip) {
@@ -327,6 +331,13 @@ func (r *WafIPLookupService) matchIPGroup(ip string, resp *response2.IPLookupRes
 			if ref, ok := refs[g.GroupCode]; ok {
 				effect = ref.effect
 				detail = ref.text
+			} else if text, ok := logRefs[g.GroupCode]; ok {
+				// 组没被黑白名单引用、却被日志排除清单引用时，原来的文案会让人以为这组没任何作用
+				effect = "log_skip"
+				detail = text
+			}
+			if text, ok := logRefs[g.GroupCode]; ok && effect != "log_skip" {
+				detail = detail + "；同时" + text
 			}
 			resp.Hits = append(resp.Hits, response2.IPLookupHit{
 				Source:     srcIPGroup,
@@ -681,4 +692,95 @@ func (r *WafIPLookupService) matchCDN(ip string, resp *response2.IPLookupResp) {
 			Detail:     "该IP属于CDN回源节点，不是真实访客IP",
 		})
 	}
+}
+
+// srcLogExclude 日志排除清单（M6）：命中它的 IP，正常请求不记访问日志。
+//
+// 为什么要进「IP归属查询」：这条链路常常隔着一层——把 IP 放进一个 IP 组、
+// 组被某个站点的「记录日志时排除IP」引用，事后自己都想不起来为什么这个 IP 没有日志。
+// 归属查询本来就是回答「这个 IP 现在被什么规则罩着」，日志排除属于同一个问题。
+const srcLogExclude = "log_exclude"
+
+// logExcludeList 一份生效中的排除清单：来自全局配置或某个站点
+type logExcludeList struct {
+	scope string // 「全局」或站点名
+	raw   string
+}
+
+// collectLogExcludeLists 收齐全局与各站点的排除清单（空的跳过）
+func (r *WafIPLookupService) collectLogExcludeLists() []logExcludeList {
+	lists := make([]logExcludeList, 0, 4)
+	if strings.TrimSpace(global.GCONFIG_EXCLUDE_IP_LOG) != "" {
+		lists = append(lists, logExcludeList{scope: "全局", raw: global.GCONFIG_EXCLUDE_IP_LOG})
+	}
+	var hosts []model.Hosts
+	if err := global.GWAF_LOCAL_DB.Where("exclude_ip_log <> ''").Find(&hosts).Error; err == nil {
+		for _, h := range hosts {
+			if strings.TrimSpace(h.EXCLUDE_IP_LOG) == "" {
+				continue
+			}
+			name := h.Host
+			if name == "" {
+				name = h.Code
+			}
+			lists = append(lists, logExcludeList{scope: name, raw: h.EXCLUDE_IP_LOG})
+		}
+	}
+	return lists
+}
+
+// matchLogExclude 查这个 IP 是否被某份日志排除清单命中，直接命中与经由 IP 组命中都要报出来
+func (r *WafIPLookupService) matchLogExclude(ip string, resp *response2.IPLookupResp) {
+	for _, l := range r.collectLogExcludeLists() {
+		patterns, codes := ipset.ParseListText(l.raw)
+
+		// 直接写在清单里的模式
+		if len(patterns) > 0 {
+			if set := ipset.BuildMatchSet(patterns); set != nil && set.ContainsStr(ip) {
+				matched := ""
+				for _, p := range patterns {
+					if one := ipset.BuildMatchSet([]string{p}); one != nil && one.ContainsStr(ip) {
+						matched = p
+						break
+					}
+				}
+				resp.Hits = append(resp.Hits, response2.IPLookupHit{
+					Source: srcLogExclude, SourceName: "日志排除", Scope: l.scope,
+					Matched: matched, Effect: "log_skip",
+					Detail: "命中「记录日志时排除IP」，该IP的正常请求不记访问日志（安全事件照常记录）",
+				})
+			}
+		}
+
+		// 经由 group: 引用命中——用户最容易忘掉的就是这一层
+		for _, code := range codes {
+			m := ipset.GetGroupMatcher(code)
+			if m == nil || !m.ContainsStr(ip) {
+				continue
+			}
+			resp.Hits = append(resp.Hits, response2.IPLookupHit{
+				Source: srcLogExclude, SourceName: "日志排除", Scope: l.scope,
+				Matched: "group:" + code, Effect: "log_skip",
+				Detail: "通过IP组 " + code + " 被「记录日志时排除IP」命中，该IP的正常请求不记访问日志（安全事件照常记录）",
+			})
+		}
+	}
+}
+
+// logExcludeGroupRefs 返回被日志排除清单引用的组短码 → 说明文案
+func (r *WafIPLookupService) logExcludeGroupRefs() map[string]string {
+	refs := map[string]string{}
+	for _, l := range r.collectLogExcludeLists() {
+		for _, code := range ipset.GroupCodesOf(l.raw) {
+			if old, ok := refs[code]; ok {
+				refs[code] = old + "、" + l.scope
+				continue
+			}
+			refs[code] = "被「记录日志时排除IP」引用（" + l.scope
+		}
+	}
+	for code, text := range refs {
+		refs[code] = text + "）：组内IP的正常请求不记访问日志"
+	}
+	return refs
 }

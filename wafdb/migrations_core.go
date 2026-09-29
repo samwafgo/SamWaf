@@ -864,6 +864,72 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return tx.Migrator().DropTable(&model.DataRetentionPolicy{})
 			},
 		},
+		// 迁移: 给分析层三张汇总表预置保留策略
+		// 保留策略页只能改不能加（策略由系统预置），所以新表必须在这里补一行，
+		// 否则它既不会出现在页面上、也永远不会被清理任务碰到——只进 allowedCleanupTables 不够。
+		{
+			ID: "202609200001_add_analysis_retention_policies",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202609200001: 预置分析层汇总表的保留策略")
+				if err := tx.AutoMigrate(&model.DataRetentionPolicy{}); err != nil {
+					return fmt.Errorf("同步 data_retention_policies 表失败: %w", err)
+				}
+
+				newPolicy := func(table string, rows int64, remarks string) model.DataRetentionPolicy {
+					return model.DataRetentionPolicy{
+						BaseOrm: baseorm.BaseOrm{
+							Id:          uuid.GenUUID(),
+							USER_CODE:   global.GWAF_USER_CODE,
+							Tenant_ID:   global.GWAF_TENANT_ID,
+							CREATE_TIME: customtype.JsonTime(time.Now()),
+							UPDATE_TIME: customtype.JsonTime(time.Now()),
+						},
+						TableName:     table,
+						DbType:        "stats",
+						RetainDays:    90,
+						RetainRows:    rows,
+						DayField:      "day",
+						DayFieldType:  "int_day",
+						RowOrderField: "day",
+						RowOrderDir:   "DESC",
+						// 与现有三条策略一致，默认禁用：清理是删数据，不替用户做这个决定。
+						// 行数上限只是失控兜底，真正的日常过期要用户在页面上启用。
+						CleanEnabled: 0,
+						Remarks:      remarks,
+					}
+				}
+				policies := []model.DataRetentionPolicy{
+					// 行数随「站点×天的 (IP,路径) 去重对数」增长，是分析层最大的一张
+					newPolicy("stats_actor_path_days", 1000000,
+						"行为×目标日汇总-按day字段判断天数,保留day值最大(最新)的行"),
+					newPolicy("stats_actor_ua_days", 200000,
+						"行为×UA日汇总-按day字段判断天数,保留day值最大(最新)的行"),
+					newPolicy("stats_path_rule_days", 200000,
+						"目标×规则日汇总-按day字段判断天数,保留day值最大(最新)的行"),
+				}
+
+				for _, policy := range policies {
+					var count int64
+					tx.Model(&model.DataRetentionPolicy{}).Where("table_name = ?", policy.TableName).Count(&count)
+					if count > 0 {
+						zlog.Debug("保留策略已存在，跳过", "table", policy.TableName)
+						continue
+					}
+					if err := tx.Create(&policy).Error; err != nil {
+						return fmt.Errorf("初始化策略 %s 失败: %w", policy.TableName, err)
+					}
+					zlog.Info("分析层保留策略已创建", "table", policy.TableName)
+				}
+				zlog.Info("迁移 202609200001: 完成")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202609200001: 删除分析层保留策略")
+				return tx.Where("table_name in ?", []string{
+					"stats_actor_path_days", "stats_actor_ua_days", "stats_path_rule_days",
+				}).Delete(&model.DataRetentionPolicy{}).Error
+			},
+		},
 		// 迁移: 创建路径路由规则表
 		{
 			ID: "202605130001_add_host_path_rules_table",
@@ -2259,6 +2325,64 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 					}
 				}
 				return nil
+			},
+		},
+		// 迁移: 创建重点 IP 观察名单表（命中后该 IP 的请求全量留痕）
+		{
+			ID: "202609180002_add_ip_watchlist",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202609180002: 创建 ip_watchlist 表（重点IP观察名单）")
+				if err := tx.AutoMigrate(&model.IPWatchlist{}); err != nil {
+					return fmt.Errorf("创建 ip_watchlist 表失败: %w", err)
+				}
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202609180002: 删除 ip_watchlist 表")
+				return tx.Migrator().DropTable(&model.IPWatchlist{})
+			},
+		},
+		// 迁移: 网站表新增「排除记录日志的IP」清单列（M6 H1，全局级清单走系统配置 exclude_ip_log）
+		{
+			ID: "202609210001_add_hosts_exclude_ip_log",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202609210001: 网站新增排除记录日志的IP清单列")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "EXCLUDE_IP_LOG") {
+					return nil
+				}
+				if err := tx.Migrator().AddColumn(&model.Hosts{}, "EXCLUDE_IP_LOG"); err != nil {
+					return fmt.Errorf("新增网站排除IP列失败: %w", err)
+				}
+				zlog.Info("迁移 202609210001: 完成")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202609210001: 删除网站排除记录日志的IP清单列")
+				if tx.Migrator().HasColumn(&model.Hosts{}, "EXCLUDE_IP_LOG") {
+					return tx.Migrator().DropColumn(&model.Hosts{}, "EXCLUDE_IP_LOG")
+				}
+				return nil
+			},
+		},
+		// 迁移: 日志分片表新增周期键列（M3 E1/E2，按时间周期切分区；旧的按体积分片该列为空）
+		{
+			ID: "202609240001_add_share_dbs_period_key",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202609240001: 日志分片新增周期键列")
+				if tx.Migrator().HasColumn(&model.ShareDb{}, "PeriodKey") {
+					return nil
+				}
+				if err := tx.Migrator().AddColumn(&model.ShareDb{}, "PeriodKey"); err != nil {
+					return fmt.Errorf("新增分片周期键列失败: %w", err)
+				}
+				zlog.Info("迁移 202609240001: 完成")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				if !tx.Migrator().HasColumn(&model.ShareDb{}, "PeriodKey") {
+					return nil
+				}
+				return tx.Migrator().DropColumn(&model.ShareDb{}, "PeriodKey")
 			},
 		},
 	})

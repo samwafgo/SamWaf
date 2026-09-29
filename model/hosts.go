@@ -28,6 +28,7 @@ type Hosts struct {
 	DEFENSE_JSON              string `gorm:"type:text" json:"defense_json"`                 //自身防御 json
 	START_STATUS              int    `json:"start_status"`                                  //启动状态 如果是0 启动  ; 如果是1 不启动
 	EXCLUDE_URL_LOG           string `gorm:"type:text" json:"exclude_url_log"`              //排除的url开头的数据 换行隔开
+	EXCLUDE_IP_LOG            string `gorm:"type:text" json:"exclude_ip_log"`             //排除记录日志的IP清单 换行或逗号隔开：单IP/CIDR/通配符/区间/group:组短码
 	IsEnableLoadBalance       int    `json:"is_enable_load_balance"`                        //是否激活负载  1 激活  非1 没有激活
 	LoadBalanceStage          int    `json:"load_balance_stage"`                            //负载策略
 	UnrestrictedPort          int    `json:"unrestricted_port"`                             //不限来源匹配端口 0 限制 1，不限制

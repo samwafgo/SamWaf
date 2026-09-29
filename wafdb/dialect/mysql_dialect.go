@@ -38,6 +38,13 @@ func (d *MySQLDialect) InsertIgnoreSQL(table, quotedCols, rowPlaceholders string
 		mysqlQuote(table), quotedCols, rowPlaceholders)
 }
 
+// UpsertExcludedRef MySQL 的 ON DUPLICATE KEY UPDATE 用 VALUES() 引用待插入行。
+// 8.0.20 起官方推荐改用行别名，但 VALUES() 在 5.7/8.x 都仍然可用，这里取兼容面最广的写法。
+func (d *MySQLDialect) UpsertExcludedRef(col string) string {
+	return "VALUES(" + col + ")"
+}
+
+
 // FormatLocalTime formats the column as-is: with loc=Local in the DSN the
 // DATETIME column already holds the local wall clock, so any timezone
 // conversion here would shift the value a second time.
@@ -218,4 +225,32 @@ func BuildMySQLRootDSN(host string, port int, user, password, charset string) st
 // mysqlQuote wraps a MySQL identifier in back-ticks.
 func mysqlQuote(name string) string {
 	return "`" + strings.ReplaceAll(name, "`", "``") + "`"
+}
+
+// CreatePartition 建一张与基表同构（含索引）的空周期表
+func (d *MySQLDialect) CreatePartition(db *gorm.DB, baseTable, partTable string) error {
+	if err := checkPartitionPair(baseTable, partTable); err != nil {
+		return err
+	}
+	sql := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s LIKE %s", mysqlQuote(partTable), mysqlQuote(baseTable))
+	if err := db.Exec(sql).Error; err != nil {
+		return fmt.Errorf("mysql: 建分区表 %s 失败: %w", partTable, err)
+	}
+	return nil
+}
+
+// ListPartitions 列出 <基表>_<后缀> 形态的表
+func (d *MySQLDialect) ListPartitions(db *gorm.DB, baseTable string) ([]string, error) {
+	return listPartitionsByPrefix(d, db, baseTable)
+}
+
+// DropPartition 丢掉整张周期表，替代逐行 DELETE + VACUUM
+func (d *MySQLDialect) DropPartition(db *gorm.DB, baseTable, partTable string) error {
+	if err := checkPartitionPair(baseTable, partTable); err != nil {
+		return err
+	}
+	if err := db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", mysqlQuote(partTable))).Error; err != nil {
+		return fmt.Errorf("mysql: 丢分区表 %s 失败: %w", partTable, err)
+	}
+	return nil
 }

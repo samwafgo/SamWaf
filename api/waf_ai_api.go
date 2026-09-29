@@ -3,10 +3,13 @@ package api
 import (
 	"SamWaf/global"
 	"SamWaf/innerbean"
+	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
+	"SamWaf/service/waf_service"
 	"SamWaf/utils"
 	"SamWaf/wafai"
+	"SamWaf/wafdb/dialect"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -18,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type WafAIApi struct {
@@ -286,19 +290,65 @@ func (w *WafAIApi) ExportTrainDataApi(c *gin.Context) {
 }
 
 // runAIExport 实际执行训练数据导出，返回文件路径与各类计数。
+//
+// 分层后的读源（C6）：正样本读 security_event（命中的请求全在这里），
+// 负样本读采样负样本池——event_payload(kind=sample) 里的报文配上 access_log 的窄行。
+// 正常请求不再全量落报文，训练要的真实负样本报文只能来自采样池（D2）。
+// 过渡期补充：采样池还没攒起来时，web_logs 里的存量行（升级前写入、尚在保留期内）
+// 照旧能补负样本；它不再写入，随保留期自然退场。
 func runAIExport(req request.WafAIExportReq, maxCount int) (outPath string, nAttack, nNormal, nDrop, total int, err error) {
-	query := global.GWAF_LOCAL_LOG_DB.Model(&innerbean.WebLog{}).
-		Select("REQ_UUID", "METHOD", "URL", "RawQuery", "BODY", "POST_FORM", "USER_AGENT", "ACTION", "RULE", "LogOnlyMode")
+	narrowCols := []string{"REQ_UUID", "METHOD", "URL", "RawQuery", "USER_AGENT", "ACTION", "RULE", "LogOnlyMode"}
+	cutoff := ""
 	if req.Days > 0 {
-		cutoff := time.Now().AddDate(0, 0, -req.Days).Format("2006-01-02 15:04:05")
-		query = query.Where("create_time >= ?", cutoff)
+		cutoff = time.Now().AddDate(0, 0, -req.Days).Format("2006-01-02 15:04:05")
+	}
+	applyWindow := func(q *gorm.DB) *gorm.DB {
+		if cutoff != "" {
+			q = q.Where("create_time >= ?", cutoff)
+		}
+		return q
 	}
 
 	var rows []innerbean.WebLog
-	if err = query.Order("unix_add_time desc").Limit(maxCount).Find(&rows).Error; err != nil {
-		return "", 0, 0, 0, 0, fmt.Errorf("查询日志失败: %w", err)
+
+	// 正样本：安全事件
+	var attackRows []innerbean.WebLog
+	err = applyWindow(global.GWAF_LOCAL_LOG_DB.Model(&model.SecurityEvent{}).Select(narrowCols)).
+		Order("unix_add_time desc").Limit(maxCount).Find(&attackRows).Error
+	if err != nil {
+		return "", 0, 0, 0, 0, fmt.Errorf("查询安全事件失败: %w", err)
+	}
+	rows = append(rows, attackRows...)
+
+	// 负样本：采样池（窄行在 access_log，报文在 event_payload kind=sample，按 req_uuid 对齐）
+	var normalRows []innerbean.WebLog
+	err = applyWindow(global.GWAF_LOCAL_LOG_DB.Model(&model.AccessLog{}).Select(narrowCols).
+		Where("req_uuid in (select req_uuid from event_payload where kind = 'sample')")).
+		Order("unix_add_time desc").Limit(maxCount).Find(&normalRows).Error
+	if err != nil {
+		return "", 0, 0, 0, 0, fmt.Errorf("查询采样负样本失败: %w", err)
+	}
+	rows = append(rows, normalRows...)
+
+	// 过渡期：采样池未攒起来时，从存量 web_logs（不再写入，尚在保留期内的部分）补负样本
+	if len(normalRows) < maxCount && dialect.Get().TableExists(global.GWAF_LOCAL_LOG_DB, "web_logs") {
+		var legacy []innerbean.WebLog
+		err = applyWindow(global.GWAF_LOCAL_LOG_DB.Model(&innerbean.WebLog{}).
+			Select(append(append([]string{}, narrowCols...), "BODY", "POST_FORM")).
+			Where("ACTION = ? and RULE = ?", "放行", "")).
+			Order("unix_add_time desc").Limit(maxCount - len(normalRows)).Find(&legacy).Error
+		if err == nil {
+			rows = append(rows, legacy...)
+		}
 	}
 	total = len(rows)
+
+	// BODY/POST_FORM 在 event_payload 里，批量补回来再导出，否则样本只剩 URL
+	fillRows := make([]*innerbean.WebLog, 0, len(rows))
+	for i := range rows {
+		fillRows = append(fillRows, &rows[i])
+	}
+	waf_service.FillLivePayloads(fillRows)
 
 	dir := filepath.Join(utils.GetCurrentDir(), "data", aiExportDir)
 	if err = os.MkdirAll(dir, 0750); err != nil {

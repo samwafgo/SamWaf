@@ -61,10 +61,18 @@ func ProcessLogDequeEngine() {
 						}
 					}
 					if global.GCONFIG_LOG_PERSIST_ENABLED == 1 {
-						global.GWAF_LOCAL_LOG_DB.CreateInBatches(webLogArray, len(webLogArray))
+						// 分层落库：安全事件进 security_event（带报文），窄行进 access_log（按档位），
+						// web_logs 不再写入（旧数据只读到期删）。
+						// 全部在副本上动手，下面的统计与出口仍拿完整的原始对象。
+						storeTiered(webLogArray)
+						// 蓄水池采到的正常请求报文攒在内存里，到点整池刷成 event_payload(kind=sample)
+						negSampler.FlushIfDue()
 					}
 					// 日志流做统计
 					waftask.CollectStatsFromLogs(webLogArray)
+					// 分析层天级汇总（行为 / 目标 / 手法三视角）。键在本包算好再传过去：
+					// waftask 不能反向 import 本包，而键必须与窄行同源。
+					waftask.CollectAnalysisStats(AnalysisRowsFromLogs(webLogArray))
 					global.GNOTIFY_KAKFA_SERVICE.ProcessBatchLogs(webLogArray)
 					// 文件日志写入
 					global.GNOTIFY_LOG_FILE_WRITER.ProcessBatchLogs(webLogArray)

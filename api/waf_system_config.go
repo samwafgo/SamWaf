@@ -211,6 +211,11 @@ func checkSystemConfigValue(item string, value string) (string, bool) {
 		if bad, ok := waf_service.ValidateAttackTagExclude(value); !ok {
 			return fmt.Sprintf("排除标签不合法: %q（不能含引号/分号/反斜杠/注释符/控制字符，单项不超过 255 字符，最多 30 项）", bad), false
 		}
+	case "exclude_ip_log":
+		// 与站点级清单同一套校验（checkExcludeIPLog 在 waf_host.go），存坏行当场拒绝
+		if err := checkExcludeIPLog(value); err != nil {
+			return err.Error(), false
+		}
 	}
 	return "", true
 }

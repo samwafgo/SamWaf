@@ -16,6 +16,7 @@ import (
 	"SamWaf/utils"
 	"SamWaf/wafenginecore"
 	"SamWaf/wafenginecore/clientip"
+	"SamWaf/wafenginecore/ipset"
 	"errors"
 	"fmt"
 	"net"
@@ -106,6 +107,30 @@ func checkIPSourceConfig(cfg *ipSourceConfig) error {
 	return nil
 }
 
+// checkExcludeIPLog 校验「排除记录日志的IP」清单：长度封顶 + 每行必须是可解析的
+// IP 模式（单IP/CIDR/通配符/区间）或 group:组短码。保存时拒绝，避免配错一行静默不生效。
+func checkExcludeIPLog(raw string) error {
+	if len(raw) > 10000 {
+		return errors.New("排除记录日志的IP清单过长（上限10000字符）")
+	}
+	for _, line := range strings.FieldsFunc(raw, func(r rune) bool { return r == '\n' || r == '\r' || r == ',' }) {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if len(line) >= len("group:") && strings.EqualFold(line[:len("group:")], "group:") {
+			if strings.TrimSpace(line[len("group:"):]) == "" {
+				return errors.New("排除清单里的 group: 后面缺少组短码")
+			}
+			continue
+		}
+		if _, err := ipset.ParsePatternLenient(line); err != nil {
+			return fmt.Errorf("排除清单无法识别的IP模式: %s", line)
+		}
+	}
+	return nil
+}
+
 // checkCDNPresetTrustSource cdn_preset 模式必须至少有一个可信来源可用(中心库回源段 或 手填可信网段)。
 //
 // 缺了它保存下去不是"少一层校验"，而是静默降级成更危险的状态：来源判定恒为 false，
@@ -153,6 +178,10 @@ func (w *WafHostAPi) AddApi(c *gin.Context) {
 		req.IPSourceMode, req.IPTrustDepth, req.IPRealHeader = ipCfg.Mode, ipCfg.Depth, ipCfg.Header
 		req.IPTrustProxies, req.CDNProvider = ipCfg.TrustProxies, ipCfg.Provider
 
+		if verr := checkExcludeIPLog(req.EXCLUDE_IP_LOG); verr != nil {
+			response.FailWithMessage(verr.Error(), c)
+			return
+		}
 		// 端口监听表校验（issue #955）：仅当本次显式携带时才阻断（脏数据/addr预留/HTTPS无证书一律拒绝）
 		listens, verr := wafHostService.ValidatePortListensReq(req.PortListensJSON, req.Port, req.Ssl, req.AutoJumpHTTPS)
 		if verr != nil {
@@ -452,6 +481,10 @@ func (w *WafHostAPi) ModifyHostApi(c *gin.Context) {
 
 		wafHostOld := wafHostService.GetDetailByCodeApi(req.CODE)
 
+		if verr := checkExcludeIPLog(req.EXCLUDE_IP_LOG); verr != nil {
+			response.FailWithMessage(verr.Error(), c)
+			return
+		}
 		// 端口监听表校验（issue #955）：nil=本次未携带（旧前端），不校验不阻断（存量冲突不能卡死普通编辑）
 		if req.PortListensJSON != nil && strings.TrimSpace(*req.PortListensJSON) != "" {
 			listens, verr := wafHostService.ValidatePortListensReq(*req.PortListensJSON, req.Port, req.Ssl, req.AutoJumpHTTPS)

@@ -100,8 +100,8 @@ func (w *WafLogAPi) GetListApi(c *gin.Context) {
 	}
 }
 func (w *WafLogAPi) ExportDBApi(c *gin.Context) {
-	// 导出物是「按时间段导出选定层」的新加密 SQLite 文件（见 wafdb.ExportLogRangeDb），
-	// 仅文件型数据库(SQLite)支持；MySQL 等无日志文件，直接屏蔽，避免进入后台 goroutine 后才失败。
+	// 导出物是「按时间段导出选定层」的新加密 SQLite 文件（service 按时间段扇出实时库与归档分区，
+	// 逐分片拷贝见 wafdb.ExportLogRangeDb），仅文件型数据库(SQLite)支持；MySQL 等无日志文件，直接屏蔽，避免进入后台 goroutine 后才失败。
 	if !dialect.Get().SupportsBackup() {
 		response.FailWithMessage("当前数据库不支持日志文件导出（仅 SQLite 支持）", c)
 		return
@@ -120,7 +120,9 @@ func (w *WafLogAPi) ExportDBApi(c *gin.Context) {
 			Msg:     "当前不允许导出",
 			Success: "false",
 		})
-		response.FailWithMessage("当前不允许导出", c)
+		// 专属码 EXPORT_DISABLED：前端据此给出「如何开启」的指引，而不是一句报错
+		response.Result(response.EXPORT_DISABLED, map[string]interface{}{},
+			"日志导出功能未开启：请在 conf/config.yml 中设置 export_download: true 并重启后再试", c)
 		return
 	}
 	if global.GDATA_CURRENT_CHANGE {
@@ -184,7 +186,7 @@ func (w *WafLogAPi) ExportDBApi(c *gin.Context) {
 		// 创建下载文件
 		downloadFileName := fmt.Sprintf("local_log_export_%s.db", time.Now().Format("20060102150405"))
 		downloadFilePath := filepath.Join(downLoadDir, downloadFileName)
-		counts, err := wafdb.ExportLogRangeDb(downloadFilePath, startTime, endTime, tiers)
+		counts, err := wafLogService.ExportLogRange(downloadFilePath, startTime, endTime, tiers)
 		if err != nil {
 			_ = os.Remove(downloadFilePath)
 			global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OpResultMessageInfo{
@@ -204,6 +206,9 @@ func (w *WafLogAPi) ExportDBApi(c *gin.Context) {
 			})
 		}
 	}()
+	// 导出走后台 goroutine，受理本身要立刻落响应：此前处理函数什么都不写，
+	// 前端拿到 200 空体，只能把「已经开始」误报成失败
+	response.OkWithMessage("导出已开始，完成后会推送下载通知", c)
 }
 func (w *WafLogAPi) DownloadApi(c *gin.Context) {
 	if global.GWAF_CAN_EXPORT_DOWNLOAD_LOG == false {
@@ -220,7 +225,7 @@ func (w *WafLogAPi) DownloadApi(c *gin.Context) {
 			Msg:     "当前不允许下载",
 			Success: "false",
 		})
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "当前不允许下载"})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "当前不允许下载：请在 conf/config.yml 中设置 export_download: true 并重启后再试"})
 		return
 	}
 	if len(global.GWAF_RUNTIME_CURRENT_EXPORT_DB_LOG_FILE_PATH) == 0 {
@@ -228,15 +233,12 @@ func (w *WafLogAPi) DownloadApi(c *gin.Context) {
 		return
 	}
 	// 提供文件下载
-	c.FileAttachment(global.GWAF_RUNTIME_CURRENT_EXPORT_DB_LOG_FILE_PATH, "log.db")
+	filePath := global.GWAF_RUNTIME_CURRENT_EXPORT_DB_LOG_FILE_PATH
+	c.FileAttachment(filePath, "log.db")
 
 	global.GWAF_RUNTIME_CURRENT_EXPORT_DB_LOG_FILE_PATH = ""
-	// 下载完成后删除文件
-	err := os.Remove(global.GWAF_RUNTIME_CURRENT_EXPORT_DB_LOG_FILE_PATH)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to delete file"})
-		return
-	}
+	// 下载完成后删除文件；删不掉有 download/ 的定时清理兜底
+	_ = os.Remove(filePath)
 }
 func (w *WafLogAPi) GetListByHostCodeApi(c *gin.Context) {
 	var req request.WafAttackLogSearch

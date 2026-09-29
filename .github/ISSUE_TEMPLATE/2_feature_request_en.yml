@@ -1,0 +1,35 @@
+name: '⭐️ Feature Request'
+description: 'Suggest a feature or improvement'
+title: '[Feature] '
+labels: ['⭐️ Feature Request']
+assignees:
+  - samwafgo
+body:
+  - type: input
+    attributes:
+      label: 'Product Version'
+      description: The SamWaf version you are using.
+    validations:
+      required: true
+
+  - type: checkboxes
+    attributes:
+      label: 'Edition'
+      options:
+        - label: 'Community Edition'
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: '⭐️ Feature Description'
+      description: |
+        Please provide a clear and concise description of the problem you want this feature to solve.<br/>
+        Vague requests may not be processed.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: 'Additional Information'
+      description: Add any other context about the feature request here.

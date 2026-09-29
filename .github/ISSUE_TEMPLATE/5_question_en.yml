@@ -1,0 +1,50 @@
+name: '❓ Question / Help'
+description: 'Ask a question about using SamWaf (for bug reports, use the Bug Report template)'
+title: '[Question] '
+labels: ['❓ Question']
+assignees:
+  - samwafgo
+body:
+  - type: input
+    attributes:
+      label: 'Product Version'
+      description: The SamWaf version you are using (e.g. v1.x.x).
+    validations:
+      required: true
+
+  - type: checkboxes
+    attributes:
+      label: 'Edition'
+      options:
+        - label: 'Community Edition'
+    validations:
+      required: true
+
+  - type: checkboxes
+    attributes:
+      label: 'Pre-checks'
+      description: Please confirm the following before asking.
+      options:
+        - label: 'I have read the online documentation (https://doc.samwaf.com/)'
+        - label: 'I have searched existing issues and found no matching question'
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: '❓ Question Description'
+      description: |
+        Please provide a clear and concise description of your question.<br/>
+        Include as much context as possible (steps taken, relevant configuration, screenshots, etc.) so we can answer faster.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: 'Environment'
+      description: OS, deployment method (Docker/binary), database type, etc. (optional).
+
+  - type: textarea
+    attributes:
+      label: 'Additional Information'
+      description: Add any other context about the question here.

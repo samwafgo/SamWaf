@@ -24,6 +24,8 @@ dist/
 /.trae/
 /.cursor/
 /.claude/
+/.agents/
+/AGENTS.md
 /docs/openapi/
 /.data/
 

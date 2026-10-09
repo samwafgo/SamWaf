@@ -497,6 +497,21 @@ func (s *CaptchaService) VerifyCaptcha(w http.ResponseWriter, r *http.Request, c
 		return
 	}
 
+	// 服务端行为校验：传统页随交卷请求提交的 botCheck 交互信号。
+	// 放在坐标比对之前、key 消费之后：与坐标校验共享"一 key 一次尝试"的语义。
+	if ok, reason := checkCaptchaBehavior(r.Form.Get("botCheck")); !ok {
+		webLog.ACTION = "禁止"
+		webLog.RULE = "图形验证码行为校验未通过:" + reason
+		global.GQEQUE_LOG_DB.Enqueue(webLog)
+		zlog.Debug("图形验证码行为校验未通过", zap.String("reason", reason), zap.String("client_ip", clientIP))
+		bt, _ := json.Marshal(map[string]interface{}{
+			"code":    code,
+			"message": "behavior check failed",
+		})
+		_, _ = fmt.Fprintf(w, string(bt))
+		return
+	}
+
 	chkRet := false
 	if (len(dct) * 2) == len(src) {
 		for i := 0; i < len(dct); i++ {

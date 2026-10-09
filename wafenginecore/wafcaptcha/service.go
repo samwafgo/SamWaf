@@ -171,6 +171,13 @@ func (s *CaptchaService) HandleCaptchaRequest(w http.ResponseWriter, r *http.Req
 	}
 	captchaPath := strings.TrimSuffix(pathPrefix, "/")
 
+	// 限频用的客户端 IP：与业务同口径（Host 级 IPMode），取不到时退回 TCP 对端。
+	limiterIP := ""
+	if weblog != nil {
+		limiterIP = model.GetClientIPByMode(ipMode, weblog.NetSrcIp, weblog.SRC_IP)
+	}
+	limiterIP = requestLimiterIP(r, limiterIP)
+
 	// 只对 capJs 做特判，其余一律走传统方式。
 	// 早先这里是「两个 if、没有 else」：配置里出现不认识的验证方式时两个分支都不进，
 	// 函数什么都不写就返回，调用方紧接着 return —— 响应体是空的、挑战永远发不出来。
@@ -178,8 +185,16 @@ func (s *CaptchaService) HandleCaptchaRequest(w http.ResponseWriter, r *http.Req
 	if captchaConfig.EngineType != model.CaptchaEngineCapJs {
 		//传统方式的验证码处理
 		if strings.HasPrefix(path, captchaPath+"/click_basic") {
+			if !s.allowCaptchaRequest(rateActionClickBasic, limiterIP, captchaRateIssueLimit) {
+				writeCaptchaRateLimited(w)
+				return
+			}
 			s.GetClickBasicCaptData(w, r)
 		} else if strings.HasPrefix(path, captchaPath+"/verify") {
+			if !s.allowCaptchaRequest(rateActionVerify, limiterIP, captchaRateCheckLimit) {
+				writeCaptchaRateLimited(w)
+				return
+			}
 			// 根据请求参数确定验证码类型
 			captchaType := r.URL.Query().Get("type")
 			s.VerifyCaptcha(w, r, captchaType, weblog, captchaConfig, ipMode)
@@ -203,10 +218,22 @@ func (s *CaptchaService) HandleCaptchaRequest(w http.ResponseWriter, r *http.Req
 	} else {
 		//基于工作量证明的验证码处理
 		if strings.HasPrefix(path, captchaPath+"/challenge") {
+			if !s.allowCaptchaRequest(rateActionChallenge, limiterIP, captchaRateIssueLimit) {
+				writeCaptchaRateLimited(w)
+				return
+			}
 			s.GetCapJsChallenge(w, r, captchaConfig)
 		} else if strings.HasPrefix(path, captchaPath+"/redeem") {
+			if !s.allowCaptchaRequest(rateActionRedeem, limiterIP, captchaRateCheckLimit) {
+				writeCaptchaRateLimited(w)
+				return
+			}
 			s.VerifyCapJsCaptcha(w, r, captchaConfig)
 		} else if strings.HasPrefix(path, captchaPath+"/validate") {
+			if !s.allowCaptchaRequest(rateActionValidate, limiterIP, captchaRateCheckLimit) {
+				writeCaptchaRateLimited(w)
+				return
+			}
 			s.ValidateCapJsCaptcha(w, r, captchaConfig, weblog, ipMode)
 		} else if strings.HasPrefix(path, captchaPath+"/") {
 			cleanPath := strings.TrimPrefix(path, captchaPath+"/")

@@ -62,12 +62,7 @@ jobs:
           echo "vname=citest-$(date +'%Y%m%d')-run${{ github.run_number }}-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
       - name: Download SamWafWeb
-        run: |
-          curl -fSL --retry 3 --retry-all-errors --connect-timeout 15 --max-time 300 https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
-          tar -zxvf dist.tar.gz
-          rm -rf public/dist
-          mv -f dist public
-          rm -rf dist.tar.gz
+        run: bash .github/scripts/fetch_web_dist.sh
 
       - name: Go mod tidy
         run: go mod tidy
@@ -178,12 +173,7 @@ jobs:
           echo "vname=citest-$(date +'%Y%m%d')-run${{ github.run_number }}-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
       - name: Download SamWafWeb
-        run: |
-          curl -fSL --retry 3 --retry-all-errors --connect-timeout 15 --max-time 300 https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
-          tar -zxvf dist.tar.gz
-          rm -rf public/dist
-          mv -f dist public
-          rm -rf dist.tar.gz
+        run: bash .github/scripts/fetch_web_dist.sh
 
       - name: Go mod tidy
         run: go mod tidy

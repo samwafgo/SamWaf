@@ -106,6 +106,7 @@ func (w *WafSysInfoApi) SysVersionApi(c *gin.Context) {
 		Version:        global.GWAF_RELEASE_VERSION,
 		VersionName:    global.GWAF_RELEASE_VERSION_NAME,
 		VersionRelease: global.GWAF_RELEASE,
+		WebVersion:     global.GWAF_WEB_VERSION,
 	}, "获取成功", c)
 }
 
@@ -125,6 +126,7 @@ func (w *WafSysInfoApi) SysRuntimeInfoApi(c *gin.Context) {
 		Version:        global.GWAF_RELEASE_VERSION,
 		VersionName:    global.GWAF_RELEASE_VERSION_NAME,
 		VersionRelease: global.GWAF_RELEASE,
+		WebVersion:     global.GWAF_WEB_VERSION,
 
 		OS:        detail.GOOS,
 		Arch:      detail.GOARCH,

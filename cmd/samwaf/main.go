@@ -14,6 +14,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/wafenginmodel"
 	"SamWaf/plugin"
+	"SamWaf/public"
 	"SamWaf/service/waf_service"
 	"SamWaf/supervisor"
 	"SamWaf/utils"
@@ -323,7 +324,7 @@ func (m *wafSystenService) run() {
 
 	//提前初始化
 	global.GDATA_CURRENT_LOG_DB_MAP = map[string]*gorm.DB{}
-	rversion := "初始化系统 编译器版本:" + runtime.Version() + " 程序版本号：" + global.GWAF_RELEASE_VERSION_NAME + "(" + global.GWAF_RELEASE_VERSION + ")"
+	rversion := "初始化系统 编译器版本:" + runtime.Version() + " 程序版本号：" + global.GWAF_RELEASE_VERSION_NAME + "(" + global.GWAF_RELEASE_VERSION + ") 前端版本：" + global.GWAF_WEB_VERSION
 	if global.GWAF_RELEASE == "false" {
 		rversion = rversion + " 调试版本"
 	} else {
@@ -1098,10 +1099,12 @@ func (m *wafSystenService) Graceful() {
 // @in              header
 // @name            X-API-Key
 func main() {
+	global.GWAF_WEB_VERSION = public.WebFrontendVersion()
 	fmt.Println(`
 ==========================================
   SamWaf Web Application Firewall ` + global.GWAF_RELEASE_VERSION + `
-  Version Name: ` + global.GWAF_RELEASE_VERSION_NAME + ` 
+  Version Name: ` + global.GWAF_RELEASE_VERSION_NAME + `
+  Web UI Version: ` + global.GWAF_WEB_VERSION + `
 ==========================================
 `)
 	//加载配置

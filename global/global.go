@@ -56,7 +56,7 @@ var (
 	GWAF_RUNTIME_DNS_TIMEOUT int64  = 500            // DNS 查询超时时间 单位毫秒
 
 	GWAF_RUNTIME_RECORD_LOG_TYPE string = "all" // 记录日志形式： 全部(all),非正常(abnormal)
-	GCONFIG_EXCLUDE_IP_LOG   string = ""    // 全局排除记录日志的IP清单(所有站点生效)，语法同站点级 exclude_ip_log
+	GCONFIG_EXCLUDE_IP_LOG       string = ""    // 全局排除记录日志的IP清单(所有站点生效)，语法同站点级 exclude_ip_log
 	GWAF_RUNTIME_IS_UPDATETING   bool   = false //是否正在升级中
 
 	GWAF_RUNTIME_CURRENT_EXEPATH                 string = "" //当前程序运行路径
@@ -102,6 +102,7 @@ var (
 	GWAF_RELEASE                 string              = "false"             // 当前是否为发行版
 	GWAF_RELEASE_VERSION_NAME    string              = "20241028"          // 发行版的版本号名称
 	GWAF_RELEASE_VERSION         string              = "v1.0.0"            // 发行版的版本号
+	GWAF_WEB_VERSION             string              = "本地构建"              // 内嵌管理端前端版本（main 启动时从 public 包版本戳读取）
 	GWAF_LAST_UPDATE_TIME        time.Time                                 // 上次时间
 	GWAF_NOTICE_ENABLE           bool                = false               // 是否开启通知
 	GWAF_NOTICE_TITLE            string                                    // 通知消息标题前缀（用于区分多实例，默认使用 custom_server_name）

@@ -163,13 +163,8 @@ jobs:
           cache: false
       
       - name: Download SamWafWeb
-        run: |
-          curl -fSL --retry 3 --retry-all-errors --connect-timeout 15 --max-time 300             https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
-          tar -zxvf dist.tar.gz
-          rm -rf public/dist
-          mv -f dist public
-          rm -rf dist.tar.gz
-      
+        run: bash .github/scripts/fetch_web_dist.sh
+
       - name: Check if should build macOS
         id: check_macos
         run: |
@@ -277,11 +272,7 @@ jobs:
       - name: DownLoad New SamWafWeb
         if: steps.check_win7_build.outputs.skip_win7_build != 'true'
         run: |
-          curl -fSL --retry 3 --retry-all-errors --connect-timeout 15 --max-time 300             https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
-          tar -zxvf dist.tar.gz
-          rm -rf public/dist
-          mv -f dist public
-          rm -rf dist.tar.gz
+          bash .github/scripts/fetch_web_dist.sh
           ls
           ls public
           ls public/dist

@@ -7,6 +7,7 @@ type VersionInfo struct {
 	VersionRelease string `json:"version_release"`
 	VersionNew     string `json:"version_new"`
 	VersionDesc    string `json:"version_desc"`
+	WebVersion     string `json:"web_version"` //内嵌管理端前端版本
 	// 容器类型：空=非容器；docker/podman/containerd/lxc/oci
 	// 容器环境下应用内升级只在本次容器生命周期有效，容器重建即回退，故前端应引导用户改用更新镜像的方式
 	Container string `json:"container"`
@@ -21,6 +22,7 @@ type RuntimeSystemInfo struct {
 	Version        string `json:"version"`         //软件版本Code 如 v1.0.0
 	VersionName    string `json:"version_name"`    //软件版本 如 20241028
 	VersionRelease string `json:"version_release"` //是否正式版 "true"/"false"
+	WebVersion     string `json:"web_version"`     //内嵌管理端前端版本
 
 	//编译信息
 	OS        string `json:"os"`         //编译目标系统 windows/linux/darwin

@@ -21,12 +21,16 @@ const cleanupBatchSleep = 50 * time.Millisecond
 var safeIdentPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // allowedCleanupTables 数据保留清理任务允许操作的表白名单。
-// 目前仅这三张统计/标签表会被自动清理；任何不在此列的表一律拒绝（即便表名是合法标识符），
+// 只有登记在此的统计/标签表会被自动清理；任何不在此列的表一律拒绝（即便表名是合法标识符），
 // 防止保留策略被篡改后误删/恶意删除业务表或核心表。新增可清理表时在此登记。
 var allowedCleanupTables = map[string]struct{}{
 	"stats_ip_days":      {},
 	"stats_ip_city_days": {},
 	"ip_tags":            {},
+	// 分析层天级汇总：行数随「站点×天」的去重对数增长，必须跟着保留策略走
+	"stats_actor_path_days": {},
+	"stats_actor_ua_days":   {},
+	"stats_path_rule_days":  {},
 }
 
 // validatePolicyIdentifiers 校验保留策略中所有会被拼接进 SQL 的标识符字段。

@@ -36,6 +36,11 @@ type HostSafe struct {
 	// 与其它字段一样受 RCU 约束：发布后不可就地 append 或改元素，热更新必须整体替换新切片。
 	IPBlockGroupCodes  []string
 	IPWhiteGroupCodes  []string
+	// IPLogExcludeIndex / IPLogExcludeGroupCodes 是本站「排除记录日志的IP」清单的编译结果：
+	// 前者是单IP/CIDR/通配符/区间的快速索引，后者是清单里 group: 引用的 IP 组短码。
+	// 组内容同样不在此缓存，运行时查 ipset 全局快照——改组内容无需重建任何站点。
+	IPLogExcludeIndex      *ipset.MatchSet
+	IPLogExcludeGroupCodes []string
 	UrlBlockLists      []model.URLBlockList          //url 黑名单
 	LoadBalanceLists   []model.LoadBalance           //负载均衡
 	LoadBalanceRuntime *LoadBalanceRuntime           //负载运行时

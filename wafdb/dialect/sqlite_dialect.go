@@ -43,6 +43,12 @@ func (d *SQLiteDialect) InsertIgnoreSQL(table, quotedCols, rowPlaceholders strin
 		sqliteQuote(table), quotedCols, rowPlaceholders)
 }
 
+// UpsertExcludedRef SQLite 的 upsert 用 excluded 伪表引用待插入行。
+func (d *SQLiteDialect) UpsertExcludedRef(col string) string {
+	return "excluded." + col
+}
+
+
 // FormatLocalTime adds the local UTC offset back: go-wxsqlite3 stores time.Time
 // as text carrying a zone suffix ('+08:00'), which SQLite normalizes to UTC
 // before applying the modifier.
@@ -210,4 +216,21 @@ func (d *SQLiteDialect) CollectMetrics(db *gorm.DB, name, path string) (*DBMetri
 // sqliteQuote wraps a SQLite identifier in double quotes.
 func sqliteQuote(name string) string {
 	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
+}
+
+// CreatePartition 不适用于 SQLite：分区就是一个 .db 文件，建分区等于建文件 + 跑迁移，
+// 得由掌握数据目录的任务层做（与 ShardSwapTable 同样的分工）。
+func (d *SQLiteDialect) CreatePartition(db *gorm.DB, baseTable, partTable string) error {
+	return fmt.Errorf("CreatePartition 不适用于 SQLite（按文件分区，建分区=建库文件），当前驱动: sqlite")
+}
+
+// ListPartitions 列本文件内 <基表>_<后缀> 形态的表。SQLite 按文件分区，
+// 正常情况下返回空——这不是错误，调用方靠 IsFileBased() 分流去查分区文件。
+func (d *SQLiteDialect) ListPartitions(db *gorm.DB, baseTable string) ([]string, error) {
+	return listPartitionsByPrefix(d, db, baseTable)
+}
+
+// DropPartition 不适用于 SQLite：丢分区等于删文件，同样在任务层。
+func (d *SQLiteDialect) DropPartition(db *gorm.DB, baseTable, partTable string) error {
+	return fmt.Errorf("DropPartition 不适用于 SQLite（按文件分区，丢分区=删库文件），当前驱动: sqlite")
 }

@@ -119,6 +119,13 @@ type DBDialect interface {
 	// plain INSERT (web_logs has no primary key on any engine).
 	InsertIgnoreSQL(table, quotedCols, rowPlaceholders string) string
 
+	// UpsertExcludedRef returns how the conflict branch of an upsert refers to the
+	// value the statement tried to insert, for accumulating updates such as
+	// "cnt = table.cnt + <incoming cnt>".
+	//   SQLite / PostgreSQL: excluded.<col>
+	//   MySQL:               VALUES(<col>)
+	UpsertExcludedRef(col string) string
+
 	// FormatLocalTime returns a SQL expression that renders a DATETIME column as
 	// 'YYYY-MM-DD HH:MM:SS' in local time, matching customtype.JsonTime.MarshalJSON.
 	//
@@ -142,6 +149,26 @@ type DBDialect interface {
 	// File-based databases (SQLite) shard via OS-level file rename instead and
 	// return an error here ("not supported").
 	ShardSwapTable(db *gorm.DB, liveTable, archiveTable string) error
+
+	// CreatePartition creates an empty time partition of baseTable, cloning its
+	// structure and indexes. partTable must be named "<baseTable>_<period>".
+	//   MySQL:    CREATE TABLE <part> LIKE <base>
+	//   Postgres: CREATE TABLE <part> (LIKE <base> INCLUDING ALL)
+	// A partition here is a period-named table, not a native RANGE partition -
+	// see wafdb/dialect/partition.go for why. File-based databases (SQLite)
+	// partition by file and return an error; check IsFileBased() first.
+	CreatePartition(db *gorm.DB, baseTable, partTable string) error
+
+	// ListPartitions returns the partition tables of baseTable ("<base>_<suffix>"),
+	// sorted by name. File-based databases (SQLite) partition by file, so this
+	// legitimately returns nothing there.
+	ListPartitions(db *gorm.DB, baseTable string) ([]string, error)
+
+	// DropPartition drops one whole partition table, replacing per-row DELETE +
+	// VACUUM for expiry. partTable must be named "<baseTable>_<period>" - the pair
+	// is validated so an unrelated table cannot be dropped by mistake.
+	// File-based databases (SQLite) delete the partition file instead and return an error.
+	DropPartition(db *gorm.DB, baseTable, partTable string) error
 
 	// TableSizeMB returns the on-disk size (data + index) of a table in MB,
 	// used by the sharding task to detect the size threshold on server databases.

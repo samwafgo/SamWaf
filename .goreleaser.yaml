@@ -13,12 +13,8 @@ before:
     # 只下载依赖，不用 go mod tidy：发版途中改写 go.mod/go.sum 会让产物不可复现
     - go mod download
     # 注意：本仓库没有任何 go:generate 指令，故不跑 go generate（跑了也只是空转一遍全模块加载）
-    # pull samwaf web
-    - curl -fSL --retry 3 --retry-all-errors --connect-timeout 15 --max-time 300 https://github.com/samwafgo/SamWafWeb/releases/latest/download/dist.tar.gz -o dist.tar.gz
-    - tar -zxvf dist.tar.gz
-    - rm -rf public/dist
-    - mv -f dist public
-    - rm -rf dist.tar.gz
+    # pull samwaf web（版本来源见 public/web_frontend.conf，由脚本解析并写版本戳）
+    - bash .github/scripts/fetch_web_dist.sh
 builds:
   # 正式发布版本 (Release builds)
   - id: "samwaf_linux"

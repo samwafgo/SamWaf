@@ -108,9 +108,9 @@ func MonitorAllDatabases() ([]*DatabaseMetrics, error) {
 		}
 	}
 
-	// 监控自定义日志数据库
-	if global.GDATA_CURRENT_LOG_DB_MAP != nil {
-		for fileName, db := range global.GDATA_CURRENT_LOG_DB_MAP {
+	// 监控自定义日志数据库（走快照，避免与按需打开/淘汰并发读写同一张 map）
+	{
+		for fileName, db := range snapshotShardDBs() {
 			if db != nil {
 				customDbPath := currentDir + "/data/" + fileName
 				dbName := fmt.Sprintf("自定义日志数据库(%s)", fileName)

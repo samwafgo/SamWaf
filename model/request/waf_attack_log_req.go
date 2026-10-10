@@ -16,6 +16,7 @@ type WafAttackLogDoExport struct {
 }
 type WafAttackLogSearch struct {
 	CurrrentDbName   string `json:"current_db_name"`
+	ViewType         string `json:"view_type" form:"view_type"`                     //视图：access=访问日志(默认) event=安全事件
 	HostCode         string `json:"host_code" form:"host_code"`                     //主机码
 	Rule             string `json:"rule" form:"rule"`                               //规则名
 	ReqUuid          string `json:"req_uuid" form:"req_uuid"`                       //请求UUID

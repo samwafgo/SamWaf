@@ -24,6 +24,8 @@ dist/
 /.trae/
 /.cursor/
 /.claude/
+/.agents/
+/AGENTS.md
 /docs/openapi/
 /.data/
 
@@ -33,3 +35,4 @@ dist/
 /wafsec/private_key.pem
 /wafsec/public_key.pem
 /wafinit/testdata
+/download/

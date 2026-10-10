@@ -329,18 +329,25 @@ func (waf *WafEngine) createTransport(r *http.Request, host string, isEnableLoad
 	// 解析并应用Transport配置
 	transportConfig := model.ParseTransportConfig(hostTarget.Host.TransportJSON)
 
-	// 应用Transport配置（只有非零值才设置）
+	// 应用Transport配置；未配置项给兜底默认值，避免裸 Transport 在高并发下
+	// 每请求新建后端连接、用完即弃（空闲只留2条），造成建连/断连抖动耗尽端口
 	if transportConfig.MaxIdleConns > 0 {
 		transport.MaxIdleConns = transportConfig.MaxIdleConns
+	} else {
+		transport.MaxIdleConns = 512
 	}
 	if transportConfig.MaxIdleConnsPerHost > 0 {
 		transport.MaxIdleConnsPerHost = transportConfig.MaxIdleConnsPerHost
+	} else {
+		transport.MaxIdleConnsPerHost = 128
 	}
 	if transportConfig.MaxConnsPerHost > 0 {
 		transport.MaxConnsPerHost = transportConfig.MaxConnsPerHost
 	}
 	if transportConfig.IdleConnTimeout > 0 {
 		transport.IdleConnTimeout = time.Duration(transportConfig.IdleConnTimeout) * time.Second
+	} else {
+		transport.IdleConnTimeout = 90 * time.Second
 	}
 	if transportConfig.TLSHandshakeTimeout > 0 {
 		transport.TLSHandshakeTimeout = time.Duration(transportConfig.TLSHandshakeTimeout) * time.Second

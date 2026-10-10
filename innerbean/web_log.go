@@ -61,12 +61,20 @@ type WebLog struct {
 	IsBalance        int     `json:"is_balance"`                   //是否是负载均衡 1 是 0 不是
 	BalanceInfo      string  `gorm:"size:255" json:"balance_info"` //负载均衡IP端口信息
 	AI_SCORE         float64 `json:"ai_score"`                     //AI检测得分[0,1]，0表示未经AI检测或未命中；命中(观察/拦截)时记录实际分数
+	// Truncated 报文列因超长被截断的标记：0 未截断，1 已截断。
+	// 截断只发生在落库这一步，内存对象与 Kafka 出口始终是原文。
+	Truncated int `json:"truncated"`
 
 	// GeoUnresolved 本次请求的地区无法判定（没有可用的地区库，或查询失败），
 	// 区别于"查出来是未知"。为 true 时规则引擎会跳过引用了 COUNTRY/PROVINCE/CITY 的规则，
 	// 避免 `MF.COUNTRY != "中国"` 这类规则在 IPv6 地区库缺失时把访客整片误杀。
 	// 仅运行期使用，不落库、不出接口。
 	GeoUnresolved bool `gorm:"-" json:"-"`
+
+	// ShardName 这条记录是从哪个分区读出来的。**只在读侧回填**（列表扇出与详情定位时），
+	// 不落库；引擎侧的对象恒为空，omitempty 保证它不会混进 Kafka 出口的报文里。
+	// 界面靠它标注「这条在哪个分区」，详情链接也靠它直达而不必再逐个分区找。
+	ShardName string `gorm:"-" json:"shard_name,omitempty"`
 }
 
 // GetHeaderValue 从HEADER字段中提取指定header的值
@@ -118,6 +126,13 @@ func (WebLog) TableName() string {
 // 返回: true表示是安全bot（是bot且风险等级为0），false表示不是
 func (w *WebLog) IsSafeBot() bool {
 	return w.IsBot == 1 && w.RISK_LEVEL == 0
+}
+
+// IsSecurityEvent 判断这条请求算不算「安全事件」——命中了规则、被拦了、或处于仅记录模式。
+// 判定与引擎侧 weblog_record.go 的 abnormal 分支同一条规则，落库分层（security_event /
+// access_log 双写窄行）与记录类型开关都靠它，改一处要同步另一处。
+func (w *WebLog) IsSecurityEvent() bool {
+	return w.ACTION != "放行" || w.RULE != "" || w.LogOnlyMode == 1
 }
 
 // GetIPFailureCount 获取IP在指定时间窗口内的失败次数（用于规则引擎）

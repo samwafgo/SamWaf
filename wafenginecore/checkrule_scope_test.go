@@ -230,7 +230,8 @@ func TestShouldRecordWebLog(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			global.GWAF_RUNTIME_RECORD_LOG_TYPE = tc.logType
-			if got := shouldRecordWebLog(tc.weblog, tc.excludeURL); got != tc.want {
+			hostSafe := &wafenginmodel.HostSafe{Host: model.Hosts{EXCLUDE_URL_LOG: tc.excludeURL}}
+			if got := shouldRecordWebLog(tc.weblog, hostSafe); got != tc.want {
 				t.Errorf("期望 %v 实际 %v", tc.want, got)
 			}
 		})

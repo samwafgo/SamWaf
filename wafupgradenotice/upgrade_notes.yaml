@@ -625,3 +625,316 @@ notes:
         backend is in use, and cache errors are recorded in the log and in the diagnostic package. Token
         lifetime is now refreshed on every request, matching the "expires after this long without activity"
         wording of that setting.
+  - id: v1_3_25_weblog_payload_truncate_and_index
+    version: v1.3.25
+    kind: notice
+    level: normal
+    page: ''
+    doc: https://doc.samwaf.com/quickstart/Update.html
+    apply:
+      type: none
+    zh:
+      title: 超长报文落库时截断，并为访问日志按 IP / 规则查询补索引
+      detail: >-
+        单条请求的报文列（请求体、响应体、表单、请求头、Cookie、响应头）超过 64KB 时，
+        只保留前 64KB 落库，该条日志会带上"已截断"标记，详情页据此提示报文不完整。
+        截断只发生在写入数据库这一步：检测引擎、自定义规则、Kafka 推送拿到的仍是完整报文，
+        判定结果与推送内容都不受影响。日志库体积此前没有任何单条上限，一次大文件响应就能撑出一条巨大的记录。
+        本次同时为访问日志补了三条索引：按来源 IP 查、按触发规则查、按日期查机器人流量。
+        原有索引的首列都是时间，这三类查询只能扫完整段时间再逐行过滤，数据量大时明显变慢。
+        升级后首次启动会创建索引，日志量大的实例这一步可能需要数分钟，启动日志里会打印每条索引的耗时，
+        期间请勿强制结束进程。另外 IP 标签的写入改为整批一条语句，高并发下对数据库的往返次数明显下降。
+    en:
+      title: Oversized payloads are truncated on write, plus new access-log indexes for IP and rule lookups
+      detail: >-
+        When a request's payload columns (request body, response body, form data, headers, cookies, response
+        headers) exceed 64KB, only the first 64KB is stored and the entry is flagged as truncated, which the
+        detail page uses to warn that the payload is incomplete. Truncation happens only on the database write:
+        the detection engine, custom rules and the Kafka feed still receive the complete payload, so verdicts and
+        exported records are unaffected. Until now no per-record limit existed at all, so a single large response
+        could produce one enormous row. This release also adds three indexes to the access log: by source IP, by
+        triggered rule, and by date for bot traffic. Every existing index starts with the timestamp column, so
+        those three lookups had to scan the whole time range and filter row by row, which gets slow on large
+        datasets. The indexes are built on the first start after upgrading; on instances with a large log volume
+        this can take several minutes, the startup log prints the time each index took, and the process should
+        not be killed while it runs. IP tag counters are now written with a single batched statement, cutting
+        database round trips considerably under load.
+  - id: v1_3_25_weblog_payload_split_and_iptag_merge
+    version: v1.3.25
+    kind: notice
+    level: normal
+    page: ''
+    doc: https://doc.samwaf.com/quickstart/Update.html
+    apply:
+      type: none
+    zh:
+      title: 报文改存独立表，IP 标签切换存放位置时自动合并历史
+      detail: >-
+        访问日志的报文（请求体、响应体、表单、Cookie、响应头、原始字节）不再和日志记录存在同一张表里，
+        改为写入新的报文表，按请求编号一对一存放。日志列表、按 IP / 规则检索、统计扫描都不再顺带读这些大字段，
+        看报文时才按主键取一次。升级后首次启动会自动建表，不搬历史数据：升级之前的日志报文仍在原处，
+        详情页照常能看，随保留期自然到期。日志页面的展示与筛选没有变化。
+        另外，风险日志页的"标签数据存放位置"切换后，会自动把原库里已积累的标签并到新库：
+        相同 IP + 标签的次数相加，首次访问时间取早的、最近访问时间取晚的，合并完清空原库的这部分数据。
+        以前切换会让历史标签看起来消失（数据其实还在原库），现在不会了；合并期间页面会显示"正在合并"，
+        完成后自动刷新。新安装的实例默认把标签放统计库，已有实例保持你当前的设置不变。
+    en:
+      title: Payloads move to their own table, and switching the IP tag location now merges the history
+      detail: >-
+        Access log payloads (request body, response body, form data, cookies, response headers, raw bytes) no
+        longer live in the same table as the log record. They are written to a new payload table, one row per
+        request id. Listing logs, searching by IP or rule, and statistics scans no longer drag those large
+        columns along; the payload is fetched by primary key only when someone opens it. The table is created on
+        the first start after upgrading and no history is moved: payloads recorded before the upgrade stay where
+        they are, remain visible in the detail view, and expire with the retention period as usual. Nothing
+        changes in what the log page shows or how it filters.
+        Separately, switching "tag data location" on the risk log page now merges the tags already accumulated in
+        the other database: counts for the same IP and tag are added up, the first-seen time keeps the earlier
+        value and the last-seen time the later one, and the merged rows are cleared from the source. Switching
+        used to make tag history look like it had vanished (the data was still in the old database); that no
+        longer happens. The page shows a merging indicator and refreshes itself when it finishes. New
+        installations store tags in the stats database by default; existing installations keep their current
+        setting.
+
+  - id: v1_3_25_log_tiered_storage
+    version: v1.3.25
+    kind: notice
+    level: normal
+    page: ''
+    doc: https://doc.samwaf.com/quickstart/Update.html
+    apply:
+      type: none
+    zh:
+      title: 日志分层存储：访问窄行与安全事件分表，新增观察名单，日志导出改按时间段
+      detail: >-
+        日志现在按用途分层存放：命中规则或被拦截的请求进「安全事件」表并保留完整报文（随日志保留天数）；
+        所有被记录的请求另写一行窄行进「访问日志」表（默认保留 30 天，可在日志配置里调）。
+        默认档位「全部入库」，升级后行为与之前一致；流量很大的站点可在日志配置里把「访问日志档位」调成
+        「仅安全事件」或「采样入库」，但这样会失去 CC 阈值推荐、AI 训练负样本与异常 IP 的正常行为回溯，
+        CC 阈值推荐界面在「仅安全事件」档会说明不可用原因。
+        IP 标签不再为每个 IP 记「正常」标签，放行榜的次数改由统计数据给出，标签列表更干净。
+        风险日志页可以把可疑 IP「加入观察」：观察期内该 IP 的所有请求带完整报文留痕（默认 7 天）。
+        「导出日志库」不再是整库拷贝，改为按时间段导出选定层（访问日志/安全事件/报文/历史库），产物仍是一个加密 SQLite 文件。
+        升级后首次启动自动建表，历史数据不动、照旧可查。
+    en:
+      title: Tiered log storage, an IP watchlist, and time-ranged log export
+      detail: >-
+        Logs are now stored in tiers by purpose: requests that hit a rule or get blocked go to the security-event
+        table with their full payload (kept for the log retention period); every recorded request also writes a
+        narrow row to the access-log table (kept 30 days by default, adjustable in log settings).
+        The default mode "store everything" behaves exactly as before. Very busy sites can switch the access-log
+        mode to "security events only" or "sampled" in log settings, at the cost of CC threshold
+        recommendations, AI training negative samples and the ability to look back at a suspicious IP's normal
+        traffic; the CC recommendation panel explains why it is unavailable in "security events only" mode.
+        IP tags no longer record a "normal" tag for every IP - pass counts on the pass ranking now come from
+        statistics data, keeping the tag list clean.
+        The risk log page can put a suspicious IP under observation: while observed, every request from that IP
+        is captured with its full payload (7 days by default).
+        "Export log database" no longer copies the whole database; it exports a chosen time range and tiers
+        (access log / security events / payloads / legacy) into a fresh encrypted SQLite file.
+        Tables are created on the first start after upgrading; existing data is untouched and stays readable.
+
+  - id: v1_3_25_log_source_path_analysis
+    version: v1.3.25
+    kind: notice
+    level: normal
+    page: /wafanalysis/wafanalysissourcepath
+    doc: https://doc.samwaf.com/quickstart/Update.html
+    apply:
+      type: navigate
+    zh:
+      title: 新增「来源与路径分析」：从来源和路径两个视角看流量构成
+      detail: >-
+        「数据分析 - 来源与路径分析」是本版本新增的独立页面，把访问日志按天汇总后分两个视角呈现：
+        按来源看哪些 IP 或访客打得最多（请求数、命中规则次数、去重路径数、UA 分布），
+        按路径看哪些接口被访问得最多（请求数、去重来源数、规则分布）。两个视角都可以按站点和天数筛选，
+        表格里可以直接对某个来源 IP 加黑或加白（需要先选定站点，因为黑白名单是按站点生效的）。
+        数据来自本版本新增的按天汇总表，在日志写入时同步累加，不去扫原始日志表，
+        所以即便把「访问日志档位」调成「采样入库」或「仅安全事件」，这个页面依然有数。
+        路径先模板化再汇总——数字段、UUID、hex 串归一成占位符，/user/1001 与 /user/1002 会聚成同一条；
+        每个站点每天的模板数封顶 5000，超出的归入一条 {overflow}，避免随机路径把表刷爆。
+        需要知道的是：汇总只从升级之后的流量开始积累，历史日志不回填，
+        所以刚升完级这个页面是空的，跑满一天之后才有完整的昨天数据。
+        新增的汇总表已经列入「数据保留策略」页，默认不自动清理，与现有各表的默认一致，
+        觉得占空间可以自己在那里开启定期清理。
+    en:
+      title: New Source and Path Analysis page, viewing traffic by origin and by path
+      detail: >-
+        Data Analysis - Source and Path Analysis is a new standalone page in this version. It rolls up access
+        logs per day and presents them from two angles: by source, showing which IPs or visitors send the most
+        requests (request count, rule hits, distinct paths, UA distribution), and by path, showing which
+        endpoints are hit the most (request count, distinct sources, rule distribution). Both angles filter by
+        website and number of days, and the table lets you block or allow a source IP directly - you pick the
+        website first, since block and allow lists apply per website.
+        The data comes from new daily rollup tables accumulated as logs are written rather than by scanning the
+        raw log tables, so the page still has data even when the access-log mode is set to sampled or
+        security-events-only.
+        Paths are templated before being rolled up - numeric segments, UUIDs and hex strings become
+        placeholders, so /user/1001 and /user/1002 collapse into one row. Each website is capped at 5000
+        templates per day and anything beyond that lands in a single {overflow} row, so random paths cannot
+        flood the table.
+        Worth knowing: the rollups only start accumulating from traffic after the upgrade and historical logs
+        are not backfilled, so the page is empty right after upgrading and gives a complete picture of
+        yesterday only once a full day has passed.
+        The new rollup tables are listed on the Data Retention page with automatic cleanup off by default,
+        matching every other table there; turn it on yourself if the space matters to you.
+
+  - id: v1_3_25_weblog_exclude_ip
+    version: v1.3.25
+    kind: notice
+    level: normal
+    page: /waf/wafvisitlog
+    doc: https://doc.samwaf.com/quickstart/Update.html
+    apply:
+      type: navigate
+    zh:
+      title: 可按来源IP排除日志记录：办公出口与探测机的噪音不再进日志
+      detail: >-
+        以往只能按 URL 前缀排除记录（在网站编辑里），本版本新增按来源 IP 排除，两个作用域各一份：
+        全局清单在「防护日志 - 访问日志」页的「日志配置」里，站点清单在网站编辑的「记录日志时排除IP」里。
+        清单语法与黑白名单完全一致——单个 IP、CIDR、通配符、区间，或者 group:组短码 引用一个 IP 组
+        （改组内容对所有引用它的站点立即生效），逗号或换行分隔，# 开头为注释。
+        写错的模式在保存时就被拒绝并指出是哪一条，不会静默忽略；两份清单都不需要重启，保存即生效。
+        只静音正常请求：被排除 IP 的安全事件（命中规则、被拦截）照常记录。这是刻意这样定的——
+        办公出口往往是一个 NAT 共享地址，一刀切静音等于「真被人打了也看不见」。
+        被排除的请求不写日志、不计入请求数统计、也不进新的来源与路径汇总；
+        但站点的进出流量字节仍然照计（字节计量在引擎侧，不经日志队列），所以流量图上还能看到它们，
+        这是预期行为，不是漏排。
+        默认两份清单都是空的，升级后行为与之前完全一致，不需要任何操作。
+        另外顺带说明：SamWaf 自带的访问认证探测点（`/<访问认证前缀>/ping`，恒回 204）从来不产生访问日志，
+        不需要也无法为它配置排除。
+    en:
+      title: Exclude log recording by source IP, keeping office exits and probes out of the logs
+      detail: >-
+        Until now records could only be excluded by URL prefix in the website editor. This version adds
+        exclusion by source IP, with one list per scope: the global list lives in Log Settings on the
+        Protection Logs - Access Log page, and the per-site list in the website editor as "Exclude IP When
+        Logging".
+        The syntax matches the block and allow lists exactly - a single IP, CIDR, wildcard, range, or
+        group:CODE referencing an IP group (changing the group's contents takes effect immediately for every
+        website naming it). Entries are comma- or newline-separated and # starts a comment.
+        A malformed pattern is rejected when you save, naming the offending line rather than being silently
+        ignored, and neither list needs a restart - saving is enough.
+        Only plain requests are silenced: security events from an excluded IP (rule hits, blocked requests) are
+        still recorded. That is deliberate - an office exit is often one NAT-shared address, and silencing it
+        outright would mean a real attack from behind it becomes invisible.
+        Excluded requests write no log row, are not counted in request statistics, and do not reach the new
+        source and path rollups. Their inbound and outbound bytes are still metered, because byte accounting
+        happens in the engine and never passes through the log queue, so they remain visible on the traffic
+        charts - that is expected, not a missed exclusion.
+        Both lists are empty by default, so behavior after upgrading is exactly as before and nothing needs to
+        be done. As a side note, SamWaf's own access-authentication probe endpoint (`/<access prefix>/ping`,
+        always 204) never produces an access log, so there is nothing to exclude for it.
+
+  - id: v1_3_25_log_time_partition
+    version: v1.3.25
+    kind: notice
+    level: high
+    page: /waf/wafvisitlog
+    doc: https://doc.samwaf.com/quickstart/Update.html
+    apply:
+      type: navigate
+    zh:
+      title: 日志归档改为按月切分区，过期回收改为丢整个分区（MySQL/PostgreSQL 的归档表首次开始回收）
+      detail: >-
+        日志归档以前由行数与文件大小决定什么时候切，现在改成**按月**切：一个月一个分区，
+        同一个月里真被写爆了才会提前切一次（分区名带序号）作为兜底。好处是「某段时间的日志在哪个分区」
+        变成算得出来的，不再需要挨个猜；「访问日志」页的归档下拉因此显示**时间段**而不是文件名或表名，
+        按月切的显示成 2026-09，升级前按体积切的显示它记录的起止日期，鼠标悬停仍能看到原始名字。
+        过期回收同时改成丢整个分区：SQLite 删掉整个归档文件，MySQL/PostgreSQL 丢掉整张归档表，
+        不再逐行删除加 VACUUM。判断过期用的是分片记录里那批数据真实的最晚时间，
+        所以停机几天或同月切了两次都不会把还在保留期内的数据算成过期。
+        **MySQL/PostgreSQL 用户请先看这一段**：此前归档表没有任何清理逻辑，很可能已经堆了多张
+        access_log_ 或 web_logs_ 开头的历史表；升级后第一次执行「删除历史日志」任务（每天 05:00）时，
+        其中**已超过保留期**的会被丢掉，系统日志里逐张记录表名、所用保留天数与数据截止时间。
+        这是保留期设置本来就承诺的行为，也让两种部署终于一致。如果有哪一段历史想留：
+        先把日志保留天数调长，或用数据库自己的工具把那张表复制到别处，再让清理继续。
+        另外 MySQL/PostgreSQL 上每一层是独立的表，因此可以按层各走各的保留期——
+        访问日志窄行走「访问日志保留天数」（默认 30 天），安全事件与报文走「日志保留天数」；
+        SQLite 的一个分区是一个文件、三层都在里面，只能按较长的「日志保留天数」整体回收。
+        升级前切出来的旧分片（包括最早那种只有 web_logs 的）**照旧可以查**，不需要任何迁移动作，
+        读取时会自动适配它实际有哪些表和哪些列，到期后同样整体回收。
+        历史归档文件一律**只读**打开，查询不会再改动它们（不补表、不补列、不建索引），
+        同时打开多个历史分区时内存占用也收小了。分片记录还在、文件却已不在（例如被手工删掉）的分区，
+        归档下拉里会标「文件缺失」且不可选，查询时会说明跳过了哪些分区，可在「分区管理」里删除这条记录。
+    en:
+      title: Log archives are now cut per month and expired by dropping whole partitions (MySQL/PostgreSQL archive tables start being recycled)
+      detail: >-
+        Log archives used to be cut when a row count or file size threshold was crossed. They are now cut
+        **per month**: one partition per month, with an extra numbered partition only as a fallback when a
+        single month really overflows. The point is that which partition holds a given time range becomes
+        something that can be computed instead of guessed, so the archive dropdown on the access log page now
+        shows a **time range** rather than a file or table name - 2026-09 for monthly partitions, and the
+        recorded start and end dates for shards cut by size before the upgrade. Hovering still shows the
+        original name.
+        Expiry now drops a whole partition: SQLite deletes the entire archive file and MySQL/PostgreSQL drops
+        the archive table, instead of deleting rows and running VACUUM. Expiry is judged by the real latest
+        timestamp of the data recorded for that shard, so being offline for days, or cutting twice within one
+        month, never marks data still inside the retention window as expired.
+        **MySQL/PostgreSQL users should read this part first**: archive tables previously had no cleanup at
+        all, so you may already have many history tables starting with access_log_ or web_logs_. The first run
+        of the daily 05:00 history cleanup after upgrading drops those **past their retention period**, writing
+        one log line per table with its name, the retention days applied and the data cutoff. This is what the
+        retention setting has always promised, and it finally makes both deployment types behave alike. To keep
+        a particular stretch of history, raise the log retention days first, or copy that table elsewhere with
+        your database tools, then let cleanup proceed.
+        On MySQL/PostgreSQL each tier is its own table, so tiers expire on their own schedules - access-log
+        narrow rows follow "access log retention days" (30 by default) while security events and payloads
+        follow "delete history log (days)". On SQLite one partition is one file holding all tiers, so it can
+        only be recycled as a whole on the longer "delete history log (days)".
+        Shards cut before the upgrade, including the earliest ones that only hold web_logs, **remain
+        queryable** with no migration on your part: reads adapt to whichever tables and columns a shard
+        actually has, and they are recycled whole once they expire.
+        Archived history files are always opened **read-only**: queries never modify them (no tables, columns
+        or indexes are added), and opening several history partitions at once uses much less memory. A
+        partition whose record still exists but whose file is gone (for example deleted by hand) is marked
+        "file missing" and cannot be selected in the archive dropdown; queries say which partitions were
+        skipped, and the record can be removed under Partitions.
+
+  - id: v1_3_25_log_auto_partition_and_uuid
+    version: v1.3.25
+    kind: notice
+    level: normal
+    page: /waf/wafvisitlog
+    doc: https://doc.samwaf.com/quickstart/Update.html
+    apply:
+      type: navigate
+    zh:
+      title: 查日志不用再挑分区：时间范围自动决定查哪里，按访问识别码可直接全库查找
+      detail: >-
+        「日志归档库」下拉的默认值改成了**自动（按时间范围）**：分区由你选的时间范围算出来，
+        跨多个分区时会自动合并翻页，列表上方会说明这次覆盖了哪几个分区。
+        此前日期与归档是两个互不联动的条件，选了上个月的日期却停在实时分区，结果永远是空的。
+        需要盯住某一个分区时（排障、导出），下拉里仍然可以手动锁定，并且按「实时 / 按月分区 /
+        升级前按体积切的旧分片」分了组。跨分区时列表统一按时间排序——分区之间只有时间是可比的。
+        **填了「访问识别码」时会忽略时间与分区，直接跨全部分区查找**，命中即停并告诉你是在哪个分区找到的。
+        访问识别码是日志表的主键，一次查找就是一次索引命中；最常见的场景正是访客把拦截页上的识别码
+        报给管理员——管理员手里只有这串码，并不知道那次访问是哪天、更不知道在哪个分区。
+        查不到时会明确列出三种可能：记录已过保留期被回收、识别码抄错或被截断、
+        那次请求本来就没有被记录（来源IP在排除清单里，或访问日志档位是「仅安全事件」而它是一次正常请求）。
+        另外两处顺带改了：归档下拉里同一天切出来的多个旧分片现在带上时分（2026-08-19 13:51~14:40）
+        并把条数写成「13.5 万条」，不再是七个一模一样的日期；风险日志的「访问 IP 明细」弹窗
+        补上了时间范围（默认最近 30 天），不用再一个归档一个归档地翻。
+    en:
+      title: "No more picking a partition - the time range decides where to look, and a visit identifier is looked up across all of them"
+      detail: >-
+        The archive dropdown now defaults to **Auto (by time range)**: partitions are derived from the time
+        range you pick, paging spans them automatically, and a line above the list names the partitions this
+        query covered. Previously the date and the archive were two conditions that knew nothing about each
+        other, so picking last month's dates while the archive stayed on the live partition always returned
+        nothing. A specific partition can still be locked from the dropdown when troubleshooting or exporting,
+        and the entries are grouped into Live, monthly partitions, and shards cut by size before the upgrade.
+        When a query spans partitions the list is sorted by time, since time is the only thing comparable
+        across them.
+        **Filling in the visit identifier ignores the time range and the partition and searches all of them**,
+        stopping at the first hit and telling you which partition it came from. The identifier is the primary
+        key of the log tables, so each check is a single index lookup. This is exactly the common case where a
+        visitor reports the identifier from a block page: the administrator has only that string and knows
+        neither the date nor the partition. When nothing is found, three possible reasons are stated: the
+        record passed its retention period and was recycled, the identifier was mistyped or truncated, or the
+        request was never recorded (its source IP is on an exclusion list, or the access log mode is
+        "security events only" and it was a plain request).
+        Two smaller fixes come along: several old shards cut on the same day now show their times
+        (2026-08-19 13:51~14:40) with counts written as readable numbers instead of seven identical dates, and
+        the Access IP Details dialog on the risk log page gained a time range (last 30 days by default) so it
+        no longer takes going through archives one by one.

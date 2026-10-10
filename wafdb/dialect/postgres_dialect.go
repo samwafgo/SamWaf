@@ -64,6 +64,12 @@ func (d *PostgresDialect) InsertIgnoreSQL(table, quotedCols, rowPlaceholders str
 		pgQuote(table), quotedCols, rowPlaceholders)
 }
 
+// UpsertExcludedRef PostgreSQL 的 ON CONFLICT 用 excluded 伪表引用待插入行。
+func (d *PostgresDialect) UpsertExcludedRef(col string) string {
+	return "excluded." + col
+}
+
+
 func (d *PostgresDialect) RenameTable(db *gorm.DB, src, dst string) error {
 	return db.Exec(fmt.Sprintf("ALTER TABLE %s RENAME TO %s", pgQuote(src), pgQuote(dst))).Error
 }
@@ -376,4 +382,34 @@ func BuildPostgresMaintenanceDSN(host string, port int, user, password, maintena
 // pgQuote wraps a PostgreSQL identifier in double quotes.
 func pgQuote(name string) string {
 	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
+}
+
+// CreatePartition 建一张与基表同构的空周期表。INCLUDING ALL 连索引、默认值、
+// 非空约束一起复制，索引名由 PG 自己生成，不会和基表的撞。
+func (d *PostgresDialect) CreatePartition(db *gorm.DB, baseTable, partTable string) error {
+	if err := checkPartitionPair(baseTable, partTable); err != nil {
+		return err
+	}
+	sql := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (LIKE %s INCLUDING ALL)",
+		pgQuote(partTable), pgQuote(baseTable))
+	if err := db.Exec(sql).Error; err != nil {
+		return fmt.Errorf("postgres: 建分区表 %s 失败: %w", partTable, err)
+	}
+	return nil
+}
+
+// ListPartitions 列出 <基表>_<后缀> 形态的表
+func (d *PostgresDialect) ListPartitions(db *gorm.DB, baseTable string) ([]string, error) {
+	return listPartitionsByPrefix(d, db, baseTable)
+}
+
+// DropPartition 丢掉整张周期表，替代逐行 DELETE + VACUUM
+func (d *PostgresDialect) DropPartition(db *gorm.DB, baseTable, partTable string) error {
+	if err := checkPartitionPair(baseTable, partTable); err != nil {
+		return err
+	}
+	if err := db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", pgQuote(partTable))).Error; err != nil {
+		return fmt.Errorf("postgres: 丢分区表 %s 失败: %w", partTable, err)
+	}
+	return nil
 }

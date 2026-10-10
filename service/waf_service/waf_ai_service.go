@@ -2,7 +2,7 @@ package waf_service
 
 import (
 	"SamWaf/global"
-	"SamWaf/innerbean"
+	"SamWaf/model"
 	"SamWaf/model/request"
 	response2 "SamWaf/model/response"
 	"fmt"
@@ -15,7 +15,7 @@ type WafAIService struct{}
 var WafAIServiceApp = new(WafAIService)
 
 // DashboardApi 聚合 AI 检测看板数据：按类别汇总、分数分布、observe/block 趋势。
-// 数据源为 web_logs 中 ai_score>0 的命中子集（相对较小），按 day 范围/站点过滤。
+// 数据源为 security_event 中 ai_score>0 的命中子集（AI 命中的请求必是安全事件），按 day 范围/站点过滤。
 func (receiver *WafAIService) DashboardApi(req request.WafAIDashboardReq) response2.WafAIDashboard {
 	var res response2.WafAIDashboard
 	res.Categories = []response2.WafAINameValue{}
@@ -28,7 +28,7 @@ func (receiver *WafAIService) DashboardApi(req request.WafAIDashboardReq) respon
 
 	// 每次查询都用全新的 where 链，避免 GORM 条件被复用污染
 	base := func() *gorm.DB {
-		q := global.GWAF_LOCAL_LOG_DB.Model(&innerbean.WebLog{}).Where("ai_score > 0")
+		q := global.GWAF_LOCAL_LOG_DB.Model(&model.SecurityEvent{}).Where("ai_score > 0")
 		if req.StartDay > 0 && req.EndDay > 0 {
 			q = q.Where("day between ? and ?", req.StartDay, req.EndDay)
 		}

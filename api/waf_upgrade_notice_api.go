@@ -4,6 +4,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
+	response2 "SamWaf/model/response"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,7 +18,7 @@ type WafUpgradeNoticeApi struct {
 // @Tags         升级须知
 // @Produce      json
 // @Param        lang  query     string  false  "语言(zh_CN/en_US)，默认中文"
-// @Success      200   {object}  response.Response{data=response.UpgradeNoticeSummary}  "获取成功"
+// @Success      200   {object}  response.Response{data=response2.UpgradeNoticeSummary}  "获取成功"
 // @Security     ApiKeyAuth
 // @Router       /upgradenotice/summary [get]
 func (w *WafUpgradeNoticeApi) GetSummaryApi(c *gin.Context) {
@@ -26,7 +27,8 @@ func (w *WafUpgradeNoticeApi) GetSummaryApi(c *gin.Context) {
 		response.FailWithMessage("解析失败", c)
 		return
 	}
-	response.OkWithDetailed(wafUpgradeNoticeService.GetSummary(req.Lang), "获取成功", c)
+	var summary response2.UpgradeNoticeSummary = wafUpgradeNoticeService.GetSummary(req.Lang)
+	response.OkWithDetailed(summary, "获取成功", c)
 }
 
 // GetListApi 升级须知列表

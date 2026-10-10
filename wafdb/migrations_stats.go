@@ -235,6 +235,71 @@ func RunStatsDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移6: 分析层天级汇总表（行为「谁」/ 目标「打哪」/ 手法「怎么打」三视角的地基）
+		{
+			ID: "202609190001_create_analysis_stats_tables",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202609190001: 创建分析层汇总表")
+				if err := tx.AutoMigrate(
+					&model.StatsActorPathDay{},
+					&model.StatsActorUaDay{},
+					&model.StatsPathRuleDay{},
+				); err != nil {
+					return fmt.Errorf("创建分析层汇总表失败: %w", err)
+				}
+
+				ddlDB := tx.Session(&gorm.Session{
+					Logger: NewGormZLogger().LogMode(logger.Silent),
+				})
+				indexes := []struct{ name, table, sql string }{
+					// 唯一索引即 upsert 的冲突目标，列序与 analysisConflictCols 一致
+					{"uni_stats_actor_path_days", "stats_actor_path_days",
+						"CREATE UNIQUE INDEX IF NOT EXISTS uni_stats_actor_path_days ON stats_actor_path_days (user_code, tenant_id, host_code, day, actor_key, path_norm)"},
+					// 目标视角：按站点+天 GROUP BY path_norm
+					{"idx_stats_actor_path_days_path", "stats_actor_path_days",
+						"CREATE INDEX IF NOT EXISTS idx_stats_actor_path_days_path ON stats_actor_path_days (host_code, day, path_norm)"},
+					// 行为视角：按站点+天 GROUP BY actor_key
+					{"idx_stats_actor_path_days_actor", "stats_actor_path_days",
+						"CREATE INDEX IF NOT EXISTS idx_stats_actor_path_days_actor ON stats_actor_path_days (host_code, day, actor_key)"},
+					// 保留策略按天删
+					{"idx_stats_actor_path_days_day", "stats_actor_path_days",
+						"CREATE INDEX IF NOT EXISTS idx_stats_actor_path_days_day ON stats_actor_path_days (day)"},
+
+					{"uni_stats_actor_ua_days", "stats_actor_ua_days",
+						"CREATE UNIQUE INDEX IF NOT EXISTS uni_stats_actor_ua_days ON stats_actor_ua_days (user_code, tenant_id, host_code, day, actor_key, ua_hash)"},
+					{"idx_stats_actor_ua_days_day", "stats_actor_ua_days",
+						"CREATE INDEX IF NOT EXISTS idx_stats_actor_ua_days_day ON stats_actor_ua_days (day)"},
+
+					{"uni_stats_path_rule_days", "stats_path_rule_days",
+						"CREATE UNIQUE INDEX IF NOT EXISTS uni_stats_path_rule_days ON stats_path_rule_days (user_code, tenant_id, host_code, day, path_norm, rule)"},
+					{"idx_stats_path_rule_days_day", "stats_path_rule_days",
+						"CREATE INDEX IF NOT EXISTS idx_stats_path_rule_days_day ON stats_path_rule_days (day)"},
+				}
+				for _, idx := range indexes {
+					if err := safeCreateIndex(ddlDB, idx.table, idx.name, idx.sql); err != nil {
+						return fmt.Errorf("创建分析层索引 %s 失败: %w", idx.name, err)
+					}
+				}
+				zlog.Info("迁移 202609190001: 分析层汇总表与索引创建完成")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202609190001: 删除分析层汇总表")
+				for _, name := range []string{
+					"uni_stats_actor_path_days", "idx_stats_actor_path_days_path",
+					"idx_stats_actor_path_days_actor", "idx_stats_actor_path_days_day",
+					"uni_stats_actor_ua_days", "idx_stats_actor_ua_days_day",
+					"uni_stats_path_rule_days", "idx_stats_path_rule_days_day",
+				} {
+					_ = tx.Exec("DROP INDEX IF EXISTS " + name).Error
+				}
+				return tx.Migrator().DropTable(
+					&model.StatsActorPathDay{},
+					&model.StatsActorUaDay{},
+					&model.StatsPathRuleDay{},
+				)
+			},
+		},
 	})
 
 	// 执行迁移

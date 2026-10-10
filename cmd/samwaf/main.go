@@ -14,6 +14,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/wafenginmodel"
 	"SamWaf/plugin"
+	"SamWaf/public"
 	"SamWaf/service/waf_service"
 	"SamWaf/supervisor"
 	"SamWaf/utils"
@@ -323,7 +324,7 @@ func (m *wafSystenService) run() {
 
 	//提前初始化
 	global.GDATA_CURRENT_LOG_DB_MAP = map[string]*gorm.DB{}
-	rversion := "初始化系统 编译器版本:" + runtime.Version() + " 程序版本号：" + global.GWAF_RELEASE_VERSION_NAME + "(" + global.GWAF_RELEASE_VERSION + ")"
+	rversion := "初始化系统 编译器版本:" + runtime.Version() + " 程序版本号：" + global.GWAF_RELEASE_VERSION_NAME + "(" + global.GWAF_RELEASE_VERSION + ") 前端版本：" + global.GWAF_WEB_VERSION
 	if global.GWAF_RELEASE == "false" {
 		rversion = rversion + " 调试版本"
 	} else {
@@ -382,6 +383,8 @@ func (m *wafSystenService) run() {
 		zlog.Error("初始化统计数据库失败，程序退出，请检查conf/config.yml数据库配置是否正确", "error", err)
 		os.Exit(1)
 	}
+	// 分层改造的边界切换要赶在接流量之前：条件是新表为空，一旦有请求写进来就不再成立
+	waftask.CutTierBoundaryIfNeeded()
 
 	// 全新安装引导：账户表为空(新用户判定)时创建默认管理员并生成随机初始口令。
 	// 放在启动初始化(核心库就绪后)执行，不再等首次登录才触发，便于新装即时拿到 data/initial_password.txt。
@@ -399,6 +402,10 @@ func (m *wafSystenService) run() {
 		zlog.Error("初始化插件系统失败", "error", err)
 		// 插件系统初始化失败不影响主程序启动
 	}
+
+	// WebSocket 在线表必须先于下面的消费协程和管理端建好：消息队列一开始消费就可能广播，
+	// 管理端一起来就可能有连接注册进来，而这里只是建两个空 map，没有任何外部依赖，放早没有副作用。
+	global.GWebSocket = gwebsocket.InitWafWebSocket()
 
 	//初始化队列引擎
 	wafqueue.InitDequeEngine()
@@ -498,8 +505,6 @@ func (m *wafSystenService) run() {
 		webmanager.StartLocalServer()
 	}()
 
-	//启动websocket
-	global.GWebSocket = gwebsocket.InitWafWebSocket()
 	//定时取规则并更新（考虑后期定时拉取公共规则 待定，可能会影响实际生产）
 
 	// 创建任务调度器
@@ -1094,10 +1099,12 @@ func (m *wafSystenService) Graceful() {
 // @in              header
 // @name            X-API-Key
 func main() {
+	global.GWAF_WEB_VERSION = public.WebFrontendVersion()
 	fmt.Println(`
 ==========================================
   SamWaf Web Application Firewall ` + global.GWAF_RELEASE_VERSION + `
-  Version Name: ` + global.GWAF_RELEASE_VERSION_NAME + ` 
+  Version Name: ` + global.GWAF_RELEASE_VERSION_NAME + `
+  Web UI Version: ` + global.GWAF_WEB_VERSION + `
 ==========================================
 `)
 	//加载配置

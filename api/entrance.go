@@ -88,6 +88,7 @@ var APIGroupAPP = new(APIGroup)
 var (
 	wafHostService        = waf_service.WafHostServiceApp
 	wafLogService         = waf_service.WafLogServiceApp
+	wafIPWatchlistService = waf_service.WafIPWatchlistServiceApp
 	wafStatService        = waf_service.WafStatServiceApp
 	wafRuleService        = waf_service.WafRuleServiceApp
 	wafIpAllowService     = waf_service.WafWhiteIpServiceApp
@@ -144,6 +145,7 @@ var (
 	wafOtpService = waf_service.WafOtpServiceApp
 
 	wafAnalysisService = waf_service.WafAnalysisServiceApp
+	wafAnalysisViewService = waf_service.WafAnalysisViewServiceApp
 
 	wafAIService      = waf_service.WafAIServiceApp
 	wafAILabelService = waf_service.WafAILabelServiceApp

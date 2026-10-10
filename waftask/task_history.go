@@ -13,10 +13,13 @@ import (
 // TaskDeleteHistoryInfo 定时删除指定历史信息 通过开关操作
 func TaskDeleteHistoryInfo() {
 	zlog.Debug("TaskDeleteHistoryInfo")
+	// 安全事件与存量 web_logs 走「日志保留天数」，access_log 走自己的（更短的）保留期
 	deleteBeforeDay := time.Now().AddDate(0, 0, -int(global.GDATA_DELETE_INTERVAL)).Format("2006-01-02 15:04")
-	waf_service.WafLogServiceApp.DeleteHistory(deleteBeforeDay)
+	accessBeforeDay := time.Now().AddDate(0, 0, -int(global.GDATA_ACCESS_LOG_RETENTION_DAYS)).Format("2006-01-02 15:04")
+	waf_service.WafLogServiceApp.DeleteHistory(deleteBeforeDay, accessBeforeDay)
 
-	// 清理过期的归档分片文件（高频切库后 live 库只存最近数据，真正的保留期回收靠删归档文件）
+	// 回收过期的归档分区：实时库只装当前周期，历史数据的保留期靠丢整个分区实现
+	// （SQLite 删文件，MySQL/PG 丢表，按层各走各的保留期）
 	CleanExpiredArchiveShard()
 
 	// 仅 SQLite：DELETE 不会收缩文件，主动 checkpoint 截断 WAL 并 VACUUM 回收空间。

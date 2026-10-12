@@ -17,6 +17,13 @@ func TestDecodeHttpAuthConfigCompat(t *testing.T) {
 		if cfg.BindIP != 1 {
 			t.Errorf("raw=%q BindIP=%d, 期望 1(绑定)", raw, cfg.BindIP)
 		}
+		// #987 之前/之内的老配置都没有范围字段，必须整站保护，不能因为字段缺失改变防护行为
+		if cfg.PathScope != HttpAuthScopeAll {
+			t.Errorf("raw=%q PathScope=%q, 期望 %q(整站)", raw, cfg.PathScope, HttpAuthScopeAll)
+		}
+		if cfg.Paths != "" || cfg.BypassIPGroup != "" {
+			t.Errorf("raw=%q Paths/BypassIPGroup 应为空, 实际 %q/%q", raw, cfg.Paths, cfg.BypassIPGroup)
+		}
 	}
 }
 
@@ -49,6 +56,42 @@ func TestDecodeHttpAuthConfig(t *testing.T) {
 			}
 			if cfg.BindIP != tt.bindIP {
 				t.Errorf("BindIP=%d, 期望 %d", cfg.BindIP, tt.bindIP)
+			}
+		})
+	}
+}
+
+// TestDecodeHttpAuthConfigPathScope 保护范围三态：合法取值透传，缺省与非法值回落整站。
+func TestDecodeHttpAuthConfigPathScope(t *testing.T) {
+	cases := []struct {
+		name       string
+		raw        string
+		wantScope  string
+		wantPaths  string
+		wantBypass string
+	}{
+		{"include 透传", `{"path_scope":"include","paths":"/admin","bypass_ip_group":"g1"}`,
+			HttpAuthScopeInclude, "/admin", "g1"},
+		{"exclude 透传", `{"path_scope":"exclude","paths":"/public"}`,
+			HttpAuthScopeExclude, "/public", ""},
+		{"all 显式", `{"path_scope":"all"}`, HttpAuthScopeAll, "", ""},
+		{"缺省 = 整站", `{"session_ttl":60}`, HttpAuthScopeAll, "", ""},
+		{"非法值回落整站", `{"path_scope":"INCLUDE"}`, HttpAuthScopeAll, "", ""},
+		{"未知值回落整站", `{"path_scope":"only"}`, HttpAuthScopeAll, "", ""},
+		{"周边空白被裁剪", `{"path_scope":"include","paths":"  /admin ","bypass_ip_group":"  "}`,
+			HttpAuthScopeInclude, "/admin", ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			cfg := DecodeHttpAuthConfig(c.raw)
+			if cfg.PathScope != c.wantScope {
+				t.Errorf("PathScope=%q, 期望 %q", cfg.PathScope, c.wantScope)
+			}
+			if cfg.Paths != c.wantPaths {
+				t.Errorf("Paths=%q, 期望 %q", cfg.Paths, c.wantPaths)
+			}
+			if cfg.BypassIPGroup != c.wantBypass {
+				t.Errorf("BypassIPGroup=%q, 期望 %q", cfg.BypassIPGroup, c.wantBypass)
 			}
 		})
 	}

@@ -11,6 +11,8 @@ import (
 	"SamWaf/model/wafenginmodel"
 	"SamWaf/service/waf_service"
 	"SamWaf/utils"
+	"SamWaf/wafenginecore/accessgate"
+	"SamWaf/wafenginecore/ipset"
 	"SamWaf/wafenginecore/loadbalance"
 	"SamWaf/wafproxy"
 	"context"
@@ -19,8 +21,10 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	goahocorasick "github.com/samwafgo/ahocorasick"
@@ -547,11 +551,86 @@ func (waf *WafEngine) CheckResponseSensitive() bool {
 // 全站都是同一个边缘节点地址，「绑定登录 IP」这条约束也会一并失效。
 func (waf *WafEngine) DoHttpAuthBase(hostSafe *wafenginmodel.HostSafe, w http.ResponseWriter, r *http.Request, clientIP string) (bool, string) {
 	cfg := model.DecodeHttpAuthConfig(hostSafe.Host.HttpAuthJSON)
+
+	// 路径归一化：小写 + path.Clean。下面所有路径判定（登录页前缀、保护范围）都必须用 p，
+	// 不能用 r.URL.Path —— 后者带着未消解的 . 与 ..，一个 /x/../admin 能绕过任何
+	// 按前缀写的清单，而 Go 的 http.Server 对非 ServeMux 的 Handler 不做任何路径清洗。
+	p := strings.ToLower(path.Clean(r.URL.Path))
+
+	// ⓪ custom 模式的登录/校验/登出端点无条件视为在保护范围内：include 模式下这些
+	// 前缀通常不在用户填的清单里，若按范围判定放行透传给后端就是 404，登录流程死锁。
+	// 必须排在免密IP组与范围判定之前（自服务分支，参照 Access 模式 ⓶ 的设计）。
+	// 与原实现一致只认 前缀+"/"：裸前缀精确访问维持走正常认证流程。
+	if loginPrefix := httpAuthLoginPrefix(hostSafe.Host); loginPrefix != "" &&
+		strings.HasPrefix(p, loginPrefix+"/") {
+		return waf.doCustomAuth(hostSafe, w, r, clientIP, cfg)
+	}
+
+	// ① 免密IP组：命中的来源直接放行。组被删除时 GetGroupMatcher 返回 nil，
+	//    ContainsStr 安全返回 false → 回落到要密码（fail-closed），删组不会敞开门。
+	if cfg.BypassIPGroup != "" && ipset.GetGroupMatcher(cfg.BypassIPGroup).ContainsStr(clientIP) {
+		return false, ""
+	}
+
+	// ② 保护范围判定：范围外直接放行，不写日志也不记审计——
+	//    这不是拦截，是这些路径本来就不归这道门管。
+	if !httpAuthPathInScope(cfg, p) {
+		return false, ""
+	}
+
+	// ③ 空值(存量站点)与未知取值都按 Basic 走：开关已经开了，认不出类型就放行等于这道门形同虚设
 	if hostSafe.Host.HttpAuthBaseType == model.HttpAuthTypeCustom {
 		return waf.doCustomAuth(hostSafe, w, r, clientIP, cfg)
 	}
-	// 空值(存量站点)与未知取值都按 Basic 走：开关已经开了，认不出类型就放行等于这道门形同虚设
 	return waf.doBasicAuth(hostSafe, w, r, clientIP, cfg)
+}
+
+// httpAuthLoginPrefix custom 模式登录页前缀的归一化形态（小写、无尾斜杠）。
+// 非 custom 模式返回空串，表示没有自服务路径。
+func httpAuthLoginPrefix(host model.Hosts) string {
+	if host.HttpAuthBaseType != model.HttpAuthTypeCustom {
+		return ""
+	}
+	return strings.TrimRight(strings.ToLower(utils.GetHttpAuthPathOrDefault(host.HttpAuthPathPrefix)), "/")
+}
+
+// httpAuthEmptyIncludeWarnAt include 模式空清单告警的节流时间戳（秒）。
+// 这条告警发生在热路径上，不节流的话受保护站点的每个请求都会刷一行日志。
+var httpAuthEmptyIncludeWarnAt atomic.Int64
+
+// httpAuthPathInScope 判断已归一化的 p 是否落在「网站密码访问」的保护范围内。
+func httpAuthPathInScope(cfg model.HttpAuthConfig, p string) bool {
+	switch cfg.PathScope {
+	case model.HttpAuthScopeInclude:
+		patterns := accessgate.BuildPathPatterns(cfg.Paths)
+		if len(patterns) == 0 {
+			// fail-closed：选了「仅指定路径」却没填路径，按整站保护。
+			// 静默当成"什么都不保护"等于一次配置失误就拆掉整道门。
+			warnHttpAuthEmptyInclude()
+			return true
+		}
+		return accessgate.MatchPathPatterns(p, patterns)
+	case model.HttpAuthScopeExclude:
+		patterns := accessgate.BuildPathPatterns(cfg.Paths)
+		if len(patterns) == 0 {
+			// 「除空集外全站要密码」的字面语义就是整站，正常特例，无需告警
+			return true
+		}
+		return !accessgate.MatchPathPatterns(p, patterns)
+	default:
+		// all 与一切非法取值：整站（DecodeHttpAuthConfig 已把非法值洗成 all，这里兜底）
+		return true
+	}
+}
+
+func warnHttpAuthEmptyInclude() {
+	now := time.Now().Unix()
+	last := httpAuthEmptyIncludeWarnAt.Load()
+	if now-last < 300 || !httpAuthEmptyIncludeWarnAt.CompareAndSwap(last, now) {
+		return
+	}
+	zlog.Warn("网站密码访问：保护范围选了「仅指定路径」但路径清单为空，已按整站保护。" +
+		"请到站点编辑里补全路径，或把保护范围改回整站")
 }
 
 // writeBasicChallenge 发 401 并要求浏览器输入密码。
@@ -689,10 +768,13 @@ func (waf *WafEngine) doBasicAuth(hostSafe *wafenginmodel.HostSafe, w http.Respo
 func (waf *WafEngine) doCustomAuth(hostSafe *wafenginmodel.HostSafe, w http.ResponseWriter, r *http.Request,
 	clientIP string, cfg model.HttpAuthConfig) (bool, string) {
 
-	authPathPrefix := utils.GetHttpAuthPathOrDefault(hostSafe.Host.HttpAuthPathPrefix)
+	// 归一化后的登录页前缀：与 DoHttpAuthBase ⓪ 用同一份判定口径，
+	// 大小写混淆、点号段变体进不了这个分支
+	authPathPrefix := httpAuthLoginPrefix(hostSafe.Host)
+	p := strings.ToLower(path.Clean(r.URL.Path))
 
-	// 处理登录页面自身的请求
-	if strings.HasPrefix(r.URL.Path, authPathPrefix+"/") {
+	// 处理登录页面自身的请求（保持原口径：只认 前缀+"/"，裸前缀走正常认证流程）
+	if strings.HasPrefix(p, authPathPrefix+"/") {
 		waf.handleHttpAuthRequest(hostSafe, w, r, authPathPrefix, clientIP, cfg)
 		return true, "处理HTTP Auth请求"
 	}
@@ -716,7 +798,9 @@ func (waf *WafEngine) doCustomAuth(hostSafe *wafenginmodel.HostSafe, w http.Resp
 // handleHttpAuthRequest 处理HTTP Auth相关请求
 func (waf *WafEngine) handleHttpAuthRequest(hostSafe *wafenginmodel.HostSafe, w http.ResponseWriter, r *http.Request,
 	pathPrefix, clientIP string, cfg model.HttpAuthConfig) {
-	path := strings.TrimPrefix(r.URL.Path, pathPrefix+"/")
+	// 用归一化后的路径裁剪：进入本函数的请求已在 doCustomAuth 按归一化前缀判过，
+	// 若按 r.URL.Path 裁剪，大小写或点号段变体会让 TrimPrefix 落空、validate 变 404
+	path := strings.TrimPrefix(strings.ToLower(path.Clean(r.URL.Path)), pathPrefix+"/")
 
 	// 处理验证接口
 	if path == "validate" && r.Method == "POST" {

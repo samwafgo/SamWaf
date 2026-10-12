@@ -938,3 +938,42 @@ notes:
         (2026-08-19 13:51~14:40) with counts written as readable numbers instead of seven identical dates, and
         the Access IP Details dialog on the risk log page gained a time range (last 30 days by default) so it
         no longer takes going through archives one by one.
+
+  - id: v1_3_25_httpauth_path_scope
+    version: v1.3.25
+    kind: notice
+    level: normal
+    page: /waf/wafhost
+    doc: https://doc.samwaf.com/quickstart/Update.html
+    apply:
+      type: navigate
+    zh:
+      title: 网站密码访问可以只保护指定路径了，还可搭配免密IP组
+      detail: >-
+        「网站密码访问」新增**保护范围**设置，站点编辑的密码访问页签里可选三种：
+        整站开启（原有行为，默认）、仅指定路径需要密码（比如只保护 /admin、/api/manage
+        这类后台与敏感接口）、除指定路径外全站需要密码（比如只放开 /healthz 给监控探针）。
+        已有站点不改配置则行为完全不变。路径清单每行一条（也支持逗号分隔），
+        普通路径按整段目录匹配：写 /admin 保护 /admin 及其全部子路径，不会误伤 /adminconsole；
+        带 * 的条目按通配匹配且 * 可以跨目录，如 *.php、/api/*/private。
+        同时新增**免密IP组**：命中所选 IP 组的来源跳过密码校验直接访问，适合内网监控、
+        健康检查这类无法登录的调用方；IP 组在「IP组」页面统一维护，组被删除后自动回落为需要密码。
+        一个兜底行为需要知道：保护范围选了「仅指定路径」但路径清单是空的，会按整站保护并在
+        系统日志里提示——配置不完整时不会让这道门静默失效。
+    en:
+      title: Site password access can now protect only specific paths, with a password-free IP group option
+      detail: >-
+        Site password access gains a **protection scope** setting in the password tab of site editing,
+        with three choices: whole site (the original behavior, and the default), only listed paths
+        require the password (protect just /admin or /api/manage style consoles and APIs), and whole
+        site except listed paths (open only /healthz for a monitor probe, for example). Existing sites
+        keep exactly the same behavior until you change the setting. The path list takes one entry per
+        line (commas also work); a plain path matches a whole directory tree, so /admin protects
+        /admin and everything below it without touching /adminconsole, while an entry containing *
+        is a wildcard match where * also crosses directories, as in *.php or /api/*/private.
+        A **password-free IP group** comes along: sources hitting the selected IP group skip the
+        password check entirely, which suits internal monitors and health checks that cannot log in.
+        Groups are managed on the IP Groups page, and deleting a group simply restores the password
+        requirement. One fallback to know: if the scope is set to "only listed paths" but the list is
+        empty, protection falls back to the whole site with a note in the system log - an incomplete
+        configuration never silently disables the gate.

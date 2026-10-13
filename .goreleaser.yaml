@@ -158,6 +158,7 @@ release:
   # Footer for the release body.
   #
   # Templates: allowed
+  # 致谢由发版 workflow 在发布后按关联 issue/PR 追加。
   footer: |
     ---
     

@@ -40,6 +40,23 @@ func (w *WafFileApi) generateFileID(fullPath string) string {
 	return hex.EncodeToString(hash[:])
 }
 
+// dataFilesCache 文件列表的缓存值形态。结构体必须能 JSON 往返：
+// JSON 类缓存后端(Redis)经 JSON 存取，读侧统一用 GetAs 还原，不做裸类型断言。
+// 字段名与前端约定一致（files/total），改动需同步前端。
+type dataFilesCache struct {
+	Files []FileInfo `json:"files"`
+	Total int        `json:"total"`
+}
+
+// loadDataFilesCache 读取文件列表缓存；未命中或读取失败返回 false
+func loadDataFilesCache() (*dataFilesCache, bool) {
+	var cached dataFilesCache
+	if err := global.GCACHE_WAFCACHE.GetAs(enums.CACHE_FILE_INFO, &cached); err != nil {
+		return nil, false
+	}
+	return &cached, true
+}
+
 // GetDataFilesApi 获取data目录下的文件列表
 func (w *WafFileApi) GetDataFilesApi(c *gin.Context) {
 	dataDir := utils.GetCurrentDir() + "/data"
@@ -57,10 +74,9 @@ func (w *WafFileApi) GetDataFilesApi(c *gin.Context) {
 	cacheKey := enums.CACHE_FILE_INFO
 
 	// 如果不是强制刷新，先尝试从缓存获取
-	if !isForce && global.GCACHE_WAFCACHE.IsKeyExist(cacheKey) {
-		cachedData := global.GCACHE_WAFCACHE.Get(cacheKey)
-		if cachedResult, ok := cachedData.(map[string]interface{}); ok {
-			response.OkWithDetailed(cachedResult, "获取成功(缓存)", c)
+	if !isForce {
+		if cached, ok := loadDataFilesCache(); ok {
+			response.OkWithDetailed(cached, "获取成功(缓存)", c)
 			return
 		}
 	}
@@ -107,10 +123,6 @@ func (w *WafFileApi) GetDataFilesApi(c *gin.Context) {
 			IsDir:       info.IsDir(),
 		}
 
-		// 将单个文件信息缓存到内存中，缓存1小时
-		fileCacheKey := enums.CACHE_FILE_INFO
-		global.GCACHE_WAFCACHE.SetWithTTl(fileCacheKey, fileInfo, 1*time.Hour)
-
 		fileInfos = append(fileInfos, fileInfo)
 		return nil
 	})
@@ -121,9 +133,9 @@ func (w *WafFileApi) GetDataFilesApi(c *gin.Context) {
 	}
 
 	// 构建返回结果
-	result := map[string]interface{}{
-		"files": fileInfos,
-		"total": len(fileInfos),
+	result := dataFilesCache{
+		Files: fileInfos,
+		Total: len(fileInfos),
 	}
 
 	// 将文件列表结果缓存30分钟
@@ -141,16 +153,12 @@ func (w *WafFileApi) DeleteFileByIdApi(c *gin.Context) {
 	}
 
 	// 从缓存中获取文件列表
-	cacheKey := enums.CACHE_FILE_INFO
-	if !global.GCACHE_WAFCACHE.IsKeyExist(cacheKey) {
+	cached, ok := loadDataFilesCache()
+	if !ok {
 		response.FailWithMessage("文件信息不存在或已过期，请重新获取文件列表", c)
 		return
 	}
-
-	// 获取缓存的文件列表结果
-	cachedResult := global.GCACHE_WAFCACHE.Get(cacheKey).(map[string]interface{})
-	filesInterface := cachedResult["files"]
-	fileInfos := filesInterface.([]FileInfo)
+	fileInfos := cached.Files
 
 	// 遍历文件列表找到对应ID的文件
 	var targetFileInfo *FileInfo
@@ -196,7 +204,7 @@ func (w *WafFileApi) DeleteFileByIdApi(c *gin.Context) {
 	}
 
 	// 删除缓存
-	global.GCACHE_WAFCACHE.Remove(cacheKey)
+	global.GCACHE_WAFCACHE.Remove(enums.CACHE_FILE_INFO)
 
 	response.OkWithMessage(fmt.Sprintf("文件 %s 删除成功", targetFileInfo.Name), c)
 }

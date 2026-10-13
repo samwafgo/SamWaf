@@ -2385,6 +2385,27 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return tx.Migrator().DropColumn(&model.ShareDb{}, "PeriodKey")
 			},
 		},
+		// 迁移: 清理所属站点已不存在的新版CC规则。
+		// 引擎按站点加载规则，这类记录没有任何消费方，留着只会把列表统计数抬高
+		{
+			ID: "202610130001_clean_orphan_anti_cc_rules",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202610130001: 清理无对应站点的新版CC规则")
+				subQuery := tx.Model(&model.Hosts{}).Select("CODE").Where("CODE <> ''")
+				res := tx.Where("host_code NOT IN (?)", subQuery).Delete(&model.AntiCCRule{})
+				if res.Error != nil {
+					return fmt.Errorf("清理无对应站点的CC规则失败: %w", res.Error)
+				}
+				if res.RowsAffected > 0 {
+					zlog.Info(fmt.Sprintf("迁移 202610130001: 清除 %d 条无对应站点的CC规则", res.RowsAffected))
+				}
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				// 数据清除类迁移，回滚为空操作
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

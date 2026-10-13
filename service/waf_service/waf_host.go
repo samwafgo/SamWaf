@@ -376,6 +376,8 @@ func (receiver *WafHostService) DelHostApi(req request.WafHostDelReq) (model.Hos
 	err = global.GWAF_LOCAL_DB.Where("Host_Code = ?", req.CODE).Delete(model.Rules{}).Error
 	//删除Anticc
 	err = global.GWAF_LOCAL_DB.Where("Host_Code = ?", req.CODE).Delete(model.AntiCC{}).Error
+	//删除CC多规则
+	err = global.GWAF_LOCAL_DB.Where("host_code = ?", req.CODE).Delete(model.AntiCCRule{}).Error
 	//删除禁用ip
 	err = global.GWAF_LOCAL_DB.Where("Host_Code = ?", req.CODE).Delete(model.IPBlockList{}).Error
 	//删除禁用url

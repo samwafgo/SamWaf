@@ -7,6 +7,9 @@ type CacheStore interface {
 	Set(key string, value interface{})
 	SetWithTTl(key string, value interface{}, ttl time.Duration)
 	SetWithTTlRenewTime(key string, value interface{}, ttl time.Duration)
+	// Get 返回缓存里的原始值。注意后端差异：内存后端返回存入的 Go 值（类型保留），
+	// JSON 类后端(RedisCache)返回解码到 interface{} 的泛型（对象是 map[string]interface{}，
+	// 数组是 []interface{}）——结构体一律用 GetAs 读取，不要对 Get 的返回值做结构体断言。
 	Get(key string) interface{}
 	// GetAs 将缓存值反序列化到 out（out 必须为指针）。
 	// 对于 Redis 等非内存后端，Get() 返回的是 map[string]interface{}，

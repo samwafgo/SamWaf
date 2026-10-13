@@ -70,6 +70,21 @@ func GetIPFailureManager() *IPFailureManager {
 	return ipFailureManagerInstance
 }
 
+// load 读取 IP 的失败记录（共享快照，只读）
+func (m *IPFailureManager) load(ip string) *IPFailureRecord {
+	return loadRecord[IPFailureRecord](m.cache, enums.CACHE_IP_FAILURE_PRE+ip)
+}
+
+// cloneIPFailureRecord 克隆记录及其事件切片，供写路径改副本用
+func cloneIPFailureRecord(r *IPFailureRecord) *IPFailureRecord {
+	if r == nil {
+		return nil
+	}
+	c := *r
+	c.Events = append([]time.Time(nil), r.Events...)
+	return &c
+}
+
 // initStatusCodes 初始化状态码配置
 func (m *IPFailureManager) initStatusCodes() {
 	m.mu.Lock()
@@ -160,15 +175,13 @@ func (m *IPFailureManager) RecordFailure(webLog *innerbean.WebLog) {
 	key := enums.CACHE_IP_FAILURE_PRE + ip
 	now := time.Now()
 
-	// 获取现有记录
-	var record *IPFailureRecord
-	if val := m.cache.Get(key); val != nil {
-		if r, ok := val.(*IPFailureRecord); ok {
-			record = r
-		}
-	}
+	// 读-改-写整体互斥：日志协程(本函数)与请求路径(RecordFailureThreshold)
+	// 会并发交错，不加锁后写者会整份覆盖先写者，丢阈值戳或失败事件
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-	// 如果记录不存在或已过期，创建新记录
+	// 获取现有记录（克隆副本再改，缓存里的快照保持不可变）
+	record := cloneIPFailureRecord(m.load(ip))
 	if record == nil {
 		record = &IPFailureRecord{
 			IP:        ip,
@@ -207,14 +220,11 @@ func (m *IPFailureManager) GetFailureCount(ip string, minutes int64) int64 {
 		return 0
 	}
 
-	key := enums.CACHE_IP_FAILURE_PRE + ip
-	val := m.cache.Get(key)
-	if val == nil {
-		return 0
-	}
-
-	record, ok := val.(*IPFailureRecord)
-	if !ok {
+	// 只读快照，RLock 即可：规则引擎每条命中规则的请求都会求值一次
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	record := m.load(ip)
+	if record == nil {
 		return 0
 	}
 
@@ -238,24 +248,11 @@ func (m *IPFailureManager) ClearIPFailure(ip string) {
 	m.cache.Remove(key)
 }
 
-// GetFailureInfo 获取IP失败信息（用于调试）
+// GetFailureInfo 获取IP失败信息（返回只读快照，调用方不得修改）
 func (m *IPFailureManager) GetFailureInfo(ip string) *IPFailureRecord {
-	if ip == "" {
-		return nil
-	}
-
-	key := enums.CACHE_IP_FAILURE_PRE + ip
-	val := m.cache.Get(key)
-	if val == nil {
-		return nil
-	}
-
-	record, ok := val.(*IPFailureRecord)
-	if !ok {
-		return nil
-	}
-
-	return record
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.load(ip)
 }
 
 // RecordFailureThreshold 记录IP失败封禁的阈值信息（当规则匹配时调用）
@@ -268,10 +265,14 @@ func (m *IPFailureManager) RecordFailureThreshold(ip string, minutes int64, coun
 	}
 
 	key := enums.CACHE_IP_FAILURE_PRE + ip
-	val := m.cache.Get(key)
-	if val == nil {
-		// 如果记录不存在，创建一个新记录
-		record := &IPFailureRecord{
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	record := cloneIPFailureRecord(m.load(ip))
+	if record == nil {
+		// 记录不存在：新建一条并盖上阈值戳
+		record = &IPFailureRecord{
 			IP:             ip,
 			Events:         []time.Time{},
 			TriggerMinutes: minutes,
@@ -279,29 +280,16 @@ func (m *IPFailureManager) RecordFailureThreshold(ip string, minutes int64, coun
 			FirstTime:      time.Now(),
 			LastTime:       time.Now(),
 		}
-		ttl := time.Duration(global.GCONFIG_IP_FAILURE_BAN_LOCK_TIME) * time.Minute
-		m.cache.SetWithTTlRenewTime(key, record, ttl)
-		return
-	}
-
-	record, ok := val.(*IPFailureRecord)
-	if !ok {
-		return
-	}
-
-	// 更新阈值信息（如果新的阈值更严格，则更新）
-	if record.TriggerMinutes == 0 || record.TriggerCount == 0 {
+	} else if record.TriggerMinutes == 0 || record.TriggerCount == 0 {
 		record.TriggerMinutes = minutes
 		record.TriggerCount = count
-	} else {
-		// 如果新的阈值更严格（时间窗口更小或次数更少），则更新
-		if minutes < record.TriggerMinutes || (minutes == record.TriggerMinutes && count < record.TriggerCount) {
-			record.TriggerMinutes = minutes
-			record.TriggerCount = count
-		}
+	} else if minutes < record.TriggerMinutes || (minutes == record.TriggerMinutes && count < record.TriggerCount) {
+		// 新的阈值更严格（时间窗口更小或次数更少）则更新
+		record.TriggerMinutes = minutes
+		record.TriggerCount = count
 	}
 
-	// 保存更新后的记录
+	// 保存记录
 	ttl := time.Duration(global.GCONFIG_IP_FAILURE_BAN_LOCK_TIME) * time.Minute
 	m.cache.SetWithTTlRenewTime(key, record, ttl)
 }

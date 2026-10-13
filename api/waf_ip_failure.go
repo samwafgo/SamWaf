@@ -128,8 +128,8 @@ func (w *WafIPFailureApi) GetBanIpListApi(c *gin.Context) {
 			continue
 		}
 
-		// 只显示满足条件的IP（即有阈值记录的IP，表示是被规则封禁的）
-		if record.TriggerMinutes == 0 || record.TriggerCount == 0 {
+		// 只显示满足条件的IP（带封禁阈值戳，即规则真实命中过；判据与归属地查询一致）
+		if !wafipban.IsBannedRecord(record) {
 			continue
 		}
 

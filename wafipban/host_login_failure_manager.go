@@ -4,6 +4,7 @@ import (
 	"SamWaf/cache"
 	"SamWaf/common/zlog"
 	"SamWaf/enums"
+	"sync"
 	"time"
 )
 
@@ -29,6 +30,8 @@ type HostLoginFailureRecord struct {
 // HostLoginFailureManager 主机登录失败计数器
 type HostLoginFailureManager struct {
 	cache cache.CacheStore
+	// Record 是读-改-写，多来源采集协程可能并发调用，整体互斥
+	mu sync.RWMutex
 }
 
 var hostLoginFailureManagerInstance *HostLoginFailureManager
@@ -54,6 +57,21 @@ func hostLoginKey(source, ip string) string {
 	return enums.CACHE_HOST_LOGIN_FAIL_PRE + source + ":" + ip
 }
 
+// load 读取计数记录（共享快照，只读）
+func (m *HostLoginFailureManager) load(source, ip string) *HostLoginFailureRecord {
+	return loadRecord[HostLoginFailureRecord](m.cache, hostLoginKey(source, ip))
+}
+
+// cloneHostLoginRecord 克隆记录及其事件切片，供写路径改副本用
+func cloneHostLoginRecord(r *HostLoginFailureRecord) *HostLoginFailureRecord {
+	if r == nil {
+		return nil
+	}
+	c := *r
+	c.Events = append([]time.Time(nil), r.Events...)
+	return &c
+}
+
 // Record 记录一次失败并返回窗口内累计次数。
 // 一次调用完成"读-改-写"，调用方不需要再单独 GetCount，少一次缓存往返。
 // retentionMinutes 是事件保留窗口，取 max(统计窗口, 封禁时长)，保证解封后
@@ -72,12 +90,10 @@ func (m *HostLoginFailureManager) Record(source, ip string, windowMinutes, reten
 	key := hostLoginKey(source, ip)
 	now := time.Now()
 
-	var record *HostLoginFailureRecord
-	if val := m.cache.Get(key); val != nil {
-		if r, ok := val.(*HostLoginFailureRecord); ok {
-			record = r
-		}
-	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	record := cloneHostLoginRecord(m.load(source, ip))
 	if record == nil {
 		record = &HostLoginFailureRecord{
 			Source:    source,
@@ -118,12 +134,10 @@ func (m *HostLoginFailureManager) GetCount(source, ip string, windowMinutes int6
 	if m == nil || ip == "" {
 		return 0
 	}
-	val := m.cache.Get(hostLoginKey(source, ip))
-	if val == nil {
-		return 0
-	}
-	record, ok := val.(*HostLoginFailureRecord)
-	if !ok {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	record := m.load(source, ip)
+	if record == nil {
 		return 0
 	}
 	windowStart := time.Now().Add(-time.Duration(windowMinutes) * time.Minute)
@@ -144,15 +158,12 @@ func (m *HostLoginFailureManager) Clear(source, ip string) {
 	m.cache.Remove(hostLoginKey(source, ip))
 }
 
-// GetRecord 取原始记录(展示/调试用)
+// GetRecord 取原始记录(展示/调试用)。返回只读快照，调用方不得修改。
 func (m *HostLoginFailureManager) GetRecord(source, ip string) *HostLoginFailureRecord {
 	if m == nil || ip == "" {
 		return nil
 	}
-	val := m.cache.Get(hostLoginKey(source, ip))
-	if val == nil {
-		return nil
-	}
-	record, _ := val.(*HostLoginFailureRecord)
-	return record
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.load(source, ip)
 }

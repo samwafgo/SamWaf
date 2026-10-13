@@ -505,6 +505,28 @@ func landTargetText(v string) string {
 	return v
 }
 
+// ipFailureEffect 由失败记录算出查询展示的 effect 与文案。
+// 有失败记录≠被封禁：记分卡只说明窗口内有失败请求，只有自定义规则真实命中
+// （记录上带阈值戳）才是 block；否则报 none，避免管理员把"有失败记录"当成"已被拦截"。
+// 判据与封禁列表(api.GetBanIpListApi)的收录条件一致。
+func ipFailureEffect(record *wafipban.IPFailureRecord, remain string) (string, string) {
+	effect := "none"
+	detail := ""
+	if wafipban.IsBannedRecord(record) {
+		effect = "block"
+		detail = fmt.Sprintf("%d分钟内失败%d次触发封禁", record.TriggerMinutes, record.TriggerCount)
+	} else if record != nil {
+		detail = fmt.Sprintf("近%d分钟失败%d次，未触发封禁规则", global.GCONFIG_IP_FAILURE_BAN_LOCK_TIME, record.Count)
+	}
+	if detail == "" {
+		detail = "有失败记录"
+	}
+	if remain != "" {
+		detail += "，剩余" + remain
+	}
+	return effect, detail
+}
+
 // matchIPFailure IP 失败封禁是缓存态的临时封禁，键就是完整 IP，直接查
 func (r *WafIPLookupService) matchIPFailure(ip string, resp *response2.IPLookupResp) {
 	if global.GCACHE_WAFCACHE == nil {
@@ -516,21 +538,17 @@ func (r *WafIPLookupService) matchIPFailure(ip string, resp *response2.IPLookupR
 		return
 	}
 
-	detail := "自动封禁中"
+	var record *wafipban.IPFailureRecord
 	if manager := wafipban.GetIPFailureManager(); manager != nil {
-		if record := manager.GetFailureInfo(ip); record != nil && record.TriggerCount > 0 {
-			detail = fmt.Sprintf("%d分钟内失败%d次触发封禁", record.TriggerMinutes, record.TriggerCount)
-		}
+		record = manager.GetFailureInfo(ip)
 	}
-	if remain := r.remainText(enums.CACHE_IP_FAILURE_PRE, ip); remain != "" {
-		detail += "，剩余" + remain
-	}
+	effect, detail := ipFailureEffect(record, r.remainText(enums.CACHE_IP_FAILURE_PRE, ip))
 
 	resp.Hits = append(resp.Hits, response2.IPLookupHit{
 		Source:     srcIPFailure,
 		SourceName: "IP失败封禁",
 		Scope:      "全局",
-		Effect:     "block",
+		Effect:     effect,
 		Detail:     detail,
 	})
 }

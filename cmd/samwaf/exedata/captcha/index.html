@@ -166,130 +166,73 @@
         window.location.reload();
     });
 
-    // 机器人检测模块
-    (function() {
-        // 初始化检测变量
-        let mouseMovements = 0;
-        let lastMouseX = 0;
-        let lastMouseY = 0;
+    // 行为采集模块。
+    // 采集结果随交卷请求（botCheck 字段）提交，由服务端校验——
+    // 客户端算出的任何"结论"都不可信（脚本可以直接构造请求），
+    // 所以这里只如实记录原始信号：鼠标/触摸/指针采样、点击次数、看题到交卷的耗时、自动化环境特征数。
+    // 服务端据此拒绝"无头浏览器直接点、没有任何人类交互"这类最省事的自动化。
+    const behavior = (function () {
+        let mousePoints = 0;
+        let touchPoints = 0;
+        let pointerPoints = 0;
+        let clicks = 0;
         let mouseTrack = [];
-        let startTime = Date.now();
-        let botScore = 0;
-        let isBotDetected = false;
-        let clickTimes = [];
+        let shownAt = 0;
 
-        // 检测自动化工具和模拟器
+        // 自动化环境特征计数：命中任意一条即 +1。
+        // 只收"出现即异常"的信号，避免把硬件并发数、插件列表这类正常环境也会命中的项算进来造成误伤。
         function detectAutomation() {
-            // 检测常见的自动化工具特征
-            const automationFlags = [
-                !!window.document.documentElement.getAttribute('selenium'),
-                !!window.document.documentElement.getAttribute('webdriver'),
-                !!window._phantom,
-                !!window.callPhantom,
-                !!window.__nightmare,
-                !!window.domAutomation,
-                !!window.domAutomationController,
-                navigator.webdriver === true,
-                navigator.userAgent.indexOf('Selenium') !== -1,
-                navigator.userAgent.indexOf('PhantomJS') !== -1,
-                navigator.userAgent.indexOf('Headless') !== -1
-            ];
-
-            // 检测到任何自动化工具标志
-            automationFlags.forEach(flag => {
-                if (flag) botScore += 20;
-            });
-
-            // 检测异常的浏览器特征
-            if (navigator.hardwareConcurrency < 2) botScore += 10;
-            if (navigator.plugins.length === 0) botScore += 10;
-            if (navigator.languages === undefined) botScore += 10;
-
-            // 检测Canvas指纹
+            let n = 0;
             try {
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                ctx.textBaseline = "top";
-                ctx.font = "14px 'Arial'";
-                ctx.fillStyle = "#f60";
-                ctx.fillRect(125, 1, 62, 20);
-                ctx.fillStyle = "#069";
-                ctx.fillText("SamWaf防护", 2, 15);
-                ctx.fillStyle = "rgba(102, 204, 0, 0.7)";
-                ctx.fillText("SamWaf防护", 4, 17);
-
-                const dataURL = canvas.toDataURL();
-                if (dataURL === 'data:,') botScore += 20; // 空数据URL通常表示headless浏览器
-            } catch(e) {
-                botScore += 15; // Canvas操作异常
+                if (navigator.webdriver === true) n++;
+                const el = document.documentElement;
+                if (el && (el.getAttribute('webdriver') || el.getAttribute('selenium'))) n++;
+                if (window._phantom || window.callPhantom || window.__nightmare) n++;
+                if (window.domAutomation || window.domAutomationController) n++;
+                if (/HeadlessChrome|PhantomJS|Selenium/i.test(navigator.userAgent || '')) n++;
+            } catch (e) {
+                // 采集失败按"未命中"处理，不打断验证流程
             }
-
-            return botScore >= 30;
+            return n;
         }
 
-        // 监听鼠标移动
-        document.addEventListener('mousemove', function(e) {
-            mouseMovements++;
-
-            // 记录鼠标轨迹
+        // capture 阶段监听：即便组件内部对事件做了拦截，也能看到经过画布的原始事件
+        document.addEventListener('mousemove', function (e) {
+            mousePoints++;
             if (mouseTrack.length < 100) {
-                mouseTrack.push({
-                    x: e.clientX,
-                    y: e.clientY,
-                    time: Date.now() - startTime
-                });
+                mouseTrack.push({ x: e.clientX, y: e.clientY, t: Date.now() - shownAt });
             }
+        }, true);
+        document.addEventListener('touchstart', function () { touchPoints++; }, true);
+        document.addEventListener('touchmove', function () { touchPoints++; }, true);
+        // pointerdown/pointermove 兜住触控笔等只发指针事件、不发鼠标/触摸事件的输入设备
+        document.addEventListener('pointerdown', function () { pointerPoints++; }, true);
+        document.addEventListener('pointermove', function () { pointerPoints++; }, true);
+        document.addEventListener('click', function () { clicks++; }, true);
 
-            // 检测鼠标移动是否过于机械
-            if (lastMouseX !== 0 && lastMouseY !== 0) {
-                const dx = e.clientX - lastMouseX;
-                const dy = e.clientY - lastMouseY;
-
-                // 检测直线移动
-                if (dx === 0 || dy === 0) {
-                    botScore += 1;
-                }
-
-                // 检测等距移动
-                if (mouseTrack.length > 3) {
-                    const last = mouseTrack[mouseTrack.length - 1];
-                    const prev = mouseTrack[mouseTrack.length - 2];
-                    const prevPrev = mouseTrack[mouseTrack.length - 3];
-
-                    const dist1 = Math.sqrt(Math.pow(last.x - prev.x, 2) + Math.pow(last.y - prev.y, 2));
-                    const dist2 = Math.sqrt(Math.pow(prev.x - prevPrev.x, 2) + Math.pow(prev.y - prevPrev.y, 2));
-
-                    if (Math.abs(dist1 - dist2) < 0.5) {
-                        botScore += 1;
-                    }
-                }
+        return {
+            // 每次取到新题面时重置：耗时与交互只统计"当前这道题"的
+            reset() {
+                shownAt = Date.now();
+                mousePoints = 0;
+                touchPoints = 0;
+                pointerPoints = 0;
+                clicks = 0;
+                mouseTrack = [];
+            },
+            snapshot() {
+                return {
+                    v: 1,
+                    mousePoints: mousePoints,
+                    touchPoints: touchPoints,
+                    pointerPoints: pointerPoints,
+                    clicks: clicks,
+                    mouseTrack: mouseTrack,
+                    elapsedMs: shownAt ? Date.now() - shownAt : 0,
+                    auto: detectAutomation()
+                };
             }
-
-            lastMouseX = e.clientX;
-            lastMouseY = e.clientY;
-        });
-
-        // 监听点击事件
-        document.addEventListener('click', function (e) {
-            clickTimes.push(Date.now());
-
-            // 检测点击间隔是否过于规律
-            if (clickTimes.length >= 3) {
-                const interval1 = clickTimes[clickTimes.length - 1] - clickTimes[clickTimes.length - 2];
-                const interval2 = clickTimes[clickTimes.length - 2] - clickTimes[clickTimes.length - 3];
-
-                if (Math.abs(interval1 - interval2) < 50) {
-                    botScore += 5; // 点击间隔过于规律
-                }
-            }
-
-            // 检测点击位置是否过于精确
-            if (e.clientX % 1 === 0 && e.clientY % 1 === 0) {
-                botScore += 2; // 精确到整数像素的点击
-            }
-        });
-
-
+        };
     })();
 
     axios.defaults.baseURL = '/';
@@ -352,12 +295,10 @@
             click(x, y) {
             },
             confirm(dots, reset) {
-                // 添加机器人检测数据
-                const botData = {
-                    mouseTrack: window.mouseTrack || [],
-                    timing: Date.now(),
-                    pattern: dots.map(d => ({x: d.x, y: d.y}))
-                };
+                // 行为数据：原始交互信号随交卷请求提交，校验在服务端完成
+                const botData = behavior.snapshot();
+                // pattern 保留供排查用，服务端暂不校验
+                botData.pattern = dots.map(d => ({x: d.x, y: d.y}));
 
                 confirmEvent(dots, botData)
             },
@@ -381,6 +322,8 @@
             }).then(function (response) {
                 const data = response.data || {};
                 if (data && (data['code'] || 0) === 0) {
+                    // 新题面到位：重置行为统计（答题耗时从这一刻起算）
+                    behavior.reset();
                     capt.setData({
                         image: data['image_base64'] || '',
                         thumb: data['thumb_base64'] || '',

@@ -26,6 +26,19 @@ import (
 type WafLogAPi struct {
 }
 
+var logRequestIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$`)
+
+func normalizeLogRequestID(value string, required bool) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" && !required {
+		return "", nil
+	}
+	if !logRequestIDPattern.MatchString(value) {
+		return "", fmt.Errorf("访问识别码格式不正确（需为 1–64 位字母、数字或分隔符）")
+	}
+	return value, nil
+}
+
 // GetDetailApi 获取攻击日志详情
 // @Summary      获取攻击日志详情
 // @Description  根据 req_uuid 获取单条攻击日志详情（含请求体、响应体）
@@ -47,7 +60,16 @@ func (w *WafLogAPi) GetDetailApi(c *gin.Context) {
 			response.FailWithMessage("正在切换数据库请等待", c)
 			return
 		}
-		wafLog, _ := wafLogService.GetDetailApi(req)
+		req.REQ_UUID, err = normalizeLogRequestID(req.REQ_UUID, true)
+		if err != nil {
+			response.FailWithMessage(err.Error(), c)
+			return
+		}
+		wafLog, err := wafLogService.GetDetailApi(req)
+		if err != nil {
+			response.FailWithMessage("获取日志详情失败:"+err.Error(), c)
+			return
+		}
 		response.OkWithDetailed(wafLog, "获取成功", c)
 	} else {
 		response.FailWithMessage("解析失败", c)
@@ -71,6 +93,11 @@ func (w *WafLogAPi) GetListApi(c *gin.Context) {
 		if global.GDATA_CURRENT_CHANGE {
 			//如果正在切换库 跳过
 			response.FailWithMessage("正在切换数据库请等待", c)
+			return
+		}
+		req.ReqUuid, err = normalizeLogRequestID(req.ReqUuid, false)
+		if err != nil {
+			response.FailWithMessage(err.Error(), c)
 			return
 		}
 		wafLogs, total, meta, err2 := wafLogService.GetListApiWithMeta(req)
@@ -317,7 +344,16 @@ func (w *WafLogAPi) GetHttpCopyMaskApi(c *gin.Context) {
 			response.FailWithMessage("正在切换数据库请等待", c)
 			return
 		}
-		wafLog, _ := wafLogService.GetDetailApi(req)
+		req.REQ_UUID, err = normalizeLogRequestID(req.REQ_UUID, true)
+		if err != nil {
+			response.FailWithMessage(err.Error(), c)
+			return
+		}
+		wafLog, err := wafLogService.GetDetailApi(req)
+		if err != nil {
+			response.FailWithMessage("获取日志详情失败:"+err.Error(), c)
+			return
+		}
 
 		if req.OutputFormat == "curl" {
 			response.OkWithDetailed(GenerateCurlRequest(wafLog), "获取成功", c)

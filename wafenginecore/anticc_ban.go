@@ -31,6 +31,37 @@ func matchCCBan(hostCode, netSrcIP, srcIP, ipMode string) (hitKey string, client
 	return "", clientIP
 }
 
+func ccBanLog(log *innerbean.WebLog, responseCode int) *innerbean.WebLog {
+	recorded := *log
+	recorded.SkipPayloadStore = true
+	recorded.HEADER = ""
+	recorded.BODY = ""
+	recorded.RES_BODY = ""
+	recorded.COOKIES = ""
+	recorded.POST_FORM = ""
+	recorded.ResHeader = ""
+	recorded.SrcByteBody = nil
+	recorded.SrcByteResBody = nil
+	recorded.SrcURL = nil
+	recorded.BodyDecoded = ""
+	recorded.CookiesDecoded = ""
+	recorded.BodyValues = nil
+	recorded.BodyFields = nil
+	recorded.BodyHash = ""
+	recorded.RULE = "CC封禁"
+	recorded.ACTION = "阻止"
+	recorded.STATUS = "阻止访问"
+	if responseCode == 444 {
+		recorded.STATUS = "连接关闭"
+	}
+	recorded.STATUS_CODE = responseCode
+	recorded.TASK_FLAG = 1
+	recorded.RISK_LEVEL = 1
+	recorded.GUEST_IDENTIFICATION = "可疑用户"
+	recorded.TimeSpent = time.Now().UnixMilli() - recorded.UNIX_ADD_TIME
+	return &recorded
+}
+
 // notifyCCBanOnce 推送 CC 封禁提醒，同一封禁键在节流窗口内只推一条。
 func notifyCCBanOnce(hitKey, clientIP string, region []string) {
 	throttleKey := "cc_ban_notify_" + hitKey

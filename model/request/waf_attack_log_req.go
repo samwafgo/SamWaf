@@ -6,7 +6,7 @@ type WafAttackLogDetailReq struct {
 	// detail/httpcopymask 为 GET 请求，需 form tag 才能从 query 绑定；
 	// 前端发送的 query 键为 current_db_name / REQ_UUID / output_format
 	CurrrentDbName string `json:"current_db_name" form:"current_db_name"`
-	REQ_UUID       string `json:"req_uuid" form:"REQ_UUID"`
+	REQ_UUID       string `json:"req_uuid" form:"REQ_UUID" binding:"required,max=64"`
 	OutputFormat   string `json:"output_format" form:"output_format"` //输出格式 raw,curl
 }
 
@@ -19,7 +19,7 @@ type WafAttackLogSearch struct {
 	ViewType         string `json:"view_type" form:"view_type"`                     //视图：access=访问日志(默认) event=安全事件
 	HostCode         string `json:"host_code" form:"host_code"`                     //主机码
 	Rule             string `json:"rule" form:"rule"`                               //规则名
-	ReqUuid          string `json:"req_uuid" form:"req_uuid"`                       //请求UUID
+	ReqUuid          string `json:"req_uuid" form:"req_uuid" binding:"max=64"`                       //请求UUID
 	Action           string `json:"action" form:"action"`                           //状态
 	SrcIp            string `json:"src_ip" form:"src_ip"`                           //请求IP
 	StatusCode       string `json:"status_code" form:"status_code"`                 //响应码

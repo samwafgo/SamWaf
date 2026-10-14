@@ -65,6 +65,8 @@ type WebLog struct {
 	// 截断只发生在落库这一步，内存对象与 Kafka 出口始终是原文。
 	Truncated int `json:"truncated"`
 
+	SkipPayloadStore bool `gorm:"-" json:"-"` // 仅保存窄行
+
 	// GeoUnresolved 本次请求的地区无法判定（没有可用的地区库，或查询失败），
 	// 区别于"查出来是未知"。为 true 时规则引擎会跳过引用了 COUNTRY/PROVINCE/CITY 的规则，
 	// 避免 `MF.COUNTRY != "中国"` 这类规则在 IPv6 地区库缺失时把访客整片误杀。

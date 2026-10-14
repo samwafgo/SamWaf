@@ -939,6 +939,35 @@ notes:
         the Access IP Details dialog on the risk log page gained a time range (last 30 days by default) so it
         no longer takes going through archives one by one.
 
+  - id: v1_3_25_cc_ban_request_logging
+    version: v1.3.25
+    kind: notice
+    level: normal
+    page: /waf/wafvisitlog
+    doc: https://doc.samwaf.com/guide/BlockingPage.html
+    apply:
+      type: navigate
+    zh:
+      title: CC 封禁期间的阻断请求可按访问识别码查询
+      detail: >-
+        CC 封禁期间，每次实际阻断请求保留独立的访问识别码，并记录来源 IP、站点、路径、方法、响应码与耗时等窄行信息。
+        这些事件同时出现在访问日志和安全事件中，不保存重复请求的完整报文；首次触发封禁的日志仍按现有规则保留报文。
+        封禁期间的请求数、拦截数与窄行磁盘占用会相应增加，通知仍沿用封禁提醒节流。
+        日志异步写入，查询需开启日志持久化、写入成功且记录尚在对应视图保留期内。
+        内置拦截页同时显示访客 IP；已有自定义模板可以自行加入 [[.SAMWAF_IP]]，其值与日志来源 IP 一致。
+        顶部访问识别码查询忽略时间范围与所选分区，其余筛选条件仍生效；详情与请求复制会反馈未命中或读取错误。
+    en:
+      title: Requests blocked during a CC ban can be looked up by visit identifier
+      detail: >-
+        Each request blocked during a CC ban retains its own visit identifier and a narrow log row containing source IP,
+        site, path, method, response status and duration. These events appear in both access logs and security events,
+        without retaining repeated full payloads. The request that initially triggers the ban keeps its payload under the existing rules.
+        Request counts, blocked counts and narrow-row disk usage increase accordingly; ban notifications retain their throttling.
+        Logs are written asynchronously and require persistence to be enabled, a successful write and an unexpired record in the selected view.
+        The built-in block page also shows the visitor IP. Existing custom templates can add [[.SAMWAF_IP]], using the same source IP as the logs.
+        The top visit-identifier lookup ignores the date range and selected partition while other filters still apply.
+        Request details and request-copy actions report missing records or read errors.
+
   - id: v1_3_25_httpauth_path_scope
     version: v1.3.25
     kind: notice

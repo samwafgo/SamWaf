@@ -11,12 +11,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"go.uber.org/zap"
+	"html"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"text/template"
 	"time"
 )
+
+func templateSourceIP(srcIP string) string {
+	ip := net.ParseIP(srcIP)
+	if ip == nil {
+		return ""
+	}
+	return html.EscapeString(ip.String())
+}
 
 func renderTemplate(templateContent string, data map[string]interface{}) ([]byte, error) {
 	tmpl, err := template.New("blockingPageTemplate").Delims("[[", "]]").Parse(templateContent)
@@ -47,6 +57,7 @@ func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean *innerbean
 	renderData := map[string]interface{}{
 		"SAMWAF_REQ_UUID":   weblogbean.REQ_UUID,
 		"SAMWAF_BLOCK_INFO": blockInfo,
+		"SAMWAF_IP":         templateSourceIP(weblogbean.SRC_IP),
 	}
 
 	// 优先根据攻击类型查找对应的拦截页面
@@ -198,6 +209,7 @@ func EchoResponseErrorInfo(resp *http.Response, weblogbean *innerbean.WebLog, ru
 	renderData := map[string]interface{}{
 		"SAMWAF_REQ_UUID":   weblogbean.REQ_UUID,
 		"SAMWAF_BLOCK_INFO": blockInfo,
+		"SAMWAF_IP":         templateSourceIP(weblogbean.SRC_IP),
 	}
 
 	// 优先根据攻击类型查找对应的拦截页面

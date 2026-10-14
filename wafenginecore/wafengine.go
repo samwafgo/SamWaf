@@ -599,7 +599,8 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						weblogbean.RULE = "CC封禁"
 					} else {
 						notifyCCBanOnce(hitKey, banIP, region)
-						EchoErrorInfo(w, r, &weblogbean, "", "当前IP由于访问频次太高暂时无法访问", hostTarget, waf.rt().HostTarget[waf.rt().HostCode[global.GWAF_GLOBAL_HOST_CODE]], false, "cc_attack")
+						responseCode := EchoErrorInfo(w, r, &weblogbean, "", "当前IP由于访问频次太高暂时无法访问", hostTarget, waf.rt().HostTarget[waf.rt().HostCode[global.GWAF_GLOBAL_HOST_CODE]], false, "cc_attack")
+						global.GQEQUE_LOG_DB.Enqueue(ccBanLog(&weblogbean, responseCode))
 						return
 					}
 				}
@@ -1422,7 +1423,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 				)
 
 				if customBlockingPage != nil {
-					pageResult := applyCustomErrorPage(resp, customBlockingPage, backendStatusCode, backendStatus, weblogfrist.REQ_UUID)
+					pageResult := applyCustomErrorPage(resp, customBlockingPage, backendStatusCode, backendStatus, weblogfrist.REQ_UUID, weblogfrist.SRC_IP)
 
 					if pageResult.TemplateApplied {
 						// 记录响应Header信息

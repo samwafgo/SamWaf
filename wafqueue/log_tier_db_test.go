@@ -91,6 +91,23 @@ func TestStoreTieredCrossEngine(t *testing.T) {
 			if offAccess != 0 {
 				t.Fatalf("off 档正常请求不应有窄行，实际 %d", offAccess)
 			}
+			for _, mode := range []string{"db", "sample", "off"} {
+				global.GDATA_ACCESS_LOG_MODE = mode
+				uid := "cc-ban-" + mode
+				lg := mk(uid, "203.0.113.10", "阻止", "CC封禁")
+				lg.SkipPayloadStore = true
+				storeTiered([]*innerbean.WebLog{lg})
+				for _, table := range []string{model.AccessLogTableName, model.SecurityEventTableName} {
+					var count int64
+					if err := db.Table(table).Where("req_uuid = ?", uid).Count(&count).Error; err != nil || count != 1 {
+						t.Fatalf("%s %s narrow row: count=%d err=%v", mode, table, count, err)
+					}
+				}
+				var payloadCount int64
+				if err := db.Model(&model.EventPayload{}).Where("req_uuid = ?", uid).Count(&payloadCount).Error; err != nil || payloadCount != 0 {
+					t.Fatalf("%s payload: count=%d err=%v", mode, payloadCount, err)
+				}
+			}
 			global.GDATA_ACCESS_LOG_MODE = "db"
 		})
 	}

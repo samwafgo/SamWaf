@@ -968,6 +968,31 @@ notes:
         The top visit-identifier lookup ignores the date range and selected partition while other filters still apply.
         Request details and request-copy actions report missing records or read errors.
 
+  - id: v1_3_25_health_manual_test
+    version: v1.3.25
+    kind: notice
+    level: normal
+    page: /waf/wafhost
+    doc: https://doc.samwaf.com/guide/Host.html
+    apply:
+      type: navigate
+    zh:
+      title: 网站健康检测支持保存前手动测试
+      detail: >-
+        在网站编辑的「健康检测」页点击「测试健康检测」，可用当前未保存的回源与检测配置验证源站。
+        手动测试与定时健康检测共用请求和状态码判断逻辑，每个源站显示本次结果、实际连接地址、请求信息与耗时。
+        负载均衡使用本站已保存的后端列表，分批检测；手动测试超时时间为 1–120 秒。
+        即使定时检测关闭也可以手动测试；测试不保存配置、不累加连续成功失败次数，也不改变运行健康状态。
+        定时检测仍按原有配置与连续次数阈值运行。
+    en:
+      title: Test website health checks before saving
+      detail: >-
+        Click Test Health Check in the website editor to check the origin using the current unsaved origin and health settings.
+        Manual and scheduled checks share request and status-code evaluation logic. Each origin shows its result, dial address, request information and duration.
+        Load-balanced sites use their saved backend list and check it in batches. Manual check timeouts range from 1 to 120 seconds.
+        You can test while scheduled checks are disabled. Testing does not save settings, increment consecutive counters or change runtime health status.
+        Scheduled checks continue to use their existing configuration and consecutive thresholds.
+
   - id: v1_3_25_httpauth_path_scope
     version: v1.3.25
     kind: notice

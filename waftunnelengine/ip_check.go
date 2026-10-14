@@ -20,7 +20,7 @@ func CheckIPAccess(protocol string, clientIP string, clientPort string, serverPo
 	}
 
 	// 处理IP地址，去除端口部分（如果传入的是完整地址）
-	if strings.Contains(clientIP, ":") {
+	if net.ParseIP(clientIP) == nil && strings.Contains(clientIP, ":") {
 		host, _, err := net.SplitHostPort(clientIP)
 		if err != nil {
 			zlog.Error(fmt.Sprintf("解析客户端IP失败 [协议:%s 客户端IP:%s 客户端端口:%s 服务端口:%s 错误:%s]",

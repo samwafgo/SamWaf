@@ -11,10 +11,10 @@ import (
 type WafIPLookupApi struct {
 }
 
-// LookupApi IP归属查询
-// @Summary      IP归属查询
+// LookupApi IP策略命中查询
+// @Summary      IP策略命中查询
 // @Description  查一个IP当前落在哪些名单里：IP黑/白名单、IP组、威胁情报IP、IP失败封禁、CC封禁、系统防火墙封禁、CDN回源段
-// @Tags         网站防护-IP归属查询
+// @Tags         网站防护-IP策略命中查询
 // @Produce      json
 // @Param        ip       query     string  true   "待查询的IP"
 // @Param        sources  query     string  false  "只查指定来源(逗号分隔)，留空查全部"

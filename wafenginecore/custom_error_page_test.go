@@ -136,7 +136,7 @@ func TestApplyCustomErrorPage_DefaultOverwrites(t *testing.T) {
 			backendBody := []byte(`{"code":` + strconv.Itoa(code) + `,"message":"backend says no"}`)
 			resp := newBackendResp(code, strconv.Itoa(code)+" Err", "application/json", backendBody)
 
-			result := applyCustomErrorPage(resp, page("", priority), code, resp.Status, "uuid-1")
+			result := applyCustomErrorPage(resp, page("", priority), code, resp.Status, "uuid-1", "")
 
 			if !result.TemplateApplied {
 				t.Fatalf("priority=%q code=%d 应使用模版覆盖", priority, code)
@@ -162,7 +162,7 @@ func TestApplyCustomErrorPage_BackendFirstPassthrough(t *testing.T) {
 		backendBody := []byte(`{"code":` + strconv.Itoa(code) + `,"message":"no permission"}`)
 		resp := newBackendResp(code, strconv.Itoa(code)+" Err", "application/json", backendBody)
 
-		result := applyCustomErrorPage(resp, page("", model.BlockingPageContentPriorityBackend), code, resp.Status, "uuid-1")
+		result := applyCustomErrorPage(resp, page("", model.BlockingPageContentPriorityBackend), code, resp.Status, "uuid-1", "")
 
 		if result.TemplateApplied {
 			t.Fatalf("code=%d 后端有响应体时应透传，不应套模版", code)
@@ -192,7 +192,7 @@ func TestApplyCustomErrorPage_BackendFirstFallback(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			resp := newBackendResp(500, "500 Internal Server Error", "text/html", c.body)
 
-			result := applyCustomErrorPage(resp, page("", model.BlockingPageContentPriorityBackend), 500, resp.Status, "uuid-1")
+			result := applyCustomErrorPage(resp, page("", model.BlockingPageContentPriorityBackend), 500, resp.Status, "uuid-1", "")
 
 			if !result.TemplateApplied {
 				t.Fatal("后端无响应体时应回落到自定义模版")
@@ -210,7 +210,7 @@ func TestApplyCustomErrorPage_NilBody(t *testing.T) {
 		resp := newBackendResp(502, "502 Bad Gateway", "text/html", nil)
 		resp.Body = body
 
-		result := applyCustomErrorPage(resp, page("", model.BlockingPageContentPriorityBackend), 502, resp.Status, "uuid-1")
+		result := applyCustomErrorPage(resp, page("", model.BlockingPageContentPriorityBackend), 502, resp.Status, "uuid-1", "")
 
 		if !result.TemplateApplied {
 			t.Fatal("无 body 时应使用模版")
@@ -225,7 +225,7 @@ func TestApplyCustomErrorPage_NilBody(t *testing.T) {
 func TestApplyCustomErrorPage_ResponseCodeOverride(t *testing.T) {
 	resp := newBackendResp(500, "500 Internal Server Error", "text/html", []byte(""))
 
-	applyCustomErrorPage(resp, page("503", ""), 500, resp.Status, "uuid-1")
+	applyCustomErrorPage(resp, page("503", ""), 500, resp.Status, "uuid-1", "")
 
 	if resp.StatusCode != 503 {
 		t.Fatalf("配置 response_code=503 时应下发 503，实际 %d", resp.StatusCode)
@@ -242,7 +242,7 @@ func TestApplyCustomErrorPage_ResponseHeaderApplied(t *testing.T) {
 	p.ResponseHeader = `[{"name":"Content-Type","value":"text/html"},{"name":"X-Waf-Page","value":"custom"},{"name":"X-Empty","value":""}]`
 	resp := newBackendResp(404, "404 Not Found", "application/json", []byte(""))
 
-	applyCustomErrorPage(resp, p, 404, resp.Status, "uuid-1")
+	applyCustomErrorPage(resp, p, 404, resp.Status, "uuid-1", "")
 
 	body := readBody(t, resp)
 	if resp.Header.Get("Content-Type") != "text/html" {
@@ -267,7 +267,7 @@ func TestApplyCustomErrorPage_GzipBackend_TemplateDropsContentEncoding(t *testin
 	resp := newBackendResp(500, "500 Internal Server Error", "application/json", gzipBytes(t, plain))
 	resp.Header.Set("Content-Encoding", "gzip")
 
-	result := applyCustomErrorPage(resp, page("", ""), 500, resp.Status, "uuid-1")
+	result := applyCustomErrorPage(resp, page("", ""), 500, resp.Status, "uuid-1", "")
 
 	if !result.TemplateApplied {
 		t.Fatal("默认模式下应套模版")
@@ -299,7 +299,7 @@ func TestApplyCustomErrorPage_GzipBackend_PassthroughKeepsBytes(t *testing.T) {
 	resp := newBackendResp(403, "403 Forbidden", "application/json", raw)
 	resp.Header.Set("Content-Encoding", "gzip")
 
-	result := applyCustomErrorPage(resp, page("", model.BlockingPageContentPriorityBackend), 403, resp.Status, "uuid-1")
+	result := applyCustomErrorPage(resp, page("", model.BlockingPageContentPriorityBackend), 403, resp.Status, "uuid-1", "")
 
 	if result.TemplateApplied {
 		t.Fatal("后端有内容时应透传")
@@ -326,7 +326,7 @@ func TestApplyCustomErrorPage_GzipEmptyBody_FallsBackToTemplate(t *testing.T) {
 	resp := newBackendResp(500, "500 Internal Server Error", "text/html", raw)
 	resp.Header.Set("Content-Encoding", "gzip")
 
-	result := applyCustomErrorPage(resp, page("", model.BlockingPageContentPriorityBackend), 500, resp.Status, "uuid-1")
+	result := applyCustomErrorPage(resp, page("", model.BlockingPageContentPriorityBackend), 500, resp.Status, "uuid-1", "")
 
 	if !result.TemplateApplied {
 		t.Fatal("后端 body 解压后为空，应回落到自定义模版")

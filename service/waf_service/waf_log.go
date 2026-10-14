@@ -22,6 +22,8 @@ type WafLogService struct{}
 
 var WafLogServiceApp = new(WafLogService)
 
+var ErrLogNotFound = errors.New("未找到该识别码的日志，记录可能未保存或已过保留期")
+
 // listExcludeColumns 列表查询排除的列：大文本字段和原始 blob 字段
 var listExcludeColumns = map[string]bool{
 	"body": true, "res_body": true, "post_form": true,
@@ -123,6 +125,10 @@ func (receiver *WafLogService) ModifyApi(log innerbean.WebLog) error {
 }
 func (receiver *WafLogService) GetDetailApi(req request.WafAttackLogDetailReq) (innerbean.WebLog, error) {
 	var weblog innerbean.WebLog
+	req.REQ_UUID = strings.TrimSpace(req.REQ_UUID)
+	if req.REQ_UUID == "" {
+		return weblog, ErrLogNotFound
+	}
 	// 解析当前分片的三层表：安全事件 → 访问日志 → 存量 web_logs，按 req_uuid 逐层点查。
 	// 事件双写了窄行，内容一致，但事件表保留期更长，优先从它读。
 	// 分区标识为空或 auto 时先按识别码定位分区：详情最常见的来路就是
@@ -151,7 +157,7 @@ func (receiver *WafLogService) GetDetailApi(req request.WafAttackLogDetailReq) (
 		}
 	}
 	if !found {
-		return weblog, nil
+		return weblog, ErrLogNotFound
 	}
 	// 告诉界面这条是在哪个分区找到的：auto 时用户并没有选分区，得有个地方说清楚
 	weblog.ShardName = shardName

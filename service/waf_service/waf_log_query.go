@@ -491,7 +491,8 @@ func (receiver *WafLogService) GetListApiWithMeta(req request.WafAttackLogSearch
 	// 悄悄改成扇出会让它们的每次查询都多打几个分区
 	auto := shardName == AutoShard
 
-	if auto && strings.TrimSpace(req.ReqUuid) != "" {
+	req.ReqUuid = strings.TrimSpace(req.ReqUuid)
+	if req.ReqUuid != "" {
 		return receiver.lookupByUuid(req)
 	}
 
@@ -718,7 +719,9 @@ func (receiver *WafLogService) GetListApiWithMeta(req request.WafAttackLogSearch
 //
 // 识别码是三张日志表的主键，一次点查就是一次索引命中；最常见的来路是访客把拦截页上的
 // 识别码报给管理员——他手里只有这串码，不知道是哪天，更不知道在哪个分区。
-// 查不到不是错误：调用方按空结果处理，界面负责解释可能的原因（已过保留期 / 抄错 / 本就没记录）。
+// 查不到不是错误：所有分区都查询成功但没有行时，调用方按空结果处理，界面负责解释可能的原因
+// （已过保留期 / 抄错 / 本就没记录）。有分区查询失败则返回首个错误——明明可能是扫描失败，
+// 不能伪装成「未找到」。
 func (receiver *WafLogService) lookupByUuid(req request.WafAttackLogSearch) ([]innerbean.WebLog, int64, LogQueryMeta, error) {
 	meta := LogQueryMeta{UuidLookup: true}
 	ctx, cancel := context.WithTimeout(context.Background(), fanoutBudget)
@@ -762,6 +765,9 @@ func (receiver *WafLogService) lookupByUuid(req request.WafAttackLogSearch) ([]i
 			meta.Shards = []LogShardHit{{Name: sh.Name, Count: int64(len(found))}}
 			return found, int64(len(found)), meta, nil
 		}
+	}
+	if firstErr != nil {
+		return []innerbean.WebLog{}, 0, meta, firstErr
 	}
 	return []innerbean.WebLog{}, 0, meta, nil
 }

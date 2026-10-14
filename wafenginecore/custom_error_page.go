@@ -92,7 +92,7 @@ func resolveCustomErrorPage(hostSafe, globalHostSafe *wafenginmodel.HostSafe, ba
 //   - 「优先后端响应」且后端确有内容 → 原样还原（状态码/响应头/压缩编码/Content-Type 全不动）
 //   - 其余情况 → 渲染模版覆盖
 func applyCustomErrorPage(resp *http.Response, page *model.BlockingPage,
-	backendStatusCode int, backendStatus string, reqUUID string) customErrorPageResult {
+	backendStatusCode int, backendStatus string, reqUUID string, srcIP string) customErrorPageResult {
 
 	var rawBody []byte
 	if resp.Body != nil && resp.Body != http.NoBody {
@@ -118,6 +118,7 @@ func applyCustomErrorPage(resp *http.Response, page *model.BlockingPage,
 
 	renderData := map[string]interface{}{
 		"SAMWAF_REQ_UUID":       reqUUID,
+		"SAMWAF_IP":             templateSourceIP(srcIP),
 		"SAMWAF_BACKEND_STATUS": backendStatus,
 		"SAMWAF_BACKEND_CODE":   backendStatusCode,
 		"SAMWAF_BACKEND_BODY":   string(plainBody),

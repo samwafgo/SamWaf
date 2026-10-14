@@ -53,6 +53,25 @@ func TestTier_EventWritesAllLayers(t *testing.T) {
 	}
 }
 
+func TestTier_CCBanNarrowOnly(t *testing.T) {
+	for _, mode := range []string{"db", "sample", "off"} {
+		t.Run(mode, func(t *testing.T) {
+			defer resetTier(mode)()
+			lg := mkLog("cc-ban-"+mode, "203.0.113.10")
+			lg.ACTION = "阻止"
+			lg.RULE = "CC封禁"
+			lg.SkipPayloadStore = true
+			events, accesses, payloads := tierForStore([]*innerbean.WebLog{lg, lg})
+			if len(events) != 1 || len(accesses) != 1 || len(payloads) != 0 {
+				t.Fatalf("CC narrow layers: %d/%d/%d", len(events), len(accesses), len(payloads))
+			}
+			if events[0].ReqUUID != lg.REQ_UUID || accesses[0].ReqUUID != lg.REQ_UUID || lg.BODY != "a=1" || lg.HEADER != "User-Agent: curl" {
+				t.Fatal("identifiers or original payload changed")
+			}
+		})
+	}
+}
+
 // db 档：正常请求窄行全量进 access_log；报文不进本批——被蓄水池采中的攒在池里定期刷库（D2）
 func TestTier_DBModeNormalNoPayload(t *testing.T) {
 	defer resetTier("db")()

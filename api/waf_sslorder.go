@@ -38,6 +38,10 @@ func (w *WafSslOrderApi) AddApi(c *gin.Context) {
 	var req request.WafSslorderaddReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		if msg := checkApplyMethod(req.ApplyMethod); msg != "" {
+			response.FailWithMessage(msg, c)
+			return
+		}
 		if req.ApplyMethod != "dns01" {
 			req.SkipDNSVerify = 0
 		}
@@ -182,6 +186,10 @@ func (w *WafSslOrderApi) ModifyApi(c *gin.Context) {
 	var req request.WafSslordereditReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		if msg := checkApplyMethod(req.ApplyMethod); msg != "" {
+			response.FailWithMessage(msg, c)
+			return
+		}
 		if req.ApplyMethod != "dns01" {
 			req.SkipDNSVerify = 0
 		}
@@ -248,6 +256,20 @@ func (w *WafSslOrderApi) NotifyWaf(chanType int, bean model.SslOrder) {
 		Content: bean,
 	}
 	global.GWAF_CHAN_SSLOrder <- chanInfo
+}
+
+// validApplyMethod 是订单里唯一被逐值判断的枚举字段，其余 apply_* 均为自由文本。
+// 非法值不会在建单阶段被拦下，只会一路写进库里，到 ACME 侧才以
+// "acme: could not determine solvers" 的形式失败，回指不到入参。
+var validApplyMethod = map[string]bool{"http01": true, "dns01": true}
+
+// checkApplyMethod 只认 ACME 挑战方式的取值，不认界面下拉里显示的标签文本
+// （如「文件验证方式」）。返回空串表示通过。
+func checkApplyMethod(method string) string {
+	if validApplyMethod[method] {
+		return ""
+	}
+	return "申请方式(apply_method)取值无效，只支持 http01（HTTP 文件验证）或 dns01（DNS 验证），请填写取值而不是界面显示的标签文本"
 }
 
 // http01PortHint 按 80 端口的实际状态给出可操作的提示文案。

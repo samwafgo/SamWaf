@@ -439,7 +439,8 @@ func (w *WafRuleAPi) FormatRuleApi(c *gin.Context) {
 // @Tags         网站防护-规则管理
 // @Accept       json
 // @Produce      json
-// @Param        data  body      request.WafRuleStatusReq  true  "状态参数"
+// @Param        code         query     string  true  "规则唯一编码"
+// @Param        rule_status  query     int     true  "规则状态 1启用 0禁用"
 // @Success      200   {object}  response.Response  "状态更新成功"
 // @Security     ApiKeyAuth
 // @Router       /wafhost/rule/rulestatus [get]

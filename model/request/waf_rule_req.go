@@ -10,10 +10,10 @@ type WafRuleAddReq struct {
 	RuleStatus   int    `json:"rule_status"`    //规则状态 1 是开启 0 是关闭
 }
 type WafRuleDelReq struct {
-	CODE string `json:"code"`
+	CODE string `json:"code" form:"code" binding:"required"`
 }
 type WafRuleDetailReq struct {
-	CODE string `json:"code"`
+	CODE string `json:"code" form:"code" binding:"required"`
 }
 type WafRuleEditReq struct {
 	CODE         string `json:"code"`
@@ -44,7 +44,7 @@ type WafRulePreViewReq struct {
 }
 
 type WafRuleStatusReq struct {
-	CODE        string `json:"code"`
+	CODE        string `json:"code" form:"code" binding:"required"`
 	RULE_STATUS int    `json:"rule_status" form:"rule_status"` //规则状态 1 是开启 0 是关闭
 }
 

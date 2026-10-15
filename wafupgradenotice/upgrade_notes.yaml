@@ -1031,3 +1031,36 @@ notes:
         requirement. One fallback to know: if the scope is set to "only listed paths" but the list is
         empty, protection falls back to the whole site with a note in the system log - an incomplete
         configuration never silently disables the gate.
+
+  - id: v1_3_25_api_query_param_case
+    version: v1.3.25
+    kind: notice
+    level: high
+    page: /oplatform/doc
+    doc: https://doc.samwaf.com/quickstart/Update.html
+    apply:
+      type: navigate
+    zh:
+      title: 通过 API 调用时，查询参数名统一为全小写
+      detail: >-
+        以下接口的查询参数名统一改为与文档一致的全小写形式，请检查你的对接脚本：
+        网站详情 / 删除 / 防御开关 / 启停开关（wafhost/host/detail、host/del、host/guardstatus、
+        host/startstatus），规则详情 / 删除 / 启用开关（wafhost/rule/detail、rule/del、rule/rulestatus），
+        攻击日志详情与报文复制（waflog/attack/detail、waflog/attack/httpcopymask）。
+        即 CODE 改为 code、REQ_UUID 改为 req_uuid、GUARD_STATUS 改为 guard_status、
+        START_STATUS 改为 start_status；rule_status 本就是小写，不变。
+        本次同时修正了开放平台文档中一批方法与路径标注有误的接口（IP/URL 黑白名单、
+        SSL 证书、主机防火墙 IP 封禁、统计与系统日志等），请以页面上的最新说明为准。
+    en:
+      title: API query parameter names are now all lower case
+      detail: >-
+        The query parameter names of the following endpoints now match the documentation exactly,
+        all lower case - check your integration scripts: site detail / delete / protection toggle /
+        start-stop toggle (wafhost/host/detail, host/del, host/guardstatus, host/startstatus),
+        rule detail / delete / enable toggle (wafhost/rule/detail, rule/del, rule/rulestatus),
+        and attack log detail plus HTTP copy-mask (waflog/attack/detail, waflog/attack/httpcopymask).
+        In other words CODE becomes code, REQ_UUID becomes req_uuid, GUARD_STATUS becomes guard_status,
+        and START_STATUS becomes start_status; rule_status was already lower case and is unchanged.
+        A set of endpoints whose documented method or path was wrong has also been corrected
+        (IP/URL block and allow lists, SSL certificates, host firewall IP blocking, statistics and
+        system logs) - use the updated descriptions on the page.

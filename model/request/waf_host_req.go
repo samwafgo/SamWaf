@@ -63,11 +63,11 @@ type WafHostAddReq struct {
 }
 
 type WafHostDelReq struct {
-	CODE string `json:"code"`
+	CODE string `json:"code" form:"code" binding:"required"`
 }
 
 type WafHostDetailReq struct {
-	CODE string `json:"code"`
+	CODE string `json:"code" form:"code" binding:"required"`
 }
 
 type WafHostEditReq struct {
@@ -142,8 +142,8 @@ type WafHostCheckPortsReq struct {
 }
 
 type WafHostGuardStatusReq struct {
-	CODE         string `json:"code"`
-	GUARD_STATUS int    `json:"guard_status"` //防御状态 1 是开启防御 0 是防御关闭
+	CODE         string `json:"code" form:"code" binding:"required"`
+	GUARD_STATUS int    `json:"guard_status" form:"guard_status"` //防御状态 1 是开启防御 0 是防御关闭
 }
 
 type WafHostSearchReq struct {
@@ -161,8 +161,8 @@ type WafHostSearchReq struct {
 }
 
 type WafHostStartStatusReq struct {
-	CODE         string `json:"code"`
-	START_STATUS int    `json:"start_status"` //启动状态
+	CODE         string `json:"code" form:"code" binding:"required"`
+	START_STATUS int    `json:"start_status" form:"start_status"` //启动状态
 }
 
 type WafHostAllDomainsReq struct {

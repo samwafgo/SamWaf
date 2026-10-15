@@ -528,7 +528,8 @@ func (w *WafHostAPi) ModifyHostApi(c *gin.Context) {
 // @Tags         网站防护-主机管理
 // @Accept       json
 // @Produce      json
-// @Param        data  body      request.WafHostGuardStatusReq  true  "防御状态参数"
+// @Param        code          query     string  true  "主机唯一编码"
+// @Param        guard_status  query     int     true  "防御状态 1开启 0关闭"
 // @Success      200   {object}  response.Response  "状态更新成功"
 // @Security     ApiKeyAuth
 // @Router       /wafhost/host/guardstatus [get]
@@ -602,7 +603,8 @@ func (w *WafHostAPi) ModifyAllGuardStatusApi(c *gin.Context) {
 // @Tags         网站防护-主机管理
 // @Accept       json
 // @Produce      json
-// @Param        data  body      request.WafHostStartStatusReq  true  "启动状态参数"
+// @Param        code          query     string  true  "主机唯一编码"
+// @Param        start_status  query     int     true  "启动状态 1启动 0停止"
 // @Success      200   {object}  response.Response  "状态更新成功"
 // @Security     ApiKeyAuth
 // @Router       /wafhost/host/startstatus [get]

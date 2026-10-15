@@ -1064,3 +1064,32 @@ notes:
         A set of endpoints whose documented method or path was wrong has also been corrected
         (IP/URL block and allow lists, SSL certificates, host firewall IP blocking, statistics and
         system logs) - use the updated descriptions on the page.
+
+  - id: v1_3_25_ssl_order_apply_method_value
+    version: v1.3.25
+    kind: notice
+    level: normal
+    page: /oplatform/doc
+    doc: https://doc.samwaf.com/quickstart/Update.html
+    apply:
+      type: navigate
+    zh:
+      title: 通过 API 申请/续期 SSL 证书时，apply_method 只接受 http01 或 dns01
+      detail: >-
+        新建（wafhost/sslorder/add）与续期（wafhost/sslorder/edit）两个接口现在会在入库前校验
+        申请方式 apply_method，取值只支持 http01（HTTP 文件验证）与 dns01（DNS 验证），
+        其余取值直接返回错误，不再建单。此前传入其它内容时订单会建立成功，随后在申请阶段
+        以 ACME 侧的 could not determine solvers 失败，回指不到入参。
+        早期文档把申请方式写成了 http/dns，容易照抄；开放平台文档现已列出正确取值。
+        界面上的申请方式本身不受影响（界面提交的本来就是 http01/dns01）。
+    en:
+      title: SSL certificate orders via API accept only http01 or dns01 as apply_method
+      detail: >-
+        The create (wafhost/sslorder/add) and renew (wafhost/sslorder/edit) endpoints now validate
+        apply_method before storing the order, and accept only http01 (HTTP file validation) or
+        dns01 (DNS validation); any other value is rejected instead of creating an order.
+        Previously any value created an order that then failed at issuance with an ACME
+        "could not determine solvers" error that pointed nowhere near the offending parameter.
+        Earlier documentation listed the method as http/dns, which is easy to copy by mistake;
+        the Open Platform documentation now states the accepted values.
+        Nothing changes in the console itself, which already submits http01/dns01.

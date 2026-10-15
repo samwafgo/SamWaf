@@ -74,14 +74,14 @@ var routeDetailMap = map[string]routeDetail{
 		ParamExample:    `?code=abc123`,
 		ResponseExample: `{"code":0,"data":{},"msg":"操作成功"}`,
 	},
-	"POST /api/v1/wafhost/host/guardstatus": {
+	"GET /api/v1/wafhost/host/guardstatus": {
 		Description:     "修改主机防御状态（开启/关闭防御）",
-		ParamExample:    `{"code":"abc123","guard_status":1}`,
+		ParamExample:    `?code=abc123&guard_status=1`,
 		ResponseExample: `{"code":0,"data":{},"msg":"操作成功"}`,
 	},
-	"POST /api/v1/wafhost/host/startstatus": {
+	"GET /api/v1/wafhost/host/startstatus": {
 		Description:     "修改主机启动状态（启动/停止）",
-		ParamExample:    `{"code":"abc123","start_status":1}`,
+		ParamExample:    `?code=abc123&start_status=1`,
 		ResponseExample: `{"code":0,"data":{},"msg":"操作成功"}`,
 	},
 
@@ -111,85 +111,85 @@ var routeDetailMap = map[string]routeDetail{
 		ParamExample:    `?code=rule001`,
 		ResponseExample: `{"code":0,"data":{"code":"rule001","rule_json":"{...}","rule_status":1},"msg":"查询成功"}`,
 	},
-	"POST /api/v1/wafhost/rule/status": {
+	"GET /api/v1/wafhost/rule/rulestatus": {
 		Description:     "修改WAF规则启用/禁用状态",
-		ParamExample:    `{"code":"rule001","rule_status":1}`,
+		ParamExample:    `?code=rule001&rule_status=1`,
 		ResponseExample: `{"code":0,"data":{},"msg":"操作成功"}`,
 	},
 
 	// ======== 网站防护-IP黑名单 ========
-	"POST /api/v1/wafhost/blockip/list": {
+	"POST /api/v1/wafhost/ipblock/list": {
 		Description:     "获取IP黑名单列表（分页）",
 		ParamExample:    `{"pageIndex":1,"pageSize":10,"host_code":"abc123","ip":""}`,
 		ResponseExample: `{"code":0,"data":{"list":[{"id":"xxx","ip":"1.2.3.4","host_code":"abc123"}],"total":1},"msg":"查询成功"}`,
 	},
-	"POST /api/v1/wafhost/blockip/add": {
+	"POST /api/v1/wafhost/ipblock/add": {
 		Description:     "新增IP黑名单",
 		ParamExample:    `{"host_code":"abc123","ip":"1.2.3.4","remarks":"恶意IP"}`,
 		ResponseExample: `{"code":0,"data":{},"msg":"操作成功"}`,
 	},
-	"POST /api/v1/wafhost/blockip/edit": {
+	"POST /api/v1/wafhost/ipblock/edit": {
 		Description:     "编辑IP黑名单",
 		ParamExample:    `{"id":"xxx","host_code":"abc123","ip":"1.2.3.5","remarks":"更新备注"}`,
 		ResponseExample: `{"code":0,"data":{},"msg":"操作成功"}`,
 	},
-	"GET /api/v1/wafhost/blockip/del": {
+	"GET /api/v1/wafhost/ipblock/del": {
 		Description:     "删除IP黑名单",
 		ParamExample:    `?id=xxx`,
 		ResponseExample: `{"code":0,"data":{},"msg":"操作成功"}`,
 	},
 
 	// ======== 网站防护-IP白名单 ========
-	"POST /api/v1/wafhost/allowip/list": {
+	"POST /api/v1/wafhost/ipwhite/list": {
 		Description:     "获取IP白名单列表（分页）",
 		ParamExample:    `{"pageIndex":1,"pageSize":10,"host_code":"abc123","ip":""}`,
 		ResponseExample: `{"code":0,"data":{"list":[{"id":"xxx","ip":"192.168.1.1","host_code":"abc123"}],"total":1},"msg":"查询成功"}`,
 	},
-	"POST /api/v1/wafhost/allowip/add": {
+	"POST /api/v1/wafhost/ipwhite/add": {
 		Description:     "新增IP白名单",
 		ParamExample:    `{"host_code":"abc123","ip":"192.168.1.100","remarks":"办公室IP"}`,
 		ResponseExample: `{"code":0,"data":{},"msg":"操作成功"}`,
 	},
-	"POST /api/v1/wafhost/allowip/edit": {
+	"POST /api/v1/wafhost/ipwhite/edit": {
 		Description:     "编辑IP白名单",
 		ParamExample:    `{"id":"xxx","host_code":"abc123","ip":"192.168.1.101","remarks":"更新"}`,
 		ResponseExample: `{"code":0,"data":{},"msg":"操作成功"}`,
 	},
-	"GET /api/v1/wafhost/allowip/del": {
+	"GET /api/v1/wafhost/ipwhite/del": {
 		Description:     "删除IP白名单",
 		ParamExample:    `?id=xxx`,
 		ResponseExample: `{"code":0,"data":{},"msg":"操作成功"}`,
 	},
 
 	// ======== 网站防护-URL黑名单 ========
-	"POST /api/v1/wafhost/blockurl/list": {
+	"POST /api/v1/wafhost/urlblock/list": {
 		Description:     "获取URL黑名单列表（分页）",
 		ParamExample:    `{"pageIndex":1,"pageSize":10,"host_code":"abc123"}`,
 		ResponseExample: `{"code":0,"data":{"list":[],"total":0},"msg":"查询成功"}`,
 	},
-	"POST /api/v1/wafhost/blockurl/add": {
+	"POST /api/v1/wafhost/urlblock/add": {
 		Description:     "新增URL黑名单",
 		ParamExample:    `{"host_code":"abc123","url":"/admin/","remarks":"禁止访问后台"}`,
 		ResponseExample: `{"code":0,"data":{},"msg":"操作成功"}`,
 	},
-	"GET /api/v1/wafhost/blockurl/del": {
+	"GET /api/v1/wafhost/urlblock/del": {
 		Description:     "删除URL黑名单",
 		ParamExample:    `?id=xxx`,
 		ResponseExample: `{"code":0,"data":{},"msg":"操作成功"}`,
 	},
 
 	// ======== 网站防护-URL白名单 ========
-	"POST /api/v1/wafhost/allowurl/list": {
+	"POST /api/v1/wafhost/urlwhite/list": {
 		Description:     "获取URL白名单列表（分页）",
 		ParamExample:    `{"pageIndex":1,"pageSize":10,"host_code":"abc123"}`,
 		ResponseExample: `{"code":0,"data":{"list":[],"total":0},"msg":"查询成功"}`,
 	},
-	"POST /api/v1/wafhost/allowurl/add": {
+	"POST /api/v1/wafhost/urlwhite/add": {
 		Description:     "新增URL白名单（绕过WAF检测）",
 		ParamExample:    `{"host_code":"abc123","url":"/api/upload","remarks":"上传接口"}`,
 		ResponseExample: `{"code":0,"data":{},"msg":"操作成功"}`,
 	},
-	"GET /api/v1/wafhost/allowurl/del": {
+	"GET /api/v1/wafhost/urlwhite/del": {
 		Description:     "删除URL白名单",
 		ParamExample:    `?id=xxx`,
 		ResponseExample: `{"code":0,"data":{},"msg":"操作成功"}`,
@@ -218,28 +218,28 @@ var routeDetailMap = map[string]routeDetail{
 		ParamExample:    `{"pageIndex":1,"pageSize":10,"host_code":"","src_ip":"","action":"","unix_add_time_begin":"2026-01-01 00:00:00","unix_add_time_end":"2026-12-31 23:59:59"}`,
 		ResponseExample: `{"code":0,"data":{"list":[{"req_uuid":"xxx","src_ip":"1.2.3.4","rule":"SQL注入","action":"block","time_str":"2026-03-06 10:00:00"}],"total":100},"msg":"查询成功"}`,
 	},
-	"POST /api/v1/waflog/attack/detail": {
+	"GET /api/v1/waflog/attack/detail": {
 		Description:     "获取攻击日志详情",
-		ParamExample:    `{"req_uuid":"xxx-yyy-zzz","current_db_name":"local_log"}`,
+		ParamExample:    `?req_uuid=xxx-yyy-zzz&current_db_name=local_log`,
 		ResponseExample: `{"code":0,"data":{"req_uuid":"xxx","src_ip":"1.2.3.4","method":"POST","url":"/login","body":"..."},"msg":"查询成功"}`,
 	},
 
 	// ======== 统计-数据统计 ========
-	"POST /api/v1/stat/dayrangecount": {
+	"GET /api/v1/wafstatsumdayrange": {
 		Description:     "按日期范围统计访问量/拦截量",
-		ParamExample:    `{"begin_date":"2026-01-01","end_date":"2026-03-06","host_code":""}`,
+		ParamExample:    `?start_day=2026-01-01&end_day=2026-03-06`,
 		ResponseExample: `{"code":0,"data":{"list":[{"date":"2026-03-06","total":1000,"block":50}]},"msg":"查询成功"}`,
 	},
-	"POST /api/v1/stat/ipcount": {
+	"GET /api/v1/wafstatsumdaytopiprange": {
 		Description:     "统计攻击IP排行",
-		ParamExample:    `{"begin_date":"2026-01-01","end_date":"2026-03-06","host_code":"","top":10}`,
+		ParamExample:    `?start_day=2026-01-01&end_day=2026-03-06`,
 		ResponseExample: `{"code":0,"data":{"list":[{"src_ip":"1.2.3.4","count":500}]},"msg":"查询成功"}`,
 	},
 
 	// ======== 系统日志 ========
-	"POST /api/v1/syslog/list": {
+	"GET /api/v1/sys_log/list": {
 		Description:     "获取系统操作日志列表（分页）",
-		ParamExample:    `{"pageIndex":1,"pageSize":10,"op_type":"","op_content":""}`,
+		ParamExample:    `?pageIndex=1&pageSize=10&op_type=&op_content=`,
 		ResponseExample: `{"code":0,"data":{"list":[{"op_type":"login","op_content":"用户登录","time_str":"2026-03-06 10:00:00"}],"total":50},"msg":"查询成功"}`,
 	},
 
@@ -266,31 +266,31 @@ var routeDetailMap = map[string]routeDetail{
 		ParamExample:    `{"pageIndex":1,"pageSize":50,"config_type":""}`,
 		ResponseExample: `{"code":0,"data":{"list":[{"config_type":"ssl","config_key":"sslorder_expire_day","config_value":"30"}],"total":10},"msg":"查询成功"}`,
 	},
-	"POST /api/v1/systemconfig/updateitem": {
+	"POST /api/v1/systemconfig/editByItem": {
 		Description:     "更新单个系统配置项",
 		ParamExample:    `{"config_type":"ssl","config_key":"sslorder_expire_day","config_value":"15"}`,
 		ResponseExample: `{"code":0,"data":{},"msg":"操作成功"}`,
 	},
 
 	// ======== 系统信息 ========
-	"GET /api/v1/sysinfo/info": {
+	"GET /api/v1/sysinfo/runtimeinfo": {
 		Description:     "获取系统运行信息（CPU、内存、版本等）",
 		ParamExample:    `(无需参数)`,
 		ResponseExample: `{"code":0,"data":{"cpu_percent":10.5,"mem_percent":40.2,"version":"1.x.x"},"msg":"查询成功"}`,
 	},
 
 	// ======== SSL证书配置 ========
-	"POST /api/v1/wafhost/sslconfig/list": {
+	"POST /api/v1/sslconfig/list": {
 		Description:     "获取SSL证书列表（分页）",
 		ParamExample:    `{"pageIndex":1,"pageSize":10}`,
 		ResponseExample: `{"code":0,"data":{"list":[{"id":"xxx","domain":"example.com","expire_time":"2027-01-01"}],"total":1},"msg":"查询成功"}`,
 	},
-	"POST /api/v1/wafhost/sslconfig/add": {
+	"POST /api/v1/sslconfig/add": {
 		Description:     "上传新增SSL证书",
 		ParamExample:    `{"domain":"example.com","cert_content":"-----BEGIN CERTIFICATE-----...","key_content":"-----BEGIN PRIVATE KEY-----..."}`,
 		ResponseExample: `{"code":0,"data":{},"msg":"操作成功"}`,
 	},
-	"GET /api/v1/wafhost/sslconfig/del": {
+	"GET /api/v1/sslconfig/del": {
 		Description:     "删除SSL证书",
 		ParamExample:    `?id=xxx`,
 		ResponseExample: `{"code":0,"data":{},"msg":"操作成功"}`,
@@ -343,17 +343,17 @@ var routeDetailMap = map[string]routeDetail{
 	},
 
 	// ======== 防火墙IP封禁 ========
-	"POST /api/v1/firewallipblock/list": {
+	"POST /api/v1/firewall/ipblock/list": {
 		Description:     "获取防火墙IP封禁规则列表（分页）",
 		ParamExample:    `{"pageIndex":1,"pageSize":10}`,
 		ResponseExample: `{"code":0,"data":{"list":[],"total":0},"msg":"查询成功"}`,
 	},
-	"POST /api/v1/firewallipblock/add": {
+	"POST /api/v1/firewall/ipblock/add": {
 		Description:     "新增防火墙IP封禁规则",
 		ParamExample:    `{"ip":"1.2.3.4","remarks":"攻击者","expire_time":""}`,
 		ResponseExample: `{"code":0,"data":{},"msg":"操作成功"}`,
 	},
-	"GET /api/v1/firewallipblock/del": {
+	"GET /api/v1/firewall/ipblock/del": {
 		Description:     "删除防火墙IP封禁规则",
 		ParamExample:    `?id=xxx`,
 		ResponseExample: `{"code":0,"data":{},"msg":"操作成功"}`,
@@ -426,31 +426,31 @@ var routeDetailMap = map[string]routeDetail{
 	},
 
 	// ======== IP失败封禁 ========
-	"POST /api/v1/wafhost/ipfailure/list": {
-		Description:     "获取IP失败封禁规则列表（分页）",
-		ParamExample:    `{"pageIndex":1,"pageSize":10,"host_code":"abc123"}`,
+	"GET /api/v1/wafhost/ipfailure/config": {
+		Description:     "获取指定站点的IP失败封禁策略配置",
+		ParamExample:    `?host_code=abc123`,
+		ResponseExample: `{"code":0,"data":{"host_code":"abc123","url":"/login","fail_count":5},"msg":"查询成功"}`,
+	},
+	"GET /api/v1/wafhost/ipfailure/baniplist": {
+		Description:     "获取IP失败封禁命中的IP列表",
+		ParamExample:    `?host_code=abc123`,
 		ResponseExample: `{"code":0,"data":{"list":[],"total":0},"msg":"查询成功"}`,
 	},
-	"POST /api/v1/wafhost/ipfailure/add": {
-		Description:     "新增IP失败次数封禁规则",
+	"POST /api/v1/wafhost/ipfailure/config": {
+		Description:     "设置IP失败次数封禁策略（按站点）",
 		ParamExample:    `{"host_code":"abc123","url":"/login","fail_count":5,"time_window":300,"block_time":3600,"remarks":"登录失败封禁"}`,
 		ResponseExample: `{"code":0,"data":{},"msg":"操作成功"}`,
 	},
 
 	// ======== WAF引擎 ========
-	"GET /api/v1/wafhost/engine/status": {
-		Description:     "获取WAF引擎运行状态",
-		ParamExample:    `(无需参数)`,
-		ResponseExample: `{"code":0,"data":{"status":"running","host_count":5},"msg":"查询成功"}`,
-	},
-	"POST /api/v1/wafhost/engine/restart": {
+	"GET /api/v1/resetWAF": {
 		Description:     "重启WAF引擎（重新加载所有规则和配置）",
-		ParamExample:    `{}`,
+		ParamExample:    `(无需参数)`,
 		ResponseExample: `{"code":0,"data":{},"msg":"操作成功"}`,
 	},
 
 	// ======== 系统监控 ========
-	"GET /api/v1/monitor/info": {
+	"GET /api/v1/monitor/system_info": {
 		Description:     "获取实时系统监控数据（CPU、内存、网络流量）",
 		ParamExample:    `(无需参数)`,
 		ResponseExample: `{"code":0,"data":{"cpu":15.2,"mem":40.5,"net_in":1024,"net_out":2048},"msg":"查询成功"}`,
@@ -473,16 +473,16 @@ var routeDetailMap = map[string]routeDetail{
 var routeModuleMap = map[string]string{
 	"/api/v1/wafhost/host":         "网站防护-主机管理",
 	"/api/v1/wafhost/rule":         "网站防护-规则管理",
-	"/api/v1/wafhost/allowip":      "网站防护-IP白名单",
-	"/api/v1/wafhost/allowurl":     "网站防护-URL白名单",
+	"/api/v1/wafhost/ipwhite":      "网站防护-IP白名单",
+	"/api/v1/wafhost/urlwhite":     "网站防护-URL白名单",
 	"/api/v1/wafhost/ldpurl":       "网站防护-隐私保护URL",
-	"/api/v1/wafhost/blockip":      "网站防护-IP黑名单",
-	"/api/v1/wafhost/blockurl":     "网站防护-URL黑名单",
+	"/api/v1/wafhost/ipblock":      "网站防护-IP黑名单",
+	"/api/v1/wafhost/urlblock":     "网站防护-URL黑名单",
 	"/api/v1/wafhost/anticc":       "网站防护-CC防护",
 	"/api/v1/wafhost/ipfailure":    "网站防护-IP失败封禁",
 	"/api/v1/wafhost/sensitive":    "网站防护-敏感词",
 	"/api/v1/wafhost/loadbalance":  "网站防护-负载均衡",
-	"/api/v1/wafhost/sslconfig":    "SSL-证书配置",
+	"/api/v1/sslconfig":            "SSL-证书配置",
 	"/api/v1/wafhost/sslorder":     "SSL-证书申请",
 	"/api/v1/wafhost/sslexpire":    "SSL-证书过期",
 	"/api/v1/wafhost/httpauthbase": "网站防护-HTTP认证",
@@ -490,11 +490,11 @@ var routeModuleMap = map[string]string{
 	"/api/v1/wafhost/cacherule":    "网站防护-缓存规则",
 	"/api/v1/wafhost/otp":          "安全-OTP双因素",
 	"/api/v1/waflog/attack":        "日志-攻击日志",
-	"/api/v1/stat":                 "统计-数据统计",
-	"/api/v1/wafhost/engine":       "引擎-WAF引擎",
+	"/api/v1/wafstat":              "统计-数据统计",
+	"/api/v1/resetWAF":             "引擎-WAF引擎",
 	"/api/v1/account":              "账号管理",
-	"/api/v1/accountlog":           "账号日志",
-	"/api/v1/syslog":               "系统日志",
+	"/api/v1/account_log":          "账号日志",
+	"/api/v1/sys_log":              "系统日志",
 	"/api/v1/sysinfo":              "系统信息",
 	"/api/v1/systemconfig":         "系统配置",
 	"/api/v1/wafcommon":            "公共接口",
@@ -515,7 +515,7 @@ var routeModuleMap = map[string]string{
 	"/api/v1/notify/channel":       "通知-渠道",
 	"/api/v1/notify/subscription":  "通知-订阅",
 	"/api/v1/notify/log":           "通知-日志",
-	"/api/v1/firewallipblock":      "防火墙-IP封禁",
+	"/api/v1/firewall/ipblock":     "防火墙-IP封禁",
 	"/api/v1/plugin":               "插件管理",
 	"/api/v1/logfilewrite":         "日志文件写入",
 	"/api/v1/iplocation":           "IP地址库",

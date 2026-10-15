@@ -102,7 +102,7 @@ func TestLogDetailAPIsHandleErrorsAndLegacyIDs(t *testing.T) {
 				{"invalid", "req_bad\nvalue", "local_log.db", "格式不正确", response.ERROR},
 			} {
 				t.Run(handler.name+"/"+format+"/"+tc.name, func(t *testing.T) {
-					query := url.Values{"REQ_UUID": {tc.id}, "current_db_name": {tc.shard}, "output_format": {format}}
+					query := url.Values{"req_uuid": {tc.id}, "current_db_name": {tc.shard}, "output_format": {format}}
 					got := callLogTestAPI(t, handler.call, http.MethodGet, "/t?"+query.Encode(), "")
 					if got.Code != tc.wantCode || !strings.Contains(got.Msg, tc.wantMsg) {
 						t.Fatalf("expected code=%d msg contains %q, got %+v", tc.wantCode, tc.wantMsg, got)
@@ -115,7 +115,7 @@ func TestLogDetailAPIsHandleErrorsAndLegacyIDs(t *testing.T) {
 					} else if handler.name == "detail" {
 						data, ok := got.Data.(map[string]interface{})
 						if !ok || data["req_uuid"] != "req_nonstandard_0" {
-							t.Fatalf("REQ_UUID form binding failed: %+v", got.Data)
+							t.Fatalf("req_uuid form binding failed: %+v", got.Data)
 						}
 					} else if data, ok := got.Data.(string); !ok || !strings.Contains(data, "GET") || strings.Contains(data, "curl -X  ") {
 						t.Fatalf("copy should contain a populated request: %+v", got.Data)
@@ -128,7 +128,7 @@ func TestLogDetailAPIsHandleErrorsAndLegacyIDs(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, handler := range []gin.HandlerFunc{api.GetDetailApi, api.GetHttpCopyMaskApi} {
-		got := callLogTestAPI(t, handler, http.MethodGet, "/t?REQ_UUID=req_nonstandard_0&current_db_name=local_log.db&output_format=curl", "")
+		got := callLogTestAPI(t, handler, http.MethodGet, "/t?req_uuid=req_nonstandard_0&current_db_name=local_log.db&output_format=curl", "")
 		if got.Code != response.ERROR || !strings.Contains(got.Msg, "查询日志详情失败") {
 			t.Fatalf("read failure must propagate: %+v", got)
 		}

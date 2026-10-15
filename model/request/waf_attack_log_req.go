@@ -4,9 +4,9 @@ import "SamWaf/model/common/request"
 
 type WafAttackLogDetailReq struct {
 	// detail/httpcopymask 为 GET 请求，需 form tag 才能从 query 绑定；
-	// 前端发送的 query 键为 current_db_name / REQ_UUID / output_format
+	// query 键与 json tag 同名（全小写），Swagger 与产品内文档按此书写
 	CurrrentDbName string `json:"current_db_name" form:"current_db_name"`
-	REQ_UUID       string `json:"req_uuid" form:"REQ_UUID" binding:"required,max=64"`
+	REQ_UUID       string `json:"req_uuid" form:"req_uuid" binding:"required,max=64"`
 	OutputFormat   string `json:"output_format" form:"output_format"` //输出格式 raw,curl
 }
 

@@ -902,13 +902,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	} else {
-		w.WriteHeader(403)
-		resBytes := []byte("403: Host forbidden " + host)
-		_, err := w.Write(resBytes)
-		if err != nil {
-			zlog.Debug("write fail:", zap.Any("", err))
-			return
-		}
+		resBytes := writeUnmatchedHostResponse(w, r, waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME])
 		// 获取请求报文的内容长度（chunked 时 Go 给 -1，先归一，避免统计出现负数）
 		contentLength := sanitizeContentLength(r.ContentLength)
 

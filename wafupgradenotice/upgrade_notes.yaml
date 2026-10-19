@@ -12,6 +12,22 @@
 #   5. fresh_install: true 的条目只在"全新安装"时生成，不参与版本区间计算
 
 notes:
+  - id: v1_3_25_unmatched_website_response
+    version: v1.3.25
+    kind: check
+    level: normal
+    page: /waf-host/wafBlockingPagelist
+    apply:
+      type: navigate
+    zh:
+      title: 未匹配网站时显示接入引导，支持全局自定义页面
+      detail: 未匹配到网站的请求统一返回 403 页面，内置页面提示管理员在「网站防护」中新建对应主机。可在「自定义拦截响应界面 → 未匹配网站响应」编辑全局专用 HTML，留空恢复内置页面；已有网站的拦截模板继续单独生效。
+      revert: 将专用 HTML 清空并保存即可恢复内置引导页；HTTP 状态码保持 403。
+    en:
+      title: Setup guidance and a global custom page for unmatched websites
+      detail: Requests that do not match a website return a 403 page. The built-in page guides administrators to add a host under Website Protection. Edit the dedicated global HTML under Custom Blocking Response Pages > Unmatched Website Response, or leave it blank to use the built-in page. Blocking templates for configured websites remain separate.
+      revert: Clear the dedicated HTML and save to restore the built-in guidance page. The HTTP status remains 403.
+
   # ---------------- 全新安装建议 ----------------
   - id: fresh_change_default_password
     version: v1.3.21

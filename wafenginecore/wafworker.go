@@ -150,14 +150,14 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 
 	//查询自定义拦截界面
 	var blockingPageList []model.BlockingPage
-	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&blockingPageList)
+	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Order("update_time ASC, id ASC").Find(&blockingPageList)
 	blockingPageMap := map[string]model.BlockingPage{}
 	if len(blockingPageList) > 0 {
 		for i := 0; i < len(blockingPageList); i++ {
 			if blockingPageList[i].BlockingType == "not_match_website" {
 				// 域名不匹配使用固定的key
 				blockingPageMap["not_match_website"] = blockingPageList[i]
-			} else if blockingPageList[i].BlockingType == "other_block" {
+			} else if blockingPageList[i].BlockingType == "other_block" && blockingPageList[i].ResponseCode != "not_match_website" {
 				// other_block 类型根据 response_code 区分不同的错误页面
 				// 例如: 403(WAF拦截), 404, 500, 502 等
 				if blockingPageList[i].ResponseCode != "" {

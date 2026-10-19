@@ -178,3 +178,31 @@ func TestHealthValidSingleKeys(t *testing.T) {
 		t.Fatalf("dial addresses: %v", addrs)
 	}
 }
+
+// 复刻 issue IKM3X4：关闭健康检测的站点不再产生探测，其残留状态条目
+// 必须在下一轮清理中被移除，否则列表永远显示关闭前的冻结数据。
+func TestHealthDisabledHostStatusCleaned(t *testing.T) {
+	isolateHealthStatus(t)
+	config := model.HealthyConfig{FailCount: 2, SuccessCount: 2}
+	updateHealthStatus("off", "single", true, 10, "", "127.0.0.1", 8080, config)
+	updateHealthStatus("on", "single", true, 10, "", "127.0.0.2", 8081, config)
+
+	hosts := []model.Hosts{
+		{Code: "off", Remote_ip: "127.0.0.1", Remote_port: 8080, HealthyJSON: `{"is_enable_healthy":0}`},
+		{Code: "on", Remote_ip: "127.0.0.2", Remote_port: 8081, HealthyJSON: `{"is_enable_healthy":1}`},
+	}
+	keys, addrs := buildValidKeys(hosts)
+	if _, ok := keys["off_single"]; ok {
+		t.Fatalf("disabled host key must not be valid: %v", keys)
+	}
+	if _, ok := addrs["127.0.0.1:8080"]; ok {
+		t.Fatalf("disabled host dial address must not be valid: %v", addrs)
+	}
+	wafenginecore.CleanupStaleHealthStatus(keys)
+	if wafenginecore.GetBackendHealthy("off", "single") != nil {
+		t.Fatal("stale entry of disabled host should be cleaned")
+	}
+	if wafenginecore.GetBackendHealthy("on", "single") == nil {
+		t.Fatal("enabled host entry should be kept")
+	}
+}

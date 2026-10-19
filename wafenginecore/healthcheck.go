@@ -2,6 +2,7 @@ package wafenginecore
 
 import (
 	"SamWaf/model/wafenginmodel"
+	"strings"
 )
 
 var hostStatus = &wafenginmodel.HostStatus{}
@@ -35,6 +36,18 @@ func CleanupStaleHealthStatus(validKeys map[string]struct{}) {
 	defer hostStatus.Mux.Unlock()
 	for k := range hostStatus.HealthyStatus {
 		if _, ok := validKeys[k]; !ok {
+			delete(hostStatus.HealthyStatus, k)
+		}
+	}
+}
+
+// CleanupHostHealthStatus 删除指定站点在状态表中的残留条目（健康检测配置变更时重置计票）
+func CleanupHostHealthStatus(hostCode string) {
+	hostStatus.Mux.Lock()
+	defer hostStatus.Mux.Unlock()
+	prefix := hostCode + "_"
+	for k := range hostStatus.HealthyStatus {
+		if strings.HasPrefix(k, prefix) {
 			delete(hostStatus.HealthyStatus, k)
 		}
 	}

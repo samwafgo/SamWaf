@@ -18,10 +18,15 @@ import (
 )
 
 // buildValidKeys returns active status keys and transport dial addresses.
+// 关闭健康检测的站点不产生探测，其 key 不参与 valid 集合，
+// 残留状态条目由本轮 CleanupStaleHealthStatus 一并清除（issue IKM3X4）。
 func buildValidKeys(hosts []model.Hosts) (statusKeys map[string]struct{}, dialAddrs map[string]struct{}) {
 	statusKeys = make(map[string]struct{})
 	dialAddrs = make(map[string]struct{})
 	for _, host := range hosts {
+		if scheduledHealthConfig(host.HealthyJSON).IsEnableHealthy != 1 {
+			continue
+		}
 		if host.IsEnableLoadBalance > 0 {
 			loadBalances := waf_service.WafLoadBalanceServiceApp.GetListByHostCodeApi(host.Code)
 			for i, lb := range loadBalances {

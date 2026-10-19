@@ -513,6 +513,10 @@ func (w *WafHostAPi) ModifyHostApi(c *gin.Context) {
 		if err != nil {
 			response.FailWithMessage("编辑发生错误", c)
 		} else {
+			// 健康检测配置变化时重置该站点的健康计票：关闭后立即清除旧状态，开启后从头计票
+			if wafHostOld.HealthyJSON != req.HealthyJSON {
+				wafenginecore.CleanupHostHealthStatus(req.CODE)
+			}
 			w.NotifyWaf(req.CODE, wafHostOld)
 			response.OkWithMessage("编辑成功", c)
 		}

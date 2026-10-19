@@ -28,6 +28,22 @@ notes:
       detail: Requests that do not match a website return a 403 page. The built-in page guides administrators to add a host under Website Protection. Edit the dedicated global HTML under Custom Blocking Response Pages > Unmatched Website Response, or leave it blank to use the built-in page. Blocking templates for configured websites remain separate.
       revert: Clear the dedicated HTML and save to restore the built-in guidance page. The HTTP status remains 403.
 
+  - id: v1_3_25_health_check_status_refresh
+    version: v1.3.25
+    kind: check
+    level: low
+    page: /waf-host/wafhost
+    apply:
+      type: navigate
+    zh:
+      title: 健康检测配置变化后，列表状态立即重置
+      detail: 编辑站点修改健康检测配置（开关或检测参数）并保存后，该站点的健康状态立即清除并重新计票：关闭检测后列表显示「检测已关闭」不再残留旧数据；重新开启后从「暂无数据」开始重新检测。此前关闭检测后列表会一直显示关闭前的旧状态。
+      revert: 无需操作，保存站点配置即按新逻辑生效。
+    en:
+      title: Health check status now resets immediately when its settings change
+      detail: After editing a host and saving health check settings (the toggle or any probe parameter), the host's health status is cleared and counting restarts. Disabling the check shows "Check off" in the list without leftover data; re-enabling starts from "No data yet". Previously the list kept showing the pre-disable state indefinitely.
+      revert: No action needed; saving the host applies the new behavior.
+
   # ---------------- 全新安装建议 ----------------
   - id: fresh_change_default_password
     version: v1.3.21

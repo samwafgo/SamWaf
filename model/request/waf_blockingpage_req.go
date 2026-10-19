@@ -31,4 +31,6 @@ type WafBlockingPageDelReq struct {
 }
 type WafBlockingPageSearchReq struct {
 	request.PageInfo
+	HostCode     string `json:"host_code" form:"host_code" binding:"max=64"`
+	BlockingType string `json:"blocking_type" form:"blocking_type" binding:"omitempty,oneof=other_block not_match_website"`
 }

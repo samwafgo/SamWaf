@@ -34,8 +34,7 @@ func (receiver *WafBlockingPageService) AddApi(req request.WafBlockingPageAddReq
 		ResponseContent:  req.ResponseContent,
 		ContentPriority:  req.ContentPriority,
 	}
-	global.GWAF_LOCAL_DB.Create(bean)
-	return nil
+	return global.GWAF_LOCAL_DB.Create(bean).Error
 }
 
 func (receiver *WafBlockingPageService) CheckIsExistApi(req request.WafBlockingPageAddReq) int {
@@ -62,7 +61,7 @@ func (receiver *WafBlockingPageService) CheckIsExistApi(req request.WafBlockingP
 
 	// 对于 other_block 类型，需要检查 response_code 的唯一性
 	// 同一个网站下，相同的 blocking_type + response_code 组合必须唯一
-	if len(req.ResponseCode) > 0 {
+	if req.BlockingType != "not_match_website" && len(req.ResponseCode) > 0 {
 		if len(whereField) > 0 {
 			whereField = whereField + " and "
 		}
@@ -83,7 +82,7 @@ func (receiver *WafBlockingPageService) CheckIsExistApi(req request.WafBlockingP
 		}
 	}
 
-	if len(req.ResponseCode) > 0 {
+	if req.BlockingType != "not_match_website" && len(req.ResponseCode) > 0 {
 		if len(whereField) > 0 {
 			whereValues = append(whereValues, req.ResponseCode)
 		}
@@ -119,7 +118,7 @@ func (receiver *WafBlockingPageService) ModifyApi(req request.WafBlockingPageEdi
 
 	// 对于 other_block 类型，需要检查 response_code 的唯一性
 	// 同一个网站下，相同的 blocking_type + response_code 组合必须唯一
-	if len(req.ResponseCode) > 0 {
+	if req.BlockingType != "not_match_website" && len(req.ResponseCode) > 0 {
 		if len(whereField) > 0 {
 			whereField = whereField + " and "
 		}
@@ -136,16 +135,15 @@ func (receiver *WafBlockingPageService) ModifyApi(req request.WafBlockingPageEdi
 		whereValues = append(whereValues, req.HostCode)
 	}
 
-	if len(req.ResponseCode) > 0 {
+	if req.BlockingType != "not_match_website" && len(req.ResponseCode) > 0 {
 		whereValues = append(whereValues, req.ResponseCode)
 	}
 
-	global.GWAF_LOCAL_DB.Model(&model.BlockingPage{}).Where(whereField, whereValues...).Count(&total)
-	// 查询是否已存在记录
-	var bean model.BlockingPage
-	global.GWAF_LOCAL_DB.Model(&model.BlockingPage{}).Where(whereField, whereValues...).Limit(1).Find(&bean)
-
-	if int(total) > 0 && bean.Id != "" && bean.Id != req.Id {
+	err := global.GWAF_LOCAL_DB.Model(&model.BlockingPage{}).Where(whereField, whereValues...).Where("id <> ?", req.Id).Count(&total).Error
+	if err != nil {
+		return err
+	}
+	if total > 0 {
 		return errors.New("当前记录已经存在")
 	}
 
@@ -162,7 +160,7 @@ func (receiver *WafBlockingPageService) ModifyApi(req request.WafBlockingPageEdi
 
 		"UPDATE_TIME": customtype.JsonTime(time.Now()),
 	}
-	err := global.GWAF_LOCAL_DB.Model(model.BlockingPage{}).Where("id = ?", req.Id).Updates(beanMap).Error
+	err = global.GWAF_LOCAL_DB.Model(model.BlockingPage{}).Where("id = ?", req.Id).Updates(beanMap).Error
 
 	return err
 }
@@ -179,10 +177,21 @@ func (receiver *WafBlockingPageService) GetDetailByIdApi(id string) model.Blocki
 func (receiver *WafBlockingPageService) GetListApi(req request.WafBlockingPageSearchReq) ([]model.BlockingPage, int64, error) {
 	var list []model.BlockingPage
 	var total int64 = 0
-	global.GWAF_LOCAL_DB.Model(&model.BlockingPage{}).Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&list)
-	global.GWAF_LOCAL_DB.Model(&model.BlockingPage{}).Count(&total)
-
-	return list, total, nil
+	query := global.GWAF_LOCAL_DB.Model(&model.BlockingPage{})
+	if req.HostCode != "" {
+		query = query.Where("host_code = ?", req.HostCode)
+	}
+	if req.BlockingType != "" {
+		query = query.Where("blocking_type = ?", req.BlockingType)
+	} else {
+		// 主列表只维护通用拦截模板；全局未匹配网站的专用记录由独立入口管理
+		query = query.Where("blocking_type <> ? OR blocking_type IS NULL", "not_match_website")
+	}
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	err := query.Order("update_time DESC, id DESC").Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&list).Error
+	return list, total, err
 }
 func (receiver *WafBlockingPageService) DelApi(req request.WafBlockingPageDelReq) error {
 	var bean model.BlockingPage

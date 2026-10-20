@@ -142,7 +142,7 @@ func InvalidateShardCounts() {
 func countCacheKey(req request.WafAttackLogSearch, shard string) string {
 	return strings.Join([]string{
 		shard, req.ViewType, req.HostCode, req.Rule, req.ReqUuid, req.Action,
-		req.SrcIp, req.StatusCode, req.Method, req.LogOnlyMode, req.FilterBy, req.FilterValue,
+		req.SrcIp, req.StatusCode, req.Method, req.LogOnlyMode, req.FilterBy, req.FilterValue, strconv.Quote(req.URLKeyword),
 	}, "")
 }
 
@@ -350,6 +350,15 @@ func buildLogQuery(req request.WafAttackLogSearch, shardName string, ignoreTime 
 				whereValues = append(whereValues, "%"+val+"%")
 			}
 		}
+	}
+
+	if req.URLKeyword != "" {
+		if whereField != "" {
+			whereField += " and "
+		}
+		whereField += " url like ? escape '!' "
+		keyword := strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(req.URLKeyword)
+		whereValues = append(whereValues, "%"+keyword+"%")
 	}
 
 	orderInfo := ""

@@ -78,7 +78,7 @@ func (w *WafLogAPi) GetDetailApi(c *gin.Context) {
 
 // GetListApi 获取攻击日志列表
 // @Summary      获取攻击日志列表
-// @Description  分页查询攻击日志，支持按主机码、规则、IP、时间范围等过滤
+// @Description  分页查询攻击日志，支持按主机码、规则、IP、URL关键字、时间范围等过滤
 // @Tags         日志-攻击日志
 // @Accept       json
 // @Produce      json

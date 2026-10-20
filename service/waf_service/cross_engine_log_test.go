@@ -18,6 +18,37 @@ import (
 )
 
 func runLogCases(t *testing.T, logdb *gorm.DB) {
+	t.Run("URLKeyword", func(t *testing.T) {
+		host := "url_" + sfx()
+		now := time.Now().UnixMilli()
+		for i, url := range []string{"/a_b%20!x|z?q=中文", "/aXbZ20!x|z?q=中文"} {
+			narrow := model.LogNarrow{
+				ReqUUID: fmt.Sprintf("%s_%d", host, i), HostCode: host, URL: url,
+				TenantId: xtestTenant, UserCode: xtestUser, UNIX_ADD_TIME: now,
+				CREATE_TIME: time.Now().Format("2006-01-02 15:04:05"),
+			}
+			must(t, logdb.Create(&model.AccessLog{LogNarrow: narrow}).Error)
+			must(t, logdb.Create(&model.SecurityEvent{LogNarrow: narrow}).Error)
+		}
+		defer logdb.Where("host_code = ?", host).Delete(&model.AccessLog{})
+		defer logdb.Where("host_code = ?", host).Delete(&model.SecurityEvent{})
+		for _, view := range []string{"access", "event"} {
+			for _, tc := range []struct {
+				keyword string
+				want    int64
+			}{{"", 2}, {"a_b", 1}, {"%20", 1}, {"!x|z?q=中文", 2}, {"missing", 0}} {
+				r := req.WafAttackLogSearch{
+					HostCode: host, ViewType: view, URLKeyword: tc.keyword,
+					UnixAddTimeBegin: "0", UnixAddTimeEnd: fmt.Sprint(now + 1), SortBy: "unix_add_time",
+					PageInfo: request.PageInfo{PageIndex: 1, PageSize: 10},
+				}
+				rows, total, err := WafLogServiceApp.GetListApi(r)
+				if err != nil || total != tc.want || int64(len(rows)) != tc.want {
+					t.Fatalf("view=%s keyword=%q want=%d total=%d len=%d err=%v", view, tc.keyword, tc.want, total, len(rows), err)
+				}
+			}
+		}
+	})
 	// WebLog：走 WafLogServiceApp.AddApi（TASK_FLAG 默认 -1，曾按值 Create 有 #885 类崩溃风险）
 	t.Run("WebLog", func(t *testing.T) {
 		uid := "req_" + sfx()

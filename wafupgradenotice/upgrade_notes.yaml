@@ -12,6 +12,22 @@
 #   5. fresh_install: true 的条目只在"全新安装"时生成，不参与版本区间计算
 
 notes:
+  - id: v1_3_25_log_url_keyword
+    version: v1.3.25
+    kind: check
+    level: low
+    page: /waf/wafvisitlog
+    apply:
+      type: navigate
+    zh:
+      title: 访问日志支持按 URL 关键字查询
+      detail: 在访问日志顶部填写访问 URL 的路径或关键字，可与网站、日期、来源 IP 等条件组合查询访问记录。查询包含原始路径与查询串，百分号和下划线按字面匹配；域名请通过网站条件筛选。访问日志与安全事件视图、历史归档均适用，窄行中 URL 超过保留上限的部分不参与匹配。
+      revert: 清空访问 URL 条件后重新查询，即恢复原查询范围。
+    en:
+      title: Search access logs by URL keyword
+      detail: Enter a path or keyword in the Access URL field and combine it with website, date, source IP and other filters. The search matches the stored path and query string, treating percent signs and underscores literally. Use the website filter to select a domain. Both access and security event views, including archived logs, support this filter; URL content beyond the narrow-row storage limit is unavailable for matching.
+      revert: Clear the Access URL field and search again to restore the previous scope.
+
   - id: v1_3_25_admin_titles
     version: v1.3.25
     kind: check

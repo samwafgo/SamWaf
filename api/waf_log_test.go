@@ -89,7 +89,7 @@ func TestLogDetailAPIsHandleErrorsAndLegacyIDs(t *testing.T) {
 		for _, format := range []string{"raw", "curl"} {
 			for _, tc := range []struct {
 				name, id, shard, wantMsg string
-				wantCode int
+				wantCode                 int
 			}{
 				{"legacy-form", "req_nonstandard_0", "local_log.db", "获取成功", response.SUCCESS},
 				{"trimmed", "  req_nonstandard_0  ", "local_log.db", "获取成功", response.SUCCESS},
@@ -135,12 +135,61 @@ func TestLogDetailAPIsHandleErrorsAndLegacyIDs(t *testing.T) {
 	}
 }
 
+func TestLogListAPIURLKeyword(t *testing.T) {
+	db := setupLogAPITest(t)
+	literal := "/api/a_b%20!x|z?q=中文"
+	for _, table := range []string{model.AccessLogTableName, model.SecurityEventTableName} {
+		if err := db.Table(table).Where("req_uuid = ?", "req_nonstandard_0").Update("url", literal).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	api := &WafLogAPi{}
+	for _, view := range []string{"access", "event"} {
+		for _, tc := range []struct {
+			name, keyword string
+			wantCode      int
+			wantTotal     float64
+		}{
+			{"empty", "", response.SUCCESS, 1},
+			{"literal", "a_b%20!x|z?q=中文", response.SUCCESS, 1},
+			{"unmatched", "/missing", response.SUCCESS, 0},
+			{"max-characters", strings.Repeat("中", 2048), response.SUCCESS, 0},
+			{"over-limit", strings.Repeat("中", 2049), response.ERROR, 0},
+		} {
+			t.Run(view+"/"+tc.name, func(t *testing.T) {
+				body, err := json.Marshal(map[string]interface{}{
+					"url_keyword": tc.keyword, "view_type": view, "current_db_name": "local_log.db",
+					"unix_add_time_begin": "0", "unix_add_time_end": "10",
+					"sort_by": "unix_add_time", "sort_descending": "desc", "pageIndex": 1, "pageSize": 10,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				got := callLogTestAPI(t, api.GetListApi, http.MethodPost, "/t", string(body))
+				if got.Code != tc.wantCode {
+					t.Fatalf("expected code=%d, got %+v", tc.wantCode, got)
+				}
+				if got.Code == response.SUCCESS {
+					data, ok := got.Data.(map[string]interface{})
+					if !ok || data["total"] != tc.wantTotal {
+						t.Fatalf("expected total=%v, got %+v", tc.wantTotal, got.Data)
+					}
+				}
+			})
+		}
+	}
+	got := callLogTestAPI(t, api.GetListApi, http.MethodPost, "/t", `{"url_keyword":123}`)
+	if got.Code != response.ERROR {
+		t.Fatalf("numeric URL keyword must fail binding: %+v", got)
+	}
+}
+
 func TestLogListAPIUUIDValidationAndSelectedShard(t *testing.T) {
 	setupLogAPITest(t)
 	api := &WafLogAPi{}
 	for _, tc := range []struct {
-		name, id string
-		wantCode int
+		name, id  string
+		wantCode  int
 		wantTotal float64
 	}{
 		{"legacy-trimmed", "  req_nonstandard_0  ", response.SUCCESS, 1},

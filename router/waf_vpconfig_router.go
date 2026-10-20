@@ -11,6 +11,10 @@ import (
 type WafVpConfigRouter struct {
 }
 
+func (receiver *WafVpConfigRouter) InitAdminTitlesPublicRouter(group *gin.RouterGroup) {
+	group.GET("/api/v1/public/uiconfig", api.APIGroupAPP.WafVpConfigApi.GetAdminTitlesApi)
+}
+
 func (receiver *WafVpConfigRouter) InitWafVpConfigRouter(group *gin.RouterGroup) {
 	wafVpConfigApi := api.APIGroupAPP.WafVpConfigApi
 	// 读接口：任意已登录管理员可查看当前配置
@@ -22,6 +26,7 @@ func (receiver *WafVpConfigRouter) InitWafVpConfigRouter(group *gin.RouterGroup)
 	router.GET("/api/v1/vipconfig/getSslStatus", wafVpConfigApi.GetSslStatusApi)
 	router.GET("/api/v1/vipconfig/getSecurityEntry", wafVpConfigApi.GetSecurityEntryApi)
 	router.GET("/api/v1/vipconfig/getNoticeTitle", wafVpConfigApi.GetNoticeTitleApi)
+	router.GET("/api/v1/vipconfig/getAdminTitles", wafVpConfigApi.GetAdminTitlesApi)
 	router.GET("/api/v1/vipconfig/getDomainWhitelist", wafVpConfigApi.GetDomainWhitelistApi)
 	router.GET("/api/v1/vipconfig/getSslForceHttps", wafVpConfigApi.GetSslForceHttpsApi)
 	router.GET("/api/v1/vipconfig/getSslBindCert", wafVpConfigApi.GetSslBindCertApi)
@@ -51,6 +56,7 @@ func (receiver *WafVpConfigRouter) InitWafVpConfigRouter(group *gin.RouterGroup)
 	writeRouter.POST("/api/v1/vipconfig/restartManager", wafVpConfigApi.RestartManagerApi)
 	writeRouter.POST("/api/v1/vipconfig/updateSecurityEntry", wafVpConfigApi.UpdateSecurityEntryApi)
 	writeRouter.POST("/api/v1/vipconfig/updateNoticeTitle", wafVpConfigApi.UpdateNoticeTitleApi)
+	writeRouter.POST("/api/v1/vipconfig/updateAdminTitles", wafVpConfigApi.UpdateAdminTitlesApi)
 	writeRouter.POST("/api/v1/vipconfig/updateDomainWhitelist", wafVpConfigApi.UpdateDomainWhitelistApi)
 	writeRouter.POST("/api/v1/vipconfig/updateSslForceHttps", wafVpConfigApi.UpdateSslForceHttpsApi)
 	writeRouter.POST("/api/v1/vipconfig/updateSslBindCert", wafVpConfigApi.UpdateSslBindCertApi)

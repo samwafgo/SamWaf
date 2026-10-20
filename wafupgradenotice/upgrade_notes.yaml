@@ -12,6 +12,22 @@
 #   5. fresh_install: true 的条目只在"全新安装"时生成，不参与版本区间计算
 
 notes:
+  - id: v1_3_25_admin_titles
+    version: v1.3.25
+    kind: check
+    level: low
+    page: /sys/VpConfig?section=title
+    apply:
+      type: navigate
+    zh:
+      title: 支持统一自定义后台标题
+      detail: 可在「系统设置 → 管理配置 → 后台标题」设置一个后台标题，同时用于登录页和浏览器标签页，保存后无需重启。留空时两处各自沿用当前语言的默认文案；其他已打开的页面刷新后显示新标题。
+      revert: 清空后台标题并保存，即可恢复两处的默认文案。
+    en:
+      title: Customize a shared admin title
+      detail: Set one Admin Title under System Settings > Management Configuration > Admin Titles to use the same text on the login page and browser tab. Saving applies immediately without restart. Leave it blank to use each location's default text for the current language; refresh other open pages to load the new title.
+      revert: Clear the Admin Title and save to restore the default text in both locations.
+
   - id: v1_3_25_unmatched_website_response
     version: v1.3.25
     kind: check

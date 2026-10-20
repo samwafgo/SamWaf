@@ -126,6 +126,7 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 	PublicRouterGroup.Use(middleware.SecApi(), middleware.IPWhitelist(), middleware.DomainWhitelist(), middleware.ReplayProtect())
 	router.PublicApiGroupApp.InitLoginRouter(PublicRouterGroup)
 	router.PublicApiGroupApp.InitSecKeyRouter(PublicRouterGroup)
+	router.ApiGroupApp.InitAdminTitlesPublicRouter(PublicRouterGroup)
 
 	RouterGroup := r.Group("")
 	RouterGroup.Use(middleware.Auth(), middleware.ReplayProtect(), middleware.OpenApiLogMiddleware(), middleware.IPWhitelist(), middleware.DomainWhitelist(), middleware.SecApi(), middleware.GinGlobalExceptionMiddleWare())

@@ -103,6 +103,8 @@ func LoadAndInitConfig() {
 		}
 		configChanged = true
 	}
+	loadAdminTitles(config)
+
 	if config.IsSet("notice.isenable") {
 		global.GWAF_NOTICE_ENABLE = config.GetBool("notice.isenable")
 	} else {

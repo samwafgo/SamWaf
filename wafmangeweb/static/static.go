@@ -4,6 +4,8 @@ import (
 	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/public"
+	"SamWaf/wafconfig"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -87,6 +89,15 @@ func initIndex() {
 	// 存储原始 HTML，安全路径注入由 NoRoute handler 在每次请求时动态完成
 	global.GWAF_LOCAL_INDEX_HTML = string(index)
 }
+func injectAdminTitles(html string, titles wafconfig.AdminTitles) string {
+	data, _ := json.Marshal(titles)
+	script := `<script id="samwaf-ui-config" type="application/json">` + string(data) + `</script>`
+	if strings.Contains(html, "</head>") {
+		return strings.Replace(html, "</head>", script+"</head>", 1)
+	}
+	return script + html
+}
+
 func Static(r *gin.Engine, noRoute func(handlers ...gin.HandlerFunc)) {
 	initStatic()
 	initIndex()
@@ -153,6 +164,7 @@ func Static(r *gin.Engine, noRoute func(handlers ...gin.HandlerFunc)) {
 			injectScript := `<script>window.__SAMWAF_SECURITY_PATH__='` + secPath + `';</script>`
 			html = strings.ReplaceAll(html, `</head>`, injectScript+`</head>`)
 		}
+		html = injectAdminTitles(html, wafconfig.GetAdminTitles())
 		_, _ = c.Writer.WriteString(html)
 		c.Writer.Flush()
 		c.Writer.WriteHeaderNow()

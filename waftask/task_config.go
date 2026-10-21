@@ -249,6 +249,9 @@ func setConfigIntValue(name string, value int64, change int) {
 	case "ip_failure_ban_lock_time":
 		global.GCONFIG_IP_FAILURE_BAN_LOCK_TIME = value
 		break
+	case "rule_ban_mode":
+		global.GCONFIG_RULE_BAN_MODE = value
+		break
 	case "host_guard_enabled":
 		global.GCONFIG_HOST_GUARD_ENABLED = value
 		// 开关切换不需要重启进程：0→1 启动日志采集，1→0 停止采集并释放 fd/子进程/系统句柄。
@@ -856,6 +859,9 @@ func TaskLoadSetting(initLoad bool) {
 	updateConfigStringItem(initLoad, "security", "ip_failure_status_codes", global.GCONFIG_IP_FAILURE_STATUS_CODES, "失败状态码配置，支持多个用|分隔，也支持正则表达式，例如：401|403|404|444|429|503 或 ^4[0-9]{2}$", "string", "", configMap)
 	updateConfigIntItem(initLoad, "security", "ip_failure_ban_enabled", global.GCONFIG_IP_FAILURE_BAN_ENABLED, "是否启用IP失败封禁（1启用 0禁用）", "options", "0|禁用,1|启用", configMap)
 	updateConfigIntItem(initLoad, "security", "ip_failure_ban_lock_time", global.GCONFIG_IP_FAILURE_BAN_LOCK_TIME, "IP失败封禁锁定时间（单位：分钟，默认10分钟）", "int", "", configMap)
+
+	// 规则封禁相关配置（自定义规则 RF.Ban(分钟) 命中后临时封禁客户端IP）
+	updateConfigIntItem(initLoad, "security", "rule_ban_mode", global.GCONFIG_RULE_BAN_MODE, "规则封禁执行动作（0返回拦截页 1直接断开连接）", "options", "0|拦截页,1|直接断开", configMap)
 
 	// 主机远程登录爆破防护(SSH/RDP)。封禁时长不在这里配，由「封禁阶梯」表接管(5分→15分→60分→1天→永久)
 	updateConfigIntItem(initLoad, "hostguard", "host_guard_enabled", global.GCONFIG_HOST_GUARD_ENABLED, "主机远程登录爆破防护总开关（保护SamWaf所在机器自身的SSH/RDP。启用前请先确认白名单已包含你的管理IP，否则可能把自己锁在门外）", "options", "0|禁用,1|启用", configMap)

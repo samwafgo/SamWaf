@@ -196,6 +196,7 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 			router.ApiGroupApp.InitAntiCCRouter(securityAdminGroup)
 			router.ApiGroupApp.InitAntiCCRuleRouter(securityAdminGroup)
 			router.ApiGroupApp.InitIPFailureRouter(securityAdminGroup)
+			router.ApiGroupApp.InitRuleBanRouter(securityAdminGroup)
 			router.ApiGroupApp.InitBlockIpRouter(securityAdminGroup)
 			// IP组是黑/白名单与自定义规则共用的防护策略资源，与它们同属安全管理员域
 			router.ApiGroupApp.InitIPGroupRouter(securityAdminGroup)

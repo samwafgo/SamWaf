@@ -46,7 +46,7 @@ rule R<唯一标识> "规则中文描述" salience <优先级数字> {
 }
 说明：
 - R<唯一标识>：规则名，以大写 R 开头，只能由字母和数字组成（不含横线）。
-- salience：优先级，数值越大越优先。站点规则和全局规则一起按 salience 仲裁，同优先级时按 拦截 > 放行 > 仅记录 取。默认写 10；放行类要压过全局拦截规则时写 100。
+- salience：优先级，数值越大越优先。站点规则和全局规则一起按 salience 仲裁，同优先级时按 拦截/封禁 > 放行 > 仅记录 取。默认写 10；放行类要压过全局拦截规则时写 100。
 - when：条件，为 true 时命中。then：命中后的动作，必须写且只能写一个。
 
 # 可用请求字段（MF 开头，代表当前请求）
@@ -61,8 +61,9 @@ MF.HOST 请求域名 | MF.URL 请求地址 | MF.REFERER 来源页 | MF.USER_AGEN
 RF.IPMatch(MF.SRC_IP,"10.10.*.*")==true（单IP/CIDR/通配符/区间统一匹配，推荐优先用它；IPv4通配按八位组、*可在任意位置，IPv6通配须写满8段且不能用::，区间写"起-止"） | RF.IPInGroup(MF.SRC_IP,"办公室出口")==true（IP组，可跨站点复用的IP集合，在 网站防护-IP组 维护，可传组名或组短码） | RF.IPInRange(MF.SRC_IP,"起","止")==true | RF.IPInRanges(MF.SRC_IP,"起-止","CIDR","10.10.*.*",...)==true | RF.IPInCIDR(MF.SRC_IP,"192.168.1.0/24")==true | RF.IPEquals(MF.SRC_IP,"1.2.3.4")==true | RF.In(MF.METHOD,"GET","POST")==true | RF.InIgnoreCase(值,列表...)==true | RF.ContainsAny(MF.URL,"a","b")==true | RF.ContainsAnyIgnoreCase(MF.USER_AGENT,...)==true | RF.ContainsAll(MF.URL,"a","b")==true | RF.StartsWithAny(MF.URL,"/admin")==true | RF.EndsWithAny(MF.URL,".php")==true | RF.IntInRange(MF.PORT,8000,9000)==true | RF.IntIn(MF.PORT,80,443)==true | RF.Not(表达式)==true | RF.IsEmpty(值)==true | RF.IsNotEmpty(值)==true | RF.LengthBetween(MF.URL,0,512)==true
 条件之间用 &&(且) 或 ||(或) 连接。
 
-# 命中动作（then 里，四选一）
+# 命中动作（then 里，五选一）
 RF.Deny();            拦截（默认）
+RF.Ban(10);           拦截并将该IP在当前站点临时封禁10分钟（参数为正整数分钟，已有封禁不续期）
 RF.Log();             仅记录不拦截（灰度观察）
 RF.Allow();           放行（后续检测照常）
 RF.Allow("CC","AI");  放行并跳过指定检测模块
@@ -105,7 +106,7 @@ rule R<uniqueId> "rule description" salience <priority> {
 }
 Notes:
 - R<uniqueId>: rule name, starts with uppercase R, letters and digits only (no dash).
-- salience: priority, higher wins. Site rules and global rules are arbitrated together by salience; on a tie the order is deny > allow > log. Use 10 by default; use 100 for allow rules that must override a global deny rule.
+- salience: priority, higher wins. Site rules and global rules are arbitrated together by salience; on a tie the order is deny/ban > allow > log. Use 10 by default; use 100 for allow rules that must override a global deny rule.
 - when: condition; matches when true. then: exactly one action.
 
 # Request fields (MF = current request)
@@ -122,6 +123,7 @@ Join conditions with && (and) or || (or).
 
 # Actions (in then, pick one)
 RF.Deny();            block (default)
+RF.Ban(10);           block and temporarily ban the IP on this host for 10 minutes (a positive integer in minutes; an existing ban is not extended)
 RF.Log();             log only, no block (canary observation)
 RF.Allow();           allow (later checks still run)
 RF.Allow("CC","AI");  allow and skip given detection modules

@@ -91,6 +91,7 @@ const (
 	srcThreatExclude = "threat_exclude"
 	srcIPFailure     = "ip_failure"
 	srcCCBan         = "cc_ban"
+	srcRuleBan       = "rule_ban"
 	srcFirewall      = "firewall"
 	srcCDN           = "cdn"
 )
@@ -149,7 +150,7 @@ func (r *WafIPLookupService) Lookup(ipStr string, sources []string) (*response2.
 	}
 	for _, src := range []string{
 		srcIPWhite, srcIPBlack, srcIPGroup, srcLogExclude, srcThreatIP,
-		srcIPFailure, srcCCBan, srcFirewall, srcCDN,
+		srcIPFailure, srcCCBan, srcRuleBan, srcFirewall, srcCDN,
 	} {
 		if pick(src) {
 			resp.Sources = append(resp.Sources, src)
@@ -189,6 +190,9 @@ func (r *WafIPLookupService) Lookup(ipStr string, sources []string) (*response2.
 	}
 	if pick(srcCCBan) {
 		r.matchCCBan(ipStr, resp)
+	}
+	if pick(srcRuleBan) {
+		r.matchRuleBan(ipStr, resp)
 	}
 	if pick(srcFirewall) {
 		r.matchFirewall(ipStr, resp)
@@ -582,6 +586,42 @@ func (r *WafIPLookupService) matchCCBan(ip string, resp *response2.IPLookupResp)
 		Source:     srcCCBan,
 		SourceName: "CC封禁",
 		Scope:      scopeText,
+		Effect:     "block",
+		Detail:     detail,
+	})
+}
+
+// matchRuleBan 规则封禁命中（自定义规则 RF.Ban 写入，站点作用域）。
+func (r *WafIPLookupService) matchRuleBan(ip string, resp *response2.IPLookupResp) {
+	if global.GCACHE_WAFCACHE == nil {
+		resp.Degraded = append(resp.Degraded, srcRuleBan)
+		return
+	}
+	hitKey := ""
+	hitHostCode := ""
+	for cacheKey := range global.GCACHE_WAFCACHE.ListAvailableKeysWithPrefix(enums.CACHE_RULE_BAN_PRE) {
+		if hostCode, banIp, ok := model.ParseRuleBanKey(cacheKey); ok && banIp == ip {
+			hitKey, hitHostCode = cacheKey, hostCode
+			break
+		}
+	}
+	if hitKey == "" {
+		return
+	}
+	detail := "自定义规则 RF.Ban 触发的临时封禁"
+	if remain := r.remainTextByKey(enums.CACHE_RULE_BAN_PRE, hitKey); remain != "" {
+		detail += "，剩余" + remain
+	}
+	if hitHostCode != "" {
+		names := r.hostNameMap()
+		if label := r.hostLabel(hitHostCode, names); label != "" {
+			detail += "，站点 " + label
+		}
+	}
+	resp.Hits = append(resp.Hits, response2.IPLookupHit{
+		Source:     srcRuleBan,
+		SourceName: "规则封禁",
+		Scope:      "本站点",
 		Effect:     "block",
 		Detail:     detail,
 	})

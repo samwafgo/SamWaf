@@ -313,3 +313,8 @@ func (rf *RuleFunc) Allow(modules ...string) {}
 // AllowAll 命中后放行并跳过后续所有检测，直通后端（等价于 RF.Allow("ALL")）
 // 使用示例: then RF.AllowAll();
 func (rf *RuleFunc) AllowAll() {}
+
+// Ban 命中后拦截当前请求，并将客户端IP在该站点封禁指定分钟数
+// minutes: 封禁时长（分钟），必须是正整数
+// 使用示例: then RF.Ban(10);
+func (rf *RuleFunc) Ban(minutes int64) {}

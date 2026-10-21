@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // 规则动作
@@ -13,6 +14,7 @@ const (
 	RuleActionDeny  = "deny"  // 拦截（默认）
 	RuleActionAllow = "allow" // 放行
 	RuleActionLog   = "log"   // 仅记录
+	RuleActionBan   = "ban"   // 拦截并临时封禁（RF.Ban(分钟)）
 )
 
 // 可跳过的检测模块名（Allow 的参数只接受这些值，大小写不敏感）
@@ -59,8 +61,9 @@ func RuleSkipModules() []string {
 
 // RuleActionInfo 一条规则的动作信息
 type RuleActionInfo struct {
-	Action      string   // deny / allow / log
+	Action      string   // deny / allow / log / ban
 	SkipModules []string // 仅 allow 有效，元素为大写模块名；含 "ALL" 表示跳过全部
+	BanMinutes  int64    // 仅 ban 有效，封禁时长（分钟）
 }
 
 // SkipAll 是否跳过后续所有检测
@@ -78,8 +81,8 @@ var (
 	ruleBlockRegex = regexp.MustCompile(`(?m)\brule\s+([A-Za-z0-9_]+)`)
 	// then 关键字
 	ruleThenRegex = regexp.MustCompile(`\bthen\b`)
-	// 动作标记：RF.Allow(...) / RF.AllowAll() / RF.Deny() / RF.Log()
-	ruleActionRegex = regexp.MustCompile(`RF\s*\.\s*(AllowAll|Allow|Deny|Log)\s*\(([^)]*)\)`)
+	// 动作标记：RF.Allow(...) / RF.AllowAll() / RF.Deny() / RF.Log() / RF.Ban(分钟)
+	ruleActionRegex = regexp.MustCompile(`RF\s*\.\s*(AllowAll|Allow|Deny|Log|Ban)\s*\(([^)]*)\)`)
 	// 优先级：rule Rxxx "描述" salience 10 {
 	ruleSalienceRegex = regexp.MustCompile(`\bsalience\s+(\d+)`)
 )
@@ -256,22 +259,23 @@ func parseActionArgs(argsRaw string) (modules []string, invalid []string) {
 
 // extractBlockAction 解析单个规则块的动作
 // 只扫描 then 之后的部分，避免 when 里的内容干扰
-func extractBlockAction(skeletonBlock, rawBlock string) (info RuleActionInfo, count int, invalid []string) {
+// banErr：Ban 的分钟数非法（非正整数）时为 true，由调用方决定宽容还是报错
+func extractBlockAction(skeletonBlock, rawBlock string) (info RuleActionInfo, count int, invalid []string, banErr bool) {
 	info = RuleActionInfo{Action: RuleActionDeny}
 
 	thenLoc := ruleThenRegex.FindStringIndex(skeletonBlock)
 	if thenLoc == nil {
-		return info, 0, nil
+		return info, 0, nil, false
 	}
 	offset := thenLoc[1]
 	matches := ruleActionRegex.FindAllStringSubmatchIndex(skeletonBlock[offset:], -1)
 	if len(matches) == 0 {
-		return info, 0, nil
+		return info, 0, nil, false
 	}
 
 	for i, m := range matches {
 		fnName := skeletonBlock[offset+m[2] : offset+m[3]]
-		// 参数从原文同位置取（骨架里字符串内容已被抹空）
+		// 参数从原文同位置取（骨架里字符串内容已被抹空；Ban 的分钟数是数字，骨架与原文一致）
 		argsRaw := ""
 		if m[4] >= 0 && offset+m[5] <= len(rawBlock) {
 			argsRaw = rawBlock[offset+m[4] : offset+m[5]]
@@ -289,25 +293,35 @@ func extractBlockAction(skeletonBlock, rawBlock string) (info RuleActionInfo, co
 			mods, bad := parseActionArgs(argsRaw)
 			invalid = append(invalid, bad...)
 			cur = RuleActionInfo{Action: RuleActionAllow, SkipModules: mods}
+		case "Ban":
+			minutes, err := strconv.ParseInt(strings.TrimSpace(argsRaw), 10, 64)
+			if err != nil || minutes <= 0 || minutes > int64((1<<63-1)/time.Minute) {
+				banErr = true
+			}
+			cur = RuleActionInfo{Action: RuleActionBan, BanMinutes: minutes}
 		}
 		// 多个标记时以第一个为准
 		if i == 0 {
 			info = cur
 		}
 	}
-	return info, len(matches), invalid
+	return info, len(matches), invalid, banErr
 }
 
 // ExtractRuleActions 从规则文本中解析出每条规则的动作
 // 支持一段文本包含多条规则。没有声明动作的规则不会出现在结果里（查不到即默认拦截）。
-// 运行期使用：宽容处理，多个动作标记取第一个，非法模块名忽略。
+// 运行期使用：宽容处理，多个动作标记取第一个，非法模块名忽略；
+// Ban 分钟数非法时降级为普通拦截（不封禁），保证行为偏安全
 func ExtractRuleActions(ruleText string) map[string]RuleActionInfo {
 	result := make(map[string]RuleActionInfo)
 	skeleton := BuildGrlSkeleton(ruleText)
 	for _, block := range splitRuleBlocks(skeleton) {
-		info, count, _ := extractBlockAction(skeleton[block.Start:block.End], ruleText[block.Start:block.End])
+		info, count, _, banErr := extractBlockAction(skeleton[block.Start:block.End], ruleText[block.Start:block.End])
 		if count == 0 {
 			continue
+		}
+		if info.Action == RuleActionBan && (banErr || info.BanMinutes <= 0) {
+			info = RuleActionInfo{Action: RuleActionDeny}
 		}
 		result[block.Name] = info
 	}
@@ -318,6 +332,7 @@ func ExtractRuleActions(ruleText string) map[string]RuleActionInfo {
 // 返回该规则的动作；发现下列情况直接报错：
 //   - 声明了多个不同的动作标记
 //   - Allow 的参数里有不认识的模块名
+//   - Ban 的分钟数不是正整数
 func ExtractRuleActionForCheck(ruleText string) (RuleActionInfo, error) {
 	skeleton := BuildGrlSkeleton(ruleText)
 	blocks := splitRuleBlocks(skeleton)
@@ -328,15 +343,18 @@ func ExtractRuleActionForCheck(ruleText string) (RuleActionInfo, error) {
 	info := RuleActionInfo{Action: RuleActionDeny}
 	for _, block := range blocks {
 		skeletonBlock := skeleton[block.Start:block.End]
-		blockInfo, count, invalid := extractBlockAction(skeletonBlock, ruleText[block.Start:block.End])
+		blockInfo, count, invalid, banErr := extractBlockAction(skeletonBlock, ruleText[block.Start:block.End])
 		if len(invalid) > 0 {
 			return info, fmt.Errorf("规则动作 RF.Allow 参数中存在无法识别的检测模块: %s，可用模块: %s",
 				strings.Join(invalid, ", "), strings.Join(ruleSkipModules, ", "))
 		}
+		if blockInfo.Action == RuleActionBan && banErr {
+			return info, fmt.Errorf("规则 %s 中 RF.Ban 的封禁时长必须是正整数分钟且不超过 %d，例如 RF.Ban(10)", block.Name, int64((1<<63-1)/time.Minute))
+		}
 		if count > 1 {
 			// 多个标记：只要动作语义不完全一致就报错
 			if !hasSingleAction(skeletonBlock) {
-				return info, fmt.Errorf("规则 %s 中声明了多个不同的动作，一条规则只能有一个动作(RF.Deny/RF.Allow/RF.Log)", block.Name)
+				return info, fmt.Errorf("规则 %s 中声明了多个不同的动作，一条规则只能有一个动作(RF.Deny/RF.Allow/RF.Log/RF.Ban)", block.Name)
 			}
 		}
 		info = blockInfo

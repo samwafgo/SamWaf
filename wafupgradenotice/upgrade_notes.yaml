@@ -12,6 +12,30 @@
 #   5. fresh_install: true 的条目只在"全新安装"时生成，不参与版本区间计算
 
 notes:
+  - id: v1_3_25_list_entry_switches
+    version: v1.3.25
+    kind: check
+    level: low
+    page: /waf/wafipwhitelist
+    apply:
+      type: navigate
+    zh:
+      title: IP/URL 黑白名单支持按条目启用停用
+      detail: >-
+        IP白名单、URL白名单、IP黑名单、URL黑名单的每条记录新增启用开关，在列表中直接切换，
+        新增条目默认启用，存量条目升级后保持启用。停用的条目不再参与对应站点的防护判定
+        （全局名单同理），配置仍保留在列表中，随时可重新启用；批量和编辑等原有操作不受影响。
+      revert: 在对应名单页面把条目开关重新打开，即恢复该条目的防护效果。
+    en:
+      title: Per-entry enable switches for IP/URL black- and whitelists
+      detail: >-
+        Each entry in the IP whitelist, URL whitelist, IP blacklist and URL blacklist now has an
+        enable switch toggled directly in the list. New entries default to enabled and existing
+        entries stay enabled after the upgrade. Disabled entries stop taking effect for the
+        corresponding website (global entries likewise) but remain in the list and can be
+        re-enabled at any time; batch import and editing behave as before.
+      revert: Turn the entry switch back on in the corresponding list page to restore its effect.
+
   - id: v1_3_25_rule_ban
     version: v1.3.25
     kind: check

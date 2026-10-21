@@ -120,21 +120,21 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 	//加载并编译CC多规则（编译放在加载期，请求期只做取值与比较）
 	ccRules := LoadCompiledCCRules(inHost.Code)
 
-	//查询ip白名单
+	//查询ip白名单（停用条目不下发引擎，下同）
 	var ipwhitelist []model.IPAllowList
-	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&ipwhitelist)
+	global.GWAF_LOCAL_DB.Where("host_code=? and is_enable = 1", inHost.Code).Find(&ipwhitelist)
 
 	//查询url白名单
 	var urlwhitelist []model.URLAllowList
-	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&urlwhitelist)
+	global.GWAF_LOCAL_DB.Where("host_code=? and is_enable = 1", inHost.Code).Find(&urlwhitelist)
 
 	//查询ip黑名单
 	var ipblocklist []model.IPBlockList
-	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&ipblocklist)
+	global.GWAF_LOCAL_DB.Where("host_code=? and is_enable = 1", inHost.Code).Find(&ipblocklist)
 
 	//查询url白名单
 	var urlblocklist []model.URLBlockList
-	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&urlblocklist)
+	global.GWAF_LOCAL_DB.Where("host_code=? and is_enable = 1", inHost.Code).Find(&urlblocklist)
 
 	//查询url隐私保护
 	var ldpurls []model.LDPUrl

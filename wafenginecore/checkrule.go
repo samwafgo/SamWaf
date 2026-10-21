@@ -4,6 +4,7 @@ import (
 	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/innerbean"
+	"SamWaf/model"
 	"SamWaf/model/detection"
 	"SamWaf/model/wafenginmodel"
 	"SamWaf/utils"
@@ -12,6 +13,7 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
+	"time"
 
 	"github.com/hyperjumptech/grule-rule-engine/ast"
 )
@@ -50,6 +52,7 @@ func pickRuleAction(ruleHelper *utils.RuleHelper, ruleMatchs []*ast.RuleEntry) u
 
 	rank := map[string]int{
 		utils.RuleActionDeny:  3,
+		utils.RuleActionBan:   3, // 封禁与拦截同档：都是最强动作，差别只在额外写封禁
 		utils.RuleActionAllow: 2,
 		utils.RuleActionLog:   1,
 	}
@@ -65,13 +68,19 @@ func pickRuleAction(ruleHelper *utils.RuleHelper, ruleMatchs []*ast.RuleEntry) u
 			}
 		}
 		if final.Action == "" || rank[info.Action] > rank[final.Action] {
-			final.Action = info.Action
+			final = info
+		} else if rank[info.Action] == rank[final.Action] && info.Action == utils.RuleActionBan {
+			final.Action = utils.RuleActionBan
+			if info.BanMinutes > final.BanMinutes {
+				final.BanMinutes = info.BanMinutes
+			}
 		}
 	}
 	if final.Action == "" {
 		final.Action = utils.RuleActionDeny
 	}
 	if final.Action == utils.RuleActionAllow {
+		final.SkipModules = nil
 		for m := range skipSet {
 			final.SkipModules = append(final.SkipModules, m)
 		}
@@ -187,6 +196,7 @@ func arbitrate(local, globalR ruleMatchResult) ruleMatchResult {
 	// 同优先级：按动作强弱兜底
 	rank := map[string]int{
 		utils.RuleActionDeny:  3,
+		utils.RuleActionBan:   3, // 封禁与拦截同档：都是最强动作，差别只在额外写封禁
 		utils.RuleActionAllow: 2,
 		utils.RuleActionLog:   1,
 	}
@@ -203,6 +213,13 @@ func arbitrate(local, globalR ruleMatchResult) ruleMatchResult {
 		Action:      utils.RuleActionInfo{Action: local.Action.Action},
 		Title:       local.Title + globalR.Title,
 		TopSalience: local.TopSalience,
+	}
+	if local.Action.Action == utils.RuleActionBan || globalR.Action.Action == utils.RuleActionBan {
+		merged.Action.Action = utils.RuleActionBan
+		merged.Action.BanMinutes = local.Action.BanMinutes
+		if globalR.Action.BanMinutes > merged.Action.BanMinutes {
+			merged.Action.BanMinutes = globalR.Action.BanMinutes
+		}
 	}
 	if merged.Action.Action == utils.RuleActionAllow {
 		skipSet := make(map[string]bool)
@@ -252,11 +269,24 @@ func (waf *WafEngine) CheckRule(r *http.Request, weblogbean *innerbean.WebLog, f
 	}
 
 	switch final.Action.Action {
-	case utils.RuleActionDeny:
+	case utils.RuleActionDeny, utils.RuleActionBan:
 		weblogbean.RISK_LEVEL = 1
 		result.IsBlock = true
 		result.Title = final.Title
 		result.Content = "您的访问被阻止触发规则"
+		if final.Action.Action == utils.RuleActionBan {
+			// 已封禁不刷新 TTL；仅记录模式不写入封禁。
+			if global.GCACHE_WAFCACHE != nil && hostTarget != nil && hostTarget.Host.LogOnlyMode != 1 {
+				banIP := model.GetClientIPByMode(hostTarget.Host.IPMode, weblogbean.NetSrcIp, weblogbean.SRC_IP)
+				if banIP != "" && final.Action.BanMinutes > 0 {
+					banKey := model.BuildRuleBanKey(hostTarget.Host.Code, banIP)
+					if !global.GCACHE_WAFCACHE.IsKeyExist(banKey) {
+						global.GCACHE_WAFCACHE.SetWithTTl(banKey, final.Action.BanMinutes,
+							time.Duration(final.Action.BanMinutes)*time.Minute)
+					}
+				}
+			}
+		}
 	case utils.RuleActionAllow:
 		result.IsRuleAllow = true
 		result.Title = final.Title

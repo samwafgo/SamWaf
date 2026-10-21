@@ -605,6 +605,18 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 
+				// 规则封禁期拦截。位置与 CC 封禁同理：白名单之后（白名单 IP 可自救）、站点防护之内。
+				if hitKey, _ := matchRuleBan(hostTarget.Host.Code, weblogbean.NetSrcIp, weblogbean.SRC_IP, hostTarget.Host.IPMode); hitKey != "" {
+					if hostTarget.Host.LogOnlyMode == 1 {
+						weblogbean.LogOnlyMode = 1
+						weblogbean.RULE = "规则封禁"
+					} else {
+						responseCode := echoRuleBanBlock(w, r, &weblogbean, hostTarget, waf.rt().HostTarget[waf.rt().HostCode[global.GWAF_GLOBAL_HOST_CODE]])
+						global.GQEQUE_LOG_DB.Enqueue(ruleBanLog(&weblogbean, responseCode))
+						return
+					}
+				}
+
 				if handleBlock(waf.CheckDenyIP) {
 					return
 				}

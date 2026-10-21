@@ -12,6 +12,22 @@
 #   5. fresh_install: true 的条目只在"全新安装"时生成，不参与版本区间计算
 
 notes:
+  - id: v1_3_25_rule_ban
+    version: v1.3.25
+    kind: check
+    level: normal
+    page: /waf/wafRuleBan
+    apply:
+      type: navigate
+    zh:
+      title: 自定义规则支持临时封禁 IP
+      detail: 在已启用规则的动作中使用 RF.Ban(10)，可拦截当前请求并将客户端 IP 在当前站点封禁 10 分钟，无需单独开启。封禁列表支持查询和解封，配置可选返回拦截页或直接断开；该配置用于后续封禁命中。已有封禁不续期，仅记录模式不写入新封禁。使用失败次数作为条件时，计数保留时间与封禁分钟数分别设置。
+      revert: 将规则动作改回 RF.Deny() 或停用该规则，并在规则封禁列表解除已有记录；仅停用规则不会立即解除已有封禁。
+    en:
+      title: Temporarily ban IPs with custom rules
+      detail: Use RF.Ban(10) in an enabled rule to block the current request and ban the client IP on the current website for 10 minutes. No separate switch is required. The ban list supports inspection and removal. Choose a blocking page or connection closure for subsequent banned requests. Existing bans are not renewed, and log-only mode does not create bans. When using failure counts as a condition, configure count retention and ban duration separately.
+      revert: Change the rule action back to RF.Deny() or disable the rule, then remove existing entries from the rule ban list. Disabling a rule alone does not immediately remove existing bans.
+
   - id: v1_3_25_log_url_keyword
     version: v1.3.25
     kind: check

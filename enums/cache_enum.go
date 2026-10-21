@@ -5,6 +5,7 @@ const (
 	CACHE_OTP_ERROR      = "CACHE_OTP_ERROR"       //二次验证(OTP)错误，按账户名计数，防 TOTP 爆破
 	CACHE_NOTICE_PRE     = "CACHE_NOTICE_PRE"      //通知前缀
 	CACHE_CCVISITBAN_PRE = "CACHE_CCVISITBAN_PRE_" //CC封禁前缀
+	CACHE_RULE_BAN_PRE   = "CACHE_RULE_BAN_PRE_"   //规则封禁前缀（键后缀：hostCode|IP）
 	CACHE_TOKEN          = "CACHE_TOKEN"           //鉴权信息
 	CACHE_DNS_BOT_IP     = "CACHE_DNS_BOT_IP"      //IP反向域名解析
 	CACHE_DNS_NORMAL_IP  = "CACHE_DNS_NORMAL_IP"   //正常IP

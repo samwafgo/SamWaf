@@ -16,6 +16,10 @@ type WafBlockIpService struct{}
 var WafBlockIpServiceApp = new(WafBlockIpService)
 
 func (receiver *WafBlockIpService) AddApi(req request.WafBlockIpAddReq) error {
+	isEnable := 1
+	if req.IsEnable != nil {
+		isEnable = *req.IsEnable
+	}
 	var bean = &model.IPBlockList{
 		BaseOrm: baseorm.BaseOrm{
 			Id:          uuid.GenUUID(),
@@ -29,14 +33,28 @@ func (receiver *WafBlockIpService) AddApi(req request.WafBlockIpAddReq) error {
 		Remarks:   req.Remarks,
 		IpType:    req.IpType,
 		GroupCode: req.GroupCode,
+		IsEnable:  isEnable,
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
 	return nil
 }
 
+// ToggleApi 切换条目启用状态，返回所属网站编码供调用方通知引擎
+func (receiver *WafBlockIpService) ToggleApi(req request.WafBlockIpToggleReq) (string, error) {
+	var bean model.IPBlockList
+	if err := global.GWAF_LOCAL_DB.Where("id = ?", req.Id).First(&bean).Error; err != nil {
+		return "", err
+	}
+	err := global.GWAF_LOCAL_DB.Model(model.IPBlockList{}).Where("id = ?", req.Id).Updates(map[string]interface{}{
+		"is_enable":   *req.IsEnable,
+		"UPDATE_TIME": customtype.JsonTime(time.Now()),
+	}).Error
+	return bean.HostCode, err
+}
+
 // CheckIsExistApi 判重。唯一性由 (host_code, ip_type, ip, group_code) 共同决定：
 // 同一站点重复引用同一个 IP 组也算重复。
-// ip_type 用 IN ('', 'ip') 兼容存量行的空串。
+// ip_type 用 IN (”, 'ip') 兼容存量行的空串。
 func (receiver *WafBlockIpService) CheckIsExistApi(req request.WafBlockIpAddReq) error {
 	if req.IpType == model.IPEntryTypeGroup {
 		return global.GWAF_LOCAL_DB.First(&model.IPBlockList{},
@@ -66,6 +84,9 @@ func (receiver *WafBlockIpService) ModifyApi(req request.WafBlockIpEditReq) erro
 		"ip_type":     req.IpType,
 		"group_code":  req.GroupCode,
 		"UPDATE_TIME": customtype.JsonTime(time.Now()),
+	}
+	if req.IsEnable != nil {
+		ipWhiteMap["is_enable"] = *req.IsEnable
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.IPBlockList{}).Where("id = ?", req.Id).Updates(ipWhiteMap).Error
 

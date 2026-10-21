@@ -30,6 +30,10 @@ func (w *WafBlockUrlApi) AddApi(c *gin.Context) {
 	var req request.WafBlockUrlAddReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		if req.IsEnable != nil && *req.IsEnable != 0 && *req.IsEnable != 1 {
+			response.FailWithMessage("is_enable 取值只能是 0 或 1", c)
+			return
+		}
 		err = wafUrlBlockService.CheckIsExistApi(req)
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 			err = wafUrlBlockService.AddApi(req)
@@ -142,6 +146,10 @@ func (w *WafBlockUrlApi) ModifyBlockUrlApi(c *gin.Context) {
 	var req request.WafBlockUrlEditReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		if req.IsEnable != nil && *req.IsEnable != 0 && *req.IsEnable != 1 {
+			response.FailWithMessage("is_enable 取值只能是 0 或 1", c)
+			return
+		}
 		//编辑前先取旧记录，拿到可能被本次编辑改掉的旧 host_code(issue #898)
 		bean := wafUrlBlockService.GetDetailByIdApi(req.Id)
 		err = wafUrlBlockService.ModifyApi(req)
@@ -157,13 +165,42 @@ func (w *WafBlockUrlApi) ModifyBlockUrlApi(c *gin.Context) {
 	}
 }
 
+// ToggleApi 切换URL黑名单条目启用状态
+// @Summary      切换URL黑名单条目启用状态
+// @Description  启用或停用单条URL黑名单记录，停用的条目不再对引擎生效
+// @Tags         网站防护-URL黑名单
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafBlockUrlToggleReq  true  "条目ID与目标状态"
+// @Success      200   {object}  response.Response  "操作成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/urlblock/toggle [post]
+func (w *WafBlockUrlApi) ToggleApi(c *gin.Context) {
+	var req request.WafBlockUrlToggleReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage("解析失败", c)
+		return
+	}
+	if *req.IsEnable != 0 && *req.IsEnable != 1 {
+		response.FailWithMessage("is_enable 取值只能是 0 或 1", c)
+		return
+	}
+	hostCode, err := wafUrlBlockService.ToggleApi(req)
+	if err != nil {
+		response.FailWithMessage("操作失败", c)
+		return
+	}
+	w.NotifyWaf(hostCode)
+	response.OkWithMessage("操作成功", c)
+}
+
 /*
 *
 通知到waf引擎实时生效
 */
 func (w *WafBlockUrlApi) NotifyWaf(host_code string) {
 	var urlWhites []model.URLBlockList
-	global.GWAF_LOCAL_DB.Where("host_code = ? ", host_code).Find(&urlWhites)
+	global.GWAF_LOCAL_DB.Where("host_code = ? and is_enable = 1", host_code).Find(&urlWhites)
 	var chanInfo = spec.ChanCommonHost{
 		HostCode: host_code,
 		Type:     enums.ChanTypeBlockURL,

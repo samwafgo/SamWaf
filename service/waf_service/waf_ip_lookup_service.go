@@ -255,7 +255,8 @@ func (r *WafIPLookupService) hostLabel(code string, names map[string]string) str
 
 func (r *WafIPLookupService) matchAllowList(ip string, names map[string]string, resp *response2.IPLookupResp) {
 	var rows []model.IPAllowList
-	if err := global.GWAF_LOCAL_DB.Find(&rows).Error; err != nil {
+	//与引擎同口径：停用条目不参与判定，诊断结论才不会背离实际拦截行为
+	if err := global.GWAF_LOCAL_DB.Where("is_enable = 1").Find(&rows).Error; err != nil {
 		resp.Degraded = append(resp.Degraded, srcIPWhite)
 		return
 	}
@@ -279,7 +280,7 @@ func (r *WafIPLookupService) matchAllowList(ip string, names map[string]string, 
 
 func (r *WafIPLookupService) matchBlockList(ip string, names map[string]string, resp *response2.IPLookupResp) {
 	var rows []model.IPBlockList
-	if err := global.GWAF_LOCAL_DB.Find(&rows).Error; err != nil {
+	if err := global.GWAF_LOCAL_DB.Where("is_enable = 1").Find(&rows).Error; err != nil {
 		resp.Degraded = append(resp.Degraded, srcIPBlack)
 		return
 	}
@@ -366,7 +367,8 @@ func (r *WafIPLookupService) groupRefs() map[string]groupRef {
 	refs := map[string]groupRef{}
 
 	var blockRows []model.IPBlockList
-	global.GWAF_LOCAL_DB.Where("ip_type = ?", model.IPEntryTypeGroup).Find(&blockRows)
+	//引用统计同样只算启用条目，与引擎侧组短码抽取同口径
+	global.GWAF_LOCAL_DB.Where("ip_type = ? and is_enable = 1", model.IPEntryTypeGroup).Find(&blockRows)
 	for _, row := range blockRows {
 		if row.GroupCode == "" {
 			continue
@@ -375,7 +377,7 @@ func (r *WafIPLookupService) groupRefs() map[string]groupRef {
 	}
 
 	var allowRows []model.IPAllowList
-	global.GWAF_LOCAL_DB.Where("ip_type = ?", model.IPEntryTypeGroup).Find(&allowRows)
+	global.GWAF_LOCAL_DB.Where("ip_type = ? and is_enable = 1", model.IPEntryTypeGroup).Find(&allowRows)
 	for _, row := range allowRows {
 		if row.GroupCode == "" {
 			continue

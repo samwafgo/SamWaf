@@ -16,6 +16,10 @@ type WafWhiteUrlService struct{}
 var WafWhiteUrlServiceApp = new(WafWhiteUrlService)
 
 func (receiver *WafWhiteUrlService) AddApi(req request.WafAllowUrlAddReq) error {
+	isEnable := 1
+	if req.IsEnable != nil {
+		isEnable = *req.IsEnable
+	}
 	var bean = &model.URLAllowList{
 		BaseOrm: baseorm.BaseOrm{
 			Id:          uuid.GenUUID(),
@@ -28,9 +32,23 @@ func (receiver *WafWhiteUrlService) AddApi(req request.WafAllowUrlAddReq) error 
 		CompareType: req.CompareType,
 		Url:         req.Url,
 		Remarks:     req.Remarks,
+		IsEnable:    isEnable,
 	}
 	global.GWAF_LOCAL_DB.Create(bean)
 	return nil
+}
+
+// ToggleApi 切换条目启用状态，返回所属网站编码供调用方通知引擎
+func (receiver *WafWhiteUrlService) ToggleApi(req request.WafAllowUrlToggleReq) (string, error) {
+	var bean model.URLAllowList
+	if err := global.GWAF_LOCAL_DB.Where("id = ?", req.Id).First(&bean).Error; err != nil {
+		return "", err
+	}
+	err := global.GWAF_LOCAL_DB.Model(model.URLAllowList{}).Where("id = ?", req.Id).Updates(map[string]interface{}{
+		"is_enable":   *req.IsEnable,
+		"UPDATE_TIME": customtype.JsonTime(time.Now()),
+	}).Error
+	return bean.HostCode, err
 }
 
 func (receiver *WafWhiteUrlService) CheckIsExistApi(req request.WafAllowUrlAddReq) error {
@@ -50,6 +68,9 @@ func (receiver *WafWhiteUrlService) ModifyApi(req request.WafAllowUrlEditReq) er
 		"Url":          req.Url,
 		"Remarks":      req.Remarks,
 		"UPDATE_TIME":  customtype.JsonTime(time.Now()),
+	}
+	if req.IsEnable != nil {
+		ipWhiteMap["is_enable"] = *req.IsEnable
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.URLAllowList{}).Where("id = ?", req.Id).Updates(ipWhiteMap).Error
 

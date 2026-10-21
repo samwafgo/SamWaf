@@ -57,7 +57,7 @@ func (p *IPDenyProcessor) GetExistingItems(items []string, task model.BatchTask,
 // NotifyEngine 通知引擎更新
 func (p *IPDenyProcessor) NotifyEngine(task model.BatchTask) {
 	var ipBlocks []model.IPBlockList
-	global.GWAF_LOCAL_DB.Where("host_code = ? ", task.BatchHostCode).Find(&ipBlocks)
+	global.GWAF_LOCAL_DB.Where("host_code = ? and is_enable = 1", task.BatchHostCode).Find(&ipBlocks)
 	var chanInfo = spec.ChanCommonHost{
 		HostCode: task.BatchHostCode,
 		Type:     enums.ChanTypeBlockIP,
@@ -86,6 +86,8 @@ func (p *IPDenyProcessor) processAppendBatch(items []string, existMap map[string
 				Remarks:  time.Now().Format("20060102") + "批量导入 任务ID:" + task.Id,
 				// 显式标记为「单条IP」：批量导入不产生 IP 组引用
 				IpType: model.IPEntryTypeIP,
+				// 显式启用：字段无 default 标签，零值会被如实落库为停用
+				IsEnable: 1,
 			})
 		}
 	}
@@ -137,6 +139,8 @@ func (p *IPDenyProcessor) processOverwriteBatch(items []string, existMap map[str
 				Remarks:  time.Now().Format("20060102") + "批量导入 任务ID:" + task.Id,
 				// 显式标记为「单条IP」：批量导入不产生 IP 组引用
 				IpType: model.IPEntryTypeIP,
+				// 显式启用：字段无 default 标签，零值会被如实落库为停用
+				IsEnable: 1,
 			})
 		}
 	}

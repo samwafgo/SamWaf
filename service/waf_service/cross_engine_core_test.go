@@ -32,6 +32,8 @@ func runCoreCases(t *testing.T, db *gorm.DB) {
 	// ————— 新增：各 service 完整 CRUD 回路 —————
 	runCoreCRUDCases(t, db)
 	runCoreCRUDCasesB(t, db)
+	// 名单条目启用开关（is_enable）三库回归
+	runListEnableSwitchCases(t, db)
 	// ————— 升级须知：生成幂等 / 状态流转 / 降级不生成 —————
 	runUpgradeNoticeCases(t, db)
 }
@@ -324,12 +326,12 @@ func runCoreCRUDCases(t *testing.T, db *gorm.DB) {
 	t.Run("BatchTask", func(t *testing.T) {
 		name := "bt_" + sfx()
 		fatalIf(t, WafBatchServiceApp.AddApi(request.BatchTaskAddReq{
-			BatchTaskName: name, BatchType: "ip_black", BatchSourceType: "local", BatchTriggerType: "manual", BatchSource: "/tmp/x", BatchExecuteMethod: "append",
+			BatchTaskName: name, BatchType: "ipdeny", BatchSourceType: "local", BatchTriggerType: "manual", BatchSource: "/tmp/x", BatchExecuteMethod: "append",
 		}))
 		var bean model.BatchTask
 		firstBy(t, db, &bean, "batch_task_name = ?", name)
 		fatalIf(t, WafBatchServiceApp.ModifyApi(request.BatchTaskEditReq{
-			Id: bean.Id, BatchTaskName: name, BatchType: "ip_black", BatchSourceType: "local", BatchTriggerType: "manual", BatchSource: "/tmp/y", BatchExecuteMethod: "append",
+			Id: bean.Id, BatchTaskName: name, BatchType: "ipdeny", BatchSourceType: "local", BatchTriggerType: "manual", BatchSource: "/tmp/y", BatchExecuteMethod: "append",
 		}))
 		got := WafBatchServiceApp.GetDetailByIdApi(bean.Id)
 		if got.BatchSource != "/tmp/y" {
@@ -375,5 +377,189 @@ func runCoreCRUDCases(t *testing.T, db *gorm.DB) {
 		firstBy(t, db, &bean, "delay_tile = ?", title)
 		fatalIf(t, WafDelayMsgServiceApp.DelApi(bean.Id))
 		assertGone(t, db, &model.DelayMsg{}, bean.Id)
+	})
+}
+
+// ========================= 名单条目启用开关（is_enable） =========================
+
+// runListEnableSwitchCases 四类名单 is_enable 三库一致性：
+//   - service 新增未传开关字段 → 启用（产品默认）
+//   - service 新增显式 0 → 停用（弹窗关着开关新增；防 default 标签把 0 吞成 1 的回归）
+//   - toggle 0→读回 0→toggle 1→读回 1
+//   - 裸结构体 Create 不带该字段 → 0（字段无 default 标签的语义锚；
+//     若有人往模型上加回 default 标签，此用例会先红）
+func runListEnableSwitchCases(t *testing.T, db *gorm.DB) {
+	type iostub struct {
+		addNil   func() error
+		addZero  func() error
+		addOne   func() error
+		toggle   func(id string, v int) error
+		findByHC func(hostCode string) (int, error)
+	}
+	zero, one := 0, 1
+	mk := []struct {
+		name string
+		kit  func() iostub
+	}{
+		{"LSV_AllowIP", func() iostub {
+			return iostub{
+				addNil: func() error {
+					return WafWhiteIpServiceApp.AddApi(request.WafAllowIpAddReq{HostCode: "hc_nil", Ip: "10.10.0.1", Remarks: "x"})
+				},
+				addZero: func() error {
+					return WafWhiteIpServiceApp.AddApi(request.WafAllowIpAddReq{HostCode: "hc_zero", Ip: "10.10.0.2", Remarks: "x", IsEnable: &zero})
+				},
+				addOne: func() error {
+					return WafWhiteIpServiceApp.AddApi(request.WafAllowIpAddReq{HostCode: "hc_one", Ip: "10.10.0.3", Remarks: "x", IsEnable: &one})
+				},
+				toggle: func(id string, v int) error {
+					val := v
+					_, err := WafWhiteIpServiceApp.ToggleApi(request.WafAllowIpToggleReq{Id: id, IsEnable: &val})
+					return err
+				},
+				findByHC: func(hostCode string) (int, error) {
+					var b model.IPAllowList
+					if err := db.Where("host_code = ?", hostCode).First(&b).Error; err != nil {
+						return -1, err
+					}
+					return b.IsEnable, nil
+				},
+			}
+		}},
+		{"LSV_BlockIP", func() iostub {
+			return iostub{
+				addNil: func() error {
+					return WafBlockIpServiceApp.AddApi(request.WafBlockIpAddReq{HostCode: "hc_nil", Ip: "10.10.1.1", Remarks: "x"})
+				},
+				addZero: func() error {
+					return WafBlockIpServiceApp.AddApi(request.WafBlockIpAddReq{HostCode: "hc_zero", Ip: "10.10.1.2", Remarks: "x", IsEnable: &zero})
+				},
+				addOne: func() error {
+					return WafBlockIpServiceApp.AddApi(request.WafBlockIpAddReq{HostCode: "hc_one", Ip: "10.10.1.3", Remarks: "x", IsEnable: &one})
+				},
+				toggle: func(id string, v int) error {
+					val := v
+					_, err := WafBlockIpServiceApp.ToggleApi(request.WafBlockIpToggleReq{Id: id, IsEnable: &val})
+					return err
+				},
+				findByHC: func(hostCode string) (int, error) {
+					var b model.IPBlockList
+					if err := db.Where("host_code = ?", hostCode).First(&b).Error; err != nil {
+						return -1, err
+					}
+					return b.IsEnable, nil
+				},
+			}
+		}},
+		{"LSV_AllowURL", func() iostub {
+			return iostub{
+				addNil: func() error {
+					return WafWhiteUrlServiceApp.AddApi(request.WafAllowUrlAddReq{HostCode: "hc_nil", CompareType: "等于", Url: "/lsv-nil", Remarks: "x"})
+				},
+				addZero: func() error {
+					return WafWhiteUrlServiceApp.AddApi(request.WafAllowUrlAddReq{HostCode: "hc_zero", CompareType: "等于", Url: "/lsv-zero", Remarks: "x", IsEnable: &zero})
+				},
+				addOne: func() error {
+					return WafWhiteUrlServiceApp.AddApi(request.WafAllowUrlAddReq{HostCode: "hc_one", CompareType: "等于", Url: "/lsv-one", Remarks: "x", IsEnable: &one})
+				},
+				toggle: func(id string, v int) error {
+					val := v
+					_, err := WafWhiteUrlServiceApp.ToggleApi(request.WafAllowUrlToggleReq{Id: id, IsEnable: &val})
+					return err
+				},
+				findByHC: func(hostCode string) (int, error) {
+					var b model.URLAllowList
+					if err := db.Where("host_code = ?", hostCode).First(&b).Error; err != nil {
+						return -1, err
+					}
+					return b.IsEnable, nil
+				},
+			}
+		}},
+		{"LSV_BlockURL", func() iostub {
+			return iostub{
+				addNil: func() error {
+					return WafBlockUrlServiceApp.AddApi(request.WafBlockUrlAddReq{HostCode: "hc_nil", CompareType: "等于", Url: "/lsvb-nil", Remarks: "x"})
+				},
+				addZero: func() error {
+					return WafBlockUrlServiceApp.AddApi(request.WafBlockUrlAddReq{HostCode: "hc_zero", CompareType: "等于", Url: "/lsvb-zero", Remarks: "x", IsEnable: &zero})
+				},
+				addOne: func() error {
+					return WafBlockUrlServiceApp.AddApi(request.WafBlockUrlAddReq{HostCode: "hc_one", CompareType: "等于", Url: "/lsvb-one", Remarks: "x", IsEnable: &one})
+				},
+				toggle: func(id string, v int) error {
+					val := v
+					_, err := WafBlockUrlServiceApp.ToggleApi(request.WafBlockUrlToggleReq{Id: id, IsEnable: &val})
+					return err
+				},
+				findByHC: func(hostCode string) (int, error) {
+					var b model.URLBlockList
+					if err := db.Where("host_code = ?", hostCode).First(&b).Error; err != nil {
+						return -1, err
+					}
+					return b.IsEnable, nil
+				},
+			}
+		}},
+	}
+	for _, it := range mk {
+		it := it
+		t.Run(it.name, func(t *testing.T) {
+			k := it.kit()
+			fatalIf(t, k.addNil())
+			if v, err := k.findByHC("hc_nil"); err != nil || v != 1 {
+				t.Fatalf("新增未传开关字段应为1(启用)，实际 %d err=%v", v, err)
+			}
+			fatalIf(t, k.addZero())
+			if v, err := k.findByHC("hc_zero"); err != nil || v != 0 {
+				t.Fatalf("新增显式0应为0(停用)，实际 %d err=%v（default 标签吞 0？）", v, err)
+			}
+			fatalIf(t, k.addOne())
+			if v, err := k.findByHC("hc_one"); err != nil || v != 1 {
+				t.Fatalf("新增显式1应为1，实际 %d err=%v", v, err)
+			}
+			// toggle 往返：0 落库、1 落库
+			var b model.IPAllowList
+			_ = b
+			var id string
+			switch it.name {
+			case "LSV_AllowIP":
+				var r model.IPAllowList
+				firstBy(t, db, &r, "host_code = ?", "hc_zero")
+				id = r.Id
+			case "LSV_BlockIP":
+				var r model.IPBlockList
+				firstBy(t, db, &r, "host_code = ?", "hc_zero")
+				id = r.Id
+			case "LSV_AllowURL":
+				var r model.URLAllowList
+				firstBy(t, db, &r, "host_code = ?", "hc_zero")
+				id = r.Id
+			case "LSV_BlockURL":
+				var r model.URLBlockList
+				firstBy(t, db, &r, "host_code = ?", "hc_zero")
+				id = r.Id
+			}
+			fatalIf(t, k.toggle(id, 0))
+			if v, err := k.findByHC("hc_zero"); err != nil || v != 0 {
+				t.Fatalf("toggle 0 应落库 0，实际 %d err=%v", v, err)
+			}
+			fatalIf(t, k.toggle(id, 1))
+			if v, err := k.findByHC("hc_zero"); err != nil || v != 1 {
+				t.Fatalf("toggle 1 应落库 1，实际 %d err=%v", v, err)
+			}
+		})
+	}
+
+	// 语义锚：不带 default 标签的字段，裸结构体 Create 零值落库 0
+	// （批量导入等绕过 service 的插入路径依赖显式写 1；此用例防止有人加回 default 标签）
+	t.Run("BareCreateNoDefault", func(t *testing.T) {
+		hc := "hc_bare_" + sfx()
+		fatalIf(t, db.Create(&model.IPAllowList{BaseOrm: newBase(uuid.GenUUID()), HostCode: hc, Ip: "10.10.2.1"}).Error)
+		var b model.IPAllowList
+		firstBy(t, db, &b, "host_code = ?", hc)
+		if b.IsEnable != 0 {
+			t.Fatalf("裸 Create 零值应落库 0（无 default 标签语义），实际 %d", b.IsEnable)
+		}
 	})
 }

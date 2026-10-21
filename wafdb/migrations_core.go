@@ -2406,6 +2406,54 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		// 迁移: 四类名单表（IP/URL 黑白名单）新增条目级启用开关列。
+		// 存量行回填 1（启用），升级前后生效行为不变
+		{
+			ID: "202610210001_add_list_entry_is_enable",
+			Migrate: func(tx *gorm.DB) error {
+				zlog.Info("迁移 202610210001: 四类名单表新增条目启用开关列")
+				type listCol struct {
+					model any
+					field string
+					col   string
+				}
+				cols := []listCol{
+					{&model.IPAllowList{}, "IsEnable", "is_enable"},
+					{&model.URLAllowList{}, "IsEnable", "is_enable"},
+					{&model.IPBlockList{}, "IsEnable", "is_enable"},
+					{&model.URLBlockList{}, "IsEnable", "is_enable"},
+				}
+				for _, c := range cols {
+					if tx.Migrator().HasColumn(c.model, c.col) {
+						continue
+					}
+					if err := tx.Migrator().AddColumn(c.model, c.field); err != nil {
+						return fmt.Errorf("新增名单条目启用列失败: %w", err)
+					}
+				}
+				// 只回填 NULL：0 是「用户主动停用」的合法值，不能动
+				for _, c := range cols {
+					if err := tx.Model(c.model).Where("is_enable IS NULL").Update("is_enable", 1).Error; err != nil {
+						return fmt.Errorf("回填名单条目启用默认值失败: %w", err)
+					}
+				}
+				zlog.Info("迁移 202610210001: 完成")
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				zlog.Info("回滚 202610210001: 删除四类名单表的条目启用开关列")
+				// 注意：删列即丢弃开关状态——用户停用过的条目回滚后回到「全部生效」，
+				// 再升级也不会恢复停用标记
+				for _, m := range []any{&model.IPAllowList{}, &model.URLAllowList{}, &model.IPBlockList{}, &model.URLBlockList{}} {
+					if tx.Migrator().HasColumn(m, "is_enable") {
+						if err := tx.Migrator().DropColumn(m, "is_enable"); err != nil {
+							return err
+						}
+					}
+				}
+				return nil
+			},
+		},
 	})
 
 	// 执行迁移

@@ -16,6 +16,7 @@ func (receiver *AllowIpRouter) InitAllowIpRouter(group *gin.RouterGroup) {
 	allowIpRouter.POST("/api/v1/wafhost/ipwhite/add", AllowIpRouterApi.AddApi)
 	allowIpRouter.GET("/api/v1/wafhost/ipwhite/del", AllowIpRouterApi.DelAllowIpApi)
 	allowIpRouter.POST("/api/v1/wafhost/ipwhite/edit", AllowIpRouterApi.ModifyAllowIpApi)
+	allowIpRouter.POST("/api/v1/wafhost/ipwhite/toggle", AllowIpRouterApi.ToggleApi)
 
 	allowIpRouter.POST("/api/v1/wafhost/ipwhite/batchdel", AllowIpRouterApi.BatchDelAllowIpApi)
 	allowIpRouter.POST("/api/v1/wafhost/ipwhite/delall", AllowIpRouterApi.DelAllAllowIpApi)

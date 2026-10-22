@@ -23,6 +23,10 @@ const appUploadMaxBytes = 200 * 1024 * 1024 // 200 MB
 
 type WafAppApi struct{}
 
+func (w *WafAppApi) GetFeatureStatusApi(c *gin.Context) {
+	response.OkWithData(gin.H{"enabled": global.GWAF_CAN_APP_MANAGE}, c)
+}
+
 // recordSysLog 写安全审计日志到日志队列
 func recordSysLog(opType, content string) {
 	log := model.WafSysLog{

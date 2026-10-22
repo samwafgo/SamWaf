@@ -12,6 +12,22 @@
 #   5. fresh_install: true 的条目只在"全新安装"时生成，不参与版本区间计算
 
 notes:
+  - id: v1_3_25_app_manage_setup_guide
+    version: v1.3.25
+    kind: check
+    level: low
+    page: /application/AppList
+    apply:
+      type: navigate
+    zh:
+      title: 应用管理未开启时显示配置引导
+      detail: 应用管理页面会先检查功能状态；未开启时显示配置位置、开启方法与重启提示，开启后显示应用列表。启用功能与设置应用操作密码仍需由管理员在 conf/config.yml 中完成，页面不提供在线修改配置。
+      revert: 无需额外操作；修改 application_manage 配置并重启后，页面按当前功能状态显示。
+    en:
+      title: Setup guidance when application management is disabled
+      detail: The application management page checks the feature status first. When disabled, it shows the configuration location, setup steps and restart reminder; when enabled, it displays the application list. Administrators still enable the feature and set the application operation password in conf/config.yml. The page does not edit configuration online.
+      revert: No additional action is required. After changing application_manage and restarting, the page reflects the current feature status.
+
   - id: v1_3_25_list_entry_switches
     version: v1.3.25
     kind: check

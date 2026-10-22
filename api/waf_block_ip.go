@@ -41,6 +41,10 @@ func (w *WafBlockIpApi) AddApi(c *gin.Context) {
 		return
 	}
 	req.IpType, req.Ip, req.GroupCode = ipType, ip, groupCode
+	if req.IsEnable != nil && *req.IsEnable != 0 && *req.IsEnable != 1 {
+		response.FailWithMessage("is_enable 取值只能是 0 或 1", c)
+		return
+	}
 
 	// 封禁层级：""/waf=WAF应用层(默认) | system=系统防火墙 | both=两者
 	layer := req.TargetLayer
@@ -196,6 +200,10 @@ func (w *WafBlockIpApi) ModifyBlockIpApi(c *gin.Context) {
 			return
 		}
 		req.IpType, req.Ip, req.GroupCode = ipType, ip, groupCode
+		if req.IsEnable != nil && *req.IsEnable != 0 && *req.IsEnable != 1 {
+			response.FailWithMessage("is_enable 取值只能是 0 或 1", c)
+			return
+		}
 
 		//编辑前先取旧记录，拿到可能被本次编辑改掉的旧 host_code(issue #898)
 		bean := wafIpBlockService.GetDetailByIdApi(req.Id)
@@ -271,13 +279,42 @@ func (w *WafBlockIpApi) DelAllBlockIpApi(c *gin.Context) {
 	}
 }
 
+// ToggleApi 切换IP黑名单条目启用状态
+// @Summary      切换IP黑名单条目启用状态
+// @Description  启用或停用单条IP黑名单记录，停用的条目不再对引擎生效
+// @Tags         网站防护-IP黑名单
+// @Accept       json
+// @Produce      json
+// @Param        data  body      request.WafBlockIpToggleReq  true  "条目ID与目标状态"
+// @Success      200   {object}  response.Response  "操作成功"
+// @Security     ApiKeyAuth
+// @Router       /wafhost/ipblock/toggle [post]
+func (w *WafBlockIpApi) ToggleApi(c *gin.Context) {
+	var req request.WafBlockIpToggleReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage("解析失败", c)
+		return
+	}
+	if *req.IsEnable != 0 && *req.IsEnable != 1 {
+		response.FailWithMessage("is_enable 取值只能是 0 或 1", c)
+		return
+	}
+	hostCode, err := wafIpBlockService.ToggleApi(req)
+	if err != nil {
+		response.FailWithMessage("操作失败", c)
+		return
+	}
+	w.NotifyWaf(hostCode)
+	response.OkWithMessage("操作成功", c)
+}
+
 /*
 *
 通知到waf引擎实时生效
 */
 func (w *WafBlockIpApi) NotifyWaf(host_code string) {
 	var ipWhites []model.IPBlockList
-	global.GWAF_LOCAL_DB.Where("host_code = ? ", host_code).Find(&ipWhites)
+	global.GWAF_LOCAL_DB.Where("host_code = ? and is_enable = 1", host_code).Find(&ipWhites)
 	var chanInfo = spec.ChanCommonHost{
 		HostCode: host_code,
 		Type:     enums.ChanTypeBlockIP,

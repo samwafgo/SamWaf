@@ -16,6 +16,7 @@ func (receiver *AllowUrlRouter) InitAllowUrlRouter(group *gin.RouterGroup) {
 	allowUrlRouter.POST("/api/v1/wafhost/urlwhite/add", AllowUrlRouterApi.AddApi)
 	allowUrlRouter.GET("/api/v1/wafhost/urlwhite/del", AllowUrlRouterApi.DelAllowUrlApi)
 	allowUrlRouter.POST("/api/v1/wafhost/urlwhite/edit", AllowUrlRouterApi.ModifyAllowUrlApi)
+	allowUrlRouter.POST("/api/v1/wafhost/urlwhite/toggle", AllowUrlRouterApi.ToggleApi)
 	// 新增批量删除路由
 	allowUrlRouter.POST("/api/v1/wafhost/urlwhite/batchdel", AllowUrlRouterApi.BatchDelAllowUrlApi)
 	// 新增全部删除路由

@@ -17,6 +17,7 @@ func (receiver *BlockIpRouter) InitBlockIpRouter(group *gin.RouterGroup) {
 	router.GET("/api/v1/wafhost/ipblock/recommend-layer", api.GetRecommendLayerApi) // 推荐封禁层级(智能默认)
 	router.GET("/api/v1/wafhost/ipblock/del", api.DelBlockIpApi)
 	router.POST("/api/v1/wafhost/ipblock/edit", api.ModifyBlockIpApi)
+	router.POST("/api/v1/wafhost/ipblock/toggle", api.ToggleApi)
 	router.POST("/api/v1/wafhost/ipblock/batch/del", api.BatchDelBlockIpApi)
 	router.POST("/api/v1/wafhost/ipblock/delall", api.DelAllBlockIpApi)
 }

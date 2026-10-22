@@ -16,6 +16,10 @@ type WafWhiteIpService struct{}
 var WafWhiteIpServiceApp = new(WafWhiteIpService)
 
 func (receiver *WafWhiteIpService) AddApi(wafWhiteIpAddReq request.WafAllowIpAddReq) error {
+	isEnable := 1
+	if wafWhiteIpAddReq.IsEnable != nil {
+		isEnable = *wafWhiteIpAddReq.IsEnable
+	}
 	var wafHost = &model.IPAllowList{
 		BaseOrm: baseorm.BaseOrm{
 			Id:          uuid.GenUUID(),
@@ -29,14 +33,28 @@ func (receiver *WafWhiteIpService) AddApi(wafWhiteIpAddReq request.WafAllowIpAdd
 		Remarks:   wafWhiteIpAddReq.Remarks,
 		IpType:    wafWhiteIpAddReq.IpType,
 		GroupCode: wafWhiteIpAddReq.GroupCode,
+		IsEnable:  isEnable,
 	}
 	global.GWAF_LOCAL_DB.Create(wafHost)
 	return nil
 }
 
+// ToggleApi 切换条目启用状态，返回所属网站编码供调用方通知引擎
+func (receiver *WafWhiteIpService) ToggleApi(req request.WafAllowIpToggleReq) (string, error) {
+	var bean model.IPAllowList
+	if err := global.GWAF_LOCAL_DB.Where("id = ?", req.Id).First(&bean).Error; err != nil {
+		return "", err
+	}
+	err := global.GWAF_LOCAL_DB.Model(model.IPAllowList{}).Where("id = ?", req.Id).Updates(map[string]interface{}{
+		"is_enable":   *req.IsEnable,
+		"UPDATE_TIME": customtype.JsonTime(time.Now()),
+	}).Error
+	return bean.HostCode, err
+}
+
 // CheckIsExistApi 判重。唯一性由 (host_code, ip_type, ip, group_code) 共同决定：
 // 同一站点重复引用同一个 IP 组也算重复。
-// ip_type 用 IN ('', 'ip') 兼容存量行的空串。
+// ip_type 用 IN (”, 'ip') 兼容存量行的空串。
 func (receiver *WafWhiteIpService) CheckIsExistApi(wafWhiteIpAddReq request.WafAllowIpAddReq) error {
 	if wafWhiteIpAddReq.IpType == model.IPEntryTypeGroup {
 		return global.GWAF_LOCAL_DB.First(&model.IPAllowList{},
@@ -67,6 +85,9 @@ func (receiver *WafWhiteIpService) ModifyApi(wafWhiteIpEditReq request.WafAllowI
 		"ip_type":     wafWhiteIpEditReq.IpType,
 		"group_code":  wafWhiteIpEditReq.GroupCode,
 		"UPDATE_TIME": customtype.JsonTime(time.Now()),
+	}
+	if wafWhiteIpEditReq.IsEnable != nil {
+		ipWhiteMap["is_enable"] = *wafWhiteIpEditReq.IsEnable
 	}
 	err := global.GWAF_LOCAL_DB.Model(model.IPAllowList{}).Where("id = ?", wafWhiteIpEditReq.Id).Updates(ipWhiteMap).Error
 

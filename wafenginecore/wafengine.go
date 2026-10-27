@@ -182,25 +182,6 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-SamWaf-Worker", global.GWAF_WORKER_TAG)
 	}
 
-	port := ""
-	host := r.Host
-	if !strings.Contains(host, ":") {
-		// 检查请求是否使用了HTTPS
-		if r.TLS != nil {
-			// 请求使用了HTTPS
-			host = host + ":443"
-		} else {
-			// 请求使用了HTTP
-			host = host + ":80"
-		}
-	}
-	// 从 host 字符串中提取端口
-	if strings.Contains(host, ":") {
-		parts := strings.Split(host, ":")
-		if len(parts) == 2 {
-			port = parts[1]
-		}
-	}
 	defer func() {
 		e := recover()
 		if e != nil {
@@ -214,57 +195,10 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			debug.PrintStack()
 		}
 	}()
-	targetCode := ""
-	//检测是否是不检测端口的情况
-	if targetHost, ok := waf.rt().HostTargetNoPort[utils.GetPureDomain(host)]; ok {
-		host = targetHost
-	}
-	findHost := false
-	target, ok := waf.rt().HostTarget[host]
-	if !ok {
-		// 看看是不是泛域名情况
-		target, ok = waf.rt().HostTarget[domaintool.MaskSubdomain(host)]
-		if ok {
-			findHost = true
-			targetCode = target.Host.Code
-		}
-	} else {
-		targetCode = target.Host.Code
-		findHost = true
-	}
-
-	if !findHost {
-		// 绑定更多域名的信息
-		targetCode, ok = waf.rt().HostTargetMoreDomain[host]
-		if ok {
-			findHost = true
-		} else {
-			// 看看是不是泛域名情况
-			targetCode, ok = waf.rt().HostTargetMoreDomain[domaintool.MaskSubdomain(host)]
-			if ok {
-				findHost = true
-			}
-		}
-	}
-
-	//检测是否是宽松端口且是不指定域名的情况
-	if targetHost, ok := waf.rt().HostTargetNoPort["*"]; ok {
-		host = targetHost
-		//检测是否存在不指定域名的情况
-		target, ok = waf.rt().HostTarget[host]
-		if ok {
-			findHost = true
-			targetCode = target.Host.Code
-			zlog.Debug(fmt.Sprintf("%s %s", innerLogName, "触发*逻辑和来源port"))
-		}
-	} else {
-		//检测是否存在不指定域名的情况
-		target, ok = waf.rt().HostTarget["*:"+port]
-		if ok {
-			findHost = true
-			targetCode = target.Host.Code
-			zlog.Debug(fmt.Sprintf("%s %s", innerLogName, "触发*逻辑"))
-		}
+	route := resolveRequestHost(waf.rt(), r.Host, r.TLS != nil, false)
+	host, targetCode, findHost := route.Host, route.Code, route.Found
+	if route.CatchAllLog != "" {
+		zlog.Debug(fmt.Sprintf("%s %s", innerLogName, route.CatchAllLog))
 	}
 
 	// 检查域名是否已经注册

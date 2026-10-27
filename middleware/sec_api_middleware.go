@@ -15,6 +15,9 @@ import (
 // SecApi 鉴权中间件
 func SecApi() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if strings.HasSuffix(c.Request.URL.Path, "/api/v1/wafhost/host/diagnostic") {
+			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 32<<10)
+		}
 		bodyBytes, err := io.ReadAll(c.Request.Body)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read request body"})

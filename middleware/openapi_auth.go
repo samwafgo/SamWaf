@@ -167,7 +167,8 @@ func OpenApiLogMiddleware() gin.HandlerFunc {
 		contentType := c.GetHeader("Content-Type")
 		isFileRequest := strings.Contains(contentType, "multipart") ||
 			strings.Contains(path, "/download") ||
-			strings.Contains(path, "/upload")
+			strings.Contains(path, "/upload") ||
+			strings.HasSuffix(path, "/api/v1/wafhost/host/diagnostic")
 
 		if !isFileRequest && c.Request.Body != nil {
 			bodyBytes, err := io.ReadAll(c.Request.Body)

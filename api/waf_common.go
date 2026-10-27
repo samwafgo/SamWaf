@@ -1,14 +1,10 @@
 package api
 
 import (
-	"SamWaf/common/uuid"
-	"SamWaf/customtype"
-	"SamWaf/global"
 	"SamWaf/model"
-	"SamWaf/model/baseorm"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
-	"errors"
+	"SamWaf/service/waf_service"
 	"fmt"
 	"log"
 	"net/http"
@@ -22,11 +18,6 @@ import (
 )
 
 type WafCommonApi struct {
-}
-type ReturnImportData struct {
-	SuccessInt int
-	FailInt    int
-	Msg        string
 }
 
 // 导出excel
@@ -67,7 +58,19 @@ func (w *WafCommonApi) ExportExcelApi(c *gin.Context) {
 				if field.Name == "BaseOrm" {
 					f.SetCellValue(sheetName, fmt.Sprintf("%s%d", w.GetColumnName(j), rowNum), "")
 				} else {
-					colValue := rowValue.Field(j).Interface()
+					value := rowValue.Field(j)
+					colValue := value.Interface()
+					// Excel 数值仅保留 15 位有效数字，大整数使用文本单元格。
+					switch value.Kind() {
+					case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+						if n := value.Int(); n > 999999999999999 || n < -999999999999999 {
+							colValue = strconv.FormatInt(n, 10)
+						}
+					case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+						if n := value.Uint(); n > 999999999999999 {
+							colValue = strconv.FormatUint(n, 10)
+						}
+					}
 					f.SetCellValue(sheetName, fmt.Sprintf("%s%d", w.GetColumnName(j), rowNum), colValue)
 				}
 			}
@@ -93,45 +96,39 @@ func (w *WafCommonApi) ExportExcelApi(c *gin.Context) {
 	}
 }
 func (w *WafCommonApi) ImportExcelApi(c *gin.Context) {
-	file, err := c.FormFile("file") // "excelFile" 对应前端上传的文件字段名
+	importTable, ok := c.GetPostForm("import_table")
+	if !ok || importTable != "hosts" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "import_table 仅支持 hosts"})
+		return
+	}
+	importCodeStrategy, ok := c.GetPostForm("import_code_strategy")
+	if !ok || (importCodeStrategy != "0" && importCodeStrategy != "1") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "import_code_strategy 仅支持 0 或 1"})
+		return
+	}
+	file, err := c.FormFile("file")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "读取上传文件失败"})
 		return
 	}
-	// 生成文件名
-	fileName := time.Now().Format("20060102150405") + "import.xlsx"
-
-	if err := c.SaveUploadedFile(file, fileName); // 保存文件到指定路径
-	err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	importTable, succResult := c.GetPostForm("import_table")
-	if !succResult {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-	}
-	importCodeStrategy, succResult := c.GetPostForm("import_code_strategy")
-	if !succResult {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-	}
-	// 创建 Excel 文件
-	f, err := excelize.OpenFile(fileName)
+	reader, err := file.Open()
 	if err != nil {
-		fmt.Println(err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "打开上传文件失败"})
 		return
 	}
-
-	// Get all the rows in the Sheet1.
-	rows, err := f.GetRows("Sheet1")
+	defer reader.Close()
+	f, err := excelize.OpenReader(reader)
 	if err != nil {
-		fmt.Println(err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "解析 Excel 文件失败"})
 		return
 	}
-	ret := saveDataToDatabase(importTable, rows, importCodeStrategy)
-	// 删除临时文件
-	if err := os.Remove(fileName); err != nil {
-		log.Println("无法删除临时文件：", err)
+	defer f.Close()
+	rows, err := f.GetRows("Sheet1", excelize.Options{RawCellValue: true})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "读取 Sheet1 失败"})
+		return
 	}
+	ret := waf_service.ImportHostsExcel(rows, importCodeStrategy)
 	response.OkWithDetailed(ret, "上传完成", c)
 }
 
@@ -158,187 +155,6 @@ func (w *WafCommonApi) GetColumnName(colIdx int) string {
 		colIdx = colIdx/26 - 1
 	}
 	return colName
-}
-
-// 通用数据插入函数
-func saveDataToDatabase(tableName string, rows [][]string, importCodeStrategy string) ReturnImportData {
-	successInt := 0
-	failInt := 0
-	msg := ""
-
-	processImportData(&model.Hosts{}, tableName, rows, &successInt, &failInt, &msg, importCodeStrategy)
-
-	return ReturnImportData{
-		SuccessInt: successInt,
-		FailInt:    failInt,
-		Msg:        msg,
-	}
-}
-
-// processImportData 是通用的导入数据函数
-func processImportData(dataType interface{}, tableName string, rows [][]string, successInt, failInt *int, msg *string, importCodeStrategy string) {
-	var header []string
-	needJumpFristCol := false
-	rowNumber := 0
-	var dataMap map[string]string
-
-	// 获取结构体类型和字段信息
-	dataValue := reflect.ValueOf(dataType).Elem()
-	dataTypeFields := dataValue.Type()
-
-	// 获取表头
-	for _, row := range rows {
-		for _, colCell := range row {
-			if colCell == " - " {
-				needJumpFristCol = true
-				continue
-			}
-			header = append(header, colCell)
-		}
-		break
-	}
-
-	isBadData := false
-	// 处理数据 获取数据并插入数据库
-	for _, row := range rows {
-		isBadData = false
-		if rowNumber == 0 && needJumpFristCol {
-			rowNumber++
-			continue
-		}
-
-		// 建立一个 map 来存储数据
-		dataMap = make(map[string]string)
-		colNumber := 0
-		for _, colCell := range row {
-			if colNumber == 0 && needJumpFristCol {
-				colNumber++
-				continue
-			}
-			headerNumber := colNumber
-			if needJumpFristCol {
-				headerNumber = headerNumber - 1
-			}
-			dataMap[header[headerNumber]] = colCell
-			colNumber++
-		}
-
-		// 动态创建结构体实例，并映射数据
-		newInstance := reflect.New(dataValue.Type()).Elem()
-
-		for fieldIdx := 0; fieldIdx < dataTypeFields.NumField(); fieldIdx++ {
-			field := dataTypeFields.Field(fieldIdx)
-			fieldName := field.Name
-			jsonTag := field.Tag.Get("json")
-
-			// 如果 dataMap 中有匹配的字段
-			if val, exists := dataMap[jsonTag]; exists {
-				//排除一些特定数据
-				if tableName == "hosts" && fieldName == "Host" && (val == "全局网站" || val == "") {
-					isBadData = true
-					break
-				}
-				//检查数据是否已经存在
-				if tableName == "hosts" && fieldName == "Host" {
-					if importCodeStrategy == "1" {
-						errMsg, err := checkHostCodeData(dataMap["code"])
-						if err != nil {
-							*msg += fmt.Sprintf("行 %d, 检测数据合法性时候 出错: %v |", rowNumber, errMsg)
-							*failInt++
-							isBadData = true
-							break
-						}
-					}
-					errMsg, err := checkHostPortData(dataMap["host"], dataMap["port"])
-					if err != nil {
-						*msg += fmt.Sprintf("行 %d, 检测数据合法性时候 出错: %v |", rowNumber, errMsg)
-						*failInt++
-						isBadData = true
-						break
-					}
-				}
-				// 将字段值设置到结构体中
-				fieldVal := newInstance.Field(fieldIdx)
-				// 转换并设置字段的值
-				switch fieldVal.Kind() {
-				case reflect.String:
-					if tableName == "hosts" {
-						if importCodeStrategy == "0" && fieldName == "Code" {
-							fieldVal.SetString(uuid.GenUUID())
-						} else {
-							fieldVal.SetString(val)
-						}
-					} else {
-						fieldVal.SetString(val)
-					}
-				case reflect.Int:
-					intVal, err := strconv.Atoi(val)
-					if err != nil {
-						*msg += fmt.Sprintf("行 %d, 字段 %s 转换为 int 错误: %v |", rowNumber, fieldName, err)
-						*failInt++
-						isBadData = true
-						break
-					}
-					fieldVal.SetInt(int64(intVal))
-				default:
-					*msg += fmt.Sprintf("不支持的字段类型: %s |", fieldVal.Kind())
-					*failInt++
-					isBadData = true
-					break
-				}
-			} else if fieldName == "BaseOrm" {
-				fieldVal := newInstance.Field(fieldIdx)
-				// 给 BaseOrm 赋值
-				baseOrm := baseorm.BaseOrm{
-					Id:          uuid.GenUUID(), // 新生成的 ID
-					USER_CODE:   global.GWAF_USER_CODE,
-					Tenant_ID:   global.GWAF_TENANT_ID,
-					CREATE_TIME: customtype.JsonTime(time.Now()),
-					UPDATE_TIME: customtype.JsonTime(time.Now()),
-				}
-				// 将 BaseOrm 设置到结构体字段
-				fieldVal.Set(reflect.ValueOf(baseOrm))
-			} else {
-				*msg += fmt.Sprintf("行 %d, 缺少字段 %s 数据 |", rowNumber, fieldName)
-				*failInt++
-				isBadData = true
-				break
-			}
-		}
-		if isBadData == false {
-			if err := global.GWAF_LOCAL_DB.Create(newInstance.Interface()); err != nil {
-				errGorm := err.Error
-				if errGorm != nil {
-					*msg += fmt.Sprintf("行 %d 插入失败: %v |", rowNumber, err.Error)
-					*failInt++
-				} else {
-					*successInt++
-				}
-			}
-		}
-
-		rowNumber++
-	}
-}
-
-// checkHostData 检查host信息是否合法
-func checkHostCodeData(code string) (string, error) {
-	// 唯一性校验：检查 `Code` 是否已存在
-	if wafHostService.GetDetailByCodeApi(code).Code != "" {
-		errorMsg := "Code 数据已存在不进行插入"
-		// 数据已存在，不插入
-		return errorMsg, errors.New(errorMsg)
-	}
-	return "数据正常", nil
-}
-func checkHostPortData(host string, port string) (string, error) {
-	//唯一性校验：检查 `Host` 和 `Port` 的组合是否已存在
-	if err := wafHostService.CheckIsExist(host, port); err == nil {
-		errorMsg := "Host+Port 数据已存在不进行插入"
-		// 数据已存在，不插入
-		return errorMsg, errors.New(errorMsg)
-	}
-	return "数据正常", nil
 }
 
 // HeartbeatApi 心跳数据

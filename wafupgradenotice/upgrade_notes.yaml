@@ -12,6 +12,22 @@
 #   5. fresh_install: true 的条目只在"全新安装"时生成，不参与版本区间计算
 
 notes:
+  - id: v1_3_25_hosts_excel_integer_import
+    version: v1.3.25
+    kind: check
+    level: low
+    page: /waf-host/wafhost
+    apply:
+      type: navigate
+    zh:
+      title: 网站 Excel 导入支持各位宽整数
+      detail: 网站 Excel 导入支持包括紧急模式到期时间在内的整数字段，转换错误会标明行号与字段，每行最多计一次失败。导入仍要求完整字段表头；旧文件缺少新增列时，请使用当前版本重新导出后填写。
+      revert: 无需调整配置；导入前请确认文件字段完整，并核对导入结果中的成功数和失败原因。
+    en:
+      title: Website Excel import supports all integer widths
+      detail: Website Excel import supports integer fields including the emergency-mode expiry time. Conversion errors identify the row and field, with at most one failure per row. A complete column header is still required; if an older file lacks new columns, export a fresh file from the current version before filling it in.
+      revert: No configuration changes are needed. Check that the file has all columns before import, then review the success count and failure reasons.
+
   - id: v1_3_25_website_access_diagnostic
     version: v1.3.25
     kind: check

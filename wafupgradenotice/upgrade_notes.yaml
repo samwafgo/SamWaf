@@ -12,6 +12,22 @@
 #   5. fresh_install: true 的条目只在"全新安装"时生成，不参与版本区间计算
 
 notes:
+  - id: v1_3_25_website_access_diagnostic
+    version: v1.3.25
+    kind: check
+    level: low
+    page: /wafhost/website-diagnostic
+    apply:
+      type: navigate
+    zh:
+      title: 网站列表新增网站访问诊断
+      detail: 网站列表顶部「网站访问诊断」可按已保存网站填写实际访问网址，从服务器分段检查配置匹配、本机入口、源站和访问地址，展示请求、响应、连接与证书证据及处理建议。GET/HEAD 检测会真实访问业务并正常经过认证、防护和访问日志；不会修改网站配置。
+      revert: 不使用该页面即可；诊断不会保存或改变网站配置。
+    en:
+      title: Website access diagnostics added to the site list
+      detail: The Website Access Diagnostic action in the site-list toolbar selects a saved website and visitor URL, then independently checks configuration matching, the local ingress, origins and the access URL from the server. It shows request, response, connection and certificate evidence with handling suggestions. GET/HEAD probes make real business requests that pass through authentication, protection and access logs; website settings are not changed.
+      revert: Simply do not use this page; diagnostics neither save nor change website settings.
+
   - id: v1_3_25_app_manage_setup_guide
     version: v1.3.25
     kind: check

@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"SamWaf/cache"
@@ -88,8 +89,8 @@ func TestHttpAuthPathScope(t *testing.T) {
 			r.Header.Set(k, v)
 		}
 		w := httptest.NewRecorder()
-		blocked, _ := waf.DoHttpAuthBase(host, w, r, clientIP)
-		return blocked, w
+		res := waf.DoHttpAuthBase(host, w, r, clientIP)
+		return res.Blocked, w
 	}
 	basic := func(u, p string) map[string]string {
 		return map[string]string{"Authorization": "Basic " + b64(u+":"+p)}
@@ -158,6 +159,120 @@ func TestHttpAuthPathScope(t *testing.T) {
 				t.Fatalf("blocked = %v, 期望 %v (status=%d body=%.120s)", blocked, c.blocked, rec.Code, rec.Body.String())
 			}
 		})
+	}
+}
+
+// TestHttpAuthLogAttribution 这道门拦下请求时，得同时交出「哪道门」和「回了什么状态码」。
+//
+// 访问日志的「触发规则」与「状态码」两列都取自这里：规则名用于按规则筛，
+// 状态码必须与实际下发给客户端的一致（登录页 200 与 未登录 401 在日志里要能分开）。
+//
+// 反向验证：把 httpAuthRuleName 改回空串、或让 DoHttpAuthBase 不再回传状态码，本用例会红。
+func TestHttpAuthLogAttribution(t *testing.T) {
+	zlog.InitZLog(false, "console")
+
+	oldCache := global.GCACHE_WAFCACHE
+	oldLogDB, oldCoreDB := global.GWAF_LOCAL_LOG_DB, global.GWAF_LOCAL_DB
+	global.GCACHE_WAFCACHE = cache.InitWafCache()
+	defer func() {
+		global.GCACHE_WAFCACHE = oldCache
+		global.GWAF_LOCAL_LOG_DB = oldLogDB
+		global.GWAF_LOCAL_DB = oldCoreDB
+	}()
+
+	dialect.Register(&dialect.SQLiteDialect{})
+	dir := t.TempDir()
+	open := func(name string) *gorm.DB {
+		dsn := filepath.Join(dir, name) + "?_db_key=" + url.QueryEscape("ktest")
+		db, err := gorm.Open(sqlitedriver.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+		if err != nil {
+			t.Fatalf("sqlite 打开 %s 失败: %v", name, err)
+		}
+		t.Cleanup(func() {
+			if s, e := db.DB(); e == nil {
+				_ = s.Close()
+			}
+		})
+		return db
+	}
+	logDB := open("log.db")
+	if err := logDB.AutoMigrate(&model.SecurityAuditLog{}); err != nil {
+		t.Fatalf("迁移审计表失败: %v", err)
+	}
+	global.GWAF_LOCAL_LOG_DB = logDB
+	global.GWAF_LOCAL_DB = open("core-nomigrate.db")
+
+	waf := &WafEngine{}
+	newHost := func(authType string) *wafenginmodel.HostSafe {
+		h := &wafenginmodel.HostSafe{}
+		h.Host.Code = "hs_log_host"
+		h.Host.Host = "test.example.com"
+		h.Host.IsEnableHttpAuthBase = 1
+		h.Host.HttpAuthBaseType = authType
+		h.Host.HttpAuthJSON = `{"path_scope":"all"}`
+		h.HttpAuthBases = []model.HttpAuthBase{{UserName: "u", Password: "p"}}
+		return h
+	}
+	do := func(host *wafenginmodel.HostSafe, method, target, body string) (httpAuthResult, *httptest.ResponseRecorder) {
+		r := httptest.NewRequest(method, "http://test.example.com"+target, strings.NewReader(body))
+		if body != "" {
+			r.Header.Set("Content-Type", "application/json")
+		}
+		w := httptest.NewRecorder()
+		res := waf.DoHttpAuthBase(host, w, r, "8.8.8.8")
+		return res, w
+	}
+
+	// Basic 模式：无凭证 → 拦，401，规则名「网站密码访问」
+	basicHost := newHost("")
+	res, rec := do(basicHost, http.MethodGet, "/anything", "")
+	if !res.Blocked || res.Status != http.StatusUnauthorized || res.SelfServe {
+		t.Fatalf("Basic 未带凭证：期望 拦截/401/非自服务，实际 %+v (status=%d)", res, rec.Code)
+	}
+	if res.Status != rec.Code {
+		t.Fatalf("回传的状态码 %d 与实际下发的 %d 不一致：日志里的状态码必须与客户端收到的一致", res.Status, rec.Code)
+	}
+	if got := httpAuthRuleName(basicHost.Host); got == "" {
+		t.Fatal("Basic 模式的规则名不能为空：动作列光有「禁止」是筛不出是哪道门的")
+	} else if got != "网站密码访问" {
+		t.Fatalf("Basic 规则名 = %q，期望 网站密码访问", got)
+	}
+
+	// Basic 模式：Authorization 头格式错 → 400
+	r2 := httptest.NewRequest(http.MethodGet, "http://test.example.com/anything", nil)
+	r2.Header.Set("Authorization", "Basic !!!notbase64")
+	w2 := httptest.NewRecorder()
+	res2 := waf.DoHttpAuthBase(basicHost, w2, r2, "8.8.8.8")
+	if !res2.Blocked || res2.Status != http.StatusBadRequest {
+		t.Fatalf("Basic 头部格式错：期望 拦截/400，实际 %+v (status=%d)", res2, w2.Code)
+	}
+
+	// Custom 模式：未认证访问业务路径 → 回登录页（200），不是 401
+	customHost := newHost(model.HttpAuthTypeCustom)
+	res3, rec3 := do(customHost, http.MethodGet, "/admin", "")
+	if !res3.Blocked || res3.SelfServe {
+		t.Fatalf("Custom 未认证：期望 拦截/非自服务，实际 %+v (status=%d)", res3, rec3.Code)
+	}
+	if res3.Status != rec3.Code {
+		t.Fatalf("回传的状态码 %d 与实际下发的 %d 不一致", res3.Status, rec3.Code)
+	}
+	if res3.Status == http.StatusUnauthorized {
+		t.Fatal("Custom 未认证时回的是登录页，状态码不该是 401：日志里记 401 会让「登录页能打开」看起来像故障")
+	}
+	if got := httpAuthRuleName(customHost.Host); got != "网站密码访问(自定义登录页)" {
+		t.Fatalf("Custom 规则名 = %q，期望 网站密码访问(自定义登录页)", got)
+	}
+
+	// Custom 模式：登录校验端点 → 属认证网关自己的端点，不能算拦截
+	res4, _ := do(customHost, http.MethodPost, "/samwaf_httpauth/validate", `{"username":"u","password":"wrong"}`)
+	if !res4.Blocked {
+		t.Fatal("登录校验端点也应当由这道门接住（不往后端放行）")
+	}
+	if !res4.SelfServe {
+		t.Fatal("登录校验端点必须标成自服务：否则它会按拦截记账，动作列显示成「禁止」")
+	}
+	if res4.Status != http.StatusUnauthorized {
+		t.Fatalf("密码错误的登录校验状态码 = %d，期望 401", res4.Status)
 	}
 }
 

@@ -793,11 +793,22 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		//基本验证是否开关是否开启
 		if hostTarget.Host.IsEnableHttpAuthBase == 1 {
-			bHttpAuthBaseResult, sHttpAuthBaseResult := waf.DoHttpAuthBase(hostTarget, w, r, model.GetClientIPByMode(hostTarget.Host.IPMode, weblogbean.NetSrcIp, weblogbean.SRC_IP))
-			if bHttpAuthBaseResult == true {
+			authRes := waf.DoHttpAuthBase(hostTarget, w, r, model.GetClientIPByMode(hostTarget.Host.IPMode, weblogbean.NetSrcIp, weblogbean.SRC_IP))
+			if authRes.Blocked {
 				// 记录日志
-				weblogbean.RES_BODY = sHttpAuthBaseResult
-				weblogbean.ACTION = "禁止"
+				weblogbean.RES_BODY = authRes.Tip
+				weblogbean.RULE = httpAuthRuleName(hostTarget.Host)
+				weblogbean.STATUS = fmt.Sprintf("%d %s", authRes.Status, http.StatusText(authRes.Status))
+				weblogbean.STATUS_CODE = authRes.Status
+				weblogbean.TASK_FLAG = 1
+				if authRes.SelfServe {
+					// 认证网关自己的端点（登录页/登录校验）：请求由这道门应答，没有被拦，
+					// 动作记「放行」。记成「禁止」会让一次登录成功在访问日志里显示成被拦截。
+					weblogbean.ACTION = "放行"
+					weblogbean.RULE = ""
+				} else {
+					weblogbean.ACTION = "禁止"
+				}
 				global.GQEQUE_LOG_DB.Enqueue(&weblogbean)
 				return
 			}

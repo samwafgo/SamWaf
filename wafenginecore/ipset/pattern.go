@@ -121,6 +121,30 @@ func IsCatchAllWildcard(raw string) bool {
 	if err != nil {
 		return false
 	}
+	return patternCoversWholeSpace(p)
+}
+
+// IsBlockAllPattern 判断一个模式是否覆盖某协议族的整个地址空间（「封全网」），
+// 含显式全网 CIDR（0.0.0.0/0、::/0、0/0、1.2.3.4/0 等归一后 Prefix==0 的写法）。
+//
+// 与 IsCatchAllWildcard 的分工：后者只拦写法不显眼的（通配/区间），把显式 0.0.0.0/0
+// 留给「确实要全匹配」的合法表达（如白名单临时全放行）；但黑名单、系统防火墙封禁
+// 场景里封全网会把管理端一并锁死，显式写法同样必须拒绝——本函数供这些封禁类
+// 写入侧校验使用。
+func IsBlockAllPattern(raw string) bool {
+	p, err := ParsePattern(raw)
+	if err != nil {
+		return false
+	}
+	if p.Kind == KindCIDR && p.Prefix == 0 {
+		return true
+	}
+	return patternCoversWholeSpace(p)
+}
+
+// patternCoversWholeSpace 通配/区间两类「写法不显眼的全空间」判定，
+// 供 IsCatchAllWildcard 与 IsBlockAllPattern 复用。
+func patternCoversWholeSpace(p Pattern) bool {
 	switch p.Kind {
 	case KindWildcard:
 		return p.Prefix == 0

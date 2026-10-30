@@ -6,23 +6,25 @@ import "SamWaf/model/common/request"
 // 必填校验改为按 IpType 在 api 层做（见 api/waf_ip_entry_validate.go），
 // 否则老前端漏传 ip 会静默存下一条空行。
 type WafBlockIpAddReq struct {
-	HostCode    string `json:"host_code" binding:"required"` //网站唯一码（主要键）
-	Ip          string `json:"ip"`                           //Block ip：单IP / CIDR / 通配符(10.10.*.*) / 区间(起-止)
-	Remarks     string `json:"remarks"`                      //备注
-	TargetLayer string `json:"target_layer"`                 //封禁层级: ""/waf(WAF应用层) | system(系统防火墙) | both(两者)
-	IpType      string `json:"ip_type"`                      //条目类型: ""/ip(单条) | group(引用IP组)
-	GroupCode   string `json:"group_code"`                   //IpType=group 时的IP组短码
-	IsEnable    *int   `json:"is_enable"`                    //启用状态：nil=新增默认启用/编辑不改动，0停用 1启用
+	HostCode        string `json:"host_code" binding:"required"` //网站唯一码（主要键）
+	Ip              string `json:"ip"`                           //Block ip：单IP / CIDR / 通配符(10.10.*.*) / 区间(起-止)
+	Remarks         string `json:"remarks"`                      //备注
+	TargetLayer     string `json:"target_layer"`                 //封禁层级: ""/waf(WAF应用层) | system(系统防火墙) | both(两者)
+	IpType          string `json:"ip_type"`                      //条目类型: ""/ip(单条) | group(引用IP组)
+	GroupCode       string `json:"group_code"`                   //IpType=group 时的IP组短码
+	ConfirmBlockAll bool   `json:"confirm_block_all"`            //确认WAF全网封禁
+	IsEnable        *int   `json:"is_enable"`                    //启用状态：nil=新增默认启用/编辑不改动，0停用 1启用
 }
 
 type WafBlockIpEditReq struct {
-	Id        string `json:"id" binding:"required"`        //Block IP唯一键
-	HostCode  string `json:"host_code" binding:"required"` //网站唯一码（主要键）
-	Ip        string `json:"ip"`                           //Block ip：单IP / CIDR / 通配符 / 区间
-	Remarks   string `json:"remarks"`                      //备注
-	IpType    string `json:"ip_type"`                      //条目类型: ""/ip(单条) | group(引用IP组)
-	GroupCode string `json:"group_code"`                   //IpType=group 时的IP组短码
-	IsEnable  *int   `json:"is_enable"`                    //启用状态：nil=新增默认启用/编辑不改动，0停用 1启用
+	Id              string `json:"id" binding:"required"`        //Block IP唯一键
+	HostCode        string `json:"host_code" binding:"required"` //网站唯一码（主要键）
+	Ip              string `json:"ip"`                           //Block ip：单IP / CIDR / 通配符 / 区间
+	Remarks         string `json:"remarks"`                      //备注
+	IpType          string `json:"ip_type"`                      //条目类型: ""/ip(单条) | group(引用IP组)
+	GroupCode       string `json:"group_code"`                   //IpType=group 时的IP组短码
+	ConfirmBlockAll bool   `json:"confirm_block_all"`            //确认WAF全网封禁
+	IsEnable        *int   `json:"is_enable"`                    //启用状态：nil=新增默认启用/编辑不改动，0停用 1启用
 }
 type WafBlockIpDelReq struct {
 	Id string `json:"id"  form:"id"` //Block IP唯一键

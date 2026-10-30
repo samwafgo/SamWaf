@@ -259,6 +259,39 @@ func TestIsCatchAllWildcard(t *testing.T) {
 	}
 }
 
+// 封禁类场景（黑名单、系统防火墙）连显式全网 CIDR 也必须识别：
+// 系统防火墙封禁对整机所有端口生效，0.0.0.0/0 会把管理端一并锁死。
+// 注意与 IsCatchAllWildcard 用例的差异：0.0.0.0/0、::/0 在这里必须为 true。
+func TestIsBlockAllPattern(t *testing.T) {
+	cases := map[string]bool{
+		"0.0.0.0/0":         true, // 显式全网 IPv4
+		"::/0":              true, // 显式全网 IPv6
+		"0.0.0.0/00":        true, // 前导零掩码归一后前缀仍为 0
+		"0000::/0":          true, // 前导零地址归一后前缀仍为 0
+		// "0/0" 无需覆盖：语法层即非法（ParseCIDR 要求完整点分地址），根本写不进来
+		"1.2.3.4/0":         true, // 掩码 /0 语义上就是全网，与网络地址写法无关
+		"*.*.*.*":           true, // 全通配
+		"*:*:*:*:*:*:*:*":   true,
+		"0.0.0.0-255.255.255.255":                    true, // 全空间区间
+		"::-ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff": true,
+		"10.0.0.0/8":        false,
+		"0.0.0.0/24":        false,
+		"::/64":             false,
+		"1.2.3.4":           false,
+		"0.0.0.0":           false, // 单 IP：全网网络地址不等于全网
+		"::":                false,
+		"10.10.*.*":         false,
+		"1.2.3.4-1.2.3.99":  false,
+		"not-an-ip":         false,
+		"":                  false,
+	}
+	for raw, want := range cases {
+		if got := IsBlockAllPattern(raw); got != want {
+			t.Errorf("IsBlockAllPattern(%q) = %v, want %v", raw, got, want)
+		}
+	}
+}
+
 func TestMatchPatternCached(t *testing.T) {
 	cases := []struct {
 		ip, pattern string

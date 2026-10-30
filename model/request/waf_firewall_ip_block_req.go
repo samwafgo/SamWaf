@@ -4,8 +4,8 @@ import "SamWaf/model/common/request"
 
 // WafFirewallIPBlockAddReq 添加防火墙IP封禁请求
 type WafFirewallIPBlockAddReq struct {
-	HostCode   string `json:"host_code"`             // 网站唯一码（主要键）
-	IP         string `json:"ip" binding:"required"` // 被封禁的IP地址
+	HostCode   string `json:"host_code"`             // 已废弃：系统防火墙封禁为整机全局，service 层恒存空串，此字段传入也不生效
+	IP         string `json:"ip" binding:"required"` // 被封禁的IP地址，仅支持单IP或CIDR，且不允许全网（0.0.0.0/0、::/0）
 	Reason     string `json:"reason"`                // 封禁原因
 	BlockType  string `json:"block_type"`            // 封禁类型：manual-手动封禁, auto-自动封禁, temp-临时封禁
 	ExpireTime int64  `json:"expire_time"`           // 过期时间（时间戳，0表示永久）
@@ -15,8 +15,8 @@ type WafFirewallIPBlockAddReq struct {
 // WafFirewallIPBlockEditReq 编辑防火墙IP封禁请求
 type WafFirewallIPBlockEditReq struct {
 	Id         string `json:"id" binding:"required"` // 唯一键
-	HostCode   string `json:"host_code"`             // 网站唯一码（主要键）
-	IP         string `json:"ip" binding:"required"` // 被封禁的IP地址
+	HostCode   string `json:"host_code"`             // 已废弃：编辑时恒归一为空串（全局）
+	IP         string `json:"ip" binding:"required"` // 被封禁的IP地址，仅支持单IP或CIDR，且不允许全网
 	Reason     string `json:"reason"`                // 封禁原因
 	BlockType  string `json:"block_type"`            // 封禁类型
 	Status     string `json:"status"`                // 状态
@@ -51,8 +51,8 @@ type WafFirewallIPBlockBatchDelReq struct {
 
 // WafFirewallIPBlockBatchAddReq 批量添加防火墙IP封禁请求
 type WafFirewallIPBlockBatchAddReq struct {
-	HostCode  string   `json:"host_code"`              // 网站唯一码
-	IPs       []string `json:"ips" binding:"required"` // IP地址列表
+	HostCode  string   `json:"host_code"`              // 已废弃：恒存空串（全局），传入不生效
+	IPs       []string `json:"ips" binding:"required"` // IP地址列表，仅支持单IP或CIDR，且不允许全网
 	Reason    string   `json:"reason"`                 // 封禁原因
 	BlockType string   `json:"block_type"`             // 封禁类型
 	Remarks   string   `json:"remarks"`                // 备注

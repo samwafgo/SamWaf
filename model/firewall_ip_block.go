@@ -7,7 +7,7 @@ import (
 // FirewallIPBlock 防火墙IP封禁记录表（操作系统级别的防火墙封禁）
 type FirewallIPBlock struct {
 	baseorm.BaseOrm
-	HostCode   string `gorm:"size:64" json:"host_code"`  // 网站唯一码（主要键）
+	HostCode   string `gorm:"size:64" json:"host_code"`  // 网站唯一码。系统防火墙封禁为整机全局，与网站无关；新记录恒为空串，存量带站点码的记录在编辑时归一为空串
 	IP         string `gorm:"size:64" json:"ip"`         // 被封禁的IP地址，支持单个IP或CIDR格式
 	Reason     string `gorm:"type:text" json:"reason"`   // 封禁原因
 	BlockType  string `gorm:"size:32" json:"block_type"` // 封禁类型：manual-手动封禁, auto-自动封禁, temp-临时封禁

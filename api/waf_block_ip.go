@@ -45,8 +45,9 @@ func (w *WafBlockIpApi) AddApi(c *gin.Context) {
 		response.FailWithMessage("is_enable 取值只能是 0 或 1", c)
 		return
 	}
-
 	// 封禁层级：""/waf=WAF应用层(默认) | system=系统防火墙 | both=两者
+	// 说明：黑名单页已去掉层级选择、回归纯WAF层，本分支仅为外部直调 API 兼容保留，
+	// 前端不再有入口；系统层写入在 firewall_ip_block service 层另有全网封禁校验兜底
 	layer := req.TargetLayer
 	if layer == "" {
 		layer = "waf"
@@ -75,6 +76,11 @@ func (w *WafBlockIpApi) AddApi(c *gin.Context) {
 			response.OkWithMessage("已在系统防火墙层面封禁", c)
 			return
 		}
+	}
+
+	if needsBlockAllConfirmation(ipType, ip, req.ConfirmBlockAll) {
+		response.Result(response.NEED_CONFIRM_BLOCK_ALL, nil, "该规则覆盖整个IP地址族，请确认封禁范围后再次提交", c)
+		return
 	}
 
 	// WAF 应用层封禁(默认 / both)
@@ -202,6 +208,10 @@ func (w *WafBlockIpApi) ModifyBlockIpApi(c *gin.Context) {
 		req.IpType, req.Ip, req.GroupCode = ipType, ip, groupCode
 		if req.IsEnable != nil && *req.IsEnable != 0 && *req.IsEnable != 1 {
 			response.FailWithMessage("is_enable 取值只能是 0 或 1", c)
+			return
+		}
+		if needsBlockAllConfirmation(ipType, ip, req.ConfirmBlockAll) {
+			response.Result(response.NEED_CONFIRM_BLOCK_ALL, nil, "该规则覆盖整个IP地址族，请确认封禁范围后再次提交", c)
 			return
 		}
 

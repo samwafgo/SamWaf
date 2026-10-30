@@ -62,3 +62,8 @@ func checkSystemLayerSupported(ipType, ip string) error {
 	}
 	return nil
 }
+
+// needsBlockAllConfirmation 仅用于WAF黑名单写入确认。
+func needsBlockAllConfirmation(ipType, ip string, confirmed bool) bool {
+	return ipType != model.IPEntryTypeGroup && utils.IsBlockAllIPPattern(ip) && !confirmed
+}

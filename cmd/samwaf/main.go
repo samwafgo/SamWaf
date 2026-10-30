@@ -560,6 +560,8 @@ func (m *wafSystenService) run() {
 	// cron 任务调度同样是单例（避免新旧 Worker 重复执行定时任务）；takeover 模式延迟到 ACTIVATE 再启动。
 	if !global.GWAF_RUNTIME_IS_TAKEOVER {
 		globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler.Start()
+		// 日志导出执行器与任务调度同一接管边界启动，蓝绿升级时只有一个 Worker 受理任务。
+		logExportWorkerLifecycle.start(waf_service.WafLogExportServiceApp.Start)
 		// 主机登录防护的日志采集同样是独占单例：两个进程同时 tail 同一份 auth.log，
 		// 同一条失败会被计两次，而 memory 缓存下两边计数器互不可见，阈值等于被腰斩。
 		wafhostguard.Start()
@@ -1080,11 +1082,40 @@ func (s *supervisorService) Stop(svc service.Service) error {
 // 还是后续 Supervisor 的 DRAIN 指令触发。
 var gracefulOnce sync.Once
 
+// workerLogExportLifecycle 将启动与停止串行化，停止后不再接受ACTIVATE启动。
+type workerLogExportLifecycle struct {
+	mu       sync.Mutex
+	stopping bool
+}
+
+func (l *workerLogExportLifecycle) start(start func()) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if !l.stopping {
+		start()
+	}
+}
+
+func (l *workerLogExportLifecycle) stop(stop func()) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.stopping {
+		return
+	}
+	l.stopping = true
+	stop()
+}
+
+var logExportWorkerLifecycle workerLogExportLifecycle
+
 // Graceful 优雅停止的统一入口：先排空业务连接(StopAllProxyServer 已支持 Shutdown 排空)，
 // 回收各引擎/队列/任务资源，最后关闭数据库连接。供信号、服务 Stop 和升级 DRAIN 复用。
 func (m *wafSystenService) Graceful() {
 	gracefulOnce.Do(func() {
 		zlog.Info("[Graceful] 开始优雅停止：排空业务连接并回收资源 ...")
+		zlog.Info("Shutdown SamWaf LogExport...")
+		logExportWorkerLifecycle.stop(waf_service.WafLogExportServiceApp.Stop)
+		zlog.Info("Shutdown SamWaf LogExport finished")
 		m.stopSamWaf()           // 内部 CloseWaf→StopAllProxyServer 已优雅排空在途连接
 		wafsafeclear.SafeClear() // 最后关闭数据库连接
 		zlog.Info("[Graceful] 优雅停止完成")
@@ -1269,11 +1300,11 @@ func main() {
 		case "repairdb": //修复数据库
 			fmt.Println("\n⚠️  数据库修复工具")
 			fmt.Println("如果您遇到数据库损坏错误")
-			fmt.Println("可以使用此工具尝试修复。\n")
+			fmt.Println("可以使用此工具尝试修复。")
 			wafdb.RepairAllDatabases("")
 		case "execsql": //执行SQL语句
 			fmt.Println("\n💻 SQL 执行工具")
-			fmt.Println("可以在指定数据库上执行 SQL 语句\n")
+			fmt.Println("可以在指定数据库上执行 SQL 语句")
 			wafdb.ExecuteSQLCommand("")
 		case "migratedb": // 离线迁移：SQLite→MySQL / SQLite→PostgreSQL / MySQL→PostgreSQL
 			opts := wafdb.MigrateOptions{}
@@ -1494,6 +1525,8 @@ func activateSingletons() {
 		if globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler != nil {
 			globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler.Start()
 		}
+		// 日志导出执行器同属独占单例：与任务调度一同只在活动 Worker 中运行。
+		logExportWorkerLifecycle.start(waf_service.WafLogExportServiceApp.Start)
 		// 主机登录防护的日志采集也必须等旧 Worker 彻底退出后才启动，
 		// 否则两个进程同时读同一份 auth.log，失败次数被重复计入，阈值等于打了对折。
 		wafhostguard.Start()

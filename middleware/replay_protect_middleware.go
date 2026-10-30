@@ -18,6 +18,12 @@ const (
 	replayNonceTTL    = 10 * time.Minute
 )
 
+func isLogExportDownloadPath(path string) bool {
+	parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
+	return len(parts) == 6 && parts[0] == "api" && parts[1] == "v1" &&
+		parts[2] == "waflog" && parts[3] == "exports" && parts[4] != "" && parts[5] == "download"
+}
+
 func ReplayProtect() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if global.GCONFIG_ENABLE_REPLAY_PROTECT == 0 {
@@ -41,7 +47,7 @@ func ReplayProtect() gin.HandlerFunc {
 		if tsStr == "" || nonce == "" {
 			// 日志下载走 window.open，浏览器带不了自定义头，时间戳与 nonce 只能放查询串
 			// （与 extractTokenStr 对同一路径的特判保持一致；仅限这条路径，其余接口仍只认头）
-			if strings.HasPrefix(c.Request.URL.Path, "/api/v1/waflog/attack/download") {
+			if c.Request.URL.Path == "/api/v1/waflog/attack/download" || isLogExportDownloadPath(c.Request.URL.Path) {
 				if tsStr == "" {
 					tsStr = c.Query(replayTimeHeader)
 				}

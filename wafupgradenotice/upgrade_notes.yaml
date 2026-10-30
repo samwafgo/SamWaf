@@ -12,6 +12,35 @@
 #   5. fresh_install: true 的条目只在"全新安装"时生成，不参与版本区间计算
 
 notes:
+  - id: v1_3_25_log_unified_export
+    version: v1.3.25
+    kind: notice
+    level: normal
+    page: /waf/wafvisitlog
+    apply:
+      type: navigate
+    zh:
+      title: 访问日志导出改为后台任务，支持 JSONL / CSV / 加密 SQLite
+      detail: >-
+        访问日志页新增「导出日志」：选择格式（JSONL 默认 / CSV / 加密 SQLite）与时间范围后创建后台导出任务，
+        支持 SQLite、MySQL、PostgreSQL 三种日志库，任务完成后在任务列表中凭短效票据下载 ZIP 包
+        （内含 manifest 校验清单与 README）。仅超级管理员可操作，且仍受全局「是否允许导出」开关控制；
+        导出内容仅包含 access_log 与 security_event 两张表，不含请求/响应报文与旧版 web_logs。
+        原「直接导出整个日志库文件」的接口已由任务接口（waflog/exports）替代，
+        旧接口返回 EXPORT_API_CHANGED 与迁移指引；如通过脚本对接，请改用任务接口。
+    en:
+      title: Access log export is now a background task with JSONL / CSV / encrypted SQLite
+      detail: >-
+        The visit log page gains "Export logs": pick a format (JSONL default / CSV / encrypted SQLite)
+        and a time range to create a background export task. SQLite, MySQL and PostgreSQL log databases
+        are all supported; when the task finishes, download the ZIP package (with manifest and README)
+        from the task list using a short-lived ticket. Only super administrators can operate it, and the
+        global "allow export" switch still applies. Exports contain only the access_log and security_event
+        tables - no request/response payloads and no legacy web_logs. The previous
+        "export the whole log database" endpoints are replaced by the task API (waflog/exports);
+        the old endpoints return EXPORT_API_CHANGED with migration guidance. If you integrate via
+        scripts, please switch to the task API.
+
   - id: v1_3_25_hosts_excel_integer_import
     version: v1.3.25
     kind: check

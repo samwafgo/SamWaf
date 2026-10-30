@@ -1,24 +1,17 @@
 package api
 
 import (
-	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	response2 "SamWaf/model/response"
-	"SamWaf/utils"
 	"SamWaf/wafdb"
-	"SamWaf/wafdb/dialect"
 	"fmt"
-	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"sync/atomic"
-	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -127,145 +120,16 @@ func (w *WafLogAPi) GetListApi(c *gin.Context) {
 	}
 }
 func (w *WafLogAPi) ExportDBApi(c *gin.Context) {
-	// 导出物是「按时间段导出选定层」的新加密 SQLite 文件（service 按时间段扇出实时库与归档分区，
-	// 逐分片拷贝见 wafdb.ExportLogRangeDb），仅文件型数据库(SQLite)支持；MySQL 等无日志文件，直接屏蔽，避免进入后台 goroutine 后才失败。
-	if !dialect.Get().SupportsBackup() {
-		response.FailWithMessage("当前数据库不支持日志文件导出（仅 SQLite 支持）", c)
-		return
-	}
-	if global.GWAF_CAN_EXPORT_DOWNLOAD_LOG == false {
-		// 使用操作结果消息格式
-		serverName := global.GWAF_CUSTOM_SERVER_NAME
-		if serverName == "" {
-			serverName = "未命名服务器"
-		}
-		global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OpResultMessageInfo{
-			BaseMessageInfo: innerbean.BaseMessageInfo{
-				OperaType: "导出失败",
-				Server:    serverName,
-			},
-			Msg:     "当前不允许导出",
-			Success: "false",
-		})
-		// 专属码 EXPORT_DISABLED：前端据此给出「如何开启」的指引，而不是一句报错
-		response.Result(response.EXPORT_DISABLED, map[string]interface{}{},
-			"日志导出功能未开启：请在 conf/config.yml 中设置 export_download: true 并重启后再试", c)
-		return
-	}
-	if global.GDATA_CURRENT_CHANGE {
-		//如果正在切换库 跳过
-		response.FailWithMessage("正在切换数据库请等待", c)
-		return
-	}
-	//TODO 必须再验证一次权限
-	//是否生成了 还没下载
-	if len(global.GWAF_RUNTIME_CURRENT_EXPORT_DB_LOG_FILE_PATH) > 0 {
-		response.FailWithMessage("文件还未下载请等待", c)
-		return
-	}
-
-	// 导出物重定义（C11）：不再是备份整个日志库文件，而是「按时间段导出选定层」。
-	// start_time/end_time 形如 2006-01-02 15:04:05，留空不限；tiers 逗号分隔（access,event,payload,weblog），默认全选。
-	startTime := strings.TrimSpace(c.Query("start_time"))
-	endTime := strings.TrimSpace(c.Query("end_time"))
-	for _, tm := range []string{startTime, endTime} {
-		if tm == "" {
-			continue
-		}
-		if _, err := time.ParseInLocation("2006-01-02 15:04:05", tm, time.Local); err != nil {
-			response.FailWithMessage("时间格式不正确（应为 2006-01-02 15:04:05）", c)
-			return
-		}
-	}
-	tiers := map[string]bool{}
-	tierParam := strings.TrimSpace(c.Query("tiers"))
-	if tierParam == "" {
-		tiers[wafdb.ExportTierAccess] = true
-		tiers[wafdb.ExportTierEvent] = true
-		tiers[wafdb.ExportTierPayload] = true
-		tiers[wafdb.ExportTierWeblog] = true
-	} else {
-		for _, t := range strings.Split(tierParam, ",") {
-			switch strings.TrimSpace(t) {
-			case wafdb.ExportTierAccess, wafdb.ExportTierEvent, wafdb.ExportTierPayload, wafdb.ExportTierWeblog:
-				tiers[strings.TrimSpace(t)] = true
-			default:
-				response.FailWithMessage("未知的导出层: "+t, c)
-				return
-			}
-		}
-	}
-
-	go func() {
-		currentDir := utils.GetCurrentDir()
-		downLoadDir := currentDir + "/download"
-		// 判断备份目录是否存在，不存在则创建
-		if _, err := os.Stat(downLoadDir); os.IsNotExist(err) {
-			if err := os.MkdirAll(downLoadDir, os.ModePerm); err != nil {
-				zlog.Error("创建下载目录失败:", err)
-				return
-			}
-		}
-		//处理老旧数据
-		duration := 30 * time.Minute
-		utils.DeleteOldFiles(downLoadDir, duration)
-
-		// 创建下载文件
-		downloadFileName := fmt.Sprintf("local_log_export_%s.db", time.Now().Format("20060102150405"))
-		downloadFilePath := filepath.Join(downLoadDir, downloadFileName)
-		counts, err := wafLogService.ExportLogRange(downloadFilePath, startTime, endTime, tiers)
-		if err != nil {
-			_ = os.Remove(downloadFilePath)
-			global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OpResultMessageInfo{
-				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "DOWNLOAD_LOG", Server: global.GWAF_CUSTOM_SERVER_NAME},
-				Msg:             "导出失败: " + err.Error(),
-				Success:         "false",
-			})
-		} else {
-			global.GWAF_RUNTIME_CURRENT_EXPORT_DB_LOG_FILE_PATH = downloadFilePath
-			//发送websocket 推送消息
-			global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.ExportResultMessageInfo{
-				BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "DOWNLOAD_LOG", Server: global.GWAF_CUSTOM_SERVER_NAME},
-				Msg: fmt.Sprintf("导出完毕（访问日志%d条/安全事件%d条/报文%d条/旧版日志%d条）",
-					counts[wafdb.ExportTierAccess], counts[wafdb.ExportTierEvent],
-					counts[wafdb.ExportTierPayload], counts[wafdb.ExportTierWeblog]),
-				Success: "true",
-			})
-		}
-	}()
-	// 导出走后台 goroutine，受理本身要立刻落响应：此前处理函数什么都不写，
-	// 前端拿到 200 空体，只能把「已经开始」误报成失败
-	response.OkWithMessage("导出已开始，完成后会推送下载通知", c)
+	logExportAPIChanged(c)
 }
-func (w *WafLogAPi) DownloadApi(c *gin.Context) {
-	if global.GWAF_CAN_EXPORT_DOWNLOAD_LOG == false {
-		// 使用操作结果消息格式
-		serverName := global.GWAF_CUSTOM_SERVER_NAME
-		if serverName == "" {
-			serverName = "未命名服务器"
-		}
-		global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.OpResultMessageInfo{
-			BaseMessageInfo: innerbean.BaseMessageInfo{
-				OperaType: "下载失败",
-				Server:    serverName,
-			},
-			Msg:     "当前不允许下载",
-			Success: "false",
-		})
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "当前不允许下载：请在 conf/config.yml 中设置 export_download: true 并重启后再试"})
-		return
-	}
-	if len(global.GWAF_RUNTIME_CURRENT_EXPORT_DB_LOG_FILE_PATH) == 0 {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to download file,not find file"})
-		return
-	}
-	// 提供文件下载
-	filePath := global.GWAF_RUNTIME_CURRENT_EXPORT_DB_LOG_FILE_PATH
-	c.FileAttachment(filePath, "log.db")
 
-	global.GWAF_RUNTIME_CURRENT_EXPORT_DB_LOG_FILE_PATH = ""
-	// 下载完成后删除文件；删不掉有 download/ 的定时清理兜底
-	_ = os.Remove(filePath)
+func (w *WafLogAPi) DownloadApi(c *gin.Context) {
+	logExportAPIChanged(c)
+}
+
+func logExportAPIChanged(c *gin.Context) {
+	response.FailWithDetailed(gin.H{"error_code": "EXPORT_API_CHANGED"},
+		"日志导出接口已更新，请升级管理端后通过导出任务创建和下载日志包", c)
 }
 func (w *WafLogAPi) GetListByHostCodeApi(c *gin.Context) {
 	var req request.WafAttackLogSearch

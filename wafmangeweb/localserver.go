@@ -11,6 +11,7 @@ import (
 	"SamWaf/utils"
 	"SamWaf/wafmangeweb/static"
 	"SamWaf/wafnet"
+	"bytes"
 	"context"
 	"crypto/subtle"
 	"crypto/tls"
@@ -120,6 +121,28 @@ func (h *httpsRedirectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	h.inner.ServeHTTP(w, r)
 }
 
+// logExportTransportLimit 给导出任务创建接口的原始报文设置固定上限，避免把不受控大请求送入解密与JSON解析。
+func logExportTransportLimit() gin.HandlerFunc {
+	const limit = 32 << 10
+	return func(c *gin.Context) {
+		if c.Request.Method == http.MethodPost && c.Request.URL.Path == "/api/v1/waflog/exports" {
+			if c.Request.ContentLength > limit {
+				c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error_code": "EXPORT_INVALID_REQUEST", "message": "导出请求过大"})
+				c.Abort()
+				return
+			}
+			body, err := io.ReadAll(http.MaxBytesReader(c.Writer, c.Request.Body, limit))
+			if err != nil {
+				c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error_code": "EXPORT_INVALID_REQUEST", "message": "导出请求过大"})
+				c.Abort()
+				return
+			}
+			c.Request.Body = io.NopCloser(bytes.NewReader(body))
+		}
+		c.Next()
+	}
+}
+
 func (web *WafWebManager) initRouter(r *gin.Engine) {
 
 	PublicRouterGroup := r.Group("")
@@ -129,7 +152,7 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 	router.ApiGroupApp.InitAdminTitlesPublicRouter(PublicRouterGroup)
 
 	RouterGroup := r.Group("")
-	RouterGroup.Use(middleware.Auth(), middleware.ReplayProtect(), middleware.OpenApiLogMiddleware(), middleware.IPWhitelist(), middleware.DomainWhitelist(), middleware.SecApi(), middleware.GinGlobalExceptionMiddleWare())
+	RouterGroup.Use(logExportTransportLimit(), middleware.Auth(), middleware.ReplayProtect(), middleware.OpenApiLogMiddleware(), middleware.IPWhitelist(), middleware.DomainWhitelist(), middleware.SecApi(), middleware.GinGlobalExceptionMiddleWare())
 	{
 		// 共享/运维类接口：任意已登录角色可访问
 		router.ApiGroupApp.InitHostRouter(RouterGroup)
@@ -230,6 +253,11 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 		{
 			router.ApiGroupApp.InitSystemConfigRouter(systemConfigGroup)
 		}
+
+		// 导出任务下载凭短效票据访问：仍走管理端共有安全链，常规Auth由service核验票据并重查账号。
+		exportDownloadGroup := r.Group("")
+		exportDownloadGroup.Use(middleware.SecApi(), middleware.ReplayProtect(), middleware.IPWhitelist(), middleware.DomainWhitelist(), middleware.GinGlobalExceptionMiddleWare())
+		exportDownloadGroup.GET("/api/v1/waflog/exports/:id/download", api.WafLogExportAPI{}.Download)
 	}
 
 	// 仅允许后台 Token 登录访问，拒绝 API Key 访问（安全敏感接口）

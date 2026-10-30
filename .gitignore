@@ -36,3 +36,7 @@ dist/
 /wafsec/public_key.pem
 /wafinit/testdata
 /download/
+
+# go test 各包时按包目录创建的日志导出跨进程锁文件（每包一份，互不争用）
+**/data/.samwaf_log_lifecycle.lock
+**/data/.samwaf_log_export_executor.lock

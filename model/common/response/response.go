@@ -28,9 +28,10 @@ const (
 	BACKEND_UNAVAILABLE = -6
 	// EXPORT_DISABLED 日志导出被配置关闭（conf/config.yml 的 export_download 未开启）。
 	// 前端据此给出开启方法的指引，而不是一句「当前不允许导出」。
-	EXPORT_DISABLED = -7
-	FORBIDDEN       = -403
-	AUTHFAIL        = -999
+	EXPORT_DISABLED        = -7
+	NEED_CONFIRM_BLOCK_ALL = -8 // WAF全网黑名单需要显式确认
+	FORBIDDEN              = -403
+	AUTHFAIL               = -999
 )
 
 // HeaderKeyID 是客户端声明本次会话密钥的请求头，与 X-Sec-Ver: 2 配套。

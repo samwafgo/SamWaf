@@ -4,6 +4,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
+	"SamWaf/utils"
 	"errors"
 	"fmt"
 	"strings"
@@ -37,6 +38,11 @@ func (w *WafFirewallIPBlockApi) AddApi(c *gin.Context) {
 	// 通配符、区间这些 WAF 应用层的写法在这里表达不了，必须挡住而不是传给底层命令。
 	if serr := checkSystemLayerSupported(model.IPEntryTypeIP, strings.TrimSpace(req.IP)); serr != nil {
 		response.FailWithMessage(serr.Error(), c)
+		return
+	}
+	// 全网封禁会把管理端一并锁死，必须挡住（service 层仍有同款兜底）
+	if utils.IsBlockAllIPPattern(req.IP) {
+		response.FailWithMessage("不允许封禁整个IP地址空间(如 0.0.0.0/0、::/0)，系统防火墙封禁对整机所有端口生效，会导致管理端一并无法访问", c)
 		return
 	}
 
@@ -137,6 +143,16 @@ func (w *WafFirewallIPBlockApi) ModifyApi(c *gin.Context) {
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
 		response.FailWithMessage("解析失败", c)
+		return
+	}
+
+	// 编辑可能把目标改成通配符/区间或全网，与 AddApi 同口径提前拦截
+	if serr := checkSystemLayerSupported(model.IPEntryTypeIP, strings.TrimSpace(req.IP)); serr != nil {
+		response.FailWithMessage(serr.Error(), c)
+		return
+	}
+	if utils.IsBlockAllIPPattern(req.IP) {
+		response.FailWithMessage("不允许封禁整个IP地址空间(如 0.0.0.0/0、::/0)，系统防火墙封禁对整机所有端口生效，会导致管理端一并无法访问", c)
 		return
 	}
 

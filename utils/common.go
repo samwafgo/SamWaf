@@ -456,6 +456,16 @@ func IsCatchAllIPPattern(input string) bool {
 	return ipset.IsCatchAllWildcard(input)
 }
 
+// IsBlockAllIPPattern 判断是否为「封禁全网」写法：0.0.0.0/0、::/0、0/0 等
+// 归一后前缀为 0 的 CIDR，以及全通配、全空间区间。
+//
+// 只用于封禁类写入侧校验（IP黑名单、系统防火墙封禁）：系统防火墙封禁对整机所有
+// 端口生效，全网封禁会把管理端一并锁死。白名单等放行类场景不要用本函数——
+// 显式 0.0.0.0/0 在那里是「临时全放行」的合法表达（见 IsCatchAllIPPattern）。
+func IsBlockAllIPPattern(input string) bool {
+	return ipset.IsBlockAllPattern(input)
+}
+
 // IsValidIPOrNetwork 检查给定的字符串是否为有效的 IP 地址或 IP 段（CIDR）
 //
 // 严格模式：不接受通配符与区间。系统防火墙(iptables/netsh)下发、

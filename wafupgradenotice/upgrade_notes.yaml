@@ -1274,3 +1274,67 @@ notes:
         Earlier documentation listed the method as http/dns, which is easy to copy by mistake;
         the Open Platform documentation now states the accepted values.
         Nothing changes in the console itself, which already submits http01/dns01.
+
+  - id: v1_3_25_ipblock_layer_removed
+    version: v1.3.25
+    kind: notice
+    level: normal
+    page: /waf/wafipBlocklist
+    doc: https://doc.samwaf.com/guide/IPBlack.html
+    apply:
+      type: navigate
+    zh:
+      title: IP 黑名单回归纯 WAF 层，系统层封禁统一到「防火墙 IP 封禁」页
+      detail: >-
+        IP 黑名单新增条目不再提供封禁层级选择，统一在 WAF 应用层拦截（按网站生效）。
+        需要系统防火墙层封禁（内核 DROP，对整机所有端口生效）时，请到
+        「网站防护 - 防火墙 IP 封禁」页面操作，该页面的规则列表即系统层封禁的完整视图。
+        此前通过黑名单「两者」层级添加的条目，WAF 层记录继续在本页正常生效与管理，
+        系统层记录保留在「防火墙 IP 封禁」页管理，两条记录互不影响。
+        黑名单新增与编辑使用全网 CIDR（如 0.0.0.0/0、::/0）时需要二次确认后保存。
+        已启用的 IP 白名单优先放行，URL 白名单等放行规则同样有效；请确认所选网站范围。
+        0.0.0.0/0 仅覆盖 IPv4，::/0 仅覆盖 IPv6。
+    en:
+      title: The IP blacklist is WAF-layer only; system-layer blocking lives on the Firewall IP Block page
+      detail: >-
+        New IP blacklist entries no longer offer a blocking layer choice and always take effect
+        at the WAF application layer (per website). For system-firewall blocking (kernel DROP,
+        effective on every port of the machine), use the Website Protection - Firewall IP Block
+        page, whose rule list is the complete view of system-layer blocks.
+        Entries previously added through the Both layer keep working: the WAF-layer record
+        remains managed on this page, and the system-layer record remains managed on the
+        Firewall IP Block page; the two are independent.
+        Adding or editing a whole-network CIDR (such as 0.0.0.0/0 or ::/0) requires a second
+        confirmation before saving. Enabled IP allowlists take precedence; URL allowlists and
+        other allow rules also remain effective. Check the selected website scope.
+        0.0.0.0/0 covers IPv4 only, and ::/0 covers IPv6 only.
+
+  - id: v1_3_25_firewall_ip_global_nocatchall
+    version: v1.3.25
+    kind: notice
+    level: normal
+    page: /waf-host/wafFirewallIPBlock
+    doc: https://doc.samwaf.com/guide/FirewallIPBlock.html
+    apply:
+      type: navigate
+    zh:
+      title: 防火墙 IP 封禁不再关联网站，并拒绝全网封禁写法
+      detail: >-
+        「防火墙 IP 封禁」页的新增、编辑与批量新增不再要求选择网站：系统防火墙封禁
+        本来就是整机全局生效（所有端口，含管理端），与网站无关，列表及搜索栏也不再展示网站。
+        存量带网站标记的记录不用动，编辑保存一次即自动归一为全局。
+        本页面拒绝覆盖整个 IP 地址空间的封禁写法
+        （0.0.0.0/0、::/0、全通配、全空间区间）：系统防火墙封禁对整机所有端口生效，
+        全网封禁会把管理端一并挡住，导致无法登录管理界面。
+    en:
+      title: Firewall IP blocks are no longer tied to a website, and whole-network blocks are rejected
+      detail: >-
+        The add, edit and batch-add dialogs on the Firewall IP Block page no longer ask for a
+        website. A system-firewall block is machine-wide by nature (every port, including the
+        console), so it has nothing to do with any single website. The website column and
+        filter are also removed. Existing records that carry a website label do not need any
+        action - saving an edit once normalizes them to Global.
+        This page rejects block entries that cover the entire IP
+        address space (0.0.0.0/0, ::/0, full wildcards, full-space ranges): a system-firewall
+        block applies to every port of the machine, and blocking the whole network would lock
+        out the console along with everything else, leaving you unable to sign in.

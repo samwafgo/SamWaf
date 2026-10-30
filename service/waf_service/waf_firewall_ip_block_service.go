@@ -8,11 +8,28 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
+	"SamWaf/utils"
 	"SamWaf/wafdb/dialect"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
+
+// validateBlockIP 校验待下发的系统防火墙封禁目标。
+//
+// 只接受单 IP 与 CIDR（iptables/netsh 表达不了通配符与区间），且不允许覆盖整个
+// 地址空间：系统防火墙封禁对整机所有端口生效，全网封禁会把管理端一并锁死。
+func validateBlockIP(ip string) error {
+	ip = strings.TrimSpace(ip)
+	if ok, msg := utils.IsValidIPOrNetwork(ip); !ok {
+		return fmt.Errorf("系统防火墙只支持单个IP或CIDR网段: %s", msg)
+	}
+	if utils.IsBlockAllIPPattern(ip) {
+		return errors.New("不允许封禁整个IP地址空间(如 0.0.0.0/0、::/0)，系统防火墙封禁对整机所有端口生效，会导致管理端一并无法访问")
+	}
+	return nil
+}
 
 type WafFirewallIPBlockService struct {
 	fw firewall.FireWallEngine
@@ -51,25 +68,31 @@ func (receiver *WafFirewallIPBlockService) RecommendBlockLayer(hostCode string) 
 
 // AddApi 添加防火墙IP封禁（自动调用系统防火墙）
 func (receiver *WafFirewallIPBlockService) AddApi(req request.WafFirewallIPBlockAddReq) error {
-	// 1. 环境不具备防火墙能力时直接给出明确原因，不要把底层命令错误抛给用户
+	// 1. 目标校验先于环境探测：格式错误不需要真实防火墙环境即可快速失败
+	if err := validateBlockIP(req.IP); err != nil {
+		return err
+	}
+
+	// 2. 环境不具备防火墙能力时直接给出明确原因，不要把底层命令错误抛给用户
 	if err := receiver.fw.CheckAvailable(); err != nil {
 		return err
 	}
 
-	// 2. 检查IP是否已存在
+	// 3. 检查IP是否已存在
 	var existBean model.FirewallIPBlock
 	err := global.GWAF_LOCAL_DB.Where("ip = ? AND "+dialect.Q("status")+" = ?", req.IP, "active").First(&existBean).Error
 	if err == nil && existBean.Id != "" {
 		return errors.New("该IP已经被封禁")
 	}
 
-	// 3. 调用防火墙封禁IP
+	// 4. 调用防火墙封禁IP
 	err = receiver.fw.BlockIP(req.IP, req.Reason)
 	if err != nil {
 		return fmt.Errorf("防火墙封禁失败: %v", err)
 	}
 
-	// 4. 保存到数据库
+	// 5. 保存到数据库。系统防火墙封禁是整机全局的，与网站无关，
+	//    HostCode 恒为空串（全局），调用方传入的任何站点码都不生效
 	var bean = &model.FirewallIPBlock{
 		BaseOrm: baseorm.BaseOrm{
 			Id:          uuid.GenUUID(),
@@ -78,7 +101,7 @@ func (receiver *WafFirewallIPBlockService) AddApi(req request.WafFirewallIPBlock
 			CREATE_TIME: customtype.JsonTime(time.Now()),
 			UPDATE_TIME: customtype.JsonTime(time.Now()),
 		},
-		HostCode:   req.HostCode,
+		HostCode:   "",
 		IP:         req.IP,
 		Reason:     req.Reason,
 		BlockType:  req.BlockType,
@@ -109,6 +132,11 @@ func (receiver *WafFirewallIPBlockService) CheckIsExistApi(req request.WafFirewa
 
 // ModifyApi 修改防火墙IP封禁
 func (receiver *WafFirewallIPBlockService) ModifyApi(req request.WafFirewallIPBlockEditReq) error {
+	// 0. 目标校验：编辑可能改掉 IP，新值同样只能是单IP/CIDR 且不得全网
+	if err := validateBlockIP(req.IP); err != nil {
+		return err
+	}
+
 	// 1. 获取原记录
 	var oldBean model.FirewallIPBlock
 	err := global.GWAF_LOCAL_DB.Where("id = ?", req.Id).First(&oldBean).Error
@@ -142,9 +170,10 @@ func (receiver *WafFirewallIPBlockService) ModifyApi(req request.WafFirewallIPBl
 		}
 	}
 
-	// 4. 更新数据库
+	// 4. 更新数据库。HostCode 恒为空串：系统层封禁为整机全局，
+	//    存量带站点码的记录在编辑时归一为全局
 	beanMap := map[string]interface{}{
-		"HostCode":    req.HostCode,
+		"HostCode":    "",
 		"IP":          req.IP,
 		"Reason":      req.Reason,
 		"BlockType":   req.BlockType,
@@ -325,11 +354,6 @@ func (receiver *WafFirewallIPBlockService) BatchAddApi(req request.WafFirewallIP
 
 // EnableApi 启用防火墙IP封禁
 func (receiver *WafFirewallIPBlockService) EnableApi(req request.WafFirewallIPBlockEnableReq) error {
-	// 0. 环境不具备防火墙能力时直接给出明确原因
-	if err := receiver.fw.CheckAvailable(); err != nil {
-		return err
-	}
-
 	// 1. 获取记录
 	var bean model.FirewallIPBlock
 	err := global.GWAF_LOCAL_DB.Where("id = ?", req.Id).First(&bean).Error
@@ -337,6 +361,12 @@ func (receiver *WafFirewallIPBlockService) EnableApi(req request.WafFirewallIPBl
 		return errors.New("记录不存在")
 	}
 
+	if err := validateBlockIP(bean.IP); err != nil {
+		return err
+	}
+	if err := receiver.fw.CheckAvailable(); err != nil {
+		return err
+	}
 	if bean.Status == "active" {
 		return errors.New("该IP已经处于封禁状态")
 	}
@@ -392,17 +422,14 @@ func (receiver *WafFirewallIPBlockService) DisableApi(req request.WafFirewallIPB
 
 // SyncFirewallRules 同步防火墙规则（从数据库恢复到系统防火墙）
 func (receiver *WafFirewallIPBlockService) SyncFirewallRules(hostCode string) (successCount int, failedCount int, err error) {
-	// 0. 环境不具备防火墙能力时直接给出明确原因
-	if fwErr := receiver.fw.CheckAvailable(); fwErr != nil {
-		return 0, 0, fwErr
-	}
-
 	// 1. 获取所有active状态的记录
 	var beans []model.FirewallIPBlock
 	query := global.GWAF_LOCAL_DB.Where(dialect.Q("status")+" = ?", "active")
 
 	if hostCode != "" {
-		query = query.Where("host_code = ?", hostCode)
+		// 系统层封禁为全局（host_code 为空串），按站点同步时必须并入，
+		// 否则全局记录会被漏同步
+		query = query.Where("host_code = ? OR host_code = '' OR host_code IS NULL", hostCode)
 	}
 
 	err = query.Find(&beans).Error
@@ -413,16 +440,22 @@ func (receiver *WafFirewallIPBlockService) SyncFirewallRules(hostCode string) (s
 	// 2. 批量添加到防火墙
 	var ips []string
 	for _, bean := range beans {
+		if validateBlockIP(bean.IP) != nil {
+			failedCount++
+			continue
+		}
 		ips = append(ips, bean.IP)
 	}
 
 	if len(ips) > 0 {
-		successCount, failedIPs, _ := receiver.fw.BlockIPList(ips)
-		failedCount = len(failedIPs)
-		return successCount, failedCount, nil
+		if fwErr := receiver.fw.CheckAvailable(); fwErr != nil {
+			return 0, failedCount, fwErr
+		}
+		count, failedIPs, blockErr := receiver.fw.BlockIPList(ips)
+		return count, failedCount + len(failedIPs), blockErr
 	}
 
-	return 0, 0, nil
+	return 0, failedCount, nil
 }
 
 // ClearExpiredRules 清理过期的封禁规则：撤销系统防火墙规则并【删除】数据库记录。

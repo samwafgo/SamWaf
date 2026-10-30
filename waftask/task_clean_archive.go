@@ -9,6 +9,7 @@ import (
 	"SamWaf/wafdb"
 	"SamWaf/wafdb/dialect"
 	"SamWaf/wafdb/partition"
+	"context"
 	"os"
 	"time"
 )
@@ -83,6 +84,14 @@ func archiveSuffix(name string) string { return waf_service.ArchiveSuffix(name) 
 // CleanExpiredArchiveShard 回收过期的归档分区。
 func CleanExpiredArchiveShard() {
 	innerLogName := "CleanExpiredArchiveShard"
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	release, err := wafdb.AcquireLogWrite(ctx)
+	if err != nil {
+		zlog.Debug(innerLogName, "日志来源繁忙，本轮延后清理")
+		return
+	}
+	defer release()
 	now := time.Now()
 
 	shards, err := waf_service.WafShareDbServiceApp.GetAllShareDbApi()

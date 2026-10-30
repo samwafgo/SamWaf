@@ -61,6 +61,9 @@ func ProcessMessageDequeEngine() {
 				case innerbean.ExportResultMessageInfo:
 					//导出结果
 					sendToWebSocket("导出结果", msg.Msg, nil, "DOWNLOAD_LOG")
+				case innerbean.LogExportReadyMessageInfo:
+					//导出任务产物就绪：只通知任务号，下载由用户从任务列表发起
+					sendToWebSocket("日志导出任务", msg.Msg, map[string]interface{}{"task_id": msg.TaskID}, "LOG_EXPORT_READY")
 				case innerbean.UpdateResultMessageInfo:
 					//升级结果
 					sendToWebSocket("升级结果", msg.Msg, nil, "Info")

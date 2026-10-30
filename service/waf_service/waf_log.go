@@ -8,6 +8,7 @@ import (
 	"SamWaf/model/request"
 	"SamWaf/wafdb"
 	"SamWaf/wafdb/dialect"
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -193,6 +194,14 @@ func (receiver *WafLogService) GetListByHostCodeApi(log request.WafAttackLogSear
 //
 // 三张新表都带同格式的 create_time，按各自条件删，不必回表对 req_uuid。
 func (receiver *WafLogService) DeleteHistory(securityDay, accessDay string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	release, err := wafdb.AcquireLogWrite(ctx)
+	if err != nil {
+		zlog.Debug("清理日志", "日志来源繁忙，本轮延后清理")
+		return
+	}
+	defer release()
 	global.GWAF_LOCAL_LOG_DB.Where("create_time < ?", securityDay).Delete(&innerbean.WebLog{})
 	global.GWAF_LOCAL_LOG_DB.Where("create_time < ?", securityDay).Delete(&model.SecurityEvent{})
 	if err := global.GWAF_LOCAL_LOG_DB.Where("create_time < ?", accessDay).

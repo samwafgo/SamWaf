@@ -34,6 +34,8 @@ func runCoreCases(t *testing.T, db *gorm.DB) {
 	runCoreCRUDCasesB(t, db)
 	// 名单条目启用开关（is_enable）三库回归
 	runListEnableSwitchCases(t, db)
+	// 日志导出任务 user_code 缺列升级回归
+	runLogExportCases(t, db)
 	// ————— 升级须知：生成幂等 / 状态流转 / 降级不生成 —————
 	runUpgradeNoticeCases(t, db)
 }

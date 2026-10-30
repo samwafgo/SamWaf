@@ -53,6 +53,13 @@ type ExportResultMessageInfo struct {
 	Success string `json:"success"`
 }
 
+// 日志统一导出任务完成通知：仅携带任务定位信息，前端从任务接口申请下载票据。
+type LogExportReadyMessageInfo struct {
+	BaseMessageInfo
+	TaskID string `json:"task_id"`
+	Msg    string `json:"msg"`
+}
+
 /*
 *
 实时操作反馈

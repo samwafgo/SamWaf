@@ -7,6 +7,7 @@ import (
 	"SamWaf/model/common/response"
 	"SamWaf/utils"
 	"SamWaf/wafdb"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -146,6 +147,14 @@ func (w *WafFileApi) GetDataFilesApi(c *gin.Context) {
 
 // DeleteFileByIdApi 通过ID删除文件
 func (w *WafFileApi) DeleteFileByIdApi(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	defer cancel()
+	release, err := wafdb.AcquireLogWrite(ctx)
+	if err != nil {
+		response.FailWithMessage("日志来源繁忙，请稍后重试", c)
+		return
+	}
+	defer release()
 	fileID := c.Query("id")
 	if fileID == "" {
 		response.FailWithMessage("文件ID不能为空", c)

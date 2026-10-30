@@ -8,6 +8,7 @@ import (
 	"SamWaf/utils"
 	"SamWaf/wafdb"
 	"SamWaf/wafdb/dialect"
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -141,6 +142,13 @@ func liveShardCnt() int64 {
 // 只删 share_dbs 里登记过的归档分片：名字得对得上记录，才不会被当成「随便丢一张表」的入口。
 // 实时库一律拒绝。删完把分片记录与计数缓存一并清掉，否则下拉里会留下一个已经不存在的分区。
 func (receiver *WafShareDbService) ForceDeleteShard(name string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	release, err := wafdb.AcquireLogWrite(ctx)
+	if err != nil {
+		return "", fmt.Errorf("日志来源繁忙，请稍后重试: %w", err)
+	}
+	defer release()
 	name = strings.TrimSpace(name)
 	if IsLiveShardName(name) {
 		return "", fmt.Errorf("实时库不能删除")

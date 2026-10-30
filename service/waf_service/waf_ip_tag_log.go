@@ -5,7 +5,9 @@ import (
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/model/request"
+	"SamWaf/wafdb"
 	"SamWaf/wafdb/dialect"
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -333,6 +335,15 @@ order by  sum(cnt) desc
 
 // DeleteTagByNameApi 删除指定标签（支持批量删除大数据量）
 func (receiver *WafLogService) DeleteTagByNameApi(tagName string, deleteLogs bool) error {
+	if deleteLogs {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		release, err := wafdb.AcquireLogWrite(ctx)
+		if err != nil {
+			return fmt.Errorf("日志来源繁忙，请稍后重试: %w", err)
+		}
+		defer release()
+	}
 	ipTagDB := global.GetIPTagDB()
 
 	// 1. 删除 ip_tags 表中的标签数据

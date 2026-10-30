@@ -27,4 +27,14 @@ func (receiver *LogRouter) InitLogRouter(group *gin.RouterGroup) {
 	wafLogRouter.POST("/api/v1/waflog/attack/watchlist/add", logApi.AddIPWatchlistApi)
 	wafLogRouter.POST("/api/v1/waflog/attack/watchlist/del", logApi.DelIPWatchlistApi)
 	wafLogRouter.POST("/api/v1/waflog/attack/watchlist/list", logApi.GetIPWatchlistApi)
+
+	logExportApi := api.WafLogExportAPI{}
+	exportsRouter := group.Group("")
+	exportsRouter.GET("/api/v1/waflog/exports/capabilities", logExportApi.Capabilities)
+	exportsRouter.GET("/api/v1/waflog/exports", logExportApi.List)
+	exportsRouter.POST("/api/v1/waflog/exports", logExportApi.Create)
+	exportsRouter.GET("/api/v1/waflog/exports/:id", logExportApi.Get)
+	exportsRouter.POST("/api/v1/waflog/exports/:id/cancel", logExportApi.Cancel)
+	exportsRouter.POST("/api/v1/waflog/exports/:id/download-ticket", logExportApi.DownloadTicket)
+	exportsRouter.DELETE("/api/v1/waflog/exports/:id", logExportApi.Delete)
 }

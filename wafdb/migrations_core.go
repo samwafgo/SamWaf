@@ -2454,6 +2454,15 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		{
+			ID: "202610290001_add_log_export_task",
+			Migrate: func(tx *gorm.DB) error {
+				return tx.AutoMigrate(&model.LogExportTask{})
+			},
+			Rollback: func(tx *gorm.DB) error {
+				return tx.Migrator().DropTable(&model.LogExportTask{})
+			},
+		}, 
 	})
 
 	// 执行迁移

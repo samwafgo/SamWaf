@@ -13,6 +13,7 @@ import (
 	"SamWaf/wafdb"
 	"SamWaf/wafdb/dialect"
 	"SamWaf/wafdb/partition"
+	"context"
 	"fmt"
 	"os"
 	"time"
@@ -197,6 +198,14 @@ func CutTierBoundaryIfNeeded() bool {
 // 注意：MySQL/PG 的归档表不再被 gormigrate 跟踪，今后给这些表加列时读旧分片可能缺列——
 // 读侧已按分片实际列取交集（webLogSelect），无需同步 ALTER。
 func doLogShardCut(innerLogName, reason string, swapWebLog bool, periodKey string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	release, err := wafdb.AcquireLogWrite(ctx)
+	if err != nil {
+		zlog.Debug(innerLogName, "日志来源繁忙，本轮延后切分")
+		return
+	}
+	defer release()
 	global.GDATA_CURRENT_CHANGE = true
 	defer func() { global.GDATA_CURRENT_CHANGE = false }()
 	zlog.Info(innerLogName, "开始分库，原因:", reason)
@@ -313,7 +322,7 @@ func doLogShardCut(innerLogName, reason string, swapWebLog bool, periodKey strin
 			if !dialect.Get().TableExists(global.GWAF_LOCAL_LOG_DB, table) {
 				return
 			}
-			if err := dialect.Get().ShardSwapTable(global.GWAF_LOCAL_LOG_DB, table, table+"_"+ts); err != nil {
+			if err := dialect.Get().ShardSwapTable(global.GWAF_LOCAL_LOG_DB, table, table+"_"+suffix); err != nil {
 				zlog.Warn(innerLogName, "分表失败，数据留在实时表:", "table", table, "error", err)
 			}
 		}

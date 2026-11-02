@@ -11,6 +11,7 @@ import (
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	"SamWaf/model/spec"
+	"SamWaf/wafapppath"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -66,6 +67,20 @@ func (w *WafAppApi) VerifyPasswordApi(c *gin.Context) {
 	response.OkWithData("ok", c)
 }
 
+// DirectoryPreviewApi 解析应用目录预览（不落盘）：空目录按默认规则派生，显式目录校验允许范围
+func (w *WafAppApi) DirectoryPreviewApi(c *gin.Context) {
+	var req request.WafAppDirPreviewReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage("解析失败: "+err.Error(), c)
+		return
+	}
+	if !wafapppath.IsSafeCode(req.Code) {
+		response.FailWithMessage("应用编号格式不正确", c)
+		return
+	}
+	response.OkWithData(wafapppath.Resolve(req.Code, req.AppDir, global.GWAF_APP_ALLOW_DIRS), c)
+}
+
 // AddApi 新增应用
 func (w *WafAppApi) AddApi(c *gin.Context) {
 	var req request.WafAppAddReq
@@ -75,6 +90,10 @@ func (w *WafAppApi) AddApi(c *gin.Context) {
 	}
 	if req.Name == "" || req.StartCmd == "" {
 		response.FailWithMessage("应用名称和启动命令不能为空", c)
+		return
+	}
+	if req.Code != "" && !wafapppath.IsSafeCode(req.Code) {
+		response.FailWithMessage("应用编号格式不正确", c)
 		return
 	}
 	if wafAppService.CheckIsExist(req.Name) > 0 {
@@ -312,12 +331,18 @@ func (w *WafAppApi) GetStatusApi(c *gin.Context) {
 		return
 	}
 	rt := globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE.GetRuntimeStatus(req.Code)
+	lastError, errorTime := rt.LastError, rt.ErrorTime.Format(time.RFC3339)
+	if lastError == "" {
+		errorTime = ""
+	}
 	response.OkWithData(gin.H{
 		"code":          rt.Code,
 		"pid":           rt.Pid,
 		"run_status":    rt.Status,
 		"start_time":    rt.StartTime,
 		"restart_count": rt.RestartCount,
+		"last_error":    lastError,
+		"error_time":    errorTime,
 	}, c)
 }
 

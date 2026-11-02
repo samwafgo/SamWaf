@@ -41,6 +41,12 @@ type WafAppCodeReq struct {
 	Code string `json:"code" form:"code"`
 }
 
+// WafAppDirPreviewReq 应用目录解析预览请求
+type WafAppDirPreviewReq struct {
+	Code   string `json:"code"    form:"code"    binding:"required,max=64"`
+	AppDir string `json:"app_dir" form:"app_dir" binding:"max=512"`
+}
+
 type WafAppRollbackReq struct {
 	Code     string `json:"code"     form:"code"`
 	Filename string `json:"filename" form:"filename"`

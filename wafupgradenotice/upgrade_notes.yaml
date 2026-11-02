@@ -89,6 +89,22 @@ notes:
       detail: The application management page checks the feature status first. When disabled, it shows the configuration location, setup steps and restart reminder; when enabled, it displays the application list. Administrators still enable the feature and set the application operation password in conf/config.yml. The page does not edit configuration online.
       revert: No additional action is required. After changing application_manage and restarting, the page reflects the current feature status.
 
+  - id: v1_3_25_app_dir_preview_and_start_feedback
+    version: v1.3.25
+    kind: notice
+    level: normal
+    page: /application/AppList
+    apply:
+      type: navigate
+    zh:
+      title: 应用管理工作目录显示服务端实际路径，保存与启动失败会直接提示
+      detail: 新建/编辑应用时，工作目录下方会实时显示服务端解析后的绝对路径、允许目录范围和相对路径基准；留空时使用服务端默认目录。保存或启动失败时会在页面持续显示具体原因，不再只提示“指令已发送”。初始文件上传失败后，应用记录仍会保留，可直接在同一窗口修改配置并重试上传，不会重复创建应用。
+      revert: 无需调整配置；如需继续使用旧交互，可暂不升级前端或后端，但无法获得新的目录预检与失败提示。
+    en:
+      title: Application working directory now shows the server-resolved path, with direct save/start failure feedback
+      detail: When adding or editing an application, the working directory field now shows the server-resolved absolute path, allowed directory roots and the relative-path base in real time; leaving it blank uses the server default. Save or start failures are shown directly on the page with the specific reason instead of only reporting that the command was sent. If the initial file upload fails, the application record is kept and can be edited and retried in the same dialog without creating a duplicate application.
+      revert: No configuration changes are required. To keep the old interaction, you may stay on the previous frontend or backend build, but the new directory preview and failure feedback will not be available.
+
   - id: v1_3_25_list_entry_switches
     version: v1.3.25
     kind: check

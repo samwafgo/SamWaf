@@ -20,6 +20,8 @@ type AppRuntime struct {
 	Status       int
 	StartTime    time.Time
 	RestartCount int
+	LastError    string    // 最近启动/重启失败诊断
+	ErrorTime    time.Time // LastError 发生时间
 	LogLines     []string
 	LogMu        sync.Mutex
 	Cmd          *exec.Cmd

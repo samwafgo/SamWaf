@@ -20,6 +20,7 @@ func (r *WafAppRouter) InitWafAppRouter(group *gin.RouterGroup) {
 	// stop 也在此组：停止已有进程属低风险，不引入新危险能力
 	appGroup.POST("/api/v1/application/app/list", appApi.GetListApi)
 	appGroup.GET("/api/v1/application/app/detail", appApi.GetDetailApi)
+	appGroup.POST("/api/v1/application/app/directory_preview", appApi.DirectoryPreviewApi)
 	appGroup.GET("/api/v1/application/app/status", appApi.GetStatusApi)
 	appGroup.GET("/api/v1/application/app/logs", appApi.GetLogsApi)
 	appGroup.GET("/api/v1/application/app/backups", appApi.GetBackupsApi)

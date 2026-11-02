@@ -9,6 +9,7 @@ import (
 	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
 	"SamWaf/model/wafappmodel"
+	"SamWaf/wafapppath"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -34,42 +35,27 @@ var envBlacklist = map[string]struct{}{
 	"LD_PRELOAD_ONCE":       {},
 }
 
-// parseAllowedDirs 解析逗号分隔的允许目录列表
-func parseAllowedDirs(dirStr string) []string {
-	var result []string
-	for _, p := range strings.Split(dirStr, ",") {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			result = append(result, p)
-		}
-	}
-	if len(result) == 0 {
-		result = []string{"data/applications"}
-	}
-	return result
-}
-
 // resolveSafeAppDir 将用户提供的 appDir 解析并校验必须落在允许目录之一下
 func resolveSafeAppDir(code, appDir string) (string, error) {
-	allowedDirs := parseAllowedDirs(global.GWAF_APP_ALLOW_DIRS)
-	if appDir == "" {
-		return filepath.Join(allowedDirs[0], code), nil
+	p := wafapppath.Resolve(code, appDir, global.GWAF_APP_ALLOW_DIRS)
+	if !p.Valid {
+		return "", errors.New(p.Error)
 	}
-	absPath, err := filepath.Abs(filepath.Clean(appDir))
-	if err != nil {
-		return "", fmt.Errorf("无法解析应用目录路径: %w", err)
+	return p.ResolvedDir, nil
+}
+
+// prepareAppDir 预检目标目录：可创建且确为目录，失败时返回错误不落库
+func prepareAppDir(stage, code, safeDir string) error {
+	if err := os.MkdirAll(safeDir, 0755); err != nil {
+		zlog.Warn("应用目录预检失败", "stage", stage, "dir", safeDir, "code", code, "err", err.Error())
+		return fmt.Errorf("创建应用目录失败: %w", err)
 	}
-	for _, allowed := range allowedDirs {
-		allowedAbs, err2 := filepath.Abs(filepath.Clean(allowed))
-		if err2 != nil {
-			continue
-		}
-		rel, err3 := filepath.Rel(allowedAbs, absPath)
-		if err3 == nil && !strings.HasPrefix(rel, "..") && !filepath.IsAbs(rel) {
-			return absPath, nil
-		}
+	info, err := os.Stat(safeDir)
+	if err != nil || !info.IsDir() {
+		zlog.Warn("应用目录预检失败", "stage", stage, "dir", safeDir, "code", code, "err", "目标已存在且不是目录")
+		return fmt.Errorf("应用目录不可用（已存在且不是目录）: %s", safeDir)
 	}
-	return "", fmt.Errorf("应用目录必须在允许范围内（%s）", global.GWAF_APP_ALLOW_DIRS)
+	return nil
 }
 
 // validateEnv 校验用户提供的环境变量格式并拦截黑名单键
@@ -149,11 +135,10 @@ func (s *WafAppService) AddApi(req request.WafAppAddReq) (*model.WafApp, error) 
 	if err != nil {
 		return nil, err
 	}
-	bean.AppDir = safeDir
-
-	if err := os.MkdirAll(bean.AppDir, 0755); err != nil {
-		zlog.Warn("创建应用目录失败", "dir", bean.AppDir, "err", err.Error())
+	if err := prepareAppDir("add", bean.Code, safeDir); err != nil {
+		return nil, err
 	}
+	bean.AppDir = safeDir
 
 	if err := global.GWAF_LOCAL_DB.Create(bean).Error; err != nil {
 		return nil, err
@@ -183,6 +168,9 @@ func (s *WafAppService) ModifyApi(req request.WafAppEditReq) error {
 	}
 	safeDir, err := resolveSafeAppDir(existing.Code, req.AppDir)
 	if err != nil {
+		return err
+	}
+	if err := prepareAppDir("edit", existing.Code, safeDir); err != nil {
 		return err
 	}
 

@@ -99,6 +99,7 @@ func (e *WafAppEngine) StartApp(code string) error {
 		Code:     code,
 		Status:   wafappmodel.AppStatusStopped,
 		StopChan: stopChan,
+		Done:     make(chan struct{}),
 	}
 	if app.LogMaxLines <= 0 {
 		app.LogMaxLines = 1000
@@ -109,7 +110,19 @@ func (e *WafAppEngine) StartApp(code string) error {
 	return e.startProcess(app, rt)
 }
 
-func (e *WafAppEngine) startProcess(app model.WafApp, rt *wafappmodel.AppRuntime) error {
+func (e *WafAppEngine) startProcess(app model.WafApp, rt *wafappmodel.AppRuntime) (retErr error) {
+	var logFile *os.File
+	defer func() {
+		if retErr != nil {
+			rt.LogMu.Lock()
+			rt.LastError = retErr.Error()
+			rt.ErrorTime = time.Now()
+			rt.LogMu.Unlock()
+		}
+		if logFile != nil {
+			_ = logFile.Close()
+		}
+	}()
 	appDir := app.AppDir
 	if appDir == "" {
 		appDir = "data/applications/" + app.Code
@@ -171,8 +184,10 @@ func (e *WafAppEngine) startProcess(app model.WafApp, rt *wafappmodel.AppRuntime
 	rt.Pid = cmd.Process.Pid
 	rt.Status = wafappmodel.AppStatusRunning
 	rt.StartTime = time.Now()
+	rt.LastError = ""
+	rt.ErrorTime = time.Time{}
 
-	logFile, _ := os.OpenFile(appDir+"/app.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	logFile, _ = os.OpenFile(appDir+"/app.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 
 	logMaxLines := app.LogMaxLines
 	if logMaxLines <= 0 {
@@ -238,9 +253,14 @@ func (e *WafAppEngine) monitorApp(app model.WafApp, rt *wafappmodel.AppRuntime) 
 		e.mu.Unlock()
 		zlog.Warn("应用进程退出", "code", app.Code, "name", app.Name, "error", err)
 
-		// 重新从数据库读取最新配置（可能已被更改）
+		// 重新从数据库读取最新配置（可能已被更改）；测试/关停窗口内全局库可能为空，防御性退出
+		db := global.GWAF_LOCAL_DB
+		if db == nil {
+			zlog.Error("读取应用配置失败，停止监控", "code", app.Code, "name", app.Name)
+			return
+		}
 		var latestApp model.WafApp
-		if dbErr := global.GWAF_LOCAL_DB.Where("code = ?", app.Code).First(&latestApp).Error; dbErr != nil {
+		if dbErr := db.Where("code = ?", app.Code).First(&latestApp).Error; dbErr != nil {
 			zlog.Error("读取应用配置失败，停止监控", "code", app.Code, "name", app.Name)
 			return
 		}
@@ -316,6 +336,10 @@ func (e *WafAppEngine) monitorApp(app model.WafApp, rt *wafappmodel.AppRuntime) 
 		stdoutPipe, _ := newCmd.StdoutPipe()
 		stderrPipe, _ := newCmd.StderrPipe()
 		if startErr := newCmd.Start(); startErr != nil {
+			rt.LogMu.Lock()
+			rt.LastError = fmt.Errorf("启动进程失败: %w", startErr).Error()
+			rt.ErrorTime = time.Now()
+			rt.LogMu.Unlock()
 			zlog.Error("重启应用失败", "code", app.Code, "name", app.Name, "error", startErr.Error())
 			continue
 		}
@@ -330,6 +354,8 @@ func (e *WafAppEngine) monitorApp(app model.WafApp, rt *wafappmodel.AppRuntime) 
 		rt.Pid = newCmd.Process.Pid
 		rt.Status = wafappmodel.AppStatusRunning
 		rt.StartTime = time.Now()
+		rt.LastError = ""
+		rt.ErrorTime = time.Time{}
 		e.mu.Unlock()
 
 		logFile, _ := os.OpenFile(appDir+"/app.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
@@ -447,6 +473,8 @@ func (e *WafAppEngine) GetRuntimeStatus(code string) wafappmodel.AppRuntime {
 		Status:       rt.Status,
 		StartTime:    rt.StartTime,
 		RestartCount: rt.RestartCount,
+		LastError:    rt.LastError,
+		ErrorTime:    rt.ErrorTime,
 	}
 }
 

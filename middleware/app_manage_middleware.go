@@ -2,6 +2,9 @@ package middleware
 
 import (
 	"SamWaf/global"
+	"SamWaf/model"
+	"SamWaf/service/waf_service"
+	"SamWaf/utils"
 	"crypto/subtle"
 	"net/http"
 
@@ -30,6 +33,15 @@ func AppOpPasswordRequired() gin.HandlerFunc {
 		provided := c.GetHeader("X-App-Op-Password")
 		expected := global.GWAF_APP_OP_PASSWORD
 		if expected == "" || !safeEqual(expected, provided) {
+			reason := "operation_credential_mismatch"
+			if expected == "" {
+				reason = "operation_credential_unset"
+			}
+			waf_service.WafSecurityAuditServiceApp.Write(waf_service.AuditEntry{
+				Event: model.AuditEventAppOpDenied, AccountName: c.GetString("loginAccount"),
+				ClientIP: utils.GetManageClientIP(c), URL: c.Request.URL.Path,
+				Result: model.AccessAuditFail, Message: "stage=authorize result=0 reason=" + reason,
+			})
 			// 401 而非 403：前端可区分「密码错误」与「功能未开启」，避免触发全局 403 接管页面
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"code": -2,

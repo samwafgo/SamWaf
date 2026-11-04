@@ -1,19 +1,15 @@
 package api
 
 import (
-	"SamWaf/common/uuid"
-	"SamWaf/customtype"
 	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/globalobj"
 	"SamWaf/model"
-	"SamWaf/model/baseorm"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	"SamWaf/model/spec"
+	"SamWaf/utils"
 	"SamWaf/wafapppath"
-	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -22,44 +18,12 @@ import (
 
 const appUploadMaxBytes = 200 * 1024 * 1024 // 200 MB
 
-type WafAppApi struct{}
+type WafAppApi struct {
+	lifecycle appLifecycle
+}
 
 func (w *WafAppApi) GetFeatureStatusApi(c *gin.Context) {
 	response.OkWithData(gin.H{"enabled": global.GWAF_CAN_APP_MANAGE}, c)
-}
-
-// recordSysLog 写安全审计日志到日志队列
-func recordSysLog(opType, content string) {
-	log := model.WafSysLog{
-		BaseOrm: baseorm.BaseOrm{
-			Id:          uuid.GenUUID(),
-			USER_CODE:   global.GWAF_USER_CODE,
-			Tenant_ID:   global.GWAF_TENANT_ID,
-			CREATE_TIME: customtype.JsonTime(time.Now()),
-			UPDATE_TIME: customtype.JsonTime(time.Now()),
-		},
-		OpType:    opType,
-		OpContent: content,
-	}
-	global.GQEQUE_LOG_DB.Enqueue(&log)
-}
-
-// diffFields 对比两条记录，返回有变化的字段 JSON 字符串
-func diffFields(fields []struct{ key, label, oldV, newV string }) string {
-	type Change struct {
-		Field string `json:"field"`
-		Label string `json:"label"`
-		Old   string `json:"old"`
-		New   string `json:"new"`
-	}
-	var changes []Change
-	for _, f := range fields {
-		if f.oldV != f.newV {
-			changes = append(changes, Change{Field: f.key, Label: f.label, Old: f.oldV, New: f.newV})
-		}
-	}
-	b, _ := json.Marshal(changes)
-	return string(b)
 }
 
 // VerifyPasswordApi 验证应用操作密码是否正确（中间件通过即成功，无其他逻辑）
@@ -83,11 +47,14 @@ func (w *WafAppApi) DirectoryPreviewApi(c *gin.Context) {
 
 // AddApi 新增应用
 func (w *WafAppApi) AddApi(c *gin.Context) {
+	audit := newAppAudit(model.AuditEventAppAdd)
+	defer audit.write(c)
 	var req request.WafAppAddReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithMessage("解析失败: "+err.Error(), c)
 		return
 	}
+	audit.code, audit.name, audit.stage = req.Code, req.Name, "validate"
 	if req.Name == "" || req.StartCmd == "" {
 		response.FailWithMessage("应用名称和启动命令不能为空", c)
 		return
@@ -100,30 +67,31 @@ func (w *WafAppApi) AddApi(c *gin.Context) {
 		response.FailWithMessage("应用名称已存在", c)
 		return
 	}
+	audit.stage = "save"
 	app, err := wafAppService.AddApi(req)
 	if err != nil {
 		response.FailWithMessage("添加失败: "+err.Error(), c)
 		return
 	}
 
-	operator, _ := c.Get("loginAccount")
-	operatorIP, _ := c.Get("loginIP")
-	changes, _ := json.Marshal(map[string]string{
-		"start_cmd": req.StartCmd,
-		"app_dir":   app.AppDir,
-		"env":       req.Env,
-		"stop_cmd":  req.StopCmd,
+	audit.app(app)
+	changes := diffFields([]struct{ key, label, oldV, newV string }{
+		{"start_cmd", "启动命令", "", req.StartCmd},
+		{"app_dir", "工作目录", "", app.AppDir},
+		{"env", "环境变量", "", req.Env},
+		{"stop_cmd", "停止命令", "", req.StopCmd},
 	})
 	wafAppChangeLogService.Record(app.Code, app.Name, "新增",
-		fmt.Sprintf("%v", operator), fmt.Sprintf("%v", operatorIP), string(changes))
-	recordSysLog("应用管理", fmt.Sprintf("新增应用 [%s] operator=%v ip=%v", app.Name, operator, operatorIP))
+		c.GetString("loginAccount"), utils.GetManageClientIP(c), changes)
+	audit.stage = "submit"
 
 	global.GWAF_CHAN_COMMON_MSG <- spec.ChanCommon{
 		Type:    enums.ChanComTypeApp,
 		OpType:  enums.OP_TYPE_NEW,
 		Content: *app,
 	}
-	response.OkWithMessage("添加成功", c)
+	audit.ok("submitted")
+	response.OkWithMessage("应用已添加，初始化指令已提交，请查看运行状态", c)
 }
 
 // GetListApi 获取应用列表
@@ -205,122 +173,90 @@ func (w *WafAppApi) GetDetailApi(c *gin.Context) {
 
 // ModifyApi 修改应用配置
 func (w *WafAppApi) ModifyApi(c *gin.Context) {
+	audit := newAppAudit(model.AuditEventAppEdit)
+	defer audit.write(c)
 	var req request.WafAppEditReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithMessage("解析失败: "+err.Error(), c)
 		return
 	}
 
-	// 取旧值用于 diff
+	audit.stage = "lookup"
 	oldApp := wafAppService.GetDetailApi(request.WafAppDetailReq{Id: req.Id})
 	if oldApp == nil || oldApp.Id == "" {
 		response.FailWithMessage("应用不存在", c)
 		return
 	}
 
+	audit.app(oldApp)
+	audit.stage = "save"
 	if err := wafAppService.ModifyApi(req); err != nil {
 		response.FailWithMessage("修改失败: "+err.Error(), c)
 		return
 	}
 
-	operator, _ := c.Get("loginAccount")
-	operatorIP, _ := c.Get("loginIP")
-
+	app := wafAppService.GetDetailApi(request.WafAppDetailReq{Id: req.Id})
+	audit.app(app)
 	changesJSON := diffFields([]struct{ key, label, oldV, newV string }{
 		{"start_cmd", "启动命令", oldApp.StartCmd, req.StartCmd},
-		{"app_dir", "工作目录", oldApp.AppDir, req.AppDir},
+		{"app_dir", "工作目录", oldApp.AppDir, app.AppDir},
 		{"env", "环境变量", oldApp.Env, req.Env},
 		{"stop_cmd", "停止命令", oldApp.StopCmd, req.StopCmd},
 	})
-	if changesJSON != "[]" && changesJSON != "null" {
+	if changesJSON != "[]" {
 		wafAppChangeLogService.Record(oldApp.Code, req.Name, "修改",
-			fmt.Sprintf("%v", operator), fmt.Sprintf("%v", operatorIP), changesJSON)
+			c.GetString("loginAccount"), utils.GetManageClientIP(c), changesJSON)
 	}
-	recordSysLog("应用管理", fmt.Sprintf("修改应用 [%s] operator=%v ip=%v", req.Name, operator, operatorIP))
 
-	app := wafAppService.GetDetailApi(request.WafAppDetailReq{Id: req.Id})
+	audit.stage = "submit"
 	global.GWAF_CHAN_COMMON_MSG <- spec.ChanCommon{
 		Type:    enums.ChanComTypeApp,
 		OpType:  enums.OP_TYPE_UPDATE,
 		Content: *app,
 	}
-	response.OkWithMessage("修改成功", c)
+	audit.ok("submitted")
+	response.OkWithMessage("配置已保存，更新指令已提交，请查看运行状态", c)
 }
 
 // DelApi 删除应用
 func (w *WafAppApi) DelApi(c *gin.Context) {
+	audit := newAppAudit(model.AuditEventAppDel)
+	defer audit.write(c)
 	var req request.WafAppDelReq
 	if err := c.ShouldBindQuery(&req); err != nil {
 		response.FailWithMessage("解析失败", c)
 		return
 	}
+	audit.stage = "lookup"
 	app := wafAppService.GetDetailApi(request.WafAppDetailReq{Id: req.Id})
 	if app == nil || app.Id == "" {
 		response.FailWithMessage("应用不存在", c)
 		return
 	}
-
-	operator, _ := c.Get("loginAccount")
-	operatorIP, _ := c.Get("loginIP")
-	recordSysLog("应用管理", fmt.Sprintf("删除应用 [%s] operator=%v ip=%v", app.Name, operator, operatorIP))
-
+	audit.app(app)
+	audit.stage = "submit"
 	global.GWAF_CHAN_COMMON_MSG <- spec.ChanCommon{
 		Type:       enums.ChanComTypeApp,
 		OpType:     enums.OP_TYPE_DELETE,
 		OldContent: *app,
 	}
-	response.OkWithMessage("删除成功", c)
+	audit.ok("submitted")
+	response.OkWithMessage("删除指令已提交，请刷新应用列表查看结果", c)
 }
 
 // StartApi 启动应用
 func (w *WafAppApi) StartApi(c *gin.Context) {
-	var req request.WafAppCodeReq
-	if err := c.ShouldBindQuery(&req); err != nil {
-		response.FailWithMessage("解析失败", c)
-		return
-	}
-	operator, _ := c.Get("loginAccount")
-	operatorIP, _ := c.Get("loginIP")
-	recordSysLog("应用管理", fmt.Sprintf("启动应用 [%s] operator=%v ip=%v", req.Code, operator, operatorIP))
-	global.GWAF_CHAN_COMMON_MSG <- spec.ChanCommon{
-		Type:    enums.ChanComTypeApp,
-		OpType:  enums.OP_TYPE_APP_START,
-		Content: req.Code,
-	}
-	response.OkWithMessage("启动指令已发送", c)
+	w.submitAppOperation(c, model.AuditEventAppStart, enums.OP_TYPE_APP_START, "启动指令已提交，请查看运行状态")
 }
 
 // StopApi 停止应用
 func (w *WafAppApi) StopApi(c *gin.Context) {
-	var req request.WafAppCodeReq
-	if err := c.ShouldBindQuery(&req); err != nil {
-		response.FailWithMessage("解析失败", c)
-		return
-	}
-	global.GWAF_CHAN_COMMON_MSG <- spec.ChanCommon{
-		Type:    enums.ChanComTypeApp,
-		OpType:  enums.OP_TYPE_APP_STOP,
-		Content: req.Code,
-	}
-	response.OkWithMessage("停止指令已发送", c)
+	w.submitAppOperation(c, model.AuditEventAppStop, enums.OP_TYPE_APP_STOP, "停止指令已提交，请查看运行状态")
 }
 
 // RestartApi 重启应用
 func (w *WafAppApi) RestartApi(c *gin.Context) {
-	var req request.WafAppCodeReq
-	if err := c.ShouldBindQuery(&req); err != nil {
-		response.FailWithMessage("解析失败", c)
-		return
-	}
-	operator, _ := c.Get("loginAccount")
-	operatorIP, _ := c.Get("loginIP")
-	recordSysLog("应用管理", fmt.Sprintf("重启应用 [%s] operator=%v ip=%v", req.Code, operator, operatorIP))
-	global.GWAF_CHAN_COMMON_MSG <- spec.ChanCommon{
-		Type:    enums.ChanComTypeApp,
-		OpType:  enums.OP_TYPE_APP_RESTART,
-		Content: req.Code,
-	}
-	response.OkWithMessage("重启指令已发送", c)
+	w.submitAppOperation(c, model.AuditEventAppRestart, enums.OP_TYPE_APP_RESTART, "重启指令已提交，请查看运行状态")
 }
 
 // GetStatusApi 查询应用运行状态
@@ -362,121 +298,178 @@ func (w *WafAppApi) GetLogsApi(c *gin.Context) {
 
 // ClearLogsApi 清空应用日志
 func (w *WafAppApi) ClearLogsApi(c *gin.Context) {
+	audit := newAppAudit(model.AuditEventAppClearLogs)
+	defer audit.write(c)
 	var req request.WafAppCodeReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithMessage("解析失败", c)
 		return
 	}
+	audit.code, audit.stage = req.Code, "validate"
+	if !wafapppath.IsSafeCode(req.Code) {
+		response.FailWithMessage("应用编号格式不正确", c)
+		return
+	}
+	audit.stage = "lookup"
+	app := wafAppService.GetDetailByCodeApi(req.Code)
+	if app == nil || app.Id == "" {
+		response.FailWithMessage("应用不存在", c)
+		return
+	}
+	audit.app(app)
+	audit.stage = "clear_logs"
 	globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE.ClearLogs(req.Code)
+	audit.ok("logs_cleared")
 	response.OkWithMessage("日志已清空", c)
 }
 
 // UploadFileApi 上传文件到应用目录
 func (w *WafAppApi) UploadFileApi(c *gin.Context) {
+	audit := newAppAudit(model.AuditEventAppUpload)
+	defer audit.write(c)
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, appUploadMaxBytes)
 	code := c.PostForm("code")
 	expectedHash := c.PostForm("hash")
-	if code == "" {
-		response.FailWithMessage("code 不能为空", c)
+	audit.code, audit.stage = code, "validate"
+	if !wafapppath.IsSafeCode(code) {
+		response.FailWithMessage("应用编号格式不正确", c)
 		return
 	}
+	audit.stage = "lookup"
+	app := wafAppService.GetDetailByCodeApi(code)
+	if app == nil || app.Id == "" {
+		response.FailWithMessage("应用不存在", c)
+		return
+	}
+	audit.app(app)
+	audit.stage = "read_upload"
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
-		response.FailWithMessage("获取文件失败: "+err.Error(), c)
+		response.FailWithMessage("获取文件失败", c)
 		return
 	}
 	defer file.Close()
-
-	if err := wafAppService.UploadFile(code, header.Filename, file, expectedHash); err != nil {
-		response.FailWithMessage(err.Error(), c)
+	audit.filename = appSafeFilename(header.Filename)
+	audit.stage = "upload_file"
+	if err := wafAppService.UploadFile(code, audit.filename, file, expectedHash); err != nil {
+		response.FailWithMessage("上传失败: "+err.Error(), c)
 		return
 	}
-
-	operator, _ := c.Get("loginAccount")
-	operatorIP, _ := c.Get("loginIP")
-	app := wafAppService.GetDetailByCodeApi(code)
-	appName := code
-	if app != nil {
-		appName = app.Name
-	}
-	changesJSON := fmt.Sprintf(`[{"field":"file","label":"上传文件","old":"","new":"%s"}]`, header.Filename)
-	wafAppChangeLogService.Record(code, appName, "上传",
-		fmt.Sprintf("%v", operator), fmt.Sprintf("%v", operatorIP), changesJSON)
-	recordSysLog("应用管理", fmt.Sprintf("上传文件 [%s] 到应用 [%s] operator=%v ip=%v", header.Filename, appName, operator, operatorIP))
-
+	recordAppFileChange(c, audit, "上传", "上传文件")
+	audit.ok("file_saved")
 	response.OkWithMessage("上传成功", c)
 }
 
 // UpgradeApi 升级应用（停止→备份→替换→重启）
 func (w *WafAppApi) UpgradeApi(c *gin.Context) {
+	audit := newAppAudit(model.AuditEventAppUpgrade)
+	defer audit.write(c)
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, appUploadMaxBytes)
 	code := c.PostForm("code")
 	expectedHash := c.PostForm("hash")
-	if code == "" {
-		response.FailWithMessage("code 不能为空", c)
+	audit.code, audit.stage = code, "validate"
+	if !wafapppath.IsSafeCode(code) {
+		response.FailWithMessage("应用编号格式不正确", c)
 		return
 	}
+	audit.stage = "lookup"
+	app := wafAppService.GetDetailByCodeApi(code)
+	if app == nil || app.Id == "" {
+		response.FailWithMessage("应用不存在", c)
+		return
+	}
+	audit.app(app)
+	audit.stage = "read_upload"
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
-		response.FailWithMessage("获取文件失败: "+err.Error(), c)
+		response.FailWithMessage("获取文件失败", c)
 		return
 	}
 	defer file.Close()
-
-	_ = globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE.StopApp(code)
-
-	if err := wafAppService.UpgradeApp(code, header.Filename, file, expectedHash); err != nil {
-		response.FailWithMessage("升级失败: "+err.Error(), c)
-		_ = globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE.StartApp(code)
+	audit.filename = appSafeFilename(header.Filename)
+	audit.stage = "stop"
+	if err := w.fileEngine().StopApp(code); err != nil {
+		response.FailWithMessage("停止应用失败，未替换文件", c)
 		return
 	}
-
-	operator, _ := c.Get("loginAccount")
-	operatorIP, _ := c.Get("loginIP")
-	app := wafAppService.GetDetailByCodeApi(code)
-	appName := code
-	if app != nil {
-		appName = app.Name
+	audit.stage = "replace_file"
+	if err := wafAppService.UpgradeApp(code, audit.filename, file, expectedHash); err != nil {
+		audit.stage = "replace_failed_app_disabled"
+		if app.StartStatus != 0 {
+			audit.stage = "replace_failed_restart_requested"
+			if startErr := w.fileEngine().StartApp(code); startErr != nil {
+				audit.stage = "replace_failed_restart_failed"
+			}
+		}
+		response.FailWithMessage("文件替换失败: "+err.Error()+"，请查看运行状态", c)
+		return
 	}
-	changesJSON := fmt.Sprintf(`[{"field":"file","label":"升级文件","old":"","new":"%s"}]`, header.Filename)
-	wafAppChangeLogService.Record(code, appName, "升级",
-		fmt.Sprintf("%v", operator), fmt.Sprintf("%v", operatorIP), changesJSON)
-	recordSysLog("应用管理", fmt.Sprintf("升级应用 [%s] 文件=%s operator=%v ip=%v", appName, header.Filename, operator, operatorIP))
-
-	_ = globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE.StartApp(code)
-	response.OkWithMessage("升级成功，应用已重新启动", c)
+	recordAppFileChange(c, audit, "升级", "升级文件")
+	if app.StartStatus == 0 {
+		audit.ok("file_replaced_app_disabled")
+		response.OkWithMessage("文件已替换，应用已停用，未启动", c)
+		return
+	}
+	audit.stage = "file_replaced_restart_failed"
+	if err := w.fileEngine().StartApp(code); err != nil {
+		response.FailWithMessage("文件已替换，启动请求失败，请查看运行状态", c)
+		return
+	}
+	audit.ok("file_replaced_restart_requested")
+	response.OkWithMessage("文件已替换，已请求启动，请查看运行状态", c)
 }
 
 // RollbackApi 回滚应用到备份版本
 func (w *WafAppApi) RollbackApi(c *gin.Context) {
+	audit := newAppAudit(model.AuditEventAppRollback)
+	defer audit.write(c)
 	var req request.WafAppRollbackReq
 	if err := c.ShouldBindQuery(&req); err != nil {
 		response.FailWithMessage("解析失败", c)
 		return
 	}
-
-	_ = globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE.StopApp(req.Code)
-
-	if err := wafAppService.RollbackApp(req.Code, req.Filename); err != nil {
-		response.FailWithMessage("回滚失败: "+err.Error(), c)
-		_ = globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE.StartApp(req.Code)
+	audit.code, audit.filename, audit.stage = req.Code, appSafeFilename(req.Filename), "validate"
+	if !wafapppath.IsSafeCode(req.Code) || audit.filename == "" || audit.filename == "." || audit.filename == ".." {
+		response.FailWithMessage("应用编号或备份文件名格式不正确", c)
 		return
 	}
-
-	operator, _ := c.Get("loginAccount")
-	operatorIP, _ := c.Get("loginIP")
+	audit.stage = "lookup"
 	app := wafAppService.GetDetailByCodeApi(req.Code)
-	appName := req.Code
-	if app != nil {
-		appName = app.Name
+	if app == nil || app.Id == "" {
+		response.FailWithMessage("应用不存在", c)
+		return
 	}
-	changesJSON := fmt.Sprintf(`[{"field":"file","label":"回滚文件","old":"","new":"%s"}]`, req.Filename)
-	wafAppChangeLogService.Record(req.Code, appName, "回滚",
-		fmt.Sprintf("%v", operator), fmt.Sprintf("%v", operatorIP), changesJSON)
-	recordSysLog("应用管理", fmt.Sprintf("回滚应用 [%s] 备份=%s operator=%v ip=%v", appName, req.Filename, operator, operatorIP))
-
-	_ = globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE.StartApp(req.Code)
-	response.OkWithMessage("回滚成功，应用已重新启动", c)
+	audit.app(app)
+	audit.stage = "stop"
+	if err := w.fileEngine().StopApp(req.Code); err != nil {
+		response.FailWithMessage("停止应用失败，未恢复文件", c)
+		return
+	}
+	audit.stage = "restore_file"
+	if err := wafAppService.RollbackApp(req.Code, audit.filename); err != nil {
+		audit.stage = "restore_failed_app_disabled"
+		if app.StartStatus != 0 {
+			audit.stage = "restore_failed_restart_requested"
+			if startErr := w.fileEngine().StartApp(req.Code); startErr != nil {
+				audit.stage = "restore_failed_restart_failed"
+			}
+		}
+		response.FailWithMessage("文件恢复失败: "+err.Error()+"，请查看运行状态", c)
+		return
+	}
+	recordAppFileChange(c, audit, "回滚", "回滚文件")
+	if app.StartStatus == 0 {
+		audit.ok("file_restored_app_disabled")
+		response.OkWithMessage("文件已恢复，应用已停用，未启动", c)
+		return
+	}
+	audit.stage = "file_restored_restart_failed"
+	if err := w.fileEngine().StartApp(req.Code); err != nil {
+		response.FailWithMessage("文件已恢复，启动请求失败，请查看运行状态", c)
+		return
+	}
+	audit.ok("file_restored_restart_requested")
+	response.OkWithMessage("文件已恢复，已请求启动，请查看运行状态", c)
 }
 
 // GetBackupsApi 获取备份文件列表

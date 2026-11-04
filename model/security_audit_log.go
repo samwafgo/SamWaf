@@ -10,6 +10,7 @@ const (
 	AuditCategoryAccess   = "access"   //访问认证类（登录/踢人/票据/未认证拦截等）
 	AuditCategoryConfig   = "config"   //敏感配置变更类（SSL 证书导出落盘等）
 	AuditCategoryHttpAuth = "httpauth" //网站密码访问类（站点级 Basic/自定义登录页）
+	AuditCategoryApp      = "app"      //应用管理类
 )
 
 // 审计事件类型
@@ -35,6 +36,18 @@ const (
 	AuditEventConfigDiagPackage    = "config_diag_package"     //运行诊断包生成下载（result 1成功 0失败）
 	AuditEventConfigLogExport      = "config_log_export"       //日志统一导出任务与产物下载（result 1成功 0失败/被拒）
 
+	AuditEventAppAdd       = "app_add"
+	AuditEventAppEdit      = "app_edit"
+	AuditEventAppDel       = "app_del"
+	AuditEventAppStart     = "app_start"
+	AuditEventAppStop      = "app_stop"
+	AuditEventAppRestart   = "app_restart"
+	AuditEventAppUpload    = "app_upload"
+	AuditEventAppUpgrade   = "app_upgrade"
+	AuditEventAppRollback  = "app_rollback"
+	AuditEventAppClearLogs = "app_clear_logs"
+	AuditEventAppOpDenied  = "app_op_denied"
+
 	// httpauth 类：网站密码访问。刻意与上面 access 类的同名事件分开命名空间，
 	// 两者是各自独立开关、各自一套账号的功能，混进同一分类会让按分类筛选失去意义。
 	HttpAuthEventLoginOK   = "httpauth_login_ok"   //网站密码登录成功
@@ -47,6 +60,17 @@ const (
 
 // auditEventCategory 事件 → 分类映射。未登记的事件默认归 access（历史事件全是 access 类）。
 var auditEventCategory = map[string]string{
+	AuditEventAppAdd:               AuditCategoryApp,
+	AuditEventAppEdit:              AuditCategoryApp,
+	AuditEventAppDel:               AuditCategoryApp,
+	AuditEventAppStart:             AuditCategoryApp,
+	AuditEventAppStop:              AuditCategoryApp,
+	AuditEventAppRestart:           AuditCategoryApp,
+	AuditEventAppUpload:            AuditCategoryApp,
+	AuditEventAppUpgrade:           AuditCategoryApp,
+	AuditEventAppRollback:          AuditCategoryApp,
+	AuditEventAppClearLogs:         AuditCategoryApp,
+	AuditEventAppOpDenied:          AuditCategoryApp,
 	AuditEventConfigSSLExportWrite: AuditCategoryConfig,
 	AuditEventConfigBatchTaskRun:   AuditCategoryConfig,
 	AuditEventConfigDiagPackage:    AuditCategoryConfig,
@@ -76,6 +100,17 @@ const (
 // AccessEventNames 事件的中文名，通知正文用。
 // 与上面的常量放在一起，是为了新增事件时一眼看到还有这张表要补。
 var AccessEventNames = map[string]string{
+	AuditEventAppAdd:               "新增应用",
+	AuditEventAppEdit:              "修改应用",
+	AuditEventAppDel:               "删除应用",
+	AuditEventAppStart:             "启动应用",
+	AuditEventAppStop:              "停止应用",
+	AuditEventAppRestart:           "重启应用",
+	AuditEventAppUpload:            "上传应用文件",
+	AuditEventAppUpgrade:           "升级应用",
+	AuditEventAppRollback:          "回滚应用",
+	AuditEventAppClearLogs:         "清空应用日志",
+	AuditEventAppOpDenied:          "应用操作被拒绝",
 	AccessEventLoginOK:             "登录成功",
 	AccessEventLoginFail:           "密码错误",
 	AccessEventOtpFail:             "动态码错误",
@@ -139,7 +174,7 @@ var AccessNotifyEvents = map[string]bool{
 // 生命周期一致；且 wafdb/log_shard.go 的分库只搬 web_logs 一张表，本表不受影响。
 type SecurityAuditLog struct {
 	baseorm.BaseOrm
-	Category    string `gorm:"size:16;index" json:"category"` //审计分类 access/config，见 AuditCategory* 常量
+	Category    string `gorm:"size:16;index" json:"category"` //审计分类，见 AuditCategory* 常量
 	Event       string `gorm:"size:32" json:"event"`          //见上方 AccessEvent* / AuditEventConfig* 常量
 	AccountName string `gorm:"size:128" json:"account_name"`
 	SessionCode string `gorm:"size:64" json:"session_code"`

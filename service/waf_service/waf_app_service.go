@@ -10,8 +10,6 @@ import (
 	"SamWaf/model/request"
 	"SamWaf/model/wafappmodel"
 	"SamWaf/wafapppath"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -244,30 +242,17 @@ func (s *WafAppService) UploadFile(code string, filename string, src io.Reader, 
 	safeFilename := filepath.Base(filename)
 	destPath := filepath.Join(appDir, safeFilename)
 
-	tmpPath := destPath + ".tmp"
-	f, err := os.Create(tmpPath)
-	if err != nil {
-		return fmt.Errorf("创建临时文件失败: %w", err)
+	var mode *os.FileMode
+	if info, err := os.Stat(destPath); err == nil {
+		if !info.Mode().IsRegular() {
+			return errors.New("目标不是普通文件")
+		}
+		perm := info.Mode().Perm()
+		mode = &perm
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("读取原文件权限失败: %w", err)
 	}
-	defer func() { os.Remove(tmpPath) }()
-
-	h := sha256.New()
-	writer := io.MultiWriter(f, h)
-	if _, err := io.Copy(writer, src); err != nil {
-		f.Close()
-		return fmt.Errorf("写入文件失败: %w", err)
-	}
-	f.Close()
-
-	actualHash := hex.EncodeToString(h.Sum(nil))
-	if expectedHash != "" && !equalIgnoreCase(actualHash, expectedHash) {
-		return fmt.Errorf("文件哈希校验失败，期望: %s，实际: %s", expectedHash, actualHash)
-	}
-
-	if err := os.Rename(tmpPath, destPath); err != nil {
-		return fmt.Errorf("保存文件失败: %w", err)
-	}
-	return nil
+	return writeAppFile(destPath, src, mode, expectedHash)
 }
 
 // UpgradeApp 升级应用：备份当前文件后替换
@@ -363,23 +348,4 @@ func (s *WafAppService) ListBackups(code string) ([]wafappmodel.BackupInfo, erro
 		})
 	}
 	return result, nil
-}
-
-func copyFile(src, dst string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-	out, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-	_, err = io.Copy(out, in)
-	return err
-}
-
-func equalIgnoreCase(a, b string) bool {
-	return strings.EqualFold(a, b)
 }

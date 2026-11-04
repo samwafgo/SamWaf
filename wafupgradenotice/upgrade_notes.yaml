@@ -89,6 +89,22 @@ notes:
       detail: The application management page checks the feature status first. When disabled, it shows the configuration location, setup steps and restart reminder; when enabled, it displays the application list. Administrators still enable the feature and set the application operation password in conf/config.yml. The page does not edit configuration online.
       revert: No additional action is required. After changing application_manage and restarting, the page reflects the current feature status.
 
+  - id: v1_3_25_app_file_permissions
+    version: v1.3.25
+    kind: notice
+    level: normal
+    page: /application/AppList
+    apply:
+      type: navigate
+    zh:
+      title: 应用首次上传增加所有者执行权限，文件操作纳入审计
+      detail: Linux 首次上传文件时，在系统初始权限上增加所有者执行位，读写权限仍受 umask 限制。覆盖上传与升级沿用已有文件的普通权限，新备份保留源文件权限，回滚按备份权限恢复。新增应用、文件上传、升级及回滚等操作可在安全审计的应用管理分类中查看操作者与结果，不再写入系统日志；启动指令提交不代表应用已正常运行，请结合运行状态与日志确认。此前已丢失执行位的文件及历史备份仍需核对并修复权限。
+      revert: 无需调整配置；请按应用运行账号所需权限维护文件，已有备份不会自动补回历史权限。
+    en:
+      title: First application uploads receive owner execute permission, with application operations audited
+      detail: On Linux, first uploads add the owner's execute bit to the initial file permissions while read and write permissions remain subject to umask. File overwrites and upgrades preserve existing ordinary permissions; new backups retain source permissions, and rollback restores backup permissions. Application creation, uploads, upgrades, rollback and other operations appear under Application Management in Security Audit with the operator and result, and are no longer written to the system log. Submitting a start command does not confirm that the application is running normally; check its status and logs. Files and older backups that have already lost execute bits still require permission checks and correction.
+      revert: No configuration changes are required. Maintain permissions for the application's runtime account; historical backup permissions are not repaired automatically.
+
   - id: v1_3_25_app_dir_preview_and_start_feedback
     version: v1.3.25
     kind: notice

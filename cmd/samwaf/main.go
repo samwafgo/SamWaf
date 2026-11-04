@@ -20,6 +20,7 @@ import (
 	"SamWaf/utils"
 	"SamWaf/wafai"
 	"SamWaf/wafappengine"
+	"SamWaf/wafcli"
 	"SamWaf/wafconfig"
 	"SamWaf/wafdb"
 	"SamWaf/wafdiag"
@@ -1130,6 +1131,15 @@ func (m *wafSystenService) Graceful() {
 // @in              header
 // @name            X-API-Key
 func main() {
+	if wafcli.IsAutomationCommand(os.Args) {
+		wafcli.SetResultOutput(os.Stdout)
+		os.Stdout = os.Stderr
+		defer func() {
+			if recover() != nil {
+				os.Exit(wafcli.ReportStartupFailure())
+			}
+		}()
+	}
 	global.GWAF_WEB_VERSION = public.WebFrontendVersion()
 	fmt.Println(`
 ==========================================
@@ -1151,6 +1161,9 @@ func main() {
 	// 免得三个进程抢同一个 supervisor.log 的滚动 rename。
 	if len(os.Args) > 1 && os.Args[1] == supervisor.HandoffRestartArg {
 		zlog.FileName = "handoff.log"
+	}
+	if wafcli.IsAutomationCommand(os.Args) {
+		zlog.FileName = "cli.log"
 	}
 	//初始化日志
 	zlog.InitZLog(global.GWAF_LOG_DEBUG_ENABLE, global.GWAF_LOG_OUTPUT_FORMAT)
@@ -1247,174 +1260,11 @@ func main() {
 	}()
 
 	if len(os.Args) > 1 {
-		command := os.Args[1]
-		switch command {
-
-		case "install", "start", "stop", "uninstall", "restart": // 以服务方式运行
-			err := service.Control(s, command)
-			if err != nil {
-				log.Fatal(err)
-			}
-			fmt.Printf("Samwaf has successfully executed the '%s' command.\n", command)
-			break
-		case supervisor.HandoffRestartArg:
-			// 自升级交接助手（Windows，隐藏命令，由 Supervisor 自己拉起）。
-			// 老 Supervisor 交接前起本进程后就退出了；本进程轮询把服务重新 start 起来，
-			// 让 Supervisor 换到新二进制。期间 Worker 作为孤儿继续转发业务，不中断。
-			runHandoffRestart(s)
-		case "rolling-restart": // 零停机滚动重启：通知运行中的 Supervisor 换 Worker（业务不中断），亦用于测试升级编排
-			if err := supervisor.TriggerUpgrade(dataDir); err != nil {
-				fmt.Println("滚动重启触发失败:", err)
-				os.Exit(1)
-			}
-			fmt.Println("已触发零停机滚动重启，请观察日志：新 Worker 就绪后旧 Worker 将优雅排空退出。")
-		case "rekey": //把遗留(旧格式)敏感字段升级为当前数据密钥(DEK)的新格式，供手动补跑迁移
-			if err := wafsec.InitDataKey(utils.GetCurrentDir(), global.GCONFIG_DATA_KEY_FILE); err != nil {
-				fmt.Println("数据密钥初始化失败:", err)
-				os.Exit(1)
-			}
-			if _, err := wafdb.InitCoreDb(""); err != nil {
-				fmt.Println("核心数据库初始化失败:", err)
-				os.Exit(1)
-			}
-			n := wafdb.RekeyDataKey(global.GWAF_LOCAL_DB)
-			fmt.Printf("已把 %d 行遗留敏感字段升级为当前数据密钥格式。\n", n)
-			fmt.Println("注意：本命令不做密钥轮换；请勿在替换 data_key 文件后运行它。")
-		case "rekey-legacy": //把落库敏感字段重写回旧通讯密钥格式(降级到旧版二进制前执行)
-			if err := wafsec.InitDataKey(utils.GetCurrentDir(), global.GCONFIG_DATA_KEY_FILE); err != nil {
-				fmt.Println("数据密钥初始化失败:", err)
-				os.Exit(1)
-			}
-			if _, err := wafdb.InitCoreDb(""); err != nil {
-				fmt.Println("核心数据库初始化失败:", err)
-				os.Exit(1)
-			}
-			n := wafdb.RekeyToLegacy(global.GWAF_LOCAL_DB)
-			fmt.Printf("已把 %d 行敏感字段重写回旧格式，现在可以安全降级到旧版本。\n", n)
-		case "resetpwd": //重制密码
-			wafdb.InitCoreDb("")
-			wafdb.ResetAdminPwd()
-		case "resetotp": //重置安全码
-			wafdb.InitCoreDb("")
-			wafdb.ResetAdminOTP()
-		case "repairdb": //修复数据库
-			fmt.Println("\n⚠️  数据库修复工具")
-			fmt.Println("如果您遇到数据库损坏错误")
-			fmt.Println("可以使用此工具尝试修复。")
-			wafdb.RepairAllDatabases("")
-		case "execsql": //执行SQL语句
-			fmt.Println("\n💻 SQL 执行工具")
-			fmt.Println("可以在指定数据库上执行 SQL 语句")
-			wafdb.ExecuteSQLCommand("")
-		case "migratedb": // 离线迁移：SQLite→MySQL / SQLite→PostgreSQL / MySQL→PostgreSQL
-			opts := wafdb.MigrateOptions{}
-			for _, arg := range os.Args[2:] {
-				switch {
-				case arg == "--dry-run":
-					opts.DryRun = true
-				case arg == "--force":
-					opts.Force = true
-				case strings.HasPrefix(arg, "--from="):
-					opts.From = strings.TrimPrefix(arg, "--from=")
-				case strings.HasPrefix(arg, "--to="):
-					opts.To = strings.TrimPrefix(arg, "--to=")
-				}
-			}
-			if err := wafdb.RunMigrateDB(opts); err != nil {
-				fmt.Println("迁移失败:", err)
-				os.Exit(1)
-			}
-		case "rollback": //版本回退
-			fmt.Println("================================================")
-			fmt.Println("         SamWaf 版本回退工具")
-			fmt.Println("================================================")
-			fmt.Printf("当前运行版本: %s\n\n", global.GWAF_RELEASE_VERSION)
-
-			list, err := wafupdate.ListBackups()
-			if err != nil {
-				fmt.Println("获取备份列表失败:", err)
-				return
-			}
-			if len(list) == 0 {
-				fmt.Println("没有可用的备份版本，无法回退")
-				return
-			}
-
-			fmt.Printf("%-4s %-15s %-22s %-10s %s\n", "序号", "版本", "备份时间", "大小(MB)", "备注")
-			fmt.Println("------------------------------------------------------------------------")
-			for i, b := range list {
-				note := ""
-				if b.Version == global.GWAF_RELEASE_VERSION {
-					note = "[当前版本]"
-				}
-				fmt.Printf("%-4d %-15s %-22s %-10.2f %s\n",
-					i+1,
-					b.Version,
-					b.BackupTime.Format("2006-01-02 15:04:05"),
-					float64(b.FileSize)/(1024*1024),
-					note)
-			}
-			fmt.Println("------------------------------------------------------------------------")
-
-			fmt.Print("\n请输入要回退的序号，或输入 'q' 退出: ")
-			var input string
-			fmt.Scanln(&input)
-			if input == "q" || input == "Q" {
-				fmt.Println("已退出版本回退工具")
-				return
-			}
-
-			idx := 0
-			_, parseErr := fmt.Sscanf(input, "%d", &idx)
-			if parseErr != nil || idx < 1 || idx > len(list) {
-				fmt.Printf("无效的序号: %s\n", input)
-				return
-			}
-
-			target := list[idx-1]
-			if target.Version == global.GWAF_RELEASE_VERSION {
-				fmt.Printf("所选版本 %s 与当前运行版本相同，无需回退\n", target.Version)
-				return
-			}
-
-			fmt.Printf("\n即将回退到: %s（%s）\n", target.Version, target.BackupTime.Format("2006-01-02 15:04:05"))
-			fmt.Print("确认回退？回退后需要手动重启服务 (y/n): ")
-			var confirm string
-			fmt.Scanln(&confirm)
-			if confirm != "y" && confirm != "Y" {
-				fmt.Println("已取消")
-				return
-			}
-
-			fmt.Printf("正在回退到版本 %s...\n", target.Version)
-			if rollbackErr := wafupdate.RollbackExecutable(target.Version); rollbackErr != nil {
-				fmt.Println("回退失败:", rollbackErr)
-				return
-			}
-			fmt.Println("回退成功，请重启服务 (samwaf start 或 samwaf restart)")
-		default:
-			fmt.Printf("Command '%s' is not recognized.\n", command)
-			fmt.Println("\n可用命令:")
-			fmt.Println("  install   - 安装为系统服务")
-			fmt.Println("  start     - 启动服务")
-			fmt.Println("  stop      - 停止服务")
-			fmt.Println("  restart   - 重启服务")
-			fmt.Println("  rolling-restart - 零停机滚动重启(换 Worker，业务不中断)")
-			fmt.Println("  uninstall - 卸载服务")
-			fmt.Println("  resetpwd  - 重置管理员密码")
-			fmt.Println("  resetotp  - 重置安全码")
-			fmt.Println("  repairdb  - 修复损坏的数据库")
-			fmt.Println("  execsql   - 执行SQL语句（支持SELECT/UPDATE/DELETE等）")
-			fmt.Println("  migratedb - 离线迁移数据库（不带参数则交互式选择迁移方向）")
-			fmt.Println("              支持方向: SQLite→MySQL / SQLite→PostgreSQL / MySQL→PostgreSQL")
-			fmt.Println("              --from=sqlite|mysql     迁移源（缺省则交互式选择）")
-			fmt.Println("              --to=mysql|postgres     迁移目标（缺省则交互式选择）")
-			fmt.Println("              --dry-run  只做预估，不写入数据")
-			fmt.Println("              --force    目标表已有数据时强制覆盖")
-			fmt.Println("  rollback  - 回退到历史版本 (--list 列出, --version=v1.x.x 指定版本)")
-			fmt.Println("")
-		}
-		return
+		os.Exit(wafcli.Execute(wafcli.Deps{
+			ServiceControl: func(action string) error { return service.Control(s, action) },
+			HandoffRestart: func() { runHandoffRestart(s) },
+			DataDir:        dataDir,
+		}))
 	}
 
 	if service.Interactive() {

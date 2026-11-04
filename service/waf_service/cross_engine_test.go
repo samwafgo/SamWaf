@@ -27,6 +27,7 @@ import (
 	"SamWaf/common/zlog"
 	"SamWaf/customtype"
 	"SamWaf/global"
+	"SamWaf/model"
 	"SamWaf/model/baseorm"
 	"SamWaf/wafdb"
 	"SamWaf/wafdb/dialect"
@@ -359,5 +360,85 @@ func assertGone(t *testing.T, db *gorm.DB, dst interface{}, id string) {
 	t.Helper()
 	if n := countBy(t, db, dst, "id = ?", id); n != 0 {
 		t.Fatalf("记录应已删除但仍存在(%T id=%s)", dst, id)
+	}
+}
+
+func TestCrossEngineLocalOnlyKeyConcurrentInitialization(t *testing.T) {
+	for _, engine := range xengines() {
+		t.Run(engine.name, func(t *testing.T) {
+			x, cleanup := engine.setup(t)
+			if x == nil {
+				t.Skipf("%s unavailable", engine.name)
+			}
+			defer cleanup()
+			oldDB, oldDialect := global.GWAF_LOCAL_DB, func() (d dialect.DBDialect) { defer func() { _ = recover() }(); return dialect.Get() }()
+			dbutil, err := x.core.DB()
+			if err != nil {
+				t.Fatalf("获取数据库连接池: %v", err)
+			}
+			dbutil.SetMaxOpenConns(1)
+			defer dbutil.SetMaxOpenConns(0)
+			dialect.Register(engineDialect(engine.name))
+			defer dialect.Register(oldDialect)
+			defer func() { global.GWAF_LOCAL_DB = oldDB }()
+			global.GWAF_LOCAL_DB = x.core
+			if err := wafsec.InitDataKey(t.TempDir(), ""); err != nil {
+				t.Fatalf("初始化测试 DEK: %v", err)
+			}
+			const workers = 8
+			type outcome struct {
+				key    string
+				action string
+				err    error
+			}
+			outcomes := make(chan outcome, workers)
+			for i := 0; i < workers; i++ {
+				go func() {
+					key, action, err := WafOPlatformKeyServiceApp.EnsureLocalOnlyKey(false)
+					outcomes <- outcome{key, action, err}
+				}()
+			}
+			winner := ""
+			for i := 0; i < workers; i++ {
+				got := <-outcomes
+				if got.err != nil {
+					t.Fatalf("并发初始化: %v", got.err)
+				}
+				if got.action != "created" && got.action != "reused" {
+					t.Fatalf("意外的初始化动作: %s", got.action)
+				}
+				if got.key == "" {
+					t.Fatal("并发初始化返回空 Key")
+				}
+				if winner == "" {
+					winner = got.key
+				} else if got.key != winner {
+					t.Fatal("并发初始化必须返回同一把本机 Key")
+				}
+			}
+			if winner == "" {
+				t.Fatal("未捕获并发初始化 Key")
+			}
+			var count int64
+			if err := x.core.Model(&model.OPlatformKey{}).Where("local_only = ?", 1).Count(&count).Error; err != nil || count != 1 {
+				t.Fatalf("本机 Key 应只有一条，实际 count=%d error=%v", count, err)
+			}
+			var row model.OPlatformKey
+			if err := x.core.Where("local_only = ?", 1).First(&row).Error; err != nil {
+				t.Fatalf("读取本机 Key: %v", err)
+			}
+			assertLocalAPIKeyEncrypted(t, row, winner)
+		})
+	}
+}
+
+func engineDialect(name string) dialect.DBDialect {
+	switch name {
+	case "mysql":
+		return &dialect.MySQLDialect{}
+	case "postgres":
+		return &dialect.PostgresDialect{}
+	default:
+		return &dialect.SQLiteDialect{}
 	}
 }

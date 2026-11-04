@@ -2462,7 +2462,24 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 			Rollback: func(tx *gorm.DB) error {
 				return tx.Migrator().DropTable(&model.LogExportTask{})
 			},
-		}, 
+		},
+		{
+			ID: "202611040001_add_oplatform_key_local_only",
+			Migrate: func(tx *gorm.DB) error {
+				if !tx.Migrator().HasColumn(&model.OPlatformKey{}, "local_only") {
+					if err := tx.Migrator().AddColumn(&model.OPlatformKey{}, "LocalOnly"); err != nil {
+						return fmt.Errorf("新增本机 API Key 标记列失败: %w", err)
+					}
+				}
+				return tx.Model(&model.OPlatformKey{}).Where("local_only IS NULL").Update("local_only", 0).Error
+			},
+			Rollback: func(tx *gorm.DB) error {
+				if !tx.Migrator().HasColumn(&model.OPlatformKey{}, "local_only") {
+					return nil
+				}
+				return tx.Migrator().DropColumn(&model.OPlatformKey{}, "LocalOnly")
+			},
+		},
 	})
 
 	// 执行迁移

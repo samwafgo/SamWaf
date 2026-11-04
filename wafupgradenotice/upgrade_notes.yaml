@@ -12,6 +12,30 @@
 #   5. fresh_install: true 的条目只在"全新安装"时生成，不参与版本区间计算
 
 notes:
+  - id: v1_3_25_cli_site_automation
+    version: v1.3.25
+    kind: notice
+    level: normal
+    doc: https://doc.samwaf.com/guide/CLI.html
+    apply:
+      type: none
+    zh:
+      title: 新增本机命令行网站管理，未知命令退出码调整为 2
+      detail: >-
+        新增 apikey init 与 site list/get/apply/delete/start/stop 命令，可使用本机 API Key
+        查询、创建、合并修改和启停网站，支持 JSON 输出与批量配置。本机 Key 不受开放平台总开关影响，
+        仍按状态、有效期和白名单校验；请妥善保管 Key 文件。原有服务、维护及数据密钥命令名称不变。
+        未知命令的退出码由 0 调整为 2，使用命令行的脚本请检查退出码处理。
+    en:
+      title: Local CLI site management added; unknown commands now exit with code 2
+      detail: >-
+        New apikey init and site list/get/apply/delete/start/stop commands use a local API Key
+        to inspect, create, merge, start and stop websites, with JSON output and batch configuration.
+        Local Keys work independently of the global Open Platform switch while retaining status,
+        expiry and whitelist checks; keep the Key file private. Existing service, maintenance and
+        data key command names are unchanged. Unknown commands now return exit code 2 instead of 0;
+        review exit code handling in command-line scripts.
+
   - id: v1_3_25_log_unified_export
     version: v1.3.25
     kind: notice

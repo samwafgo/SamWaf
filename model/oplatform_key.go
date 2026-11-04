@@ -12,6 +12,7 @@ type OPlatformKey struct {
 	baseorm.BaseOrm
 	KeyName     string `gorm:"size:255" json:"key_name"`      //Key 名称
 	ApiKey      string `gorm:"size:255" json:"api_key"`       //API Key（自动生成，用于 X-API-Key 请求头鉴权）
+	LocalOnly   int    `json:"local_only"`                    //1=仅本机回环直连可用
 	Status      int    `json:"status"`                        //状态 1启用 0禁用
 	Remark      string `gorm:"size:500" json:"remark"`        //备注
 	RateLimit   int64  `json:"rate_limit"`                    //每分钟限流次数，0不限

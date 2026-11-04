@@ -57,14 +57,18 @@ func (w *bodyWriter) WriteHeader(code int) {
 
 // ValidateOpenApiKey 校验 API Key 并设置上下文标记，返回 Key 记录和是否通过
 func ValidateOpenApiKey(c *gin.Context, apiKey string) (model.OPlatformKey, bool) {
-	// 1. 检查开放平台总开关
-	if global.GCONFIG_OPEN_PLATFORM_ENABLED == 0 {
+	// OpenAPI 鉴权结果统一使用明文 JSON。
+	c.Set("is_openapi", true)
+
+	// 1. 查询 Key，只有本机 Key 不受开放平台总开关约束。
+	keyBean, err := openApiKeyService.GetByApiKey(apiKey)
+	localOnly := err == nil && keyBean.LocalOnly == 1
+	if global.GCONFIG_OPEN_PLATFORM_ENABLED == 0 && !localOnly {
 		response.AuthFailWithMessage("开放平台已关闭", c)
 		return model.OPlatformKey{}, false
 	}
 
-	// 2. 查询 Key 记录
-	keyBean, err := openApiKeyService.GetByApiKey(apiKey)
+	// 2. 检查 Key 查询结果
 	if err != nil {
 		response.AuthFailWithMessage("无效的 API Key", c)
 		return model.OPlatformKey{}, false
@@ -73,6 +77,11 @@ func ValidateOpenApiKey(c *gin.Context, apiKey string) (model.OPlatformKey, bool
 	// 3. 检查启用状态
 	if keyBean.Status != 1 {
 		response.AuthFailWithMessage("API Key 已禁用", c)
+		return model.OPlatformKey{}, false
+	}
+
+	if localOnly && !isDirectLoopbackRequest(c) {
+		response.AuthFailWithMessage("该 API Key 仅允许本机调用", c)
 		return model.OPlatformKey{}, false
 	}
 
@@ -136,12 +145,35 @@ func ValidateOpenApiKey(c *gin.Context, apiKey string) (model.OPlatformKey, bool
 		}
 	}
 
-	// 7. 设置 OpenAPI 标记（用于 response 跳过 AES 加密）
-	c.Set("is_openapi", true)
+	// 7. 设置已验证的 Key 信息
 	c.Set("openapi_key_id", keyBean.Id)
 	c.Set("openapi_key_name", keyBean.KeyName)
+	c.Set("openapi_local_only", localOnly)
 
 	return keyBean, true
+}
+
+// isDirectLoopbackRequest 要求网络对端为回环地址，且请求不含已知或配置的转发头。
+func isDirectLoopbackRequest(c *gin.Context) bool {
+	peerIP := net.ParseIP(c.RemoteIP())
+	if peerIP == nil || !peerIP.IsLoopback() {
+		return false
+	}
+
+	headers := []string{"X-Forwarded-For", "X-Real-IP", "Forwarded", "X-Forwarded-Host"}
+	headers = append(headers, strings.Split(global.GCONFIG_MANAGE_PROXY_HEADER, ",")...)
+	for _, header := range headers {
+		header = strings.TrimSpace(header)
+		if header == "" {
+			continue
+		}
+		for name := range c.Request.Header {
+			if strings.EqualFold(name, header) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // OpenApiLogMiddleware 记录 OpenAPI 调用日志的中间件
@@ -170,7 +202,10 @@ func OpenApiLogMiddleware() gin.HandlerFunc {
 			strings.Contains(path, "/upload") ||
 			strings.HasSuffix(path, "/api/v1/wafhost/host/diagnostic")
 
-		if !isFileRequest && c.Request.Body != nil {
+		omitRequestBody := c.GetBool("openapi_local_only") ||
+			strings.HasSuffix(path, "/api/v1/wafhost/host/add") ||
+			strings.HasSuffix(path, "/api/v1/wafhost/host/edit")
+		if !isFileRequest && !omitRequestBody && c.Request.Body != nil {
 			bodyBytes, err := io.ReadAll(c.Request.Body)
 			if err == nil {
 				// 恢复完整 body 供后续 handler 使用
@@ -192,9 +227,16 @@ func OpenApiLogMiddleware() gin.HandlerFunc {
 
 		duration := time.Since(startTime).Milliseconds()
 
+		// 站点新增/编辑响应与站点详情/列表响应可能包含站点敏感字段，本机 Key 的全部响应也不落日志。
+		omitResponseBody := c.GetBool("openapi_local_only") ||
+			strings.HasSuffix(path, "/api/v1/wafhost/host/add") ||
+			strings.HasSuffix(path, "/api/v1/wafhost/host/edit") ||
+			strings.HasSuffix(path, "/api/v1/wafhost/host/detail") ||
+			strings.HasSuffix(path, "/api/v1/wafhost/host/list")
+
 		// 响应体（截断超过 2KB 的部分）
 		responseBody := ""
-		if !isFileRequest {
+		if !isFileRequest && !omitResponseBody {
 			responseBody = bw.body.String()
 			if len(responseBody) > 2048 {
 				responseBody = responseBody[:2048] + "...(truncated)"

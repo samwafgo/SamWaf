@@ -38,6 +38,7 @@ require (
 	github.com/samwafgo/go-wxsqlite3 v1.0.2
 	github.com/samwafgo/sqlitedriver v1.0.2
 	github.com/shirou/gopsutil/v4 v4.26.6
+	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
 	github.com/swaggo/swag v1.16.6
@@ -118,6 +119,7 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/hashicorp/yamux v0.1.2 // indirect
 	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.180 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/pgx/v5 v5.6.0 // indirect

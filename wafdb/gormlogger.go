@@ -2,6 +2,7 @@ package wafdb
 
 import (
 	"SamWaf/common/zlog"
+	"SamWaf/global"
 	"context"
 	"fmt"
 	"time"
@@ -24,6 +25,16 @@ func NewGormZLogger() *GormZLogger {
 		LogLevel:             logger.Info, // 默认日志级别
 		IgnoreRecordNotFound: true,        // 忽略记录未找到错误
 	}
+}
+
+// NewGormZLoggerForConfig 按 db_debug_enable 产出 logger：开=Info 全量 SQL，关=Error 只留真实错误（忽略 record not found）。
+// 调用方应无条件挂载，避免 GORM 退回内置默认 logger 把慢 SQL/错误直接写 stdout。
+func NewGormZLoggerForConfig() *GormZLogger {
+	l := NewGormZLogger()
+	if global.GWAF_LOG_DEBUG_DB_ENABLE {
+		return l.LogMode(logger.Info).(*GormZLogger)
+	}
+	return l.LogMode(logger.Error).(*GormZLogger)
 }
 
 // LogMode 设置日志级别

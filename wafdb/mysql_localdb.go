@@ -203,14 +203,10 @@ func openMySQLDBRaw(dbName string) (*gorm.DB, error) {
 	return db, nil
 }
 
-// applyGormLogger attaches the custom GormZLogger (and debug mode) to db.
+// applyGormLogger attaches the custom GormZLogger to db unconditionally:
+// debug 开=Info 全量 SQL，关=Error 只留真实错误，统一走 zlog 出口
 func applyGormLogger(db *gorm.DB) *gorm.DB {
-	gormLogger := NewGormZLogger()
-	if global.GWAF_LOG_DEBUG_DB_ENABLE {
-		gormLogger = gormLogger.LogMode(logger.Info).(*GormZLogger)
-		db = db.Session(&gorm.Session{Logger: gormLogger})
-	}
-	return db
+	return db.Session(&gorm.Session{Logger: NewGormZLoggerForConfig()})
 }
 
 // InitCoreDbMySQL initialises the MySQL core database.

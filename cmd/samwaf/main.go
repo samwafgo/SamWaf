@@ -374,6 +374,13 @@ func (m *wafSystenService) run() {
 		zlog.Error("初始化核心数据库失败，程序退出，请检查conf/config.yml数据库配置是否正确", "error", err)
 		os.Exit(1)
 	}
+	//存量孤儿 CC 规则一次性清理(幂等)：站点删除早已级联，但历史上删掉的站点会留下孤儿规则，
+	//既虚增 CC 规则列表的总数，又会让重建的同名站点跳过默认规则生成。
+	if n, err := waf_service.WafAntiCCRuleServiceApp.CleanupOrphanRules(); err != nil {
+		zlog.Error("清理孤儿CC规则失败", "error", err)
+	} else if n > 0 {
+		zlog.Info("已清理孤儿CC规则", "count", n)
+	}
 	//存量敏感字段静态加密迁移：把旧格式密文一次性重写为每实例 DEK 密文(幂等，单行失败跳过)。
 	wafdb.MigrateDataKeyEncryption(global.GWAF_LOCAL_DB)
 	if _, err := wafdb.InitLogDb(""); err != nil {

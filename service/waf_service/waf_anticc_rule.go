@@ -20,6 +20,17 @@ type WafAntiCCRuleService struct{}
 
 var WafAntiCCRuleServiceApp = new(WafAntiCCRuleService)
 
+// CleanupOrphanRules 删除宿主站点已不存在的 CC 规则（孤儿规则），返回删除条数。
+// DelHostApi 现在会级联删除新建的孤儿（waf_host.go），这里补的是存量：
+// 站点在级联修复之前被删掉，规则还留在表里。孤儿规则不只是列表总数对不上——
+// CreateDefaultRules 的判重用的是同一 host_code 的行数，残留记录会让重建的同名站点
+// 拿不到默认模板。启动时执行一次，幂等。
+func (receiver *WafAntiCCRuleService) CleanupOrphanRules() (int64, error) {
+	hostCodes := global.GWAF_LOCAL_DB.Model(&model.Hosts{}).Select("code")
+	result := global.GWAF_LOCAL_DB.Where("host_code NOT IN (?)", hostCodes).Delete(&model.AntiCCRule{})
+	return result.RowsAffected, result.Error
+}
+
 // maxRulesPerHost 单个网站的规则数量上限。
 // 规则在每个请求上按序求值，条数没有上限就等于给热路径加了一段可无限增长的线性开销。
 const maxRulesPerHost = 20

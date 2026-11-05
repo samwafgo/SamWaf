@@ -7,7 +7,9 @@ import (
 	"SamWaf/model/request"
 	response2 "SamWaf/model/response"
 	"SamWaf/wafdb"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
@@ -395,9 +397,7 @@ func GenerateRawHTTPRequest(weblog innerbean.WebLog) string {
 }
 func GenerateCurlRequest(weblog innerbean.WebLog) string {
 
-	headers := strings.Split(weblog.HEADER, "\n")
-	maskedHeaders := maskSensitiveHeader(weblog.HEADER)
-	headers = strings.Split(maskedHeaders, "\n")
+	headers := strings.Split(maskSensitiveHeader(weblog.HEADER), "\n")
 	headerStrings := ""
 	for _, header := range headers {
 		headerStrings += fmt.Sprintf("-H '%s' ", strings.TrimSpace(header))
@@ -423,18 +423,49 @@ func GenerateCurlRequest(weblog innerbean.WebLog) string {
 }
 func maskSensitiveHeader(header string) string {
 	sensitiveKeys := []string{
-		"Authorization", "Token", "Api-Key", "Secret", "Access-Token", "X-Api-Key",
+		"Authorization", "Proxy-Authorization", "Cookie", "Token", "Api-Key", "Secret", "Access-Token", "X-Api-Key",
 		"X-Access-Token", "X-Secret", "Session-Key", "Set-Cookie",
 	}
 	maskedHeader := header
 	for _, key := range sensitiveKeys {
-		regex := regexp.MustCompile(fmt.Sprintf(`(?i)(%s):\s*[^\\n]+`, key))
+		// 反引号串里 \\n 是字面反斜杠+n（排除的是这两个字符而不是换行），
+		// 值里碰到字母 n 就会断尾泄密；这里要的是「到换行/串尾为止」。
+		regex := regexp.MustCompile(fmt.Sprintf(`(?i)(%s):\s*[^\n]+`, key))
 		maskedHeader = regex.ReplaceAllString(maskedHeader, "$1: [MASKED]")
 	}
 	return maskedHeader
 }
 
+// displaySensitiveCookieKeywords Cookie 名带这些关键字的，值在展示层抹掉（历史报文兜底，
+// 与落库脱敏规则同源；新数据落库时已脱敏，这里是双保险）。
+var displaySensitiveCookieKeywords = []string{"session", "auth", "token", "secret", "passwd", "password", "credential", "key", "sid", "jwt"}
+
 func maskSensitiveCookies(cookies string) string {
+	// COOKIES 列是 r.Cookies() 序列化出的 JSON 数组（见引擎侧 refreshWeblogCookies），
+	// k=v 正则永远匹配不上，必须按 JSON 解析后按名脱敏。
+	if strings.HasPrefix(strings.TrimSpace(cookies), "[") {
+		var list []http.Cookie
+		if err := json.Unmarshal([]byte(cookies), &list); err == nil {
+			changed := false
+			for i := range list {
+				name := strings.ToLower(list[i].Name)
+				for _, kw := range displaySensitiveCookieKeywords {
+					if strings.Contains(name, kw) {
+						list[i].Value = "[MASKED]"
+						changed = true
+						break
+					}
+				}
+			}
+			if !changed {
+				return cookies
+			}
+			if out, err := json.Marshal(list); err == nil {
+				return string(out)
+			}
+			return cookies
+		}
+	}
 	cookieRegex := regexp.MustCompile(`(?i)(sessionid|auth|token|key|secret)=[^;]+`)
 	return cookieRegex.ReplaceAllString(cookies, "$1=[MASKED]")
 }

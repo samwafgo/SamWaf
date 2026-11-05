@@ -99,11 +99,17 @@ func dedupByUUID[T any](dst []T, seen map[string]int, id string, item T) []T {
 }
 
 // narrowFromLog 从完整日志对象拷出窄行：url/raw_query 截断到 2KB，三个分析键算好。
+// 脱敏开时查询串按参数名抹值（GET 凭证常挂 ?api_key= 上），路径保持原样。
 func narrowFromLog(lg *innerbean.WebLog) model.LogNarrow {
-	url := cutUTF8N(lg.URL, narrowURLMaxBytes)
-	rawQuery := cutUTF8N(lg.RawQuery, narrowURLMaxBytes)
+	srcURL, srcRawQuery := lg.URL, lg.RawQuery
+	if global.GCONFIG_RECORD_LOG_DESENSITIZE == 1 {
+		srcURL = maskPersistedRequestURI(srcURL)
+		srcRawQuery = maskPersistedQuery(srcRawQuery)
+	}
+	url := cutUTF8N(srcURL, narrowURLMaxBytes)
+	rawQuery := cutUTF8N(srcRawQuery, narrowURLMaxBytes)
 	truncated := 0
-	if len(url) != len(lg.URL) || len(rawQuery) != len(lg.RawQuery) {
+	if len(url) != len(srcURL) || len(rawQuery) != len(srcRawQuery) {
 		truncated = 1
 	}
 	return model.LogNarrow{
@@ -155,15 +161,29 @@ func narrowFromLog(lg *innerbean.WebLog) model.LogNarrow {
 // extractPayload 拷出报文行（含 HEADER——它随窄行拆出后只能跟报文走），单列 64KB 截断。
 // 报文列全空返回 nil：不占一行，读侧找不到报文行时本来就显示「未留存报文」。
 func extractPayload(lg *innerbean.WebLog, kind string) *model.EventPayload {
-	header := cutUTF8(lg.HEADER)
-	cookies := cutUTF8(lg.COOKIES)
-	body := cutUTF8(lg.BODY)
-	resBody := cutUTF8(lg.RES_BODY)
-	postForm := cutUTF8(lg.POST_FORM)
-	resHeader := cutUTF8(lg.ResHeader)
-	srcBody := cutBytes(lg.SrcByteBody)
-	srcResBody := cutBytes(lg.SrcByteResBody)
-	srcURL := cutBytes(lg.SrcURL)
+	// 副本上做凭证脱敏（Basic 凭据/令牌/会话/表单密码不进报文表），原对象保持完整，
+	// 检测、Kafka 与文件出口拿的还是未脱敏报文。截断判定对脱敏后的源串做，
+	// 否则脱敏缩短了内容会被误标成截断。
+	srcHeader, srcCookies, srcResHeader, srcPostForm := lg.HEADER, lg.COOKIES, lg.ResHeader, lg.POST_FORM
+	srcURL := string(lg.SrcURL)
+	if global.GCONFIG_RECORD_LOG_DESENSITIZE == 1 {
+		srcHeader = maskPersistedHeaderLines(srcHeader, false)
+		srcCookies = maskPersistedCookies(srcCookies)
+		srcResHeader = maskPersistedHeaderLines(srcResHeader, true)
+		srcPostForm = maskPersistedForm(srcPostForm)
+		srcURL = maskPersistedRequestURI(srcURL)
+	}
+	srcBody, srcResBody := lg.BODY, lg.RES_BODY
+
+	header := cutUTF8(srcHeader)
+	cookies := cutUTF8(srcCookies)
+	body := cutUTF8(srcBody)
+	resBody := cutUTF8(srcResBody)
+	postForm := cutUTF8(srcPostForm)
+	resHeader := cutUTF8(srcResHeader)
+	srcByteBody := cutBytes(lg.SrcByteBody)
+	srcByteResBody := cutBytes(lg.SrcByteResBody)
+	srcURLBytes := cutBytes([]byte(srcURL))
 
 	p := &model.EventPayload{
 		ReqUUID:        lg.REQ_UUID,
@@ -177,18 +197,18 @@ func extractPayload(lg *innerbean.WebLog, kind string) *model.EventPayload {
 		RES_BODY:       resBody,
 		POST_FORM:      postForm,
 		ResHeader:      resHeader,
-		SrcByteBody:    srcBody,
-		SrcByteResBody: srcResBody,
-		SrcURL:         srcURL,
+		SrcByteBody:    srcByteBody,
+		SrcByteResBody: srcByteResBody,
+		SrcURL:         srcURLBytes,
 		CreateTime:     lg.CREATE_TIME,
 		UnixAddTime:    lg.UNIX_ADD_TIME,
 		Day:            lg.Day,
 	}
-	if len(header) != len(lg.HEADER) || len(cookies) != len(lg.COOKIES) ||
-		len(body) != len(lg.BODY) || len(resBody) != len(lg.RES_BODY) ||
-		len(postForm) != len(lg.POST_FORM) || len(resHeader) != len(lg.ResHeader) ||
-		len(srcBody) != len(lg.SrcByteBody) || len(srcResBody) != len(lg.SrcByteResBody) ||
-		len(srcURL) != len(lg.SrcURL) {
+	if len(header) != len(srcHeader) || len(cookies) != len(srcCookies) ||
+		len(body) != len(srcBody) || len(resBody) != len(srcResBody) ||
+		len(postForm) != len(srcPostForm) || len(resHeader) != len(srcResHeader) ||
+		len(srcByteBody) != len(lg.SrcByteBody) || len(srcByteResBody) != len(lg.SrcByteResBody) ||
+		len(srcURLBytes) != len(srcURL) {
 		p.Truncated = 1
 	}
 	if p.IsEmpty() {

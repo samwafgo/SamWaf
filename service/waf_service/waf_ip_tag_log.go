@@ -7,6 +7,7 @@ import (
 	"SamWaf/model/request"
 	"SamWaf/wafdb"
 	"SamWaf/wafdb/dialect"
+	"SamWaf/wafdb/tableheal"
 	"context"
 	"fmt"
 	"strings"
@@ -350,6 +351,13 @@ func (receiver *WafLogService) DeleteTagByNameApi(tagName string, deleteLogs boo
 	deleteTagQuery := `DELETE FROM ip_tags WHERE tenant_id=? AND user_code=? AND ip_tag=?`
 	if err := ipTagDB.Exec(deleteTagQuery, global.GWAF_TENANT_ID, global.GWAF_USER_CODE, tagName).Error; err != nil {
 		return fmt.Errorf("删除标签统计数据失败: %v", err)
+	}
+	// 索引修复换表后，旧数据还在 ip_tags__heal 里等待并回；不一起删，回填会把这个标签带回来
+	if healTable := tableheal.HealTable("ip_tags"); dialect.Get().TableExists(ipTagDB, healTable) {
+		if err := ipTagDB.Table(healTable).Where("tenant_id=? AND user_code=? AND ip_tag=?",
+			global.GWAF_TENANT_ID, global.GWAF_USER_CODE, tagName).Delete(&model.IPTag{}).Error; err != nil {
+			return fmt.Errorf("删除标签统计数据失败: %v", err)
+		}
 	}
 
 	// 2. 如果需要删除关联的日志数据

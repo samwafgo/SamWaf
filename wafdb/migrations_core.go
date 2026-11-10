@@ -2489,6 +2489,9 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 		return fmt.Errorf("%s", errMsg)
 	}
 
+	// 必需索引按“每次启动、全部迁移之后”的不变量检查，不进 gormigrate
+	ensureIPTagIndexes(db, true)
+
 	zlog.Info("core数据库迁移成功完成")
 	return nil
 }

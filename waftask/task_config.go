@@ -9,6 +9,7 @@ import (
 	"SamWaf/model/request"
 	"SamWaf/service/waf_service"
 	"SamWaf/utils"
+	"SamWaf/wafdb"
 	"SamWaf/wafenginecore"
 	"SamWaf/wafhostguard"
 	"SamWaf/wafipban"
@@ -944,6 +945,7 @@ func TaskLoadSetting(initLoad bool) {
 	// 合并前先清存量「正常」行（分层后不再记它）：那是表里的大头，清完合并要搬的行数能少几个数量级。
 	if initLoad {
 		go func() {
+			wafdb.RunIPTagBackfill()
 			waf_service.CleanLegacyBenignIPTags()
 			waf_service.MergeIPTagsInto(global.GDATA_IP_TAG_DB)
 		}()

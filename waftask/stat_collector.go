@@ -8,17 +8,26 @@ import (
 	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
-	"SamWaf/wafdb/dialect"
+	"SamWaf/wafdb"
+	"sync/atomic"
 	"time"
 
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
-// ipTagUpsertBatch 单条 upsert 语句里最多带多少行：太大容易撞上
-// SQLite 的 999 个绑定变量上限（IPTag 有 8 列，200 行约 1600 个参数，
-// go-wxsqlite3 编译期上限是 32766，留足余量）。
-const ipTagUpsertBatch = 200
+// ipTagWarnInterval 同类写入失败的告警间隔：这条路径每个批次都会走，不限流会刷屏。
+const ipTagWarnInterval = 10 * time.Minute
+
+var lastIPTagWarn atomic.Int64
+
+func warnIPTagUpsert(err error, n int) {
+	now := time.Now().UnixNano()
+	last := lastIPTagWarn.Load()
+	if now-last < int64(ipTagWarnInterval) || !lastIPTagWarn.CompareAndSwap(last, now) {
+		return
+	}
+	zlog.Warn("IP标签写入失败", "错误", err.Error(), "条数", n)
+}
 
 // 从日志流批量聚合统计并写入统计库（不依赖日志入库）。
 // 会按以下维度做增量统计：
@@ -351,18 +360,8 @@ func CollectStatsFromLogs(logs []*innerbean.WebLog) {
 				Remarks: "",
 			})
 		}
-		incoming := dialect.Get().UpsertExcludedRef("cnt")
-		err := ipTagDB.Clauses(clause.OnConflict{
-			Columns: []clause.Column{
-				{Name: "user_code"}, {Name: "tenant_id"}, {Name: "ip"}, {Name: "ip_tag"},
-			},
-			DoUpdates: clause.Assignments(map[string]interface{}{
-				"cnt":         gorm.Expr("ip_tags.cnt + " + incoming),
-				"update_time": now,
-			}),
-		}).CreateInBatches(rows, ipTagUpsertBatch).Error
-		if err != nil {
-			zlog.Debug("IP标签写入失败", "错误", err.Error(), "条数", len(rows))
+		if err := wafdb.UpsertIPTags(ipTagDB, rows); err != nil {
+			warnIPTagUpsert(err, len(rows))
 		} else {
 			zlog.Debug("IP标签处理完成", "条数", len(rows))
 		}

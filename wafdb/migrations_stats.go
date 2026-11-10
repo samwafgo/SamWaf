@@ -309,6 +309,8 @@ func RunStatsDBMigrations(db *gorm.DB) error {
 		return fmt.Errorf("%s", errMsg)
 	}
 
+	ensureIPTagIndexes(db, false)
+
 	zlog.Info("stats数据库迁移成功完成")
 	return nil
 }

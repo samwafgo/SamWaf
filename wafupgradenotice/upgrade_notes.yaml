@@ -1394,3 +1394,28 @@ notes:
         address space (0.0.0.0/0, ::/0, full wildcards, full-space ranges): a system-firewall
         block applies to every port of the machine, and blocking the whole network would lock
         out the console along with everything else, leaving you unable to sign in.
+
+  - id: v1_3_25_iptag_index_check
+    version: v1.3.25
+    kind: notice
+    level: normal
+    apply:
+      type: none
+    zh:
+      title: 启动时自动检查并修复 IP 标签表索引
+      detail: >-
+        每次启动会在数据库迁移完成后检查 IP 标签表（ip_tags）的唯一索引，缺失时自动补建。
+        行数较少且无重复的表直接建索引；表较大或含重复行时，旧数据改存为 ip_tags__heal，
+        后台分批并回新表，期间风险日志页的标签计数会逐步变动，完成后自动稳定，重启会从断点继续。
+        并回时同一 IP 与标签的计数相加，已不再记录的「正常」标签不会并回。
+        IP 标签写入失败现在会输出 Warn 级别日志（同类错误 10 分钟内只记一次）。
+    en:
+      title: IP tag table indexes are now checked and repaired at startup
+      detail: >-
+        After database migrations finish, every startup checks the unique index on the IP tag table
+        (ip_tags) and rebuilds it when missing. Small tables without duplicates get the index directly;
+        large tables or tables with duplicate rows keep their old data as ip_tags__heal, which is merged
+        back in batches in the background. Tag counts on the risk log page change gradually meanwhile and
+        settle when it finishes; a restart resumes from where it stopped. Counts of the same IP and tag
+        are added together, and the "normal" tags that are no longer recorded are not merged back.
+        IP tag write failures are now logged at Warn level (once per 10 minutes for the same error).

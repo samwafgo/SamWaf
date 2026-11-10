@@ -4,12 +4,12 @@ import (
 	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/model"
+	"SamWaf/wafdb"
 	"SamWaf/wafdb/dialect"
 	"sync/atomic"
 	"time"
 
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // 合并的节奏。ip_tags 是跟着攻击量长的派生表，实例跑久了几百万甚至上千万行都正常，
@@ -80,7 +80,7 @@ func MergeIPTagsInto(target int64) {
 		}
 		// 先写目标再删来源。两个库之间没有共同事务，只能选一头承担中断风险：
 		// 中断在这两步之间，这一批下次会再并一遍（计数偏大），比删掉之后没写进去要好收拾。
-		if err := upsertIPTags(dst, rows); err != nil {
+		if err := wafdb.UpsertIPTags(dst, rows); err != nil {
 			zlog.Warn("写入IP标签失败", "目标", dstName, "已合并", merged, "error", err.Error())
 			return
 		}
@@ -140,22 +140,4 @@ func CleanLegacyBenignIPTags() {
 		}
 		zlog.Info("清理「正常」IP标签完成", "条数", deleted, "耗时", time.Since(start).String())
 	}
-}
-
-// upsertIPTags 按唯一索引 uni_iptags_full 合并写入：cnt 相加，首次时间取早、最近时间取晚。
-// 冲突分支要引用"本次待插入的值"，三个引擎写法不同，由方言给出。
-func upsertIPTags(dst *gorm.DB, rows []model.IPTag) error {
-	cnt := dialect.Get().UpsertExcludedRef("cnt")
-	upd := dialect.Get().UpsertExcludedRef("update_time")
-	cre := dialect.Get().UpsertExcludedRef("create_time")
-	return dst.Clauses(clause.OnConflict{
-		Columns: []clause.Column{
-			{Name: "user_code"}, {Name: "tenant_id"}, {Name: "ip"}, {Name: "ip_tag"},
-		},
-		DoUpdates: clause.Assignments(map[string]interface{}{
-			"cnt":         gorm.Expr("ip_tags.cnt + " + cnt),
-			"update_time": gorm.Expr("CASE WHEN " + upd + " > ip_tags.update_time THEN " + upd + " ELSE ip_tags.update_time END"),
-			"create_time": gorm.Expr("CASE WHEN " + cre + " < ip_tags.create_time THEN " + cre + " ELSE ip_tags.create_time END"),
-		}),
-	}).CreateInBatches(rows, ipTagMergeBatch).Error
 }

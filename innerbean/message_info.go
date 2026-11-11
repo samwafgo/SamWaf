@@ -94,6 +94,7 @@ type UserLoginMessageInfo struct {
 */
 type AttackInfoMessageInfo struct {
 	BaseMessageInfo
+	Domain     string `json:"domain"`
 	AttackType string `json:"attack_type"` // 攻击类型
 	Url        string `json:"url"`         // 攻击URL
 	Ip         string `json:"ip"`          // 攻击IP

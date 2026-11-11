@@ -232,6 +232,7 @@ var notifyTypeVars = map[string][]NotifyTemplateVar{
 		{Name: "Ip", Desc: "来源IP", Example: "1.2.3.4"},
 	},
 	model.MSG_TYPE_ATTACK_INFO: {
+		{Name: "Domain", Desc: "域名", Example: "www.example.com"},
 		{Name: "AttackType", Desc: "攻击类型", Example: "SQL注入"},
 		{Name: "Url", Desc: "攻击URL", Example: "https://www.example.com/api?id=1"},
 		{Name: "Ip", Desc: "攻击IP", Example: "1.2.3.4"},
@@ -346,6 +347,9 @@ func buildSampleDefaultMessage(messageType string, vars map[string]string) (stri
 			buildManageLoginAbnormalContent(vars["Username"], vars["Ip"], vars["Time"], vars["LastIp"], vars["LastLocation"], vars["LastTime"])
 	case model.MSG_TYPE_ATTACK_INFO:
 		title, content := s.FormatAttackInfoMessage(vars["AttackType"], vars["Url"], vars["Ip"], vars["Time"])
+		if vars["Domain"] != "" {
+			content = "**域名:** " + vars["Domain"] + "\n\n" + content
+		}
 		return title, content
 	case model.MSG_TYPE_WEEKLY_REPORT:
 		title, content := s.FormatWeeklyReportMessage(120000, 356, vars["WeekRange"])

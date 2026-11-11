@@ -459,7 +459,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return ruleSkipAll || ruleSkipModules[module]
 			}
 			//一系列检测逻辑
-			handleBlock := func(checkFunc func(*http.Request, *innerbean.WebLog, url.Values, *wafenginmodel.HostSafe, *wafenginmodel.HostSafe) detection.Result) bool {
+			handleBlock := func(checkFunc func(*http.Request, *innerbean.WebLog, url.Values, *wafenginmodel.HostSafe, *wafenginmodel.HostSafe) detection.Result, messageType ...string) bool {
 				detectionResult := checkFunc(r, &weblogbean, formValues, hostTarget, waf.rt().HostTarget[waf.rt().HostCode[global.GWAF_GLOBAL_HOST_CODE]])
 				//自定义规则放行：不拦截，按需跳过后续检测
 				if detectionResult.IsRuleAllow {
@@ -491,7 +491,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						decrementMonitor(hostCode)
 						// 根据检测结果的标题推断攻击类型
 						attackType := inferAttackType(detectionResult.Title)
-						EchoErrorInfo(w, r, &weblogbean, detectionResult.Title, detectionResult.Content, hostTarget, waf.rt().HostTarget[waf.rt().HostCode[global.GWAF_GLOBAL_HOST_CODE]], true, attackType)
+						EchoErrorInfo(w, r, &weblogbean, detectionResult.Title, detectionResult.Content, hostTarget, waf.rt().HostTarget[waf.rt().HostCode[global.GWAF_GLOBAL_HOST_CODE]], true, attackType, messageType...)
 						return true
 					}
 				}
@@ -571,37 +571,37 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 				//检测爬虫bot
 				if hostDefense.DEFENSE_BOT == 1 && !ruleSkip("BOT") {
-					if handleBlock(waf.CheckBot) {
+					if handleBlock(waf.CheckBot, model.MSG_TYPE_ATTACK_INFO) {
 						return
 					}
 				}
 				//检测sqli
 				if hostDefense.DEFENSE_SQLI == 1 && !ruleSkip("SQLI") {
-					if handleBlock(waf.CheckSql) {
+					if handleBlock(waf.CheckSql, model.MSG_TYPE_ATTACK_INFO) {
 						return
 					}
 				}
 				//检测xss
 				if hostDefense.DEFENSE_XSS == 1 && !ruleSkip("XSS") {
-					if handleBlock(waf.CheckXss) {
+					if handleBlock(waf.CheckXss, model.MSG_TYPE_ATTACK_INFO) {
 						return
 					}
 				}
 				//检测扫描工具
 				if hostDefense.DEFENSE_SCAN == 1 && !ruleSkip("SCAN") {
-					if handleBlock(waf.CheckSan) {
+					if handleBlock(waf.CheckSan, model.MSG_TYPE_ATTACK_INFO) {
 						return
 					}
 				}
 				//检测RCE
 				if hostDefense.DEFENSE_RCE == 1 && !ruleSkip("RCE") {
-					if handleBlock(waf.CheckRce) {
+					if handleBlock(waf.CheckRce, model.MSG_TYPE_ATTACK_INFO) {
 						return
 					}
 				}
 				//目录穿越检测
 				if hostDefense.DEFENSE_DIR_TRAVERSAL == 1 && !ruleSkip("DIR") {
-					if handleBlock(waf.CheckDirTraversal) {
+					if handleBlock(waf.CheckDirTraversal, model.MSG_TYPE_ATTACK_INFO) {
 						return
 					}
 				}

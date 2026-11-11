@@ -505,6 +505,9 @@ func (receiver *WafNotifySenderService) FormatAccessMessageFromBean(msg innerbea
 func (receiver *WafNotifySenderService) FormatAttackInfoMessageFromBean(msg innerbean.AttackInfoMessageInfo) (string, string, string) {
 	messageType := "attack_info" // 攻击信息类型
 	title, content := receiver.FormatAttackInfoMessage(msg.AttackType, msg.Url, msg.Ip, msg.Time)
+	if msg.Domain != "" {
+		content = "**域名:** " + msg.Domain + "\n\n" + content
+	}
 	return messageType, title, content
 }
 

@@ -12,6 +12,29 @@
 #   5. fresh_install: true 的条目只在"全新安装"时生成，不参与版本区间计算
 
 notes:
+  - id: v1_3_25_notify_detection_classification
+    version: v1.3.25
+    kind: check
+    level: normal
+    apply:
+      type: none
+    zh:
+      title: 内置检测通知归入攻击信息
+      detail: >-
+        Bot、SQL 注入、XSS、扫描工具、RCE 与目录穿越这六类内置检测拦截后发送「攻击信息」，
+        请求与响应敏感词、自定义规则、名单等其他防护策略命中发送「规则触发」。每次命中只进入对应的一类通知，订阅的频控、过滤与模板仍按该类型生效。
+        如需接收内置检测通知，请启用「攻击信息」订阅；原先仅启用「规则触发」的用户请检查订阅设置。
+      revert: 在通知订阅中按需启用「攻击信息」和「规则触发」，分别检查两类订阅的渠道、过滤条件与频控。
+    en:
+      title: Built-in detection notifications use Attack Info
+      detail: >-
+        Built-in Bot, SQL injection, XSS, scanner, RCE and directory-traversal detections
+        send Attack Info; request/response sensitive-word policies, custom rules, blacklists and other protection policies send Rule Trigger. Each match enters only its
+        corresponding notification category, whose throttling, filters and templates still apply.
+        Enable an Attack Info subscription to receive built-in detection notifications; review your
+        subscriptions if you previously enabled only Rule Trigger.
+      revert: Enable Attack Info and Rule Trigger as needed in notification subscriptions, and check each category's channels, filters and throttling.
+
   - id: v1_3_25_cli_site_automation
     version: v1.3.25
     kind: notice

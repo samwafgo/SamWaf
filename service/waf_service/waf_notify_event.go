@@ -186,7 +186,15 @@ func (receiver *WafNotifySenderService) BuildNotifyEvent(messageInfo interface{}
 		}
 		ev.DedupParts[model.DedupKeyIp] = msg.Ip
 		ev.DedupParts[model.DedupKeyAttackType] = msg.AttackType
-		ev.DedupParts[model.DedupKeyDomain] = extractHostFromUrl(msg.Url)
+		domain := msg.Domain
+		if _, host, found := strings.Cut(domain, "://"); found {
+			domain = host
+		}
+		if domain == "" {
+			domain = extractHostFromUrl(msg.Url)
+		}
+		ev.Vars["Domain"] = domain
+		ev.DedupParts[model.DedupKeyDomain] = domain
 		return ev
 
 	case innerbean.WeeklyReportMessageInfo:

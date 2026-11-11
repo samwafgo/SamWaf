@@ -96,10 +96,11 @@ type NotifyThrottleConfig struct {
 //
 // 全部为空表示不过滤（保持老行为）。keywords 只做包含匹配、不接受用户正则，避免 ReDoS。
 type NotifyFilterConfig struct {
-	Domains     []string `json:"domains"`      // 只发这些域名（支持 *.a.com），空=全部
-	ExcludeIps  []string `json:"exclude_ips"`  // 这些 IP/CIDR 的事件不发
-	Keywords    []string `json:"keywords"`     // 规则信息/攻击类型/URL 命中任一关键字才发，空=全部
-	MinSeverity string   `json:"min_severity"` // 最低严重级别，空=不限
+	Domains      []string `json:"domains"`       // 只发这些域名（支持 *.a.com），空=全部
+	ExcludeIps   []string `json:"exclude_ips"`   // 这些 IP/CIDR 的事件不发
+	ExcludeRules []string `json:"exclude_rules"` // 这些规则名（完整匹配）的触发事件不发，空=全部
+	Keywords     []string `json:"keywords"`      // 规则信息/攻击类型/URL 命中任一关键字才发，空=全部
+	MinSeverity  string   `json:"min_severity"`  // 最低严重级别，空=不限
 }
 
 // ParseNotifyThrottleConfig 解析频控配置，任何异常都退回空配置（即"全部继承默认"），
@@ -177,7 +178,7 @@ func ParseNotifyFilterConfig(jsonStr string) NotifyFilterConfig {
 
 // IsEmpty 判断过滤条件是否完全没配（用于快速跳过过滤逻辑）
 func (c NotifyFilterConfig) IsEmpty() bool {
-	return len(c.Domains) == 0 && len(c.ExcludeIps) == 0 && len(c.Keywords) == 0 && c.MinSeverity == ""
+	return len(c.Domains) == 0 && len(c.ExcludeIps) == 0 && len(c.ExcludeRules) == 0 && len(c.Keywords) == 0 && c.MinSeverity == ""
 }
 
 // IsValidThrottleMode 校验频控模式

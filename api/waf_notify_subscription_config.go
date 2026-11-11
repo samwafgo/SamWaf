@@ -92,20 +92,21 @@ func buildFilterJSON(req request.WafNotifyFilterReq) (string, error) {
 	if !model.IsValidSeverity(req.MinSeverity) {
 		return "", errors.New("最低严重级别不合法")
 	}
-	if len(req.Domains) > 100 || len(req.ExcludeIps) > 100 || len(req.Keywords) > 100 {
+	if len(req.Domains) > 100 || len(req.ExcludeIps) > 100 || len(req.ExcludeRules) > 100 || len(req.Keywords) > 100 {
 		return "", errors.New("过滤条件每项最多 100 条")
 	}
-	for _, v := range append(append([]string{}, req.Domains...), append(req.ExcludeIps, req.Keywords...)...) {
+	for _, v := range append(append([]string{}, req.Domains...), append(req.ExcludeIps, append(req.ExcludeRules, req.Keywords...)...)...) {
 		if len(v) > 256 {
 			return "", errors.New("过滤条件单项长度不能超过 256")
 		}
 	}
 
 	cfg := model.NotifyFilterConfig{
-		Domains:     trimList(req.Domains),
-		ExcludeIps:  trimList(req.ExcludeIps),
-		Keywords:    trimList(req.Keywords),
-		MinSeverity: req.MinSeverity,
+		Domains:      trimList(req.Domains),
+		ExcludeIps:   trimList(req.ExcludeIps),
+		ExcludeRules: trimList(req.ExcludeRules),
+		Keywords:     trimList(req.Keywords),
+		MinSeverity:  req.MinSeverity,
 	}
 	if cfg.IsEmpty() {
 		return "", nil // 全空就存空串，前端读到就知道"没配过滤"

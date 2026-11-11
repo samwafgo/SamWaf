@@ -60,10 +60,11 @@ type WafNotifyThrottleReq struct {
 
 // WafNotifyFilterReq 过滤条件
 type WafNotifyFilterReq struct {
-	Domains     []string `json:"domains"`
-	ExcludeIps  []string `json:"exclude_ips"`
-	Keywords    []string `json:"keywords"`
-	MinSeverity string   `json:"min_severity"`
+	Domains      []string `json:"domains"`
+	ExcludeIps   []string `json:"exclude_ips"`
+	ExcludeRules []string `json:"exclude_rules"`
+	Keywords     []string `json:"keywords"`
+	MinSeverity  string   `json:"min_severity"`
 }
 
 // WafNotifySubscriptionConfigReq 保存单个订阅的精细化配置

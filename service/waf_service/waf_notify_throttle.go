@@ -711,6 +711,30 @@ func MatchNotifyFilter(filter model.NotifyFilterConfig, ev NotifyEvent) bool {
 		}
 	}
 
+	// 规则排除：命中任一排除规则名（完整匹配，不区分大小写）就不发
+	//
+	// 引擎侧的规则名字段是「规则A,规则B,」逗号拼接形态（多规则同时命中），
+	// 所以按逗号拆开逐段完整匹配，用户填规则列表里的名字即可，不用带尾巴逗号。
+	if len(filter.ExcludeRules) > 0 {
+		rule := ev.DedupParts[model.DedupKeyRule]
+		if rule == "" {
+			rule = ev.Vars["RuleInfo"]
+		}
+		if rule != "" {
+			for _, seg := range strings.Split(rule, ",") {
+				seg = strings.ToLower(strings.TrimSpace(seg))
+				if seg == "" {
+					continue
+				}
+				for _, item := range filter.ExcludeRules {
+					if strings.ToLower(strings.TrimSpace(item)) == seg {
+						return false
+					}
+				}
+			}
+		}
+	}
+
 	// 关键字：规则信息 / 攻击类型 / URL / 正文 命中任一即可
 	if len(filter.Keywords) > 0 {
 		haystack := strings.ToLower(strings.Join([]string{

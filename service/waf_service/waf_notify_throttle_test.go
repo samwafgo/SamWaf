@@ -216,6 +216,23 @@ func TestNotifyFilter(t *testing.T) {
 	if !MatchNotifyFilter(model.NotifyFilterConfig{ExcludeIps: []string{"192.168.0.0/16"}}, ev) {
 		t.Fatal("未命中排除网段应放行")
 	}
+	// 规则排除：完整规则名命中才拦，只填规则名的一部分不能误伤别的规则
+	if MatchNotifyFilter(model.NotifyFilterConfig{ExcludeRules: []string{"SQL注入检测"}}, ev) {
+		t.Fatal("命中排除规则名应被过滤")
+	}
+	if !MatchNotifyFilter(model.NotifyFilterConfig{ExcludeRules: []string{"SQL注入检测"}}, ruleEvent("api.example.com", "SQL注入检测-增强版", "10.0.0.5")) {
+		t.Fatal("完整匹配不应被部分相同的规则名误伤")
+	}
+	if !MatchNotifyFilter(model.NotifyFilterConfig{ExcludeRules: []string{"  其他规则  "}}, ev) {
+		t.Fatal("未命中排除规则应放行")
+	}
+	// 引擎实际下发的规则名是逗号拼接形态（单个规则也带尾巴逗号，多个规则同时命中时并排）
+	if MatchNotifyFilter(model.NotifyFilterConfig{ExcludeRules: []string{"禁止国外IP访问"}}, ruleEvent("api.example.com", "禁止国外IP访问,", "10.0.0.5")) {
+		t.Fatal("引擎逗号拼接形态的规则名应被过滤")
+	}
+	if MatchNotifyFilter(model.NotifyFilterConfig{ExcludeRules: []string{"规则B"}}, ruleEvent("api.example.com", "规则A,规则B,", "10.0.0.5")) {
+		t.Fatal("多规则并排除名单之一应被过滤")
+	}
 	if !MatchNotifyFilter(model.NotifyFilterConfig{Keywords: []string{"sql注入"}}, ev) {
 		t.Fatal("关键字应忽略大小写命中")
 	}

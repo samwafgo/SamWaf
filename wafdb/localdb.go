@@ -320,6 +320,9 @@ func InitStatsDb(currentDir string) (bool, error) {
 }
 
 func before_query(db *gorm.DB) {
+	if db.Statement.Table == "migrations" {
+		return
+	}
 	db.Where("tenant_id = ? and user_code=? ", global.GWAF_TENANT_ID, global.GWAF_USER_CODE)
 }
 func before_update(db *gorm.DB) {

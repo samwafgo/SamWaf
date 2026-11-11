@@ -77,6 +77,37 @@ func seedTenantScopeData(t *testing.T, db *gorm.DB) {
 	}
 }
 
+func TestTenantScopeMigrationsQuery(t *testing.T) {
+	db := openTenantTestDB(t, "sqlite")
+	if err := db.Table("migrations").AutoMigrate(&struct {
+		ID string `gorm:"column:id;primaryKey"`
+	}{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Table("migrations").Create(map[string]interface{}{"id": "20261110"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Callback().Query().Before("gorm:query").
+		Register("tenant_plugin:before_query", before_query); err != nil {
+		t.Fatal(err)
+	}
+
+	var rows []map[string]interface{}
+	if err := db.Table("migrations").Select([]string{"id"}).Limit(100).Find(&rows).Error; err != nil {
+		t.Fatalf("查询迁移记录失败: %v", err)
+	}
+	if len(rows) != 1 || rows[0]["id"] != "20261110" {
+		t.Fatalf("迁移记录不符: %v", rows)
+	}
+	var count int64
+	if err := db.Table("migrations").Count(&count).Error; err != nil {
+		t.Fatalf("统计迁移记录失败: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("迁移记录数不符: %d", count)
+	}
+}
+
 // TestTenantScopeQuery 验证 before_query 租户过滤在 sqlite / mysql 下均正确，
 // 并回归 “host_code 单占位符 + 回调补 tenant/user” 这条查询路径——它曾因 service
 // 层多传参数（如 anticc 误传 req.Url、log/rule 误传 tenant/user）导致参数整体顺移，

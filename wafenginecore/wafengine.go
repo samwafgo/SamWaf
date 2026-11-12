@@ -1283,11 +1283,9 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 				//编码转换，自动检测网页编码   resp *http.Response
 				orgContentBytes, charsetName, responseEncodingError := waf.getOrgContent(resp, isStaticAssist, waf.rt().HostTarget[host].Host.DefaultEncoding)
 				if responseEncodingError == nil {
-					if global.GCONFIG_RECORD_RESP == 1 {
-						if resp.ContentLength < global.GCONFIG_RECORD_MAX_RES_BODY_LENGTH {
-							weblogfrist.RES_BODY = string(orgContentBytes)
-							weblogfrist.SrcByteResBody = orgContentBytes
-						}
+					if recordRespBodyEnabled() {
+						weblogfrist.RES_BODY = string(orgContentBytes)
+						weblogfrist.SrcByteResBody = orgContentBytes
 					}
 
 					//处理敏感词
@@ -1420,6 +1418,11 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 
 		return nil
 	}
+}
+
+// recordRespBodyEnabled 控制普通响应采集，正文限长由持久化副本处理。
+func recordRespBodyEnabled() bool {
+	return global.GCONFIG_RECORD_RESP == 1 && global.GCONFIG_RECORD_MAX_RES_BODY_LENGTH > 0
 }
 
 // sanitizeContentLength 规整 http 报文的 ContentLength：

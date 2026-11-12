@@ -6,7 +6,6 @@ import (
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model"
-	"unicode/utf8"
 
 	"gorm.io/gorm/clause"
 )
@@ -106,39 +105,42 @@ func narrowFromLog(lg *innerbean.WebLog) model.LogNarrow {
 		srcURL = maskPersistedRequestURI(srcURL)
 		srcRawQuery = maskPersistedQuery(srcRawQuery)
 	}
-	url := cutUTF8N(srcURL, narrowURLMaxBytes)
-	rawQuery := cutUTF8N(srcRawQuery, narrowURLMaxBytes)
 	truncated := 0
-	if len(url) != len(srcURL) || len(rawQuery) != len(srcRawQuery) {
-		truncated = 1
+	mark := func(src, out string) string {
+		if out != src {
+			truncated = 1
+		}
+		return out
 	}
-	return model.LogNarrow{
-		ReqUUID:              lg.REQ_UUID,
-		TenantId:             lg.TenantId,
-		UserCode:             lg.USER_CODE,
-		HostCode:             lg.HOST_CODE,
-		Host:                 lg.HOST,
-		URL:                  url,
-		RawQuery:             rawQuery,
-		Method:               lg.METHOD,
-		Scheme:               lg.Scheme,
-		REFERER:              cutUTF8N(lg.REFERER, 1024),
-		USER_AGENT:           cutUTF8N(lg.USER_AGENT, 500),
-		SRC_IP:               lg.SRC_IP,
-		SRC_PORT:             lg.SRC_PORT,
-		NetSrcIp:             lg.NetSrcIp,
-		COUNTRY:              lg.COUNTRY,
-		PROVINCE:             lg.PROVINCE,
-		CITY:                 lg.CITY,
-		ACTION:               lg.ACTION,
-		RULE:                 lg.RULE,
-		STATUS:               lg.STATUS,
+	text := func(s string, max int) string { return mark(s, cutTextCharsN(s, max)) }
+	byteText := func(s string, max int) string { return mark(s, cutUTF8N(s, max)) }
+	ln := model.LogNarrow{
+		ReqUUID:              text(lg.REQ_UUID, 64),
+		TenantId:             text(lg.TenantId, 64),
+		UserCode:             text(lg.USER_CODE, 64),
+		HostCode:             text(lg.HOST_CODE, 64),
+		Host:                 text(lg.HOST, 255),
+		URL:                  byteText(srcURL, narrowURLMaxBytes),
+		RawQuery:             byteText(srcRawQuery, narrowURLMaxBytes),
+		Method:               text(lg.METHOD, 20),
+		Scheme:               text(lg.Scheme, 20),
+		REFERER:              byteText(lg.REFERER, 1024),
+		USER_AGENT:           byteText(lg.USER_AGENT, 500),
+		SRC_IP:               text(lg.SRC_IP, 64),
+		SRC_PORT:             text(lg.SRC_PORT, 10),
+		NetSrcIp:             text(lg.NetSrcIp, 64),
+		COUNTRY:              text(lg.COUNTRY, 100),
+		PROVINCE:             text(lg.PROVINCE, 100),
+		CITY:                 text(lg.CITY, 100),
+		ACTION:               text(lg.ACTION, 100),
+		RULE:                 byteText(lg.RULE, payloadMaxBytes),
+		STATUS:               text(lg.STATUS, 50),
 		STATUS_CODE:          lg.STATUS_CODE,
 		RISK_LEVEL:           lg.RISK_LEVEL,
 		AI_SCORE:             lg.AI_SCORE,
 		IsBot:                lg.IsBot,
 		LogOnlyMode:          lg.LogOnlyMode,
-		GUEST_IDENTIFICATION: lg.GUEST_IDENTIFICATION,
+		GUEST_IDENTIFICATION: text(lg.GUEST_IDENTIFICATION, 191),
 		TimeSpent:            lg.TimeSpent,
 		CONTENT_LENGTH:       lg.CONTENT_LENGTH,
 		ResContentLength:     lg.RES_CONTENT_LENGTH,
@@ -146,19 +148,20 @@ func narrowFromLog(lg *innerbean.WebLog) model.LogNarrow {
 		ForwardCost:          lg.ForwardCost,
 		BackendCheckCost:     lg.BackendCheckCost,
 		IsBalance:            lg.IsBalance,
-		BalanceInfo:          lg.BalanceInfo,
-		BodyHash:             lg.BodyHash,
-		Truncated:            truncated,
-		ActorKey:             ActorKey(lg.SRC_IP),
+		BalanceInfo:          text(lg.BalanceInfo, 255),
+		BodyHash:             text(lg.BodyHash, 100),
+		ActorKey:             text(ActorKey(lg.SRC_IP), 100),
 		UaHash:               UaHash(lg.USER_AGENT),
-		PathNorm:             NormalizePath(lg.URL),
-		CREATE_TIME:          lg.CREATE_TIME,
+		PathNorm:             text(NormalizePath(lg.URL), pathNormMaxLen),
+		CREATE_TIME:          text(lg.CREATE_TIME, 32),
 		UNIX_ADD_TIME:        lg.UNIX_ADD_TIME,
 		Day:                  lg.Day,
 	}
+	ln.Truncated = truncated
+	return ln
 }
 
-// extractPayload 拷出报文行（含 HEADER——它随窄行拆出后只能跟报文走），单列 64KB 截断。
+// extractPayload 在副本上应用报文配置与单列 65535 字节上限。
 // 报文列全空返回 nil：不占一行，读侧找不到报文行时本来就显示「未留存报文」。
 func extractPayload(lg *innerbean.WebLog, kind string) *model.EventPayload {
 	// 副本上做凭证脱敏（Basic 凭据/令牌/会话/表单密码不进报文表），原对象保持完整，
@@ -174,23 +177,25 @@ func extractPayload(lg *innerbean.WebLog, kind string) *model.EventPayload {
 		srcURL = maskPersistedRequestURI(srcURL)
 	}
 	srcBody, srcResBody := lg.BODY, lg.RES_BODY
+	requestLimit := persistedBodyLimit(global.GCONFIG_RECORD_MAX_BODY_LENGTH)
+	responseLimit := persistedBodyLimit(global.GCONFIG_RECORD_MAX_RES_BODY_LENGTH)
 
 	header := cutUTF8(srcHeader)
 	cookies := cutUTF8(srcCookies)
-	body := cutUTF8(srcBody)
-	resBody := cutUTF8(srcResBody)
-	postForm := cutUTF8(srcPostForm)
+	body := cutUTF8N(srcBody, requestLimit)
+	resBody := cutUTF8N(srcResBody, responseLimit)
+	postForm := cutUTF8N(srcPostForm, requestLimit)
 	resHeader := cutUTF8(srcResHeader)
-	srcByteBody := cutBytes(lg.SrcByteBody)
-	srcByteResBody := cutBytes(lg.SrcByteResBody)
+	srcByteBody := cutBytesN(lg.SrcByteBody, requestLimit)
+	srcByteResBody := cutBytesN(lg.SrcByteResBody, responseLimit)
 	srcURLBytes := cutBytes([]byte(srcURL))
 
 	p := &model.EventPayload{
-		ReqUUID:        lg.REQ_UUID,
-		TenantId:       lg.TenantId,
-		UserCode:       lg.USER_CODE,
-		HostCode:       lg.HOST_CODE,
-		Kind:           kind,
+		ReqUUID:        cutTextCharsN(lg.REQ_UUID, 64),
+		TenantId:       cutTextCharsN(lg.TenantId, 64),
+		UserCode:       cutTextCharsN(lg.USER_CODE, 64),
+		HostCode:       cutTextCharsN(lg.HOST_CODE, 64),
+		Kind:           cutTextCharsN(kind, 16),
 		HEADER:         header,
 		COOKIES:        cookies,
 		BODY:           body,
@@ -200,15 +205,15 @@ func extractPayload(lg *innerbean.WebLog, kind string) *model.EventPayload {
 		SrcByteBody:    srcByteBody,
 		SrcByteResBody: srcByteResBody,
 		SrcURL:         srcURLBytes,
-		CreateTime:     lg.CREATE_TIME,
+		CreateTime:     cutTextCharsN(lg.CREATE_TIME, 32),
 		UnixAddTime:    lg.UNIX_ADD_TIME,
 		Day:            lg.Day,
 	}
-	if len(header) != len(srcHeader) || len(cookies) != len(srcCookies) ||
-		len(body) != len(srcBody) || len(resBody) != len(srcResBody) ||
-		len(postForm) != len(srcPostForm) || len(resHeader) != len(srcResHeader) ||
+	if header != srcHeader || cookies != srcCookies || body != srcBody || resBody != srcResBody ||
+		postForm != srcPostForm || resHeader != srcResHeader ||
 		len(srcByteBody) != len(lg.SrcByteBody) || len(srcByteResBody) != len(lg.SrcByteResBody) ||
-		len(srcURLBytes) != len(srcURL) {
+		len(srcURLBytes) != len(srcURL) || p.ReqUUID != lg.REQ_UUID || p.TenantId != lg.TenantId ||
+		p.UserCode != lg.USER_CODE || p.HostCode != lg.HOST_CODE || p.Kind != kind || p.CreateTime != lg.CREATE_TIME {
 		p.Truncated = 1
 	}
 	if p.IsEmpty() {
@@ -243,20 +248,4 @@ func conflictIgnoreInsert[T any](rows []T) error {
 	return global.GWAF_LOCAL_LOG_DB.
 		Clauses(clause.OnConflict{DoNothing: true}).
 		CreateInBatches(rows, len(rows)).Error
-}
-
-// cutUTF8N 与 cutUTF8 同规则，上限可调（窄行 url 用 2KB，报文列用 64KB）。
-func cutUTF8N(s string, max int) string {
-	if len(s) <= max {
-		return s
-	}
-	cut := s[:max]
-	for i := 0; i < 3 && len(cut) > 0; i++ {
-		r, size := utf8.DecodeLastRuneInString(cut)
-		if r != utf8.RuneError || size > 1 {
-			break
-		}
-		cut = cut[:len(cut)-1]
-	}
-	return cut
 }

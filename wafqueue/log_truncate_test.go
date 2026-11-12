@@ -1,6 +1,7 @@
 package wafqueue
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -22,22 +23,72 @@ func TestCutUTF8_RuneBoundary(t *testing.T) {
 	}
 }
 
-// 二进制内容不会被一路回退到空
-func TestCutUTF8_BinaryPayload(t *testing.T) {
-	s := strings.Repeat("\xff", payloadMaxBytes+100)
-	got := cutUTF8(s)
-	if len(got) < payloadMaxBytes-3 {
-		t.Fatalf("二进制内容回退过多，只剩 %d 字节", len(got))
+func TestCutUTF8_InvalidText(t *testing.T) {
+	s := "start\x00" + strings.Repeat("\xff", payloadMaxBytes+100) + "结束�"
+	if got := cutUTF8(s); got != "start结束�" {
+		t.Fatalf("文本规范化结果不符: %q", got)
+	}
+}
+
+func TestCutUTF8_MySQLTextBoundary(t *testing.T) {
+	for _, size := range []int{65534, 65535, 65536, 70000} {
+		t.Run(strconv.Itoa(size), func(t *testing.T) {
+			got := cutUTF8(strings.Repeat("a", size))
+			want := size
+			if want > 65535 {
+				want = 65535
+			}
+			if len(got) != want {
+				t.Fatalf("input=%d: got=%d, want=%d", size, len(got), want)
+			}
+		})
+	}
+}
+
+func TestCutUTF8N_Boundaries(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		input string
+		max   int
+		want  string
+	}{
+		{"zero", "abc", 0, ""},
+		{"negative", "abc", -1, ""},
+		{"short rune", "中a", 2, ""},
+		{"whole rune", "中a", 3, "中"},
+		{"mixed", "ab中c", 4, "ab"},
+		{"clean before limit", "a\x00\xff中b", 4, "a中"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := cutUTF8N(tc.input, tc.max); got != tc.want {
+				t.Fatalf("got=%q, want=%q", got, tc.want)
+			}
+		})
 	}
 }
 
 func TestCutBytes(t *testing.T) {
 	small := []byte("abc")
-	if got := cutBytes(small); len(got) != 3 {
+	smallCopy := cutBytes(small)
+	if len(smallCopy) != 3 {
 		t.Fatal("未超长的字节切片不应被截")
 	}
+	smallCopy[0] = 'x'
+	if string(small) != "abc" {
+		t.Fatal("short bytes must have independent storage")
+	}
+	for _, max := range []int{-1, 0} {
+		if got := cutBytesN(small, max); len(got) != 0 {
+			t.Fatal("non-positive byte limit must return no data")
+		}
+	}
 	big := make([]byte, payloadMaxBytes+10)
-	if got := cutBytes(big); len(got) != payloadMaxBytes {
+	got := cutBytes(big)
+	if len(got) != payloadMaxBytes {
 		t.Fatalf("超长字节切片应截到上限，实际 %d", len(got))
+	}
+	got[0] = 1
+	if big[0] != 0 {
+		t.Fatal("clipped bytes must have independent storage")
 	}
 }

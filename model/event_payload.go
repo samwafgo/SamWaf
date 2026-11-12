@@ -28,7 +28,7 @@ type EventPayload struct {
 	SrcByteResBody []byte `json:"src_byte_res_body"`
 	SrcURL         []byte `json:"src_url"`
 
-	// Truncated 与 web_logs 上的同名列一致：单列超过上限被截断时为 1。
+	// Truncated：报文文本被裁剪、清理或原始字节被限长时为 1。
 	Truncated int `json:"truncated"`
 
 	// CreateTime 与 web_logs.create_time 同格式同值，保留期清理按它删，不必回表。

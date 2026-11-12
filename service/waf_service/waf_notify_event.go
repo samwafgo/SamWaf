@@ -4,6 +4,8 @@ import (
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model"
+	"fmt"
+	"html"
 	"strconv"
 	"strings"
 	"time"
@@ -40,7 +42,9 @@ var notifyMessageTypeName = map[string]string{
 	model.MSG_TYPE_OPERATION_NOTICE: "操作通知",
 	model.MSG_TYPE_USER_LOGIN:       "用户登录",
 	model.MSG_TYPE_ATTACK_INFO:      "攻击信息",
+	model.MSG_TYPE_DAILY_REPORT:     "日报",
 	model.MSG_TYPE_WEEKLY_REPORT:    "周报",
+	model.MSG_TYPE_MONTHLY_REPORT:   "月报",
 	model.MSG_TYPE_SSL_EXPIRE:       "SSL证书过期",
 	model.MSG_TYPE_SYSTEM_ERROR:     "系统错误",
 	model.MSG_TYPE_IP_BAN:           "IP封禁",
@@ -59,7 +63,9 @@ var notifyMessageTypeSeverity = map[string]string{
 	model.MSG_TYPE_OPERATION_NOTICE: model.SeverityInfo,
 	model.MSG_TYPE_USER_LOGIN:       model.SeverityInfo,
 	model.MSG_TYPE_ATTACK_INFO:      model.SeverityCritical,
+	model.MSG_TYPE_DAILY_REPORT:     model.SeverityInfo,
 	model.MSG_TYPE_WEEKLY_REPORT:    model.SeverityInfo,
+	model.MSG_TYPE_MONTHLY_REPORT:   model.SeverityInfo,
 	model.MSG_TYPE_SSL_EXPIRE:       model.SeverityWarn,
 	model.MSG_TYPE_SYSTEM_ERROR:     model.SeverityCritical,
 	model.MSG_TYPE_IP_BAN:           model.SeverityWarn,
@@ -99,7 +105,9 @@ func AllMessageTypes() []string {
 		model.MSG_TYPE_IP_BAN,
 		model.MSG_TYPE_ATTACK_INFO,
 		model.MSG_TYPE_SSL_EXPIRE,
+		model.MSG_TYPE_DAILY_REPORT,
 		model.MSG_TYPE_WEEKLY_REPORT,
+		model.MSG_TYPE_MONTHLY_REPORT,
 		model.MSG_TYPE_SYSTEM_ERROR,
 		model.MSG_TYPE_OPERATION_NOTICE,
 		model.MSG_TYPE_ACCESS_LOGIN,
@@ -204,6 +212,9 @@ func (receiver *WafNotifySenderService) BuildNotifyEvent(messageInfo interface{}
 		ev.Vars["BlockedRequests"] = strconv.FormatInt(msg.BlockedRequests, 10)
 		ev.Vars["BlockRate"] = formatBlockRate(msg.TotalRequests, msg.BlockedRequests)
 		ev.Vars["WeekRange"] = msg.WeekRange
+		ev.Vars["ReportID"] = ""
+		ev.Vars["ReportRange"] = msg.WeekRange
+		ev.Vars["ReportStatus"] = ""
 		return ev
 
 	case innerbean.SSLExpireMessageInfo:
@@ -259,6 +270,66 @@ func (receiver *WafNotifySenderService) BuildNotifyEvent(messageInfo interface{}
 		return ev
 	}
 	return NotifyEvent{}
+}
+
+// SendPeriodicReportSummary 将报告摘要交给已有订阅、频控与渠道链路。
+// kind 为 daily/weekly/monthly；负数指标表示未采集。
+func (receiver *WafNotifySenderService) SendPeriodicReportSummary(kind, id, rangeLabel, status string, total, blocked int64) {
+	ev := buildPeriodicReportSummaryEvent(kind, id, rangeLabel, status, total, blocked)
+	if ev.MessageType != "" {
+		receiver.SendEvent(ev)
+	}
+}
+
+func buildPeriodicReportSummaryEvent(kind, id, rangeLabel, status string, total, blocked int64) NotifyEvent {
+	var messageType string
+	switch kind {
+	case "daily":
+		messageType = model.MSG_TYPE_DAILY_REPORT
+	case "weekly":
+		messageType = model.MSG_TYPE_WEEKLY_REPORT
+	case "monthly":
+		messageType = model.MSG_TYPE_MONTHLY_REPORT
+	default:
+		return NotifyEvent{}
+	}
+
+	totalText, blockedText := "未采集", "未采集"
+	if total >= 0 {
+		totalText = strconv.FormatInt(total, 10)
+	}
+	if blocked >= 0 {
+		blockedText = strconv.FormatInt(blocked, 10)
+	}
+	rate := "未采集"
+	if total >= 0 && blocked >= 0 {
+		rate = formatBlockRate(total, blocked)
+	}
+	statusText := map[string]string{
+		"ok": "已完成", "no_data": "无数据", "partial": "部分完成",
+		"failed": "生成失败", "unavailable": "暂不可用",
+	}[status]
+	if statusText == "" {
+		statusText = "未知"
+	}
+	plainField := func(s string) string {
+		s = strings.NewReplacer("\r", " ", "\n", " ").Replace(s)
+		return html.EscapeString(escapeMarkdown(truncateText(s, notifyVarMaxLen)))
+	}
+	title := "SamWaf " + GetMessageTypeName(messageType) + "摘要"
+	content := fmt.Sprintf("**报告编号:** %s\n\n**统计周期:** %s\n\n**报告状态:** %s\n\n**总请求数:** %s\n\n**拦截请求数:** %s\n\n**拦截率:** %s\n\n请到本地报告中心下载完整报告。",
+		plainField(id), plainField(rangeLabel), statusText, totalText, blockedText, rate)
+	ev := newNotifyEvent(messageType, title, content)
+	ev.Vars["ReportID"] = id
+	ev.Vars["ReportRange"] = rangeLabel
+	ev.Vars["ReportStatus"] = status
+	ev.Vars["TotalRequests"] = totalText
+	ev.Vars["BlockedRequests"] = blockedText
+	ev.Vars["BlockRate"] = rate
+	if kind == "weekly" {
+		ev.Vars["WeekRange"] = rangeLabel
+	}
+	return ev
 }
 
 // formatBlockRate 计算拦截率，总数为 0 时不做除法（老实现会出 NaN）

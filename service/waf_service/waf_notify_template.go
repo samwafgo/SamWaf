@@ -223,6 +223,15 @@ var notifyCommonVars = []NotifyTemplateVar{
 	{Name: "Severity", Desc: "严重级别", Example: "critical"},
 }
 
+var notifyReportVars = []NotifyTemplateVar{
+	{Name: "ReportID", Desc: "报告编号", Example: "report-20261111"},
+	{Name: "ReportRange", Desc: "统计周期", Example: "2026-11-11"},
+	{Name: "ReportStatus", Desc: "报告状态", Example: "ok"},
+	{Name: "TotalRequests", Desc: "总请求数（未采集时显示未采集）", Example: "120000"},
+	{Name: "BlockedRequests", Desc: "拦截请求数（未采集时显示未采集）", Example: "356"},
+	{Name: "BlockRate", Desc: "拦截率（未采集时显示未采集）", Example: "0.30%"},
+}
+
 var notifyTypeVars = map[string][]NotifyTemplateVar{
 	model.MSG_TYPE_RULE_TRIGGER: {
 		{Name: "OperaType", Desc: "操作类型", Example: "命中保护规则"},
@@ -259,12 +268,10 @@ var notifyTypeVars = map[string][]NotifyTemplateVar{
 		{Name: "LastLocation", Desc: "上次登录归属地", Example: "内网IP"},
 		{Name: "LastTime", Desc: "上次登录时间", Example: "2026-08-05 09:12:30"},
 	},
-	model.MSG_TYPE_WEEKLY_REPORT: {
-		{Name: "TotalRequests", Desc: "总请求数", Example: "120000"},
-		{Name: "BlockedRequests", Desc: "拦截请求数", Example: "356"},
-		{Name: "BlockRate", Desc: "拦截率", Example: "0.30%"},
-		{Name: "WeekRange", Desc: "统计周期", Example: "2026-07-29 ~ 2026-08-04"},
-	},
+	model.MSG_TYPE_DAILY_REPORT:   notifyReportVars,
+	model.MSG_TYPE_MONTHLY_REPORT: notifyReportVars,
+	model.MSG_TYPE_WEEKLY_REPORT: append(append([]NotifyTemplateVar{}, notifyReportVars...),
+		NotifyTemplateVar{Name: "WeekRange", Desc: "统计周期（周报兼容变量）", Example: "2026-07-29 ~ 2026-08-04"}),
 	model.MSG_TYPE_SYSTEM_ERROR: {
 		{Name: "ErrorType", Desc: "错误类型", Example: "数据库连接失败"},
 		{Name: "ErrorMsg", Desc: "错误信息", Example: "connection refused"},
@@ -351,6 +358,13 @@ func buildSampleDefaultMessage(messageType string, vars map[string]string) (stri
 			content = "**域名:** " + vars["Domain"] + "\n\n" + content
 		}
 		return title, content
+	case model.MSG_TYPE_DAILY_REPORT, model.MSG_TYPE_MONTHLY_REPORT:
+		kind := "daily"
+		if messageType == model.MSG_TYPE_MONTHLY_REPORT {
+			kind = "monthly"
+		}
+		ev := buildPeriodicReportSummaryEvent(kind, vars["ReportID"], vars["ReportRange"], vars["ReportStatus"], 120000, 356)
+		return ev.DefaultTitle, ev.DefaultContent
 	case model.MSG_TYPE_WEEKLY_REPORT:
 		title, content := s.FormatWeeklyReportMessage(120000, 356, vars["WeekRange"])
 		return title, content

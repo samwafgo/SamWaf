@@ -125,7 +125,7 @@ func (h *httpsRedirectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 func logExportTransportLimit() gin.HandlerFunc {
 	const limit = 32 << 10
 	return func(c *gin.Context) {
-		if c.Request.Method == http.MethodPost && c.Request.URL.Path == "/api/v1/waflog/exports" {
+		if c.Request.Method == http.MethodPost && (c.Request.URL.Path == "/api/v1/waflog/exports" || strings.HasPrefix(c.Request.URL.Path, "/api/v1/samwaf/report/")) {
 			if c.Request.ContentLength > limit {
 				c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error_code": "EXPORT_INVALID_REQUEST", "message": "导出请求过大"})
 				c.Abort()

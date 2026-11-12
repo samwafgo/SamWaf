@@ -12,6 +12,36 @@
 #   5. fresh_install: true 的条目只在"全新安装"时生成，不参与版本区间计算
 
 notes:
+  - id: v1_3_25_log_record_bounds
+    version: v1.3.25
+    kind: check
+    level: normal
+    apply:
+      type: none
+    zh:
+      title: 日志报文按实际内容限长保存
+      detail: >-
+        开启响应报文记录后，超长正文保留前一段，而不再按传输长度决定是否整段省略。
+        请求正文、表单与响应正文的落库副本分别遵守 record_max_req_body_length、record_max_res_body_length 的正数配置，
+        同时受单字段 65535 字节上限约束；其他日志文本按对应字段容量保存。
+        文本保存时保持 UTF-8 字符完整并清理不支持的字节，发生裁剪或清理时标记为截断。
+        原有安全事件留痕策略保留；响应上限非正数时不采集普通响应正文。
+        请求上限非正数时沿用原有请求采集路径，已采集报文按数据库上限保存。
+        客户端收到的业务响应及原始日志出口不因落库限长而改变，历史缺失报文不会回填。
+      revert: 无需调整数据库结构；可在系统参数中修改报文长度。需要完整业务响应时请在源站留存，日志详情可能只包含正文前段。
+    en:
+      title: Log payload storage uses actual content limits
+      detail: >-
+        When response recording is enabled, oversized bodies retain a prefix instead of being omitted based on transport length.
+        Persisted request bodies and forms use a positive record_max_req_body_length; response bodies use a positive
+        record_max_res_body_length. Each field is also capped at 65535 bytes, and other log text respects its column capacity.
+        Stored text preserves complete UTF-8 characters and removes unsupported bytes; shortened or cleaned rows are marked truncated.
+        Existing security-event recording policies remain in place. A non-positive response limit disables ordinary response-body capture.
+        A non-positive request limit retains existing request-capture behavior; captured payloads use the database cap.
+        Client responses and original log exports remain unchanged.
+        Previously missing payloads are not backfilled.
+      revert: No schema changes are required. Adjust payload limits in system settings. Retain complete responses at the origin when needed; log details may contain only a body prefix.
+
   - id: v1_3_25_notify_detection_classification
     version: v1.3.25
     kind: check

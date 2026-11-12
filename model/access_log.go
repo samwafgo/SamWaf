@@ -50,7 +50,7 @@ type LogNarrow struct {
 	BalanceInfo string `gorm:"size:255" json:"balance_info"`
 	BodyHash    string `gorm:"size:100" json:"body_hash"`
 
-	// Truncated：url/raw_query 超 2KB 被截断时置 1（报文截断只看 event_payload 里的同名列）。
+	// Truncated：窄行文本被裁剪或清理时置 1，报文标记单独保存在 event_payload。
 	Truncated int `json:"truncated"`
 
 	// 分析键（M5 汇总与 facet 的数据地基，写入时算好）。

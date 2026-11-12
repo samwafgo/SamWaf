@@ -12,6 +12,33 @@
 #   5. fresh_install: true 的条目只在"全新安装"时生成，不参与版本区间计算
 
 notes:
+  - id: v1_3_26_security_report
+    version: v1.3.26
+    kind: notice
+    level: normal
+    page: /waf/security-report
+    apply:
+      type: navigate
+    zh:
+      title: 新增安全运营报告中心
+      detail: >-
+        新增日、周、月安全运营报告，默认按服务器本地时区在下一周期开始后定时生成单文件离线 HTML，
+        也可手动生成、预览与下载；只汇总统计层数据与当前配置快照，不扫请求明细。
+        首次开启后不会自动补写启用前的历史周期，更早周期可在页面手动生成。
+        报告统一保存在本机固定目录并按保留天数与磁盘配额自动清理。
+        定时报告完成后会按现有「日报、周报、月报」订阅投递摘要；未启用相关订阅或渠道时不外发，也不会自动创建订阅。
+        仅在活动的本机 Worker 中生成，重启会接续未完成任务并避免蓝绿升级重复生成。
+      revert: 关闭任一分项或总开关后仅停止自动定时，手动生成与已有产物保留；缩减保留天数或配额会尽快按新上限清理产物。
+    en:
+      title: Security operations report center added
+      detail: >-
+        Daily, weekly and monthly security reports are generated as single-file offline HTML in the server local time zone
+        after each closed period begins, with manual create, preview and download also supported. Reports aggregate the stats layer and the current configuration snapshot only; request payloads are not scanned. After first enablement, closed periods before enablement are not auto-generated; older periods can be created manually.
+        Reports stay in a fixed local directory and are cleaned by retention days and disk quota.
+        A scheduled report completion is delivered through the existing Daily/Weekly/Monthly Report subscriptions; nothing is sent when subscriptions or channels are not configured, and no subscription is created automatically.
+        Generation runs only in the active local Worker and resumes unfinished work after restart without duplicating blue-green upgrades.
+      revert: Turning off any schedule or the master switch only stops automatic generation; manual creation and existing artifacts remain. Reducing retention or quota applies the new caps during cleanup.
+
   - id: v1_3_25_log_record_bounds
     version: v1.3.25
     kind: check

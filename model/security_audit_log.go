@@ -34,7 +34,8 @@ const (
 	AuditEventConfigSSLExportWrite = "config_ssl_export_write" //SSL 证书/私钥导出落盘（result 1成功 0失败/被拒）
 	AuditEventConfigBatchTaskRun   = "config_batch_task_run"   //批量任务执行：读宿主机文件/拉远端地址并批量写防护策略（result 1成功 0失败/被拒）
 	AuditEventConfigDiagPackage    = "config_diag_package"     //运行诊断包生成下载（result 1成功 0失败）
-	AuditEventConfigLogExport      = "config_log_export"       //日志统一导出任务与产物下载（result 1成功 0失败/被拒）
+	AuditEventConfigReport         = "config_security_report"
+	AuditEventConfigLogExport      = "config_log_export" //日志统一导出任务与产物下载（result 1成功 0失败/被拒）
 
 	AuditEventAppAdd       = "app_add"
 	AuditEventAppEdit      = "app_edit"
@@ -75,6 +76,7 @@ var auditEventCategory = map[string]string{
 	AuditEventConfigBatchTaskRun:   AuditCategoryConfig,
 	AuditEventConfigDiagPackage:    AuditCategoryConfig,
 	AuditEventConfigLogExport:      AuditCategoryConfig,
+	AuditEventConfigReport:         AuditCategoryConfig,
 	HttpAuthEventLoginOK:           AuditCategoryHttpAuth,
 	HttpAuthEventLoginFail:         AuditCategoryHttpAuth,
 	HttpAuthEventLocked:            AuditCategoryHttpAuth,
@@ -128,6 +130,7 @@ var AccessEventNames = map[string]string{
 	AuditEventConfigBatchTaskRun:   "批量任务执行",
 	AuditEventConfigDiagPackage:    "运行诊断包下载",
 	AuditEventConfigLogExport:      "日志统一导出",
+	AuditEventConfigReport:         "安全运营报告",
 	HttpAuthEventLoginOK:           "网站密码登录成功",
 	HttpAuthEventLoginFail:         "网站密码错误",
 	HttpAuthEventLocked:            "网站密码失败超限，已锁定",

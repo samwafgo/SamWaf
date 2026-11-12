@@ -563,6 +563,7 @@ func (m *wafSystenService) run() {
 		globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler.Start()
 		// 日志导出执行器与任务调度同一接管边界启动，蓝绿升级时只有一个 Worker 受理任务。
 		logExportWorkerLifecycle.start(waf_service.WafLogExportServiceApp.Start)
+		reportWorkerLifecycle.start(startReportWorker)
 		// 主机登录防护的日志采集同样是独占单例：两个进程同时 tail 同一份 auth.log，
 		// 同一条失败会被计两次，而 memory 缓存下两边计数器互不可见，阈值等于被腰斩。
 		wafhostguard.Start()
@@ -1108,12 +1109,21 @@ func (l *workerLogExportLifecycle) stop(stop func()) {
 }
 
 var logExportWorkerLifecycle workerLogExportLifecycle
+var reportWorkerLifecycle workerLogExportLifecycle
+
+func startReportWorker() {
+	collector := waf_service.NewReportCollector()
+	if err := waf_service.WafReportServiceApp.Start(collector); err != nil {
+		zlog.Error("安全运营报告执行器启动失败", "error", err)
+	}
+}
 
 // Graceful 优雅停止的统一入口：先排空业务连接(StopAllProxyServer 已支持 Shutdown 排空)，
 // 回收各引擎/队列/任务资源，最后关闭数据库连接。供信号、服务 Stop 和升级 DRAIN 复用。
 func (m *wafSystenService) Graceful() {
 	gracefulOnce.Do(func() {
 		zlog.Info("[Graceful] 开始优雅停止：排空业务连接并回收资源 ...")
+		reportWorkerLifecycle.stop(waf_service.WafReportServiceApp.Stop)
 		zlog.Info("Shutdown SamWaf LogExport...")
 		logExportWorkerLifecycle.stop(waf_service.WafLogExportServiceApp.Stop)
 		zlog.Info("Shutdown SamWaf LogExport finished")
@@ -1377,6 +1387,7 @@ func activateSingletons() {
 		}
 		// 日志导出执行器同属独占单例：与任务调度一同只在活动 Worker 中运行。
 		logExportWorkerLifecycle.start(waf_service.WafLogExportServiceApp.Start)
+		reportWorkerLifecycle.start(startReportWorker)
 		// 主机登录防护的日志采集也必须等旧 Worker 彻底退出后才启动，
 		// 否则两个进程同时读同一份 auth.log，失败次数被重复计入，阈值等于打了对折。
 		wafhostguard.Start()

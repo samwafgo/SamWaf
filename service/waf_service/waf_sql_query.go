@@ -69,6 +69,7 @@ var sensitiveTableSubstrings = []string{
 	// 从哪个地址来不会被情报拦；审计流水同理，且它是只增不改的合规证据，
 	// 有专门的只读接口，不该从裸查询通道导出。
 	"threat_ip_exclude",
+	"security_report", // 报告配置与任务统一通过报告中心管理
 }
 
 // allowedSqlOps 结构化条件允许的运算符白名单。

@@ -44,7 +44,9 @@ const (
 	MSG_TYPE_OPERATION_NOTICE = "operation_notice" // 操作通知
 	MSG_TYPE_USER_LOGIN       = "user_login"       // 用户登录
 	MSG_TYPE_ATTACK_INFO      = "attack_info"      // 攻击信息
+	MSG_TYPE_DAILY_REPORT     = "daily_report"     // 日报
 	MSG_TYPE_WEEKLY_REPORT    = "weekly_report"    // 周报
+	MSG_TYPE_MONTHLY_REPORT   = "monthly_report"   // 月报
 	MSG_TYPE_SSL_EXPIRE       = "ssl_expire"       // SSL证书过期
 	MSG_TYPE_SYSTEM_ERROR     = "system_error"     // 系统错误
 	MSG_TYPE_IP_BAN           = "ip_ban"           // IP封禁

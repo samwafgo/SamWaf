@@ -2480,6 +2480,15 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return tx.Migrator().DropColumn(&model.OPlatformKey{}, "LocalOnly")
 			},
 		},
+		{
+			ID: "202611120001_add_security_report",
+			Migrate: func(tx *gorm.DB) error {
+				return tx.AutoMigrate(&model.SecurityReportSettings{}, &model.SecurityReportTask{})
+			},
+			Rollback: func(tx *gorm.DB) error {
+				return tx.Migrator().DropTable(&model.SecurityReportTask{}, &model.SecurityReportSettings{})
+			},
+		},
 	})
 
 	// 执行迁移

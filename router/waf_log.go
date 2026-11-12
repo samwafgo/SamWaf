@@ -28,6 +28,15 @@ func (receiver *LogRouter) InitLogRouter(group *gin.RouterGroup) {
 	wafLogRouter.POST("/api/v1/waflog/attack/watchlist/del", logApi.DelIPWatchlistApi)
 	wafLogRouter.POST("/api/v1/waflog/attack/watchlist/list", logApi.GetIPWatchlistApi)
 
+	reportAPI := api.WafReportAPI{}
+	reportRouter := group.Group("/api/v1/samwaf/report")
+	reportRouter.GET("/config", reportAPI.Config)
+	reportRouter.POST("/config", reportAPI.Save)
+	reportRouter.GET("/list", reportAPI.List)
+	reportRouter.POST("/create", reportAPI.Create)
+	reportRouter.POST("/download", reportAPI.Download)
+	reportRouter.POST("/delete", reportAPI.Delete)
+
 	logExportApi := api.WafLogExportAPI{}
 	exportsRouter := group.Group("")
 	exportsRouter.GET("/api/v1/waflog/exports/capabilities", logExportApi.Capabilities)

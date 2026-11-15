@@ -96,6 +96,23 @@ func Auth() gin.HandlerFunc {
 				return
 			}
 
+			account, sessionErr := wafTokenInfoService.ValidateSession(tokenInfo, tokenStr)
+			if sessionErr != nil {
+				if errors.Is(sessionErr, waf_service.ErrSessionBackend) {
+					zlog.Error("管理会话校验暂时不可用", sessionErr)
+					response.BackendUnavailableWithMessage("服务暂时不可用，请稍后重试", c)
+				} else {
+					response.AuthFailWithMessage("登录状态已失效，请重新登录", c)
+				}
+				c.Abort()
+				return
+			}
+			tokenInfo.Role = account.Role
+			tokenInfo.NeedChangePassword = 0
+			if account.NeedChangePassword == 1 || utils.IsPasswordExpired(account.PwdUpdateTime, int(global.GCONFIG_PWD_EXPIRE_DAYS), time.Now()) {
+				tokenInfo.NeedChangePassword = 1
+			}
+
 			// IP检查逻辑
 			currentIP := utils.GetManageClientIP(c)
 			ipMatched := false

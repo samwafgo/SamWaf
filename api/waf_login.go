@@ -12,8 +12,11 @@ import (
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	response2 "SamWaf/model/response"
+	"SamWaf/service/waf_service"
 	"SamWaf/utils"
+	"errors"
 	"fmt"
+	"gorm.io/gorm"
 	"strings"
 	"time"
 
@@ -33,7 +36,11 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 			return
 		}
 		// 默认管理员由程序启动初始化时按"账户表为空"判定并创建(见 cmd/samwaf/main.go)，此处不再惰性创建
-		bean := wafAccountService.GetInfoByLoginApi(req)
+		bean, lookupErr := wafAccountService.GetLoginAccount(req.LoginAccount)
+		if lookupErr != nil && !errors.Is(lookupErr, gorm.ErrRecordNotFound) {
+			response.BackendUnavailableWithMessage("服务暂时不可用，请稍后重试", c)
+			return
+		}
 		if bean.Id != "" {
 			clientIP := utils.GetManageClientIP(c)
 			clientCountry := utils.GetCountry(clientIP)
@@ -122,11 +129,6 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 			// 密码正确，清除错误计数
 			global.GCACHE_WAFCACHE.Remove(cacheKey)
 
-			// 透明升级：命中旧 MD5 的口令，登录成功后重算为 bcrypt 落库
-			if !utils.IsBcryptHash(bean.LoginPassword) {
-				wafAccountService.UpgradePasswordHash(bean.LoginAccount, req.LoginPassword)
-			}
-
 			// 口令强制改密判定：首次登录/被重置(NeedChangePassword) 或 口令已过有效期（提前计算，用于写入令牌与响应）
 			needChangePwd := false
 			changePwdReason := ""
@@ -144,18 +146,6 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 				loginType = "web" // 默认为web类型
 			}
 
-			//如果存在旧的状态删除 相同帐号和登录类型 只允许一个
-			allTokenInfo := wafTokenInfoService.GetAllTokenInfoByLoginAccountAndType(req.LoginAccount, loginType)
-			if allTokenInfo != nil {
-				for i := 0; i < len(allTokenInfo); i++ {
-					oldTokenInfo := allTokenInfo[i]
-					if oldTokenInfo.Id != "" {
-						wafTokenInfoService.DelApiByAccountAndType(oldTokenInfo.LoginAccount, oldTokenInfo.LoginType)
-						global.GCACHE_WAFCACHE.Remove(enums.CACHE_TOKEN + oldTokenInfo.AccessToken)
-					}
-				}
-			}
-
 			//生成设备指纹
 			deviceFingerprint := ""
 			if global.GCONFIG_ENABLE_DEVICE_FINGERPRINT == 1 {
@@ -164,14 +154,20 @@ func (w *WafLoginApi) LoginApi(c *gin.Context) {
 
 			//记录状态
 			accessToken := utils.Md5String(uuid.GenUUID())
-			tokenInfo, tokenErr := wafTokenInfoService.AddApiWithFingerprintAndType(bean.LoginAccount, accessToken, utils.GetManageClientIP(c), deviceFingerprint, loginType, bean.Role)
+			tokenInfo, tokenErr := wafTokenInfoService.IssueSession(bean, accessToken, utils.GetManageClientIP(c), deviceFingerprint, loginType, req.LoginPassword)
 			// 会话没建成就绝不能回「登录成功」：
 			// 旧写法忽略落库错误、又拿重查结果当令牌下发，一旦对不上，前端会拿到一个
 			// 缓存里不存在（或为空）的令牌，之后每个请求都 401 → 跳登录 → 无限循环，
 			// 而 401 分支不打日志，排查时表现为"点了登录什么日志都没有"（issue #938）。
 			if tokenErr != nil || tokenInfo == nil || tokenInfo.AccessToken != accessToken {
 				zlog.Error(fmt.Sprintf("登录会话创建失败，账号:%v 登录类型:%v 错误:%v", bean.LoginAccount, loginType, tokenErr))
-				response.FailWithMessage("登录状态创建失败，请重试；若持续失败请查看服务端日志", c)
+				if errors.Is(tokenErr, waf_service.ErrSessionBackend) {
+					response.BackendUnavailableWithMessage("服务暂时不可用，请稍后重试", c)
+				} else if errors.Is(tokenErr, waf_service.ErrSessionInvalid) {
+					response.AuthFailWithMessage("登录信息已变化，请重新登录", c)
+				} else {
+					response.FailWithMessage("登录状态创建失败，请稍后重试", c)
+				}
 				return
 			}
 

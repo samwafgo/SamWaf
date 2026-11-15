@@ -2,12 +2,14 @@ package waf_service
 
 import (
 	"SamWaf/common/uuid"
+	"SamWaf/common/zlog"
 	"SamWaf/customtype"
 	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -211,7 +213,7 @@ func (receiver *WafTokenInfoService) DelApiByAccountAndType(loginAccount string,
 func (receiver *WafTokenInfoService) ReloadAllValidTokensToCache() error {
 	var tokens []model.TokenInfo
 	// 获取所有token信息
-	err := global.GWAF_LOCAL_DB.Find(&tokens).Error
+	err := accountSessionScope(global.GWAF_LOCAL_DB).Find(&tokens).Error
 	if err != nil {
 		return err
 	}
@@ -221,6 +223,14 @@ func (receiver *WafTokenInfoService) ReloadAllValidTokensToCache() error {
 
 	// 遍历所有token
 	for _, token := range tokens {
+		if _, err := receiver.ValidateSession(token, token.AccessToken); err != nil {
+			if errors.Is(err, ErrSessionInvalid) {
+				continue
+			}
+			// 存储暂时不可用时跳过该令牌继续加载其余，避免单次抖动让全部会话无法恢复。
+			zlog.Warn(fmt.Sprintf("ReloadAllValidTokensToCache 校验会话 %s 失败：%v", token.LoginAccount, err))
+			continue
+		}
 		// 检查token是否过期
 		// 假设token的过期时间存储在UPDATE_TIME字段中，并且有一个固定的过期时间
 		expireTime := time.Time(token.UPDATE_TIME).Add(time.Duration(global.GCONFIG_RECORD_TOKEN_EXPIRE_MINTUTES) * time.Minute)
@@ -246,8 +256,12 @@ func (receiver *WafTokenInfoService) ReloadAllValidTokensToCache() error {
 func (receiver *WafTokenInfoService) ReloadSpecificTokenToCache(tokenId string) error {
 	var token model.TokenInfo
 	// 根据ID获取token信息
-	err := global.GWAF_LOCAL_DB.Where("id = ?", tokenId).First(&token).Error
+	err := accountSessionScope(global.GWAF_LOCAL_DB).Where("id = ?", tokenId).First(&token).Error
 	if err != nil {
+		return err
+	}
+
+	if _, err := receiver.ValidateSession(token, token.AccessToken); err != nil {
 		return err
 	}
 

@@ -12,6 +12,31 @@
 #   5. fresh_install: true 的条目只在"全新安装"时生成，不参与版本区间计算
 
 notes:
+  - id: v1_3_26_account_session_state
+    version: v1.3.26
+    kind: notice
+    level: normal
+    page: /account/Account
+    apply:
+      type: navigate
+    zh:
+      title: 管理会话随账号变更失效
+      detail: >-
+        删除管理账号，或修改其角色、登录名、状态后，该账号的网页端与移动端会话均需重新登录；
+        管理员重置密码后同样需要重新登录；仅修改备注不影响会话。认证同时核对当前账号和持久会话，重启后继续执行相同校验。
+        账号状态 0 与 1 均沿用现有登录行为，自助修改密码后可继续使用当前会话，初始及重置密码仍需先完成改密。
+        数据库或缓存暂时不可用时提示稍后重试并保留客户端登录状态，恢复后可继续操作。
+      revert: 无需调整配置或数据库结构；账号变更后请使用当前登录名重新登录。
+    en:
+      title: Management sessions follow account changes
+      detail: >-
+        Deleting a management account or changing its role, login name or status requires its web and mobile sessions
+        to sign in again; an administrator password reset also requires signing in again. Editing remarks alone keeps sessions active.
+        Authentication checks both the current account and its persisted session, including after restart. Status values 0 and 1 retain their existing login behavior.
+        Self-service password changes keep the current session; initial and reset passwords still require a password change first.
+        Temporary database or cache failures ask for a retry and preserve the client login state so work can continue after recovery.
+      revert: No configuration or schema changes are required. Sign in with the current login name after account changes.
+
   - id: v1_3_26_security_report
     version: v1.3.26
     kind: notice

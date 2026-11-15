@@ -1,12 +1,17 @@
 package api
 
 import (
+	"SamWaf/cache"
 	"SamWaf/common/gwebsocket"
 	"SamWaf/common/zlog"
+	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/model"
-	"encoding/json"
+	"SamWaf/model/common/response"
+	"SamWaf/service/waf_service"
+	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -17,68 +22,60 @@ type WafWebSocketApi struct {
 }
 
 func (w *WafWebSocketApi) WebSocketMessageApi(c *gin.Context) {
-	var upGrader = websocket.Upgrader{
-		Subprotocols: []string{c.Request.Header.Get("Sec-WebSocket-Protocol")},
-		CheckOrigin: func(r *http.Request) bool {
-			return true
-		},
-		HandshakeTimeout: 45 * time.Second, // 握手超时时间
-		ReadBufferSize:   1024,             // 读缓冲区大小
-		WriteBufferSize:  1024,             // 写缓冲区大小
+	tokenStr := strings.TrimSpace(c.GetHeader("Sec-WebSocket-Protocol"))
+	var tokenInfo model.TokenInfo
+	if err := global.GCACHE_WAFCACHE.GetAs(enums.CACHE_TOKEN+tokenStr, &tokenInfo); err != nil {
+		if errors.Is(err, cache.ErrCacheBackend) {
+			response.BackendUnavailableWithMessage("服务暂时不可用，请稍后重试", c)
+		} else {
+			response.AuthFailWithMessage("登录状态已失效，请重新登录", c)
+		}
+		return
 	}
-	//获取用户账号：
-	tokenStr := c.GetHeader("Sec-WebSocket-Protocol")
-	tokenInfo := wafTokenInfoService.GetInfoByAccessToken(tokenStr)
-
-	//本次连接声明的传输会话密钥（v2 客户端才带；旧客户端为空，推送回落 legacy）。
-	//WebSocket 建连没法带自定义头，只能走查询参数。
-	keyID := c.Query("keyid")
-
-	//升级get请求为webSocket协议
-	ws, err := upGrader.Upgrade(c.Writer, c.Request, nil)
+	validate := func() error {
+		_, err := wafTokenInfoService.ValidateSession(tokenInfo, tokenStr)
+		return err
+	}
+	ws, err := upgradeAccountWebSocket(c)
 	if err != nil {
 		zlog.Error("websocketinit", err)
 		return
 	}
+	serveAccountWebSocket(ws, global.GWebSocket, tokenInfo, c.Query("keyid"), validate, gwebsocket.PingPeriod)
+}
 
-	if tokenInfo.LoginAccount == "" {
-		//写入ws数据（此时连接还没登记到管理器，只有当前协程在写）
-		msgBytes, _ := json.Marshal(model.MsgPacket{
-			MsgCode:    "-999",
-			MsgCmdType: "Info",
-		})
-		ws.SetWriteDeadline(time.Now().Add(gwebsocket.WriteWait))
-		err = ws.WriteMessage(websocket.TextMessage, msgBytes)
-		zlog.Debug("无鉴权信息，请检查")
-		ws.Close() // 未鉴权连接必须显式关闭，否则连接一直挂着不释放
-		return
-	}
-
-	// 读超时靠心跳续期：前端每 30s 发一次 ping，服务端也会主动发 Ping 帧，
-	// 只要有一路活着就会刷新 deadline；都没了说明连接已死，读取直接报错退出。
+func serveAccountWebSocket(ws *websocket.Conn, online *gwebsocket.WebSocketOnline, tokenInfo model.TokenInfo, keyID string, validate func() error, checkPeriod time.Duration) {
 	ws.SetReadDeadline(time.Now().Add(gwebsocket.PongWait))
 	ws.SetPongHandler(func(string) error {
-		zlog.Debug("收到pong消息，连接正常")
 		return ws.SetReadDeadline(time.Now().Add(gwebsocket.PongWait))
 	})
 
-	// 生成用户标识和会话ID
-	userKey := tokenInfo.BaseOrm.Tenant_ID + tokenInfo.BaseOrm.USER_CODE + tokenInfo.LoginAccount
-	sessionID := global.GWebSocket.AddWebSocketWithKey(userKey, keyID, ws)
+	// 登记后的持久会话校验完成前，连接不参与消息推送。
+	sessionID, err := online.AddValidatedAccountWebSocket(tokenInfo.Tenant_ID, tokenInfo.USER_CODE, tokenInfo.LoginAccount, keyID, ws, validate)
+	if err != nil {
+		return
+	}
+	zlog.Debug("WebSocket连接建立，会话ID: " + sessionID)
 
-	zlog.Debug("WebSocket连接建立，用户: " + userKey + ", 会话ID: " + sessionID)
-
-	// 服务端主动心跳：探活半开连接，同时给读超时续期
 	stopPing := make(chan struct{})
 	go func() {
-		ticker := time.NewTicker(gwebsocket.PingPeriod)
+		ticker := time.NewTicker(checkPeriod)
 		defer ticker.Stop()
+		defer online.CloseSession(sessionID)
 		for {
 			select {
 			case <-stopPing:
 				return
 			case <-ticker.C:
-				if err := global.GWebSocket.PingSession(sessionID); err != nil {
+				// 会话校验与心跳共用周期；仅会话失效才关闭连接，
+				// 存储暂时不可用时保留连接，下一轮再复核。
+				if err := validate(); err != nil {
+					if errors.Is(err, waf_service.ErrSessionBackend) {
+						continue
+					}
+					return
+				}
+				if err := online.PingSession(sessionID); err != nil {
 					return
 				}
 			}
@@ -87,28 +84,34 @@ func (w *WafWebSocketApi) WebSocketMessageApi(c *gin.Context) {
 
 	defer func() {
 		close(stopPing)
-		// 只关闭当前会话的连接
-		global.GWebSocket.CloseSession(sessionID)
+		online.CloseSession(sessionID)
 		zlog.Debug("WebSocket连接已关闭，会话ID: " + sessionID)
 	}()
 
 	for {
-		//读取ws中的数据（每条连接只有这一个读协程）
 		mt, message, err := ws.ReadMessage()
 		if err != nil {
-			break
+			return
 		}
 		ws.SetReadDeadline(time.Now().Add(gwebsocket.PongWait))
-
-		zlog.Debug("websocket msg=" + string(message) + ", 会话ID: " + sessionID)
 		if string(message) == "ping" {
 			message = []byte("pong")
 		}
-
-		//写入ws数据：统一走会话管理器，内部按连接加锁，避免与队列/定时任务的广播并发写
-		if err = global.GWebSocket.SendToSession(sessionID, mt, message); err != nil {
-			zlog.Debug("WebSocket回写失败，退出消息循环，会话ID: " + sessionID)
-			break
+		if err := online.SendToSession(sessionID, mt, message); err != nil {
+			return
 		}
 	}
+}
+
+func upgradeAccountWebSocket(c *gin.Context) (*websocket.Conn, error) {
+	upGrader := websocket.Upgrader{
+		Subprotocols: []string{c.Request.Header.Get("Sec-WebSocket-Protocol")},
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+		HandshakeTimeout: 45 * time.Second,
+		ReadBufferSize:   1024,
+		WriteBufferSize:  1024,
+	}
+	return upGrader.Upgrade(c.Writer, c.Request, nil)
 }

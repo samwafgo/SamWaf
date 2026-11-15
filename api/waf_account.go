@@ -6,6 +6,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
+	"SamWaf/service/waf_service"
 	"errors"
 	"time"
 
@@ -95,7 +96,11 @@ func (w *WafAccountApi) DelAccountApi(c *gin.Context) {
 			return
 		}
 		err = wafAccountService.DelApi(req)
-		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
+		if errors.Is(err, waf_service.ErrSessionBackend) {
+			response.BackendUnavailableWithMessage("服务暂时不可用，请稍后重试", c)
+		} else if errors.Is(err, waf_service.ErrSessionInvalid) {
+			response.FailWithMessage("账号不存在", c)
+		} else if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 			response.FailWithMessage("请检测参数", c)
 		} else if err != nil {
 			response.FailWithMessage("发生错误", c)
@@ -116,7 +121,11 @@ func (w *WafAccountApi) ModifyAccountApi(c *gin.Context) {
 		// N7 防提权：角色变更仅超级管理员可为（在 service 内按目标账号"当前角色"精确判定，
 		// 只拦真正的角色变化，不影响非角色字段的正常编辑）。
 		err = wafAccountService.ModifyApi(req, currentRole(c))
-		if err != nil {
+		if errors.Is(err, waf_service.ErrSessionBackend) {
+			response.BackendUnavailableWithMessage("服务暂时不可用，请稍后重试", c)
+		} else if errors.Is(err, waf_service.ErrSessionInvalid) {
+			response.FailWithMessage("账号不存在", c)
+		} else if err != nil {
 			response.FailWithMessage(err.Error(), c)
 		} else {
 			response.OkWithMessage("编辑成功", c)
@@ -193,7 +202,11 @@ func (w *WafAccountApi) ResetAccountPwdApi(c *gin.Context) {
 			return
 		}
 		err = wafAccountService.ResetPwdApi(req)
-		if err != nil {
+		if errors.Is(err, waf_service.ErrSessionBackend) {
+			response.BackendUnavailableWithMessage("服务暂时不可用，请稍后重试", c)
+		} else if errors.Is(err, waf_service.ErrSessionInvalid) {
+			response.FailWithMessage("账号不存在", c)
+		} else if err != nil {
 			response.FailWithMessage(err.Error(), c)
 		} else {
 			response.OkWithMessage("重置密码成功", c)

@@ -34,6 +34,7 @@ type WebSocketConnection struct {
 	KeyID     string
 	CreatedAt time.Time
 
+	pending  bool
 	writeMux sync.Mutex // 该连接的写出口互斥锁，禁止并发写
 }
 
@@ -84,6 +85,37 @@ func (wafWebsocket *WebSocketOnline) AddWebSocket(userKey string, conn *Wssocket
 
 // AddWebSocketWithKey 同 AddWebSocket，并记下该连接声明的传输会话密钥标识
 func (wafWebsocket *WebSocketOnline) AddWebSocketWithKey(userKey string, keyID string, conn *Wssocket.Conn) string {
+	return wafWebsocket.addWebSocket(userKey, keyID, conn, false)
+}
+
+func accountUserKey(tenantID, userCode, loginAccount string) string {
+	return fmt.Sprintf("%d:%s%d:%s%d:%s", len(tenantID), tenantID, len(userCode), userCode, len(loginAccount), loginAccount)
+}
+
+// AddValidatedAccountWebSocket 登记后校验会话，校验通过才允许收发。
+func (wafWebsocket *WebSocketOnline) AddValidatedAccountWebSocket(tenantID, userCode, loginAccount, keyID string, conn *Wssocket.Conn, validate func() error) (string, error) {
+	if wafWebsocket == nil || tenantID == "" || userCode == "" || loginAccount == "" || validate == nil {
+		conn.Close()
+		return "", errors.New("账号连接不可用")
+	}
+	sessionID := wafWebsocket.addWebSocket(accountUserKey(tenantID, userCode, loginAccount), keyID, conn, true)
+	if err := validate(); err != nil {
+		wafWebsocket.CloseSession(sessionID)
+		return "", err
+	}
+	wafWebsocket.Mux.Lock()
+	wsConn := wafWebsocket.SocketMap[sessionID]
+	if wsConn != nil {
+		wsConn.pending = false
+	}
+	wafWebsocket.Mux.Unlock()
+	if wsConn == nil {
+		return "", errors.New("账号连接已关闭")
+	}
+	return sessionID, nil
+}
+
+func (wafWebsocket *WebSocketOnline) addWebSocket(userKey, keyID string, conn *Wssocket.Conn, pending bool) string {
 	wafWebsocket.Mux.Lock()
 	defer wafWebsocket.Mux.Unlock()
 
@@ -96,6 +128,7 @@ func (wafWebsocket *WebSocketOnline) AddWebSocketWithKey(userKey string, keyID s
 		UserKey:   userKey,
 		KeyID:     keyID,
 		CreatedAt: time.Now(),
+		pending:   pending,
 	}
 
 	// 存储连接
@@ -116,7 +149,11 @@ func (wafWebsocket *WebSocketOnline) getSession(sessionID string) *WebSocketConn
 	wafWebsocket.Mux.Lock()
 	defer wafWebsocket.Mux.Unlock()
 
-	return wafWebsocket.SocketMap[sessionID]
+	wsConn := wafWebsocket.SocketMap[sessionID]
+	if wsConn != nil && wsConn.pending {
+		return nil
+	}
+	return wsConn
 }
 
 // snapshot 复制一份当前在线连接，写入动作在锁外进行，
@@ -127,9 +164,25 @@ func (wafWebsocket *WebSocketOnline) snapshot() []*WebSocketConnection {
 
 	conns := make([]*WebSocketConnection, 0, len(wafWebsocket.SocketMap))
 	for _, wsConn := range wafWebsocket.SocketMap {
-		conns = append(conns, wsConn)
+		if wsConn != nil && !wsConn.pending {
+			conns = append(conns, wsConn)
+		}
 	}
 	return conns
+}
+
+// pendingCount 登记校验中的连接数（内部状态观测用，调用方需自行理解语义）
+func (wafWebsocket *WebSocketOnline) pendingCount() int {
+	wafWebsocket.Mux.Lock()
+	defer wafWebsocket.Mux.Unlock()
+
+	count := 0
+	for _, wsConn := range wafWebsocket.SocketMap {
+		if wsConn != nil && wsConn.pending {
+			count++
+		}
+	}
+	return count
 }
 
 // HasSession 会话是否还在线
@@ -137,12 +190,18 @@ func (wafWebsocket *WebSocketOnline) HasSession(sessionID string) bool {
 	return wafWebsocket.getSession(sessionID) != nil
 }
 
-// OnlineCount 当前在线连接数
+// OnlineCount 当前已登记完成、可收发的连接数
 func (wafWebsocket *WebSocketOnline) OnlineCount() int {
 	wafWebsocket.Mux.Lock()
 	defer wafWebsocket.Mux.Unlock()
 
-	return len(wafWebsocket.SocketMap)
+	count := 0
+	for _, wsConn := range wafWebsocket.SocketMap {
+		if wsConn != nil && !wsConn.pending {
+			count++
+		}
+	}
+	return count
 }
 
 // SendToSession 向指定会话发送消息
@@ -228,6 +287,28 @@ func (wafWebsocket *WebSocketOnline) CloseSession(sessionID string) {
 		// Close 与其他方法并发调用是安全的，放在锁外做，避免阻塞其他会话
 		wsConn.Conn.Close()
 	}
+}
+
+// CloseAccountSessions 关闭指定租户、用户范围内账号的全部连接，可重复调用。
+func (wafWebsocket *WebSocketOnline) CloseAccountSessions(tenantID, userCode, loginAccount string) int {
+	if wafWebsocket == nil || tenantID == "" || userCode == "" || loginAccount == "" {
+		return 0
+	}
+	userKey := accountUserKey(tenantID, userCode, loginAccount)
+	wafWebsocket.Mux.Lock()
+	var conns []*WebSocketConnection
+	for _, sessionID := range wafWebsocket.UserSessions[userKey] {
+		if wsConn := wafWebsocket.SocketMap[sessionID]; wsConn != nil {
+			conns = append(conns, wsConn)
+			delete(wafWebsocket.SocketMap, sessionID)
+		}
+	}
+	delete(wafWebsocket.UserSessions, userKey)
+	wafWebsocket.Mux.Unlock()
+	for _, wsConn := range conns {
+		wsConn.Conn.Close()
+	}
+	return len(conns)
 }
 
 // 根据会话ID删除WebSocket连接

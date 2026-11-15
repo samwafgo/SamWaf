@@ -16,6 +16,9 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const pwdTimeLayout = "2006-01-02 15:04:05"
@@ -173,41 +176,62 @@ func (receiver *WafAccountService) CheckIsExistApi(req request.WafAccountAddReq)
 }
 func (receiver *WafAccountService) ModifyApi(req request.WafAccountEditReq, operatorRole string) error {
 
+	accountSessionMu.Lock()
+	defer accountSessionMu.Unlock()
+	sessionRevoked := false
 	var target model.Account
-	global.GWAF_LOCAL_DB.Where("id = ?", req.Id).First(&target)
-	if target.Id == "" {
-		return errors.New("账号不存在")
-	}
-	// N7：非超级管理员不得编辑超级管理员账号（防止改名/改状态等干扰或锁定超管账号）。
-	if enums.NormalizeRole(target.Role) == enums.ROLE_SUPER_ADMIN && enums.NormalizeRole(operatorRole) != enums.ROLE_SUPER_ADMIN {
-		return errors.New("仅超级管理员可编辑超级管理员账号")
-	}
-	// 若修改了登录名，新名不得与其他账号重复
-	if req.LoginAccount != target.LoginAccount {
-		var dup model.Account
-		global.GWAF_LOCAL_DB.Where("login_account = ? and id <> ?", req.LoginAccount, req.Id).First(&dup)
-		if dup.Id != "" {
-			return errors.New("当前登录账号已存在")
+	err := accountSessionTransaction(func(tx *gorm.DB) error {
+		if err := accountSessionScope(tx).Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", req.Id).First(&target).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrSessionInvalid
+			}
+			return sessionDBError(err)
 		}
-	}
-	beanMap := map[string]interface{}{
-		"LoginAccount": req.LoginAccount,
-		"Status":       req.Status,
-		"Remarks":      req.Remarks,
-		"UPDATE_TIME":  customtype.JsonTime(time.Now()),
-	}
-	// 角色留空则不修改；非空必须合法
-	if req.Role != "" {
-		if !enums.IsValidRole(req.Role) {
-			return errors.New("请指定合法的账号角色")
+		// N7：非超级管理员不得编辑超级管理员账号（防止改名/改状态等干扰或锁定超管账号）。
+		if enums.NormalizeRole(target.Role) == enums.ROLE_SUPER_ADMIN && enums.NormalizeRole(operatorRole) != enums.ROLE_SUPER_ADMIN {
+			return errors.New("仅超级管理员可编辑超级管理员账号")
 		}
-		// N7 防提权：仅超级管理员可变更账号角色（对照被更新记录 target 的当前角色，杜绝 id/login_account 解耦绕过）。
-		if req.Role != target.Role && enums.NormalizeRole(operatorRole) != enums.ROLE_SUPER_ADMIN {
-			return errors.New("仅超级管理员可变更账号角色")
+		// 若修改了登录名，新名不得与其他账号重复
+		if req.LoginAccount != target.LoginAccount {
+			var dup model.Account
+			err := accountSessionScope(tx).Where("login_account = ? and id <> ?", req.LoginAccount, req.Id).First(&dup).Error
+			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+				return sessionDBError(err)
+			}
+			if dup.Id != "" {
+				return errors.New("当前登录账号已存在")
+			}
 		}
-		beanMap["Role"] = req.Role
+		beanMap := map[string]interface{}{
+			"LoginAccount": req.LoginAccount,
+			"Status":       req.Status,
+			"Remarks":      req.Remarks,
+			"UPDATE_TIME":  customtype.JsonTime(time.Now()),
+		}
+		// 角色留空则不修改；非空必须合法
+		if req.Role != "" {
+			if !enums.IsValidRole(req.Role) {
+				return errors.New("请指定合法的账号角色")
+			}
+			// N7 防提权：仅超级管理员可变更账号角色（对照被更新记录 target 的当前角色，杜绝 id/login_account 解耦绕过）。
+			if req.Role != target.Role && enums.NormalizeRole(operatorRole) != enums.ROLE_SUPER_ADMIN {
+				return errors.New("仅超级管理员可变更账号角色")
+			}
+			beanMap["Role"] = req.Role
+		}
+		if err := accountSessionScope(tx.Model(&model.Account{})).Where("id = ?", req.Id).Updates(beanMap).Error; err != nil {
+			return sessionDBError(err)
+		}
+		if target.LoginAccount != req.LoginAccount || target.Status != req.Status || (req.Role != "" && target.Role != req.Role) {
+			sessionRevoked = true
+			return revokeAccountSessions(tx, target.LoginAccount)
+		}
+		return nil
+	})
+	if err == nil && sessionRevoked && global.GWebSocket != nil {
+		global.GWebSocket.CloseAccountSessions(target.Tenant_ID, target.USER_CODE, target.LoginAccount)
 	}
-	return global.GWAF_LOCAL_DB.Model(model.Account{}).Where("id = ?", req.Id).Updates(beanMap).Error
+	return err
 }
 
 // ChangeMyPasswordApi 当前登录账号自助改密：校验旧密码、复杂度、历史防重用，成功后清除强制改密标记
@@ -243,44 +267,65 @@ func (receiver *WafAccountService) ChangeMyPasswordApi(loginAccount, oldPlain, n
 	return nil
 }
 func (receiver *WafAccountService) ResetPwdApi(req request.WafAccountResetPwdReq) error {
-
 	var superAccount model.Account
-	global.GWAF_LOCAL_DB.Where(dialect.Q("role")+" = ?", enums.ROLE_SUPER_ADMIN).First(&superAccount)
-	if !receiver.VerifyPassword(superAccount.LoginPassword, req.LoginSuperPassword) {
+	err := accountSessionScope(global.GWAF_LOCAL_DB).Where(dialect.Q("role")+" = ?", enums.ROLE_SUPER_ADMIN).First(&superAccount).Error
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return sessionDBError(err)
+	}
+	if superAccount.Id == "" || !receiver.VerifyPassword(superAccount.LoginPassword, req.LoginSuperPassword) {
 		return errors.New("超级管理员密码不正确")
 	}
 
-	var bean model.Account
-	global.GWAF_LOCAL_DB.Where("login_account = ?", req.LoginAccount).Find(&bean)
-	if bean.Id == "" {
-		return errors.New("帐号信息不存在")
-	}
-
-	if receiver.VerifyPassword(bean.LoginPassword, req.LoginNewPassword) {
-		return errors.New("新旧密码相同")
-	}
-
-	// 复杂度 + 历史防重用校验
+	// 复杂度 + 历史防重用校验只读账号与历史表，放在持锁事务外，避免拉长全局串行窗口。
 	if err := receiver.ValidateNewPassword(req.LoginAccount, req.LoginNewPassword); err != nil {
 		return err
 	}
 
-	newHash, err := receiver.pwdHash(req.LoginNewPassword)
-	if err != nil {
-		return err
+	accountSessionMu.Lock()
+	defer accountSessionMu.Unlock()
+	var reset model.Account
+	var newHash string
+	err = accountSessionTransaction(func(tx *gorm.DB) error {
+		var bean model.Account
+		err := accountSessionScope(tx).Clauses(clause.Locking{Strength: "UPDATE"}).Where("login_account = ?", req.LoginAccount).First(&bean).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrSessionInvalid
+			}
+			return sessionDBError(err)
+		}
+
+		if receiver.VerifyPassword(bean.LoginPassword, req.LoginNewPassword) {
+			return errors.New("新旧密码相同")
+		}
+
+		var hashErr error
+		newHash, hashErr = receiver.pwdHash(req.LoginNewPassword)
+		if hashErr != nil {
+			return hashErr
+		}
+		beanMap := map[string]interface{}{
+			"LoginPassword":      newHash,
+			"NeedChangePassword": 1, // 管理员重置后，目标账号下次登录需强制改密
+			"PwdUpdateTime":      time.Now().Format(pwdTimeLayout),
+			"UPDATE_TIME":        customtype.JsonTime(time.Now()),
+		}
+		if err = accountSessionScope(tx.Model(&model.Account{})).Where("id = ?", bean.Id).Updates(beanMap).Error; err != nil {
+			return sessionDBError(err)
+		}
+		if err = revokeAccountSessions(tx, bean.LoginAccount); err != nil {
+			return err
+		}
+		reset = bean
+		return nil
+	})
+	if err == nil {
+		receiver.recordPwdHistory(req.LoginAccount, newHash)
 	}
-	beanMap := map[string]interface{}{
-		"LoginPassword":      newHash,
-		"NeedChangePassword": 1, // 管理员重置后，目标账号下次登录需强制改密
-		"PwdUpdateTime":      time.Now().Format(pwdTimeLayout),
-		"UPDATE_TIME":        customtype.JsonTime(time.Now()),
+	if err == nil && global.GWebSocket != nil {
+		global.GWebSocket.CloseAccountSessions(reset.Tenant_ID, reset.USER_CODE, reset.LoginAccount)
 	}
-	err = global.GWAF_LOCAL_DB.Model(model.Account{}).Where("id = ?", bean.Id).Updates(beanMap).Error
-	if err != nil {
-		return err
-	}
-	receiver.recordPwdHistory(req.LoginAccount, newHash)
-	return nil
+	return err
 }
 func (receiver *WafAccountService) GetDetailApi(req request.WafAccountDetailReq) model.Account {
 	var bean model.Account
@@ -370,18 +415,33 @@ func (receiver *WafAccountService) GetListApi(req request.WafAccountSearchReq) (
 	return list, total, nil
 }
 func (receiver *WafAccountService) DelApi(req request.WafAccountDelReq) error {
-	var bean model.Account
-	err := global.GWAF_LOCAL_DB.Where("id = ?", req.Id).First(&bean).Error
-	if err != nil {
-		return err
-	} else {
+	accountSessionMu.Lock()
+	defer accountSessionMu.Unlock()
+	var deleted model.Account
+	err := accountSessionTransaction(func(tx *gorm.DB) error {
+		var bean model.Account
+		if err := accountSessionScope(tx).Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", req.Id).First(&bean).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrSessionInvalid
+			}
+			return sessionDBError(err)
+		}
 		var total int64
-		global.GWAF_LOCAL_DB.Model(&model.Account{}).Count(&total)
+		if err := accountSessionScope(tx.Model(&model.Account{})).Count(&total).Error; err != nil {
+			return sessionDBError(err)
+		}
 		if total <= 1 {
 			return errors.New("系统中只剩一个账号，不能删除")
 		}
+		if err := revokeAccountSessions(tx, bean.LoginAccount); err != nil {
+			return err
+		}
+		deleted = bean
+		return sessionDBError(accountSessionScope(tx).Where("id = ?", req.Id).Delete(&model.Account{}).Error)
+	})
+	if err == nil && global.GWebSocket != nil {
+		global.GWebSocket.CloseAccountSessions(deleted.Tenant_ID, deleted.USER_CODE, deleted.LoginAccount)
 	}
-	err = global.GWAF_LOCAL_DB.Where("id = ?", req.Id).Delete(model.Account{}).Error
 	return err
 }
 

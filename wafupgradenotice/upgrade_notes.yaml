@@ -12,6 +12,40 @@
 #   5. fresh_install: true 的条目只在"全新安装"时生成，不参与版本区间计算
 
 notes:
+  - id: v1_3_26_log_event_fold
+    version: v1.3.26
+    kind: notice
+    level: normal
+    page: /waf/wafvisitlog
+    apply:
+      type: navigate
+    zh:
+      title: 新增同类安全事件折叠选项，日志消费不再空等
+      detail: >-
+        系统配置新增「同类安全事件折叠」：同一「站点+来源IP+命中规则」的安全事件，每分钟最多落库 K 条完整明细（含报文），
+        超出的部分不再写明细表。被折叠的部分照常计入访问统计、IP 画像、CC 计数与封禁判断，
+        文件日志与 Kafka 外送也不受影响——面板上的数量、封禁行为与原来完全一致，
+        只有日志列表里的明细条数在开启后于请求高峰期会变少。默认 0（不折叠），升级后行为与旧版本一致；
+        遭受大批量同类请求、日志队列积压时可设为 5 等较小值，把明细写入量压到 K 条/分钟/来源。
+        同时批量插入数量默认值由 100 提高到 500（消费协程在队列有积压时不再空等，落库语句按固定大小分块）。
+        仍停在批量插入旧默认值 100 的实例会在下次启动时自动升到 500，自行调整过该值的实例不受影响。
+      revert: 系统配置把「同类安全事件折叠」设为 0 即每分钟全量明细；高写入量场景建议设为 5 并配合批量插入 500。
+    en:
+      title: New option to fold repeated security events; log consumer no longer idles
+      detail: >-
+        A new system config "Fold repeated security events" is added: for security events sharing the same
+        site, source IP and matched rule, at most K full records (with payload) are stored per minute;
+        additional events skip the detail tables. Folded events are still counted in visit statistics,
+        IP tags, CC counters and ban decisions, and file logging / Kafka export are unaffected —
+        dashboard numbers and blocking behave exactly as before; only the number of detail rows in the log
+        lists shrinks once the option is enabled. The default is 0 (off), so behavior after upgrading is
+        unchanged from older versions; when facing mass identical requests or a log queue backlog,
+        set it to a small value such as 5 to cap detail writes at K records per minute per source.
+        The default batch insert size is also raised from 100 to 500 (the consumer no longer sleeps while
+        the queue has a backlog; insert statements are split into fixed-size chunks). Instances still on
+        the old default 100 are migrated to 500 on next startup; instances with a user-tuned value are left untouched.
+      revert: Set "Fold repeated security events" to 0 in system config for full per-minute detail; for high-write scenarios set it to 5 together with batch insert 500.
+
   - id: v1_3_26_account_session_state
     version: v1.3.26
     kind: notice

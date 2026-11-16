@@ -7,6 +7,8 @@ import (
 	"SamWaf/waftask"
 	"errors"
 	"fmt"
+	"strconv"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -207,6 +209,11 @@ func resolveSensitiveConfigValue(item, submitted string, loadCurrent func() stri
 // 该挡的（引号、注释符、控制字符、超长、超多）在写库前就挡掉，别等查询时静默丢弃。
 func checkSystemConfigValue(item string, value string) (string, bool) {
 	switch item {
+	case "log_fold_per_minute":
+		// 0=不折叠；上限防止误填天文数字把内存撑爆（过滤器按分钟缓存键）
+		if v, err := strconv.ParseInt(value, 10, 64); err != nil || v < 0 || v > 100000 {
+			return "同类安全事件折叠必须是 0~100000 的整数（0=不折叠）", false
+		}
 	case "attack_tag_exclude":
 		if bad, ok := waf_service.ValidateAttackTagExclude(value); !ok {
 			return fmt.Sprintf("排除标签不合法: %q（不能含引号/分号/反斜杠/注释符/控制字符，单项不超过 255 字符，最多 30 项）", bad), false

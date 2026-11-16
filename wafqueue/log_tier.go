@@ -241,11 +241,15 @@ func storeTiered(logs []*innerbean.WebLog) {
 
 // conflictIgnoreInsert 整批写入，撞主键的行跳过（保留先到的）。不指定冲突列：
 // 三个引擎对"无目标的 DO NOTHING"都认（MySQL 走 INSERT IGNORE），与 storePayloads 同理。
+// 固定分块下发：单条 INSERT 的绑定变量数有上限（SQLite 32766），批量插入配置调大后
+// 不能随之放大单条语句。
+const storeChunkSize = 200
+
 func conflictIgnoreInsert[T any](rows []T) error {
 	if len(rows) == 0 {
 		return nil
 	}
 	return global.GWAF_LOCAL_LOG_DB.
 		Clauses(clause.OnConflict{DoNothing: true}).
-		CreateInBatches(rows, len(rows)).Error
+		CreateInBatches(rows, storeChunkSize).Error
 }

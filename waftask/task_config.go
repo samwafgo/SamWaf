@@ -226,6 +226,9 @@ func setConfigIntValue(name string, value int64, change int) {
 	case "log_persist_enable":
 		global.GCONFIG_LOG_PERSIST_ENABLED = value
 		break
+	case "log_fold_per_minute":
+		global.GCONFIG_LOG_FOLD_PER_MINUTE = value
+		break
 	case "enable_proxy_protocol":
 		global.GCONFIG_ENABLE_PROXY_PROTOCOL = value
 		break
@@ -570,6 +573,10 @@ var legacyMigrateOnce sync.Once
 // 那样迁移就成了"5 改成 5"的空操作。
 const defaultTokenExpireMinutes int64 = 30
 
+// defaultBatchInsert 批量插入数量的出厂默认值，与 global/global.go 的初始值保持一致。
+// 单独取常量而不是读全局变量：迁移执行时全局变量可能已被库里的旧值覆盖成 100。
+const defaultBatchInsert int64 = 500
+
 // syncConfigMeta 把配置项的说明性字段（分类/类型/可选项/备注）同步成代码里的最新文案。
 // 只在确实不一致时写库，且绝不触碰 Value —— 用户设过的值不受影响。
 // 存在的意义：存量库里的说明是首次写入时的老文案，页面会一直显示过时描述。
@@ -763,6 +770,10 @@ func TaskLoadSetting(initLoad bool) {
 	legacyMigrateOnce.Do(func() {
 		migrateLegacyIntConfig("token_expire_time", 5, defaultTokenExpireMinutes,
 			"旧默认值5分钟过短，易造成反复登录", configMap)
+		// 批量插入旧默认100偏小：有积压时每轮取不满就等下一轮的睡眠，消费速率上不去。
+		// 落库语句另有固定分块，调大取值不会放大单条 SQL；用户自己改过的值不动。
+		migrateLegacyIntConfig("batch_insert", 100, defaultBatchInsert,
+			"批量插入旧默认偏小，高写入量下限制消费吞吐", configMap)
 	})
 
 	updateConfigIntItem(initLoad, "system", "record_max_req_body_length", global.GCONFIG_RECORD_MAX_BODY_LENGTH, "记录请求最大报文", "int", "", configMap)
@@ -852,6 +863,7 @@ func TaskLoadSetting(initLoad bool) {
 	//数据库相关
 	updateConfigIntItem(initLoad, "database", "batch_insert", global.GDATA_BATCH_INSERT, "数据库批量插入数量", "int", "", configMap)
 	updateConfigIntItem(initLoad, "database", "log_persist_enable", global.GCONFIG_LOG_PERSIST_ENABLED, "是否开启日志持久化（1开启 0关闭）", "options", "0|关闭,1|开启", configMap)
+	updateConfigIntItem(initLoad, "database", "log_fold_per_minute", global.GCONFIG_LOG_FOLD_PER_MINUTE, "同类安全事件折叠：同一「站点+IP+规则」每分钟最多落库的完整明细条数，超出的不落库但计数与出口照常（0=不折叠，默认0；攻击高发时可设5）", "int", "", configMap)
 	updateConfigIntItem(initLoad, "database", "ip_tag_db", global.GDATA_IP_TAG_DB, "IP Tag 存放位置 0 是主库  1是读取 stat库", "int", "", configMap)
 	updateConfigStringItem(initLoad, "system", "attack_tag_exclude", global.GCONFIG_ATTACK_TAG_EXCLUDE, "风险日志不算风险的标签(逗号分隔,如ACME证书校验)，这些标签不出现在规则筛选里也不计入阻止数量；正常 始终排除", "string", "", configMap)
 	updateConfigStringItem(initLoad, "system", "exclude_ip_log", global.GCONFIG_EXCLUDE_IP_LOG, "全局排除记录日志的IP（所有站点生效）：单IP/CIDR/通配符/区间，或 group:组短码 引用IP组；逗号或换行分隔，# 开头为注释。只静音正常请求，安全事件照常记录；站点级清单在网站编辑里", "string", "", configMap)

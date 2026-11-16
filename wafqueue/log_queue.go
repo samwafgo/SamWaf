@@ -15,6 +15,8 @@ import (
 处理Log队列信息
 */
 func ProcessLogDequeEngine() {
+	// 同类安全事件折叠过滤器：每个「站点+IP+规则」键每分钟只落前 K 条明细（log_fold.go）。
+	foldFilter := newLogFoldFilter(200000)
 	for {
 		select {
 		case <-global.GWAF_QUEUE_SHUTDOWN_SIGNAL:
@@ -23,8 +25,9 @@ func ProcessLogDequeEngine() {
 		default:
 			global.GWAF_MEASURE_PROCESS_DEQUEENGINE.WriteData(time.Now().UnixNano() / 1e6)
 			if global.GDATA_CURRENT_CHANGE {
-				//如果正在切换库 跳过
+				//如果正在切换库 跳过。此时不取队列，照旧固定歇一轮
 				zlog.Debug("正在切换数据库等待中队列")
+				time.Sleep(100 * time.Millisecond)
 
 			} else {
 				var webLogArray []*innerbean.WebLog
@@ -64,7 +67,7 @@ func ProcessLogDequeEngine() {
 						// 分层落库：安全事件进 security_event（带报文），窄行进 access_log（按档位），
 						// web_logs 不再写入（旧数据只读到期删）。
 						// 全部在副本上动手，下面的统计与出口仍拿完整的原始对象。
-						storeTiered(webLogArray)
+						storeTiered(foldFilter.filterForStore(webLogArray))
 						// 蓄水池采到的正常请求报文攒在内存里，到点整池刷成 event_payload(kind=sample)
 						negSampler.FlushIfDue()
 					}
@@ -78,7 +81,10 @@ func ProcessLogDequeEngine() {
 					global.GNOTIFY_LOG_FILE_WRITER.ProcessBatchLogs(webLogArray)
 				}
 			}
-			time.Sleep(100 * time.Millisecond)
+			// 只在队列取空时歇一轮；有积压时立即取下一批，不在空等里浪费消费时间
+			if global.GQEQUE_LOG_DB.Empty() {
+				time.Sleep(100 * time.Millisecond)
+			}
 			global.GWAF_MEASURE_PROCESS_DEQUEENGINE.WriteData(time.Now().UnixNano() / 1e6)
 		}
 	}

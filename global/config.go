@@ -3,6 +3,10 @@ package global
 var (
 	/******记录参数配置****************/
 	GCONFIG_LOG_PERSIST_ENABLED         int64  = 1                   //是否将web日志持久化到日志库（默认1 ） 1 持久化入库 0 不入库
+	// GCONFIG_LOG_FOLD_PER_MINUTE 同一「站点+IP+规则」的安全事件，每分钟最多落库的完整明细条数（0=不折叠，默认0）。
+	// 超过部分不落库（security_event/access_log/event_payload 都不写），但统计、分析、CC、文件与 Kafka 出口照常拿全量，
+	// 面板计数与封禁行为不受影响。大批量同类攻击下把明细写入量压到 K 条/分钟/来源，避免日志队列积压。
+	GCONFIG_LOG_FOLD_PER_MINUTE         int64  = 0
 	GCONFIG_RECORD_MAX_BODY_LENGTH      int64  = 1024 * 2            //限制记录最大请求的body长度 record_max_req_body_length
 	GCONFIG_RECORD_MAX_RES_BODY_LENGTH  int64  = 1024 * 4            //限制记录最大响应的body长度 record_max_rep_body_length
 	GCONFIG_RECORD_RESP                 int64  = 0                   // 是否记录响应记录 record_resp

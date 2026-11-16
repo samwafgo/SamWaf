@@ -732,6 +732,19 @@ func writeTime(path string, t time.Time) bool {
 	return ioutil.WriteFile(path, []byte(t.Format(time.RFC3339)), 0644) == nil
 }
 
+// normalizeExeBase 归一化可执行文件基名：Linux 下运行中的程序被原地替换后，
+// os.Executable 读到的是 ".SamWafLinux64.old.<时间戳>.<pid> (deleted)" 这类名字，
+// 直接拿去推导备份前缀/替换目标会匹配不到任何备份、也还原不到真实程序路径。
+func normalizeExeBase(execPath string) string {
+	base := filepath.Base(execPath)
+	base = strings.TrimSuffix(base, " (deleted)")
+	if i := strings.Index(base, ".old."); i > 0 {
+		base = base[:i]
+	}
+	// 替换时旧程序会被改名为隐藏文件（前缀 "."）
+	return strings.TrimPrefix(base, ".")
+}
+
 // BackupExecutable 备份当前可执行文件，并写入版本号 sidecar 文件
 func BackupExecutable() error {
 	execPath, err := os.Executable()
@@ -744,8 +757,7 @@ func BackupExecutable() error {
 
 	currentDir := utils.GetCurrentDir()
 	backupDir := filepath.Join(currentDir, "data", "backups_bin")
-	fileName := filepath.Base(execPath)
-	fileNameWithoutExt := strings.TrimSuffix(fileName, filepath.Ext(fileName))
+	fileNameWithoutExt := strings.TrimSuffix(normalizeExeBase(execPath), filepath.Ext(normalizeExeBase(execPath)))
 
 	backupPath, err := utils.BackupFile(execPath, backupDir, fileNameWithoutExt, 5)
 	if err != nil {
@@ -785,8 +797,7 @@ func ListBackups() ([]BackupInfo, error) {
 	if resolvedPath, err := filepath.EvalSymlinks(execPath); err == nil {
 		execPath = resolvedPath
 	}
-	fileName := filepath.Base(execPath)
-	fileNameWithoutExt := strings.TrimSuffix(fileName, filepath.Ext(fileName))
+	fileNameWithoutExt := strings.TrimSuffix(normalizeExeBase(execPath), filepath.Ext(normalizeExeBase(execPath)))
 
 	var list []BackupInfo
 	for _, entry := range entries {
@@ -859,6 +870,9 @@ func RollbackExecutable(version string) error {
 	if resolvedPath, err := filepath.EvalSymlinks(execPath); err == nil {
 		execPath = resolvedPath
 	}
+	// 运行中的程序可能已被替换/删除（os.Executable 返回 .old.* (deleted)），
+	// 回滚目标必须是磁盘上真实安装路径。
+	execPath = filepath.Join(filepath.Dir(execPath), normalizeExeBase(execPath))
 
 	updateDir := filepath.Dir(execPath)
 	filename := filepath.Base(execPath)

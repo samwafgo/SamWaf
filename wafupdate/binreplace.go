@@ -194,7 +194,8 @@ func CleanupLegacyLeftovers() {
 	if resolved, e := filepath.EvalSymlinks(exePath); e == nil {
 		exePath = resolved
 	}
-	sweepLeftovers(filepath.Dir(exePath), filepath.Base(exePath), true)
+	// 运行中的程序可能已被替换（os.Executable 返回 .old.* (deleted)），归一化后再清扫
+	sweepLeftovers(filepath.Dir(exePath), normalizeExeBase(exePath), true)
 }
 
 // replaceExecutable 用 stagedPath 处已就绪的新二进制原地替换 exePath。

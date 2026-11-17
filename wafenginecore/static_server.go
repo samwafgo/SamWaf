@@ -615,6 +615,7 @@ func (waf *WafEngine) logStaticFileAccess(path, remoteAddr string, fileSize int6
 	// 按照全局日志记录策略决定是否记录
 	// abnormal 模式下静态文件成功访问(ACTION=放行)通常不记录，但若命中过自定义规则(RULE 非空)仍要留痕
 	if shouldRecordWebLog(weblog, hostsafe) {
+		truncateWebLogBodyForQueue(weblog)
 		global.GQEQUE_LOG_DB.Enqueue(weblog)
 	}
 }
@@ -627,6 +628,7 @@ func (waf *WafEngine) logSecurityEvent(eventType, path, remoteAddr, details stri
 	weblog.RISK_LEVEL = 3 // 高风险
 
 	// 入队到日志系统
+	truncateWebLogBodyForQueue(weblog)
 	global.GQEQUE_LOG_DB.Enqueue(weblog)
 
 	// 同时记录到系统日志用于调试

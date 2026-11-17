@@ -449,6 +449,7 @@ func (waf *WafEngine) logAccessDenied(r *http.Request, hostTarget *wafenginmodel
 	weblogbean.STATUS = "302 Found"
 	weblogbean.STATUS_CODE = http.StatusFound
 	weblogbean.TASK_FLAG = 1
+	truncateWebLogBodyForQueue(weblogbean)
 	global.GQEQUE_LOG_DB.Enqueue(weblogbean)
 
 	accessAuditService.WriteDenied(waf_service.AuditEntry{

@@ -330,7 +330,9 @@ func (waf *WafEngine) getOrgContent(resp *http.Response, isStaticAssist bool, de
 }
 
 // 处理请求的Content-Encoding解压
-func (waf *WafEngine) decompressRequestContent(req *http.Request) ([]byte, error) {
+// maxDecompressedBytes 解压结果的读取上限：传 0 表示不限制（缓存等需要完整内容的场景）。
+// 超出上限时按上限截断并记 Warn 日志，返回的永远是可直接使用的字节前缀。
+func (waf *WafEngine) decompressRequestContent(req *http.Request, maxDecompressedBytes int64) ([]byte, error) {
 	if req.Body == nil || req.Body == http.NoBody {
 		return nil, nil
 	}
@@ -375,8 +377,19 @@ func (waf *WafEngine) decompressRequestContent(req *http.Request) ([]byte, error
 		return bodyBytes, nil
 	}
 
-	// 读取解压后的内容
-	decompressedBytes, readErr := io.ReadAll(bodyReader)
+	// 读取解压后的内容。LimitReader + 1 用于探测是否超限：
+	// 压缩报文的解压结果可能远大于原始流，读取必须封顶
+	var decompressedBytes []byte
+	var readErr error
+	if maxDecompressedBytes > 0 {
+		decompressedBytes, readErr = io.ReadAll(io.LimitReader(bodyReader, maxDecompressedBytes+1))
+		if readErr == nil && int64(len(decompressedBytes)) > maxDecompressedBytes {
+			decompressedBytes = decompressedBytes[:maxDecompressedBytes]
+			zlog.Warn(fmt.Sprintf("请求解压后内容超出读取上限，已按上限截断 上限=%d", maxDecompressedBytes))
+		}
+	} else {
+		decompressedBytes, readErr = io.ReadAll(bodyReader)
+	}
 	if readErr != nil {
 		zlog.Warn("读取解压后的请求体失败: %v", readErr)
 		return bodyBytes, fmt.Errorf("读取解压后的请求体失败: %v", readErr)

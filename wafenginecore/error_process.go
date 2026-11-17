@@ -174,6 +174,7 @@ func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean *innerbean
 					weblogbean.STATUS_CODE = 444
 					weblogbean.TASK_FLAG = 1
 					weblogbean.GUEST_IDENTIFICATION = "可疑用户"
+					truncateWebLogBodyForQueue(weblogbean)
 					global.GQEQUE_LOG_DB.Enqueue(weblogbean)
 				}
 				return 444
@@ -206,6 +207,7 @@ func EchoErrorInfo(w http.ResponseWriter, r *http.Request, weblogbean *innerbean
 		weblogbean.STATUS_CODE = responseCode
 		weblogbean.TASK_FLAG = 1
 		weblogbean.GUEST_IDENTIFICATION = "可疑用户"
+		truncateWebLogBodyForQueue(weblogbean)
 		global.GQEQUE_LOG_DB.Enqueue(weblogbean)
 	}
 	return responseCode
@@ -318,6 +320,7 @@ func EchoResponseErrorInfo(resp *http.Response, weblogbean *innerbean.WebLog, ru
 			weblogbean.STATUS_CODE = 444
 			weblogbean.TASK_FLAG = 1
 			weblogbean.GUEST_IDENTIFICATION = "可疑用户"
+			truncateWebLogBodyForQueue(weblogbean)
 			global.GQEQUE_LOG_DB.Enqueue(weblogbean)
 		}
 		return
@@ -347,6 +350,7 @@ func EchoResponseErrorInfo(resp *http.Response, weblogbean *innerbean.WebLog, ru
 		weblogbean.STATUS_CODE = responseCode
 		weblogbean.TASK_FLAG = 1
 		weblogbean.GUEST_IDENTIFICATION = "可疑用户"
+		truncateWebLogBodyForQueue(weblogbean)
 		global.GQEQUE_LOG_DB.Enqueue(weblogbean)
 	}
 }

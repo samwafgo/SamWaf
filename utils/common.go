@@ -585,14 +585,14 @@ func UpdateFileIsHasNewInfo(filePath, newContent string) error {
 	return nil
 }
 
+// AcmeChallengeTokenPattern 合法的 ACME http-01 token：base64url 字符，长度 1-255。
+// 写入侧（证书申请的 webroot provider）与流量侧（挑战文件服务）共用同一约束，
+// 避免两边口径漂移导致"写得出、服务不到"的签发失败。
+var AcmeChallengeTokenPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,255}$`)
+
 // IsValidChallengeFile 检查challenge文件是否合法
 func IsValidChallengeFile(challengeFile string) bool {
-	// 定义一个正则表达式：允许字母、数字、连字符、下划线，且长度在 1 到 255 之间
-	// 这里假设合法的文件名不含有特殊字符和空格
-	re := regexp.MustCompile(`^[a-zA-Z0-9_-]{1,255}$`)
-
-	// 判断文件名是否符合正则表达式
-	return re.MatchString(challengeFile)
+	return AcmeChallengeTokenPattern.MatchString(challengeFile)
 }
 
 // CheckPathAndCreate 检测路径如果不存在则创建

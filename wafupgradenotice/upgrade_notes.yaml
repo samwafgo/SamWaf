@@ -1558,3 +1558,69 @@ notes:
         settle when it finishes; a restart resumes from where it stopped. Counts of the same IP and tag
         are added together, and the "normal" tags that are no longer recorded are not merged back.
         IP tag write failures are now logged at Warn level (once per 10 minutes for the same error).
+
+  - id: v1_3_25_acme_challenge_file_guard
+    version: v1.3.25
+    kind: notice
+    level: normal
+    page: /waf-host/wafsslOrderlist
+    apply:
+      type: navigate
+    zh:
+      title: CA服务器与SSL证书订单的写操作限系统管理员，挑战文件名校验收紧
+      detail: >-
+        「CA服务器」的新增、编辑、删除与「SSL证书订单」的新建、续期、删除现仅限系统管理员角色，
+        其他角色仍可查看列表与详情；CA服务器地址新增/编辑时要求是可解析的 https 地址。
+        ACME 文件校验（http-01）的挑战文件名现在只允许字母、数字、下划线与连字符且必须落在本站点的校验目录内，
+        「SSL证书订单」的详情与列表不再向非系统管理员角色回显私钥与申请密钥材料。
+        不满足时该次写入/清理直接报错并记录日志。正常使用（Let's Encrypt、ZeroSSL 及标准内网 CA）不受影响。
+      revert: 无需调整配置；如需由其他角色管理 CA 服务器或证书订单，请调整账号角色为系统管理员。
+    en:
+      title: CA server and SSL order writes are limited to system admins; challenge file name validation tightened
+      detail: >-
+        Add, edit and delete on "CA Servers", and create, renew and delete on "SSL Certificate Orders"
+        are now limited to the system admin role; other roles can still view lists and details.
+        A CA server address must be a parseable https URL when added or edited.
+        The detail and list of "SSL Certificate Orders" no longer echo the private key or
+        the apply-key material to roles other than the system admin.
+        For ACME http-01 file validation, the challenge file name now accepts only letters, digits, underscores and hyphens
+        and must resolve inside the site's validation directory; otherwise the write or cleanup fails
+        with an error and a log entry. Normal use (Let's Encrypt, ZeroSSL and standard internal CAs)
+        is unaffected.
+      revert: No configuration change is required. To let another role manage CA servers or certificate orders, assign that account the system admin role.
+
+  - id: v1_3_25_request_body_detect_coverage
+    version: v1.3.25
+    kind: notice
+    level: high
+    page: /waf/wafvisitlog
+    apply:
+      type: navigate
+    zh:
+      title: 请求体检测覆盖分块传输与大报文
+      detail: >-
+        只要请求携带请求体就会进入 SQL 注入、命令执行、敏感词等原生检测：
+        最多读取前 1MB 作为检测输入，日志落库按「记录请求最大报文长度」上限截断，
+        两条上限互不影响；
+        未读完的原始流原样还原，反向代理转发与表单解析保持逐字节一致。
+        分块传输（chunked）与携带大报文的请求因此也会被原生规则检测，
+        其中一小部分此前放行的请求可能被规则命中，属预期内的覆盖补齐；
+        超大上传（如大文件）只多读 1MB 前缀，转发内容不变。
+        内存日志队列、Kafka 与文件导出现统一在入队前按「记录请求最大报文长度」上限截断请求体原文，
+        与落库上限保持一致。
+      revert: 无开关；如遇个别大报文请求被误拦，按既有方式在该站规则中放行对应路径或调整规则。
+    en:
+      title: Request body inspection now covers chunked transfers and large bodies
+      detail: >-
+        Any request carrying a body is read for native detection such as SQL injection, command
+        execution and sensitive-word rules:
+        at most the first 1MB is used as detection input, while log storage is truncated
+        at the existing limit - the two limits are independent. The unread remainder of the stream
+        is handed back untouched, so reverse-proxy forwarding and form parsing stay byte-identical.
+        Chunked transfers and large-body requests are therefore inspected by the native rules too,
+        and a small number of requests that previously passed may now match a rule, which is the
+        intended coverage completion. Very large uploads (e.g. big files) only add a 1MB prefix read;
+        forwarded content is unchanged. The request body carried by the in-memory log queue, Kafka
+        and file export is now truncated at the same 'max recorded request body size' limit before
+        enqueue.
+      revert: No switch is provided. If an occasional large-body request is blocked by mistake, whitelist its path for the site or tune the rule as usual.

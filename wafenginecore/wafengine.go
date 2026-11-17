@@ -269,30 +269,10 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		// 获取请求报文的内容长度（chunked 时 Go 给 -1，先归一，避免统计出现负数）
 		contentLength := sanitizeContentLength(r.ContentLength)
-		var bodyByte []byte
 
-		// 拷贝一份request的Body ,控制不记录大文件的情况
-		if r.Body != nil && r.Body != http.NoBody && (contentLength > 0) && (contentLength < (global.GCONFIG_RECORD_MAX_BODY_LENGTH) || cacheConfig.IsEnableCache == 1) {
-			// 检查请求是否包含Content-Encoding
-			if r.Header.Get("Content-Encoding") != "" {
-				// 处理压缩的请求体
-				decompressedBytes, decompressErr := waf.decompressRequestContent(r)
-				if decompressErr != nil {
-					zlog.Warn("请求Content-Encoding处理失败: %v", decompressErr)
-					// 如果解压失败，使用原始内容
-					bodyByte, _ = io.ReadAll(r.Body)
-					r.Body = io.NopCloser(bytes.NewBuffer(bodyByte))
-				} else {
-					bodyByte = decompressedBytes
-					// 请求体已经在decompressRequestContent中更新
-				}
-			} else {
-				// 没有压缩，正常处理
-				bodyByte, _ = io.ReadAll(r.Body)
-				// 把刚刚读出来的再写进去，不然后面解析表单数据就解析不到了
-				r.Body = io.NopCloser(bytes.NewBuffer(bodyByte))
-			}
-		}
+		// 读取请求体作为检测输入（分块传输与超大请求体同样覆盖），
+		// 读完后 r.Body 完整还原，供下游代理转发与表单解析继续消费
+		bodyByte := waf.readRequestBodyForDetect(r, cacheConfig.IsEnableCache == 1)
 		cookies, _ := json.Marshal(r.Cookies())
 
 		header := joinHeader(r.Header)
@@ -442,6 +422,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				weblogbean.STATUS_CODE = loopRespCode // 与实际下发码一致（默认508，或用户自定义拦截页配置的码）
 				weblogbean.TASK_FLAG = 1
 				weblogbean.GUEST_IDENTIFICATION = "可疑用户"
+				truncateWebLogBodyForQueue(&weblogbean)
 				global.GQEQUE_LOG_DB.Enqueue(&weblogbean)
 				return
 			}
@@ -777,6 +758,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				weblogbean.STATUS = http.StatusText(http.StatusNotFound)
 				weblogbean.STATUS_CODE = http.StatusNotFound
 				weblogbean.TASK_FLAG = 1
+				truncateWebLogBodyForQueue(&weblogbean)
 				global.GQEQUE_LOG_DB.Enqueue(&weblogbean)
 				warnACMEChallenge(weblogbean.HOST, weblogbean.HOST_CODE, weblogbean.URL, "", "", 0,
 					"静态站点模式下本地无对应的校验文件",
@@ -809,6 +791,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				} else {
 					weblogbean.ACTION = "禁止"
 				}
+				truncateWebLogBodyForQueue(&weblogbean)
 				global.GQEQUE_LOG_DB.Enqueue(&weblogbean)
 				return
 			}
@@ -923,6 +906,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		//记录响应body
 		weblogbean.RES_BODY = string(resBytes)
 		weblogbean.ACTION = "禁止"
+		truncateWebLogBodyForQueue(&weblogbean)
 		global.GQEQUE_LOG_DB.Enqueue(&weblogbean)
 	}
 }
@@ -1055,6 +1039,7 @@ func (waf *WafEngine) errorResponse() func(http.ResponseWriter, *http.Request, e
 			weblogReq.RES_BODY = fmt.Sprintf("类型:%s \r\n请求相关信息:%v \r\n 错误信息:%v \r\n ctxErr:%v \r\n", category, requestInfo, err.Error(), ctxErr)
 			weblogReq.TASK_FLAG = 1
 			if global.GQEQUE_LOG_DB != nil {
+				truncateWebLogBodyForQueue(weblogReq)
 				global.GQEQUE_LOG_DB.Enqueue(weblogReq)
 			}
 
@@ -1137,6 +1122,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 
 				// 记录日志
 				if shouldRecordWebLog(weblogfrist, waf.rt().HostTarget[host]) {
+					truncateWebLogBodyForQueue(weblogfrist)
 					global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
 				}
 			}
@@ -1174,6 +1160,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 				weblogfrist.TimeSpent = datetimeNow.UnixNano()/1e6 - weblogfrist.UNIX_ADD_TIME
 				weblogfrist.BackendCheckCost = datetimeNow.UnixNano()/1e6 - backendCheckStart
 				if shouldRecordWebLog(weblogfrist, hostTarget) {
+					truncateWebLogBodyForQueue(weblogfrist)
 					global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
 				}
 				return nil
@@ -1225,6 +1212,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 
 					// 记录流式访问日志
 					if shouldRecordWebLog(weblogfrist, waf.rt().HostTarget[host]) {
+						truncateWebLogBodyForQueue(weblogfrist)
 						global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
 					}
 
@@ -1390,6 +1378,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 
 						// 记录日志 - 根据配置决定是否记录
 						if shouldRecordWebLog(weblogfrist, waf.rt().HostTarget[host]) {
+							truncateWebLogBodyForQueue(weblogfrist)
 							global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
 						}
 
@@ -1408,6 +1397,7 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 				weblogfrist.TASK_FLAG = 1
 				weblogfrist.BackendCheckCost = time.Now().UnixNano()/1e6 - backendCheckStart //响应数据处理时间
 				if shouldRecordWebLog(weblogfrist, waf.rt().HostTarget[host]) {
+					truncateWebLogBodyForQueue(weblogfrist)
 					global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
 				}
 
@@ -1432,6 +1422,76 @@ func sanitizeContentLength(n int64) int64 {
 		return 0
 	}
 	return n
+}
+
+// detectBodyReadLimit 安全检测用的请求体读取上限（检测预算，不是日志落库上限）。
+// 日志落库仍在 wafqueue 持久化副本里按 GCONFIG_RECORD_MAX_BODY_LENGTH 截断，两处互不影响。
+const detectBodyReadLimit = 1 << 20 // 1 MB
+
+// detectDecompressLimit 压缩请求体解压后的读取上限（检测预算）。
+// 高压缩比报文解压后可能远大于原始流，解压结果读取必须单独封顶；
+// 传 0 表示不限制（缓存等需要完整内容的场景）。
+const detectDecompressLimit = 10 << 20 // 10 MB
+
+// readRequestBodyForDetect 读取请求体作为检测输入，并保证 r.Body 对下游完整可重读。
+// 只要请求带 body（含分块传输、Content-Length 超过日志上限的大请求体）就总是读取：
+// 常规分支只读检测预算内的前缀，未读完的原始流拼回 r.Body，代理转发一字节不丢；
+// 缓存分支需要完整请求体计算缓存键与内容，保持全量读取。
+func (waf *WafEngine) readRequestBodyForDetect(r *http.Request, cacheEnabled bool) []byte {
+	if r.Body == nil || r.Body == http.NoBody {
+		return nil
+	}
+
+	// 压缩请求体：解压结果作为检测输入，原始流已在解压函数内还原。
+	// 缓存开启时不限制解压结果，保持完整内容语义
+	decompressLimit := int64(detectDecompressLimit)
+	if cacheEnabled {
+		decompressLimit = 0
+	}
+	if r.Header.Get("Content-Encoding") != "" {
+		decompressedBytes, decompressErr := waf.decompressRequestContent(r, decompressLimit)
+		if decompressErr != nil {
+			zlog.Warn("请求Content-Encoding处理失败: %v", decompressErr)
+			// 解压失败退回原始内容：与常规分支同构，只读检测预算内的前缀，
+			// 剩余原始流拼回 r.Body，保证转发不丢字节
+			var prefix bytes.Buffer
+			_, _ = io.CopyN(&prefix, r.Body, detectBodyReadLimit)
+			bodyByte := prefix.Bytes()
+			r.Body = &multiReadCloser{
+				Reader: io.MultiReader(bytes.NewReader(bodyByte), r.Body),
+				Closer: r.Body,
+			}
+			return bodyByte
+		}
+		if len(decompressedBytes) > detectBodyReadLimit {
+			return decompressedBytes[:detectBodyReadLimit]
+		}
+		return decompressedBytes
+	}
+
+	if cacheEnabled {
+		// 缓存分支：完整请求体参与缓存键与内容，保持全量读取
+		bodyByte, _ := io.ReadAll(r.Body)
+		r.Body = io.NopCloser(bytes.NewBuffer(bodyByte))
+		return bodyByte
+	}
+
+	// 常规分支：只读检测预算内的前缀，剩余原始流原样拼回
+	var prefix bytes.Buffer
+	_, _ = io.CopyN(&prefix, r.Body, detectBodyReadLimit)
+	bodyByte := prefix.Bytes()
+	r.Body = &multiReadCloser{
+		Reader: io.MultiReader(bytes.NewReader(bodyByte), r.Body),
+		Closer: r.Body,
+	}
+	return bodyByte
+}
+
+// multiReadCloser 把前缀缓冲与剩余原始流拼成一个 ReadCloser，
+// 读取面走 MultiReader，关闭时回落到原请求的 Body。
+type multiReadCloser struct {
+	io.Reader
+	io.Closer
 }
 
 func joinHeader(h http.Header) string {

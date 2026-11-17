@@ -2,10 +2,12 @@ package ssl
 
 import (
 	"SamWaf/common/zlog"
+	"SamWaf/utils"
 	"SamWaf/wafacme"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/go-acme/lego/v4/challenge"
@@ -56,14 +58,40 @@ func newLoggingWebrootProvider(root, hostCode string) (*loggingWebrootProvider, 
 	return &loggingWebrootProvider{inner: inner, root: root, hostCode: hostCode}, nil
 }
 
-// challengeFilePath 挑战文件的绝对路径，拼法与 lego 内部保持一致。
-func (p *loggingWebrootProvider) challengeFilePath(token string) string {
-	return filepath.Join(p.root, http01.ChallengePath(token))
+// challengeTokenPattern 与流量侧（utils.IsValidChallengeFile）共用同一约束，
+// 保证写入侧与服务侧对 token 的判定完全一致。
+var challengeTokenPattern = utils.AcmeChallengeTokenPattern
+
+// resolveChallengeFilePath 计算挑战文件的落盘路径。
+// 两层约束都满足才返回路径：token 必须匹配 base64url 字符集；
+// 最终路径必须与 root 做绝对路径前缀锚定，确保落在校验目录之内。
+// 任何一层不满足都返回错误，调用方不得继续写盘/删盘。
+func (p *loggingWebrootProvider) resolveChallengeFilePath(token string) (string, error) {
+	if !challengeTokenPattern.MatchString(token) {
+		return "", fmt.Errorf("挑战token不符合base64url格式")
+	}
+	rootAbs, err := filepath.Abs(p.root)
+	if err != nil {
+		return "", err
+	}
+	targetAbs, err := filepath.Abs(filepath.Join(rootAbs, http01.ChallengePath(token)))
+	if err != nil {
+		return "", err
+	}
+	rel, err := filepath.Rel(rootAbs, targetAbs)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return "", fmt.Errorf("挑战文件路径超出校验目录")
+	}
+	return targetAbs, nil
 }
 
 // Present 写挑战文件（CA 校验前）。
 func (p *loggingWebrootProvider) Present(domain, token, keyAuth string) error {
-	path := p.challengeFilePath(token)
+	path, err := p.resolveChallengeFilePath(token)
+	if err != nil {
+		zlog.Error(fmt.Sprintf("%s文件校验-挑战token校验未通过 域名=%s 错误=%v", acmeLogPrefix, domain, err))
+		return err
+	}
 
 	if err := p.inner.Present(domain, token, keyAuth); err != nil {
 		zlog.Error(fmt.Sprintf("%s文件校验-挑战文件写入失败 域名=%s 路径=%s 错误=%v", acmeLogPrefix, domain, path, err))
@@ -91,7 +119,12 @@ func (p *loggingWebrootProvider) Present(domain, token, keyAuth string) error {
 
 // CleanUp 删挑战文件（CA 校验后，无论成败都会调用）。
 func (p *loggingWebrootProvider) CleanUp(domain, token, keyAuth string) error {
-	path := p.challengeFilePath(token)
+	path, err := p.resolveChallengeFilePath(token)
+	if err != nil {
+		// token 未通过校验说明没有对应的登记与文件，直接返回，不做任何磁盘操作
+		zlog.Warn(fmt.Sprintf("%s文件校验-挑战token校验未通过 域名=%s 错误=%v", acmeLogPrefix, domain, err))
+		return err
+	}
 
 	// 先注销再删文件：反过来的话，两者之间的空档里流量侧会查到 token
 	// 却读不到文件，白白多一次读盘

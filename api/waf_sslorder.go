@@ -24,6 +24,34 @@ import (
 type WafSslOrderApi struct {
 }
 
+// canViewSslOrderSecrets 证书订单私钥字段仅系统管理员与超管可见。
+// OpenAPI Key 调用与角色不明的请求一律按不可见处理（fail-closed）。
+func canViewSslOrderSecrets(c *gin.Context) bool {
+	if c.GetBool("is_openapi") {
+		return false
+	}
+	roleVal, ok := c.Get("userRole")
+	if !ok {
+		return false
+	}
+	role, _ := roleVal.(string)
+	return role == enums.ROLE_SYSTEM_ADMIN || role == enums.ROLE_SUPER_ADMIN
+}
+
+// maskSslOrderSecrets 按当前登录角色抹掉订单里的私钥字段（置空而非删除字段，前端结构不变）。
+func maskSslOrderSecrets(c *gin.Context, orders ...*model.SslOrder) {
+	if canViewSslOrderSecrets(c) {
+		return
+	}
+	for _, o := range orders {
+		if o == nil {
+			continue
+		}
+		o.ResultPrivateKey = nil
+		o.ApplyKey = ""
+	}
+}
+
 // AddApi 新建SSL证书申请订单
 // @Summary      新建SSL证书申请订单
 // @Description  向 Let's Encrypt 或 ZeroSSL 发起新的 SSL 证书申请
@@ -112,6 +140,7 @@ func (w *WafSslOrderApi) GetDetailApi(c *gin.Context) {
 	err := c.ShouldBind(&req)
 	if err == nil {
 		bean := wafSslOrderService.GetDetailApi(req)
+		maskSslOrderSecrets(c, &bean)
 		response.OkWithDetailed(bean, "获取成功", c)
 	} else {
 		response.FailWithMessage("解析失败", c)
@@ -133,6 +162,9 @@ func (w *WafSslOrderApi) GetListApi(c *gin.Context) {
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
 		beans, total, _ := wafSslOrderService.GetListApi(req)
+		for i := range beans {
+			maskSslOrderSecrets(c, &beans[i])
+		}
 		response.OkWithDetailed(response.PageResult{
 			List:      beans,
 			Total:     total,

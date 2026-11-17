@@ -75,6 +75,12 @@ builds:
       - -X SamWaf/global.GWAF_RELEASE_VERSION={{.Tag}}
       - -s -w
       - -extldflags "-static"
+# 校验清单不在此生成：GoReleaser 只构建 Linux/Windows 三个包，生成的清单会漏掉
+# macOS 与 Win7/2008 专用版（另外两个任务稍后上传）。统一由 goreleaser.yml 的
+# release-checksums 任务在全部产物上传完成后汇总 release 全部资产再生成。
+checksum:
+  disable: true
+
 upx:
   - # Whether to enable it or not.
     #

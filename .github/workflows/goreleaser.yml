@@ -336,9 +336,38 @@ jobs:
           name: SamWaf64ForWin7Win8Win2008
           path: release/SamWaf64ForWin7Win8Win2008.exe
       
-      - name: Release 
+      - name: Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
             release/SamWaf64ForWin7Win8Win2008.exe
+
+  # 汇总全部资产的校验清单：三个编译任务各自只上传自己构建的产物，
+  # 任何单一任务生成的 checksums 都会漏掉其余平台的资产。
+  # 这里等三者全部完成、release 资产齐了以后统一下载、统一算 SHA256。
+  release-checksums:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [goreleaser-linux-windows, goreleaser-macos, win7win2008r2]
+    steps:
+      - name: Aggregate release checksums
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VER_NUM="${TAG#v}"
+
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir assets
+
+          # 清掉 release 上已有的校验清单（历史版本可能是不同任务生成的），只保留产物
+          rm -f assets/*checksums*.txt
+
+          cd assets
+          # 条目名沿用历史格式：文件名里的 ".<tag>" 记作 " <tag>"（空格形态）。
+          # GitHub 落盘资产名会把空格转成点，install_samwaf.sh 与
+          # download-release.sh 两个消费端都是按空格形态解析的。
+          sha256sum * | sed "s/\.${TAG}/ ${TAG}/" > "SamWaf_${VER_NUM}_checksums.txt"
+          cat "SamWaf_${VER_NUM}_checksums.txt"
+
+          gh release upload "$TAG" "SamWaf_${VER_NUM}_checksums.txt" --repo "$GITHUB_REPOSITORY" --clobber

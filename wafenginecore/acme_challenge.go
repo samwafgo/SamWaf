@@ -151,6 +151,7 @@ func (waf *WafEngine) tryServeACMEChallenge(w http.ResponseWriter, r *http.Reque
 	weblogbean.RULE = "ACME证书校验"
 	weblogbean.TASK_FLAG = 1
 	weblogbean.TimeSpent = time.Now().UnixNano()/1e6 - weblogbean.UNIX_ADD_TIME
+	truncateWebLogBodyForQueue(weblogbean)
 	global.GQEQUE_LOG_DB.Enqueue(weblogbean)
 
 	infoACMEChallengeHit(weblogbean.HOST, weblogbean.HOST_CODE, weblogbean.URL,
@@ -206,6 +207,7 @@ func handleACMEChallengeResponse(resp *http.Response, weblogfrist *innerbean.Web
 		weblogfrist.RULE = "ACME证书校验"
 		weblogfrist.TASK_FLAG = 1
 		weblogfrist.BackendCheckCost = time.Now().UnixNano()/1e6 - backendCheckStart
+		truncateWebLogBodyForQueue(weblogfrist)
 		global.GQEQUE_LOG_DB.Enqueue(weblogfrist)
 
 		infoACMEChallengeHit(weblogfrist.HOST, weblogfrist.HOST_CODE, weblogfrist.URL, filePath, resp.StatusCode)

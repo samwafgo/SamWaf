@@ -285,5 +285,6 @@ func (waf *WafEngine) enqueueTamperLog(weblog *innerbean.WebLog, excludeURLLog s
 	if isURLLogExcluded(weblog.URL, excludeURLLog) {
 		return
 	}
+	truncateWebLogBodyForQueue(weblog)
 	global.GQEQUE_LOG_DB.Enqueue(weblog)
 }

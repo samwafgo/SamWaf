@@ -1,11 +1,12 @@
 package wafowasp
 
 import (
+	"SamWaf/common/httpbody"
 	"SamWaf/common/zlog"
 	"SamWaf/innerbean"
-	"bytes"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"strconv"
 	"strings"
@@ -19,8 +20,7 @@ import (
 	"github.com/corazawaf/coraza/v3/types/variables"
 )
 
-// maxRequestBodyBytes 请求体读取上限，与 coraza.conf 中的 SecRequestBodyLimit 保持一致（13MB）。
-// 防止 io.ReadAll 在极端大请求体下出现无限分配。
+// maxRequestBodyBytes 限制直接从请求流读取的检测前缀大小。
 const maxRequestBodyBytes = 13 * 1024 * 1024
 
 // debugEnabled 是否开启 OWASP 详细日志（慢路径：采集全部 collection）。
@@ -84,14 +84,6 @@ func GetBodyInspectLimit() int64 {
 	return bodyInspectLimit.Load()
 }
 
-// bodyBufferPool 用于回放 r.Body 时复用底层缓冲区，降低 GC 压力。
-var bodyBufferPool = sync.Pool{
-	New: func() interface{} {
-		b := make([]byte, 0, 4096)
-		return &b
-	},
-}
-
 // CustomLogger 自定义日志记录器，用于集成 zlog
 type CustomLogger struct{}
 
@@ -127,14 +119,22 @@ func NewWafOWASP(isActive bool, currentDir string) *WafOWASP {
 	}
 }
 
-// ProcessRequest 处理 HTTP 请求。weblog 使用指针避免热路径上的结构体值拷贝（WebLog 可能内嵌 MB 级 BODY/RES_BODY）。
-func (w *WafOWASP) ProcessRequest(r *http.Request, weblog *innerbean.WebLog) (bool, *types.Interruption, error) {
+// ProcessRequest 处理 HTTP 请求。retainBody 登记回源完成后释放请求缓冲的操作。
+func (w *WafOWASP) ProcessRequest(r *http.Request, weblog *innerbean.WebLog, retainBody func(func())) (bool, *types.Interruption, error) {
 	if !w.IsActive || w.WAF == nil {
 		return false, nil, nil
 	}
 
 	tx := w.WAF.NewTransaction()
-	defer tx.Close()
+	retained := false
+	defer func() {
+		if !retained {
+			tx.Close()
+		}
+	}()
+	if tx.IsRuleEngineOff() {
+		return false, nil, nil
+	}
 
 	// 1. 处理连接信息
 	if err := w.processConnection(tx, weblog, r); err != nil {
@@ -152,9 +152,22 @@ func (w *WafOWASP) ProcessRequest(r *http.Request, weblog *innerbean.WebLog) (bo
 		return w.handleInterruption(tx, it)
 	}
 
-	// 5. 处理请求体（流式，避免多份副本）
-	if err := w.processRequestBody(tx, r, weblog); err != nil {
-		return false, nil, fmt.Errorf("request body processing error: %v", err)
+	// 5. 处理请求体
+	mediaType, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if mediaType == "multipart/form-data" && r.Header.Get("Content-Encoding") == "" &&
+		tx.IsRequestBodyAccessible() && r.Body != nil && r.Body != http.NoBody {
+		it, err := readMultipartBody(tx, r, retainBody)
+		if err != nil {
+			return false, nil, fmt.Errorf("request body processing error: %w", err)
+		}
+		retained = true
+		if it != nil {
+			return w.handleInterruption(tx, it)
+		}
+	} else if tx.IsRequestBodyAccessible() {
+		if err := w.processRequestBody(tx, r, weblog); err != nil {
+			return false, nil, fmt.Errorf("request body processing error: %w", err)
+		}
 	}
 
 	// 6. 检查请求体阶段的中断
@@ -367,12 +380,51 @@ func (w *WafOWASP) processRequestHeaders(tx types.Transaction, r *http.Request) 
 	}
 }
 
-// processRequestBody 处理请求体（流式，避免多份内存副本）
-//
-// 优化要点：
-//   - weblog.BODY 非空时直接 strings.NewReader 零拷贝共享底层字符串（原实现 []byte(weblog.BODY) 会多分配一份）
-//   - 从 r.Body 读取时用 io.LimitReader 封顶，最大 maxRequestBodyBytes，避免无限读
-//   - 读到的字节复用给下游消费，原实现会让同一 body 同时存在 3 份（weblog 字符串 + []byte 副本 + coraza 内部缓冲）
+// readMultipartBody 使用 Coraza 的缓冲保留已读数据，供检测和回源共同使用。
+func readMultipartBody(tx types.Transaction, r *http.Request, retainBody func(func())) (*types.Interruption, error) {
+	var source io.Reader = r.Body
+	if limit := GetBodyInspectLimit(); limit > 0 {
+		source = io.LimitReader(source, limit)
+	}
+	it, _, err := tx.ReadRequestBodyFrom(source)
+	if err != nil {
+		httpbody.Replay(r, nil, err)
+		return nil, err
+	}
+	prefix, err := tx.RequestBodyReader()
+	if err != nil {
+		httpbody.Replay(r, nil, err)
+		return nil, err
+	}
+	replay := &multipartReplay{prefix: prefix}
+	httpbody.Replay(r, replay, nil)
+	retainBody(func() { replay.release(tx) })
+	return it, nil
+}
+
+// multipartReplay 同步回源读取和请求结束时的缓冲释放。
+type multipartReplay struct {
+	mu     sync.Mutex
+	prefix io.Reader
+}
+
+func (r *multipartReplay) Read(p []byte) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.prefix == nil {
+		return 0, io.ErrClosedPipe
+	}
+	return r.prefix.Read(p)
+}
+
+func (r *multipartReplay) release(tx types.Transaction) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.prefix = nil
+	tx.Close()
+}
+
+// processRequestBody 将检测预算内的数据交给 Coraza，保留完整的下游请求流。
 func (w *WafOWASP) processRequestBody(tx types.Transaction, r *http.Request, weblog *innerbean.WebLog) error {
 	// 优先使用上游已经读取好的 body，避免二次读 r.Body
 	if weblog != nil && weblog.BODY != "" {
@@ -393,44 +445,17 @@ func (w *WafOWASP) processRequestBody(tx types.Transaction, r *http.Request, web
 		return nil
 	}
 
-	if r.Body == nil {
-		return nil
+	limit := int64(maxRequestBodyBytes)
+	if configured := GetBodyInspectLimit(); configured > 0 && configured < limit {
+		limit = configured
 	}
-
-	// 读取 r.Body 并封顶。LimitReader + 1 用于探测是否超限（coraza 自身也会按 SecRequestBodyLimit 截断）
-	bufPtr := bodyBufferPool.Get().(*[]byte)
-	buf := bytes.NewBuffer((*bufPtr)[:0])
-	defer func() {
-		// 回池前丢弃过大的 buffer，避免长期占用
-		if cap(buf.Bytes()) <= 1<<20 { // 1MB
-			*bufPtr = buf.Bytes()[:0]
-			bodyBufferPool.Put(bufPtr)
-		}
-	}()
-
-	_, err := io.Copy(buf, io.LimitReader(r.Body, maxRequestBodyBytes))
+	prefix, err := httpbody.ReadPrefix(r, limit)
 	if err != nil {
-		return fmt.Errorf("failed to read request body: %v", err)
+		return fmt.Errorf("failed to read request body: %w", err)
 	}
-
-	data := buf.Bytes()
-	// 重置 body 以便下游继续消费（完整副本，不受检测截断影响）
-	bodyCopy := make([]byte, len(data))
-	copy(bodyCopy, data)
-	r.Body = io.NopCloser(bytes.NewReader(bodyCopy))
-
-	// 仅截断送入 Coraza 的部分，r.Body 已还原为完整数据
-	inspectData := bodyCopy
-	if limit := GetBodyInspectLimit(); limit > 0 && int64(len(bodyCopy)) > limit {
-		inspectData = bodyCopy[:limit]
-		zlog.Warn("processRequestBody: body truncated for Coraza inspection", map[string]interface{}{
-			"original_bytes": len(bodyCopy),
-			"inspect_limit":  limit,
-		})
-	}
-	if len(inspectData) > 0 {
-		if _, _, err := tx.WriteRequestBody(inspectData); err != nil {
-			return fmt.Errorf("failed to write request body: %v", err)
+	if len(prefix) > 0 {
+		if _, _, err := tx.WriteRequestBody(prefix); err != nil {
+			return fmt.Errorf("failed to write request body: %w", err)
 		}
 	}
 

@@ -2,6 +2,7 @@ package wafenginecore
 
 import (
 	"SamWaf/common/domaintool"
+	"SamWaf/common/httpbody"
 	"SamWaf/common/uuid"
 	"SamWaf/common/zlog"
 	"SamWaf/customtype"
@@ -600,7 +601,15 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 				//检测OWASP（全局开关或站点级 owaspset 启用时才进入）
 				if (global.GCONFIG_RECORD_ENABLE_OWASP == 1 || hostDefense.DEFENSE_OWASP_SET == 1) && !ruleSkip("OWASP") {
-					if handleBlock(waf.CheckOwasp) {
+					var releaseBody func()
+					defer func() {
+						if releaseBody != nil {
+							releaseBody()
+						}
+					}()
+					if handleBlock(func(r *http.Request, log *innerbean.WebLog, _ url.Values, _, _ *wafenginmodel.HostSafe) detection.Result {
+						return waf.CheckOwasp(r, log, func(release func()) { releaseBody = release })
+					}) {
 						return
 					}
 				}
@@ -1444,14 +1453,8 @@ func (waf *WafEngine) readRequestBodyForDetect(r *http.Request, cacheEnabled boo
 			zlog.Warn("请求Content-Encoding处理失败: %v", decompressErr)
 			// 解压失败退回原始内容：与常规分支同构，只读检测预算内的前缀，
 			// 剩余原始流拼回 r.Body，保证转发不丢字节
-			var prefix bytes.Buffer
-			_, _ = io.CopyN(&prefix, r.Body, detectBodyReadLimit)
-			bodyByte := prefix.Bytes()
-			r.Body = &multiReadCloser{
-				Reader: io.MultiReader(bytes.NewReader(bodyByte), r.Body),
-				Closer: r.Body,
-			}
-			return bodyByte
+			prefix, _ := httpbody.ReadPrefix(r, detectBodyReadLimit)
+			return prefix
 		}
 		if len(decompressedBytes) > detectBodyReadLimit {
 			return decompressedBytes[:detectBodyReadLimit]
@@ -1467,21 +1470,8 @@ func (waf *WafEngine) readRequestBodyForDetect(r *http.Request, cacheEnabled boo
 	}
 
 	// 常规分支：只读检测预算内的前缀，剩余原始流原样拼回
-	var prefix bytes.Buffer
-	_, _ = io.CopyN(&prefix, r.Body, detectBodyReadLimit)
-	bodyByte := prefix.Bytes()
-	r.Body = &multiReadCloser{
-		Reader: io.MultiReader(bytes.NewReader(bodyByte), r.Body),
-		Closer: r.Body,
-	}
-	return bodyByte
-}
-
-// multiReadCloser 把前缀缓冲与剩余原始流拼成一个 ReadCloser，
-// 读取面走 MultiReader，关闭时回落到原请求的 Body。
-type multiReadCloser struct {
-	io.Reader
-	io.Closer
+	prefix, _ := httpbody.ReadPrefix(r, detectBodyReadLimit)
+	return prefix
 }
 
 func joinHeader(h http.Header) string {

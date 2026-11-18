@@ -41,6 +41,13 @@ func writeUnmatchedHostResponse(w http.ResponseWriter, r *http.Request, globalHo
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
+	applySpecialPageHeaders(w.Header(), customHeaders)
+	w.WriteHeader(http.StatusForbidden)
+	_, _ = w.Write(body)
+	return body
+}
+
+func applySpecialPageHeaders(dst http.Header, customHeaders string) {
 	var headers []map[string]string
 	if json.Unmarshal([]byte(customHeaders), &headers) == nil {
 		for _, header := range headers {
@@ -50,11 +57,8 @@ func writeUnmatchedHostResponse(w http.ResponseWriter, r *http.Request, globalHo
 				continue
 			}
 			if httpguts.ValidHeaderFieldName(name) && httpguts.ValidHeaderFieldValue(value) {
-				w.Header().Set(name, value)
+				dst.Set(name, value)
 			}
 		}
 	}
-	w.WriteHeader(http.StatusForbidden)
-	_, _ = w.Write(body)
-	return body
 }

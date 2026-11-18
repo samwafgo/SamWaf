@@ -149,23 +149,7 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&httpAuthList)
 
 	//查询自定义拦截界面
-	var blockingPageList []model.BlockingPage
-	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Order("update_time ASC, id ASC").Find(&blockingPageList)
-	blockingPageMap := map[string]model.BlockingPage{}
-	if len(blockingPageList) > 0 {
-		for i := 0; i < len(blockingPageList); i++ {
-			if blockingPageList[i].BlockingType == "not_match_website" {
-				// 域名不匹配使用固定的key
-				blockingPageMap["not_match_website"] = blockingPageList[i]
-			} else if blockingPageList[i].BlockingType == "other_block" && blockingPageList[i].ResponseCode != "not_match_website" {
-				// other_block 类型根据 response_code 区分不同的错误页面
-				// 例如: 403(WAF拦截), 404, 500, 502 等
-				if blockingPageList[i].ResponseCode != "" {
-					blockingPageMap[blockingPageList[i].ResponseCode] = blockingPageList[i]
-				}
-			}
-		}
-	}
+	blockingPageMap := waf_service.WafBlockingPageServiceApp.LoadBlockingPageMap(inHost.Code)
 	//查询缓存规则
 	var cacheRuleList []model.CacheRule
 	global.GWAF_LOCAL_DB.Where("host_code=? ", inHost.Code).Find(&cacheRuleList)
@@ -192,32 +176,32 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 			WeightRoundRobinBalance: loadbalance.NewWeightRoundRobinBalance(inHost.Code),
 			IpHashBalance:           loadbalance.NewConsistentHashBalance(nil, inHost.Code),
 		},
-		LoadBalanceLists:    loadBalanceList,
-		Rule:                ruleHelper,
-		TargetHost:          inHost.Remote_host + ":" + strconv.Itoa(inHost.Remote_port),
-		RuleData:            ruleconfigs,
-		RuleVersionSum:      vcnt,
-		Host:                inHost,
-		PluginIpRateLimiter: pluginIpRateLimiter,
-		CCRules:             ccRules,
-		IPWhiteLists:        ipwhitelist,
-		IPWhiteIndex:        BuildIPAllowIndex(ipwhitelist),
-		IPWhiteGroupCodes:   ExtractAllowGroupCodes(ipwhitelist),
-		UrlWhiteLists:       urlwhitelist,
-		LdpUrlLists:         ldpurls,
-		IPBlockLists:        ipblocklist,
-		IPBlockIndex:        BuildIPBlockIndex(ipblocklist),
-		IPBlockGroupCodes:   ExtractBlockGroupCodes(ipblocklist),
+		LoadBalanceLists:       loadBalanceList,
+		Rule:                   ruleHelper,
+		TargetHost:             inHost.Remote_host + ":" + strconv.Itoa(inHost.Remote_port),
+		RuleData:               ruleconfigs,
+		RuleVersionSum:         vcnt,
+		Host:                   inHost,
+		PluginIpRateLimiter:    pluginIpRateLimiter,
+		CCRules:                ccRules,
+		IPWhiteLists:           ipwhitelist,
+		IPWhiteIndex:           BuildIPAllowIndex(ipwhitelist),
+		IPWhiteGroupCodes:      ExtractAllowGroupCodes(ipwhitelist),
+		UrlWhiteLists:          urlwhitelist,
+		LdpUrlLists:            ldpurls,
+		IPBlockLists:           ipblocklist,
+		IPBlockIndex:           BuildIPBlockIndex(ipblocklist),
+		IPBlockGroupCodes:      ExtractBlockGroupCodes(ipblocklist),
 		IPLogExcludeIndex:      BuildIPLogExcludeIndex(inHost.EXCLUDE_IP_LOG),
 		IPLogExcludeGroupCodes: ExtractIPLogExcludeGroupCodes(inHost.EXCLUDE_IP_LOG),
-		UrlBlockLists:       urlblocklist,
-		AntiCCBean:          anticcBean,
-		HttpAuthBases:       httpAuthList,
-		BlockingPage:        blockingPageMap,
-		CacheRule:           cacheRuleList,
-		TamperRules:         tamperRuleList,
-		PathRules:           pathRuleList,
-		StaticConfig:        staticCfg,
+		UrlBlockLists:          urlblocklist,
+		AntiCCBean:             anticcBean,
+		HttpAuthBases:          httpAuthList,
+		BlockingPage:           blockingPageMap,
+		CacheRule:              cacheRuleList,
+		TamperRules:            tamperRuleList,
+		PathRules:              pathRuleList,
+		StaticConfig:           staticCfg,
 	}
 	// 路由表(RCU)：在 writeMu 下克隆当前快照→在副本上登记本 host→原子发布。
 	waf.withWriteTable(func(nt *routingTable) {

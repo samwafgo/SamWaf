@@ -979,13 +979,15 @@ func classifyProxyError(err error, ctxErr error) (category string, statusCode in
 
 func (waf *WafEngine) errorResponse() func(http.ResponseWriter, *http.Request, error) {
 	return func(w http.ResponseWriter, req *http.Request, err error) {
+		ctxErr := req.Context().Err()
+		category, statusCode, statusText, isClient := classifyProxyError(err, ctxErr)
+		visitorHost := req.Host
 
-		if wafHttpContext, ok := req.Context().Value("waf_context").(innerbean.WafHttpContextData); ok {
+		if wafHttpContext, ok := req.Context().Value("waf_context").(innerbean.WafHttpContextData); ok && wafHttpContext.Weblog != nil {
 			weblogReq := wafHttpContext.Weblog
-
-			ctxErr := req.Context().Err()
-			category, statusCode, statusText, isClient := classifyProxyError(err, ctxErr)
-
+			if weblogReq.HOST != "" {
+				visitorHost = weblogReq.HOST
+			}
 			requestInfo := fmt.Sprintf("Method: %s \r\nURL: %s   \r\nHeaders: %v", req.Method, req.URL.String(), req.Header)
 
 			// 统一组织诊断字段，方便区分"客户端取消 vs 后端故障 vs 超时"
@@ -1020,8 +1022,6 @@ func (waf *WafEngine) errorResponse() func(http.ResponseWriter, *http.Request, e
 				)
 			}
 
-			resBytes := []byte("<html><head><title>服务不可用</title></head><body><center><h1>服务不可用</h1> <br><h3></h3></center></body> </html>")
-
 			//记录响应Header信息
 			resHeader := ""
 			if req.Response != nil {
@@ -1042,16 +1042,18 @@ func (waf *WafEngine) errorResponse() func(http.ResponseWriter, *http.Request, e
 				truncateWebLogBodyForQueue(weblogReq)
 				global.GQEQUE_LOG_DB.Enqueue(weblogReq)
 			}
-
-			// 客户端已断开时再写响应通常也写不出去，但仍保持原有写入行为，只是降级日志
-			w.WriteHeader(statusCode)
-			if _, writeErr := w.Write(resBytes); writeErr != nil {
-				zlog.Debug("write fail:", zap.Any("err", writeErr))
-				return
-			}
 		}
 
-		return
+		var writeErr error
+		if isClient {
+			w.WriteHeader(statusCode)
+			_, writeErr = io.WriteString(w, global.GLOBAL_DEFAULT_BACKEND_UNAVAILABLE)
+		} else {
+			writeErr = waf.writeBackendUnavailableResponse(w, req, visitorHost, statusCode)
+		}
+		if writeErr != nil {
+			zlog.Debug("write fail:", zap.Any("err", writeErr))
+		}
 	}
 }
 func (waf *WafEngine) modifyResponse() func(*http.Response) error {

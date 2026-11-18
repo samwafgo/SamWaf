@@ -394,6 +394,22 @@ notes:
       detail: Requests that do not match a website return a 403 page. The built-in page guides administrators to add a host under Website Protection. Edit the dedicated global HTML under Custom Blocking Response Pages > Unmatched Website Response, or leave it blank to use the built-in page. Blocking templates for configured websites remain separate.
       revert: Clear the dedicated HTML and save to restore the built-in guidance page. The HTTP status remains 403.
 
+  - id: v1_3_26_backend_unavailable_response
+    version: v1.3.26
+    kind: notice
+    level: low
+    page: /waf-host/wafBlockingPagelist
+    apply:
+      type: navigate
+    zh:
+      title: 源站不可用时可显示自定义页面
+      detail: 在「自定义拦截响应界面 → 源站不可用响应」设置全局 HTML。代理回源失败时使用此页面，并保留实际的 502、503 或 504 状态码。已有页面和配置无需迁移。
+      revert: 清空专用 HTML 并保存即可恢复内置页面。
+    en:
+      title: Customize the page shown when the origin is unavailable
+      detail: Set a global HTML template under Custom Blocking Response Pages > Origin Unavailable Response. Proxy failures use the page with their original 502, 503, or 504 status. Existing pages and settings require no migration.
+      revert: Clear the dedicated HTML and save to restore the built-in page.
+
   - id: v1_3_25_health_check_status_refresh
     version: v1.3.25
     kind: check

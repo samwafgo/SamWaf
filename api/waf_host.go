@@ -182,6 +182,10 @@ func (w *WafHostAPi) AddApi(c *gin.Context) {
 			response.FailWithMessage(verr.Error(), c)
 			return
 		}
+		if verr := checkCustomRequestHost(req.CustomHeadersJSON); verr != nil {
+			response.FailWithMessage(verr.Error(), c)
+			return
+		}
 		// 端口监听表校验（issue #955）：仅当本次显式携带时才阻断（脏数据/addr预留/HTTPS无证书一律拒绝）
 		listens, verr := wafHostService.ValidatePortListensReq(req.PortListensJSON, req.Port, req.Ssl, req.AutoJumpHTTPS)
 		if verr != nil {
@@ -482,6 +486,10 @@ func (w *WafHostAPi) ModifyHostApi(c *gin.Context) {
 		wafHostOld := wafHostService.GetDetailByCodeApi(req.CODE)
 
 		if verr := checkExcludeIPLog(req.EXCLUDE_IP_LOG); verr != nil {
+			response.FailWithMessage(verr.Error(), c)
+			return
+		}
+		if verr := checkCustomRequestHost(req.CustomHeadersJSON); verr != nil {
 			response.FailWithMessage(verr.Error(), c)
 			return
 		}

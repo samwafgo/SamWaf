@@ -113,6 +113,27 @@ func TestWebsiteDiagnosticOriginPlan(t *testing.T) {
 	}
 }
 
+func TestWebsiteDiagnosticCustomRequestHost(t *testing.T) {
+	host := &wafenginmodel.HostSafe{
+		Host: model.Hosts{
+			Code: "site", IsTransBackDomain: 1,
+			CustomHeadersJSON: `{"is_enable_custom_headers":1,"headers":[{"header_name":"hOsT","header_value":"${hostname}"}]}`,
+		},
+		TargetHost: "https://origin.test:9443",
+	}
+	snapshot, err := diagnosticTestEngine(host).DiagnosticSnapshot("site", "https://site.test:8443/a", "GET", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.OriginPlans) != 1 {
+		t.Fatalf("origin plans = %+v", snapshot.OriginPlans)
+	}
+	plan := snapshot.OriginPlans[0]
+	if plan.Host != "site.test" || plan.ServerName != "origin.test" || plan.URL != "https://origin.test:9443/a" {
+		t.Fatalf("plan = %+v", plan)
+	}
+}
+
 func TestWebsiteDiagnosticPathPlan(t *testing.T) {
 	host := &wafenginmodel.HostSafe{
 		Host: model.Hosts{Code: "site", CustomHeadersJSON: `{"is_enable_custom_headers":1,"headers":[{"header_name":"X-Saved","header_value":"value"}]}`},
@@ -156,7 +177,7 @@ func TestWebsiteDiagnosticZeroPortKeepsDomainFallback(t *testing.T) {
 	}
 
 	lbHost := &wafenginmodel.HostSafe{
-		Host: model.Hosts{Code: "site", IsEnableLoadBalance: 1},
+		Host:       model.Hosts{Code: "site", IsEnableLoadBalance: 1},
 		TargetHost: "http://origin.test",
 		LoadBalanceLists: []model.LoadBalance{
 			{BaseOrm: baseorm.BaseOrm{Id: "one"}, Remote_ip: "192.0.2.1"},

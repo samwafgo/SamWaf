@@ -7,8 +7,12 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type WafBlockingPageService struct{}
@@ -16,9 +20,15 @@ type WafBlockingPageService struct{}
 var WafBlockingPageServiceApp = new(WafBlockingPageService)
 
 func (receiver *WafBlockingPageService) AddApi(req request.WafBlockingPageAddReq) error {
+	id := uuid.GenUUID()
+	if req.BlockingType == model.BlockingPageTypeBackendUnavailable {
+		// 固定主键由数据库保证同一全局站点并发新建时只保存一条。
+		sum := sha256.Sum256([]byte(req.BlockingType + ":" + req.HostCode))
+		id = hex.EncodeToString(sum[:])
+	}
 	var bean = &model.BlockingPage{
 		BaseOrm: baseorm.BaseOrm{
-			Id:          uuid.GenUUID(),
+			Id:          id,
 			USER_CODE:   global.GWAF_USER_CODE,
 			Tenant_ID:   global.GWAF_TENANT_ID,
 			CREATE_TIME: customtype.JsonTime(time.Now()),
@@ -37,109 +47,29 @@ func (receiver *WafBlockingPageService) AddApi(req request.WafBlockingPageAddReq
 	return global.GWAF_LOCAL_DB.Create(bean).Error
 }
 
+func matchingBlockingPages(blockingType, hostCode, responseCode string) *gorm.DB {
+	query := global.GWAF_LOCAL_DB.Model(&model.BlockingPage{})
+	if blockingType != "" {
+		query = query.Where("blocking_type = ?", blockingType)
+	}
+	if hostCode != "" {
+		query = query.Where("host_code = ?", hostCode)
+	}
+	if responseCode != "" && blockingType != model.BlockingPageTypeUnmatchedHost && blockingType != model.BlockingPageTypeBackendUnavailable {
+		query = query.Where("response_code = ?", responseCode)
+	}
+	return query
+}
+
 func (receiver *WafBlockingPageService) CheckIsExistApi(req request.WafBlockingPageAddReq) int {
-	var total int64 = 0
-	/*where条件*/
-	var whereField = ""
-	var whereValues []interface{}
-	//where字段
-	whereField = ""
-
-	if len(req.BlockingType) > 0 {
-		if len(whereField) > 0 {
-			whereField = whereField + " and "
-		}
-		whereField = whereField + " blocking_type=? "
-	}
-
-	if len(req.HostCode) > 0 {
-		if len(whereField) > 0 {
-			whereField = whereField + " and "
-		}
-		whereField = whereField + " host_code=? "
-	}
-
-	// 对于 other_block 类型，需要检查 response_code 的唯一性
-	// 同一个网站下，相同的 blocking_type + response_code 组合必须唯一
-	if req.BlockingType != "not_match_website" && len(req.ResponseCode) > 0 {
-		if len(whereField) > 0 {
-			whereField = whereField + " and "
-		}
-		whereField = whereField + " response_code=? "
-	}
-
-	//where字段赋值
-
-	if len(req.BlockingType) > 0 {
-		if len(whereField) > 0 {
-			whereValues = append(whereValues, req.BlockingType)
-		}
-	}
-
-	if len(req.HostCode) > 0 {
-		if len(whereField) > 0 {
-			whereValues = append(whereValues, req.HostCode)
-		}
-	}
-
-	if req.BlockingType != "not_match_website" && len(req.ResponseCode) > 0 {
-		if len(whereField) > 0 {
-			whereValues = append(whereValues, req.ResponseCode)
-		}
-	}
-
-	global.GWAF_LOCAL_DB.Model(&model.BlockingPage{}).Where(whereField, whereValues...).Count(&total)
+	var total int64
+	matchingBlockingPages(req.BlockingType, req.HostCode, req.ResponseCode).Count(&total)
 	return int(total)
 }
 
 func (receiver *WafBlockingPageService) ModifyApi(req request.WafBlockingPageEditReq) error {
-	// 根据唯一字段生成查询条件（只有在UniFields不为空时才进行存在性检查）
-
-	var total int64 = 0
-	/*where条件*/
-	var whereField = ""
-	var whereValues []interface{}
-	//where字段
-	whereField = ""
-
-	if len(req.BlockingType) > 0 {
-		if len(whereField) > 0 {
-			whereField = whereField + " and "
-		}
-		whereField = whereField + " blocking_type=? "
-	}
-
-	if len(req.HostCode) > 0 {
-		if len(whereField) > 0 {
-			whereField = whereField + " and "
-		}
-		whereField = whereField + " host_code=? "
-	}
-
-	// 对于 other_block 类型，需要检查 response_code 的唯一性
-	// 同一个网站下，相同的 blocking_type + response_code 组合必须唯一
-	if req.BlockingType != "not_match_website" && len(req.ResponseCode) > 0 {
-		if len(whereField) > 0 {
-			whereField = whereField + " and "
-		}
-		whereField = whereField + " response_code=? "
-	}
-
-	//where字段赋值
-
-	if len(req.BlockingType) > 0 {
-		whereValues = append(whereValues, req.BlockingType)
-	}
-
-	if len(req.HostCode) > 0 {
-		whereValues = append(whereValues, req.HostCode)
-	}
-
-	if req.BlockingType != "not_match_website" && len(req.ResponseCode) > 0 {
-		whereValues = append(whereValues, req.ResponseCode)
-	}
-
-	err := global.GWAF_LOCAL_DB.Model(&model.BlockingPage{}).Where(whereField, whereValues...).Where("id <> ?", req.Id).Count(&total).Error
+	var total int64
+	err := matchingBlockingPages(req.BlockingType, req.HostCode, req.ResponseCode).Where("id <> ?", req.Id).Count(&total).Error
 	if err != nil {
 		return err
 	}
@@ -184,8 +114,9 @@ func (receiver *WafBlockingPageService) GetListApi(req request.WafBlockingPageSe
 	if req.BlockingType != "" {
 		query = query.Where("blocking_type = ?", req.BlockingType)
 	} else {
-		// 主列表只维护通用拦截模板；全局未匹配网站的专用记录由独立入口管理
-		query = query.Where("blocking_type <> ? OR blocking_type IS NULL", "not_match_website")
+		query = query.Where("blocking_type NOT IN ? OR blocking_type IS NULL", []string{
+			model.BlockingPageTypeUnmatchedHost, model.BlockingPageTypeBackendUnavailable,
+		})
 	}
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -193,6 +124,29 @@ func (receiver *WafBlockingPageService) GetListApi(req request.WafBlockingPageSe
 	err := query.Order("update_time DESC, id DESC").Limit(req.PageSize).Offset(req.PageSize * (req.PageIndex - 1)).Find(&list).Error
 	return list, total, err
 }
+func (receiver *WafBlockingPageService) LoadBlockingPageMap(hostCode string) map[string]model.BlockingPage {
+	var pages []model.BlockingPage
+	global.GWAF_LOCAL_DB.Where("host_code = ?", hostCode).Order("update_time ASC, id ASC").Find(&pages)
+	result := make(map[string]model.BlockingPage)
+	for _, page := range pages {
+		switch page.BlockingType {
+		case model.BlockingPageTypeUnmatchedHost:
+			result[page.BlockingType] = page
+		case model.BlockingPageTypeBackendUnavailable:
+			if hostCode == global.GWAF_GLOBAL_HOST_CODE {
+				result[page.BlockingType] = page
+			}
+		case model.BlockingPageTypeOther:
+			switch page.ResponseCode {
+			case "", model.BlockingPageTypeUnmatchedHost, model.BlockingPageTypeBackendUnavailable:
+			default:
+				result[page.ResponseCode] = page
+			}
+		}
+	}
+	return result
+}
+
 func (receiver *WafBlockingPageService) DelApi(req request.WafBlockingPageDelReq) error {
 	var bean model.BlockingPage
 	err := global.GWAF_LOCAL_DB.Where("id = ?", req.Id).First(&bean).Error

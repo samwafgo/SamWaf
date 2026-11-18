@@ -3,6 +3,10 @@ package model
 import "SamWaf/model/baseorm"
 
 const (
+	BlockingPageTypeOther              = "other_block"
+	BlockingPageTypeUnmatchedHost      = "not_match_website"
+	BlockingPageTypeBackendUnavailable = "backend_unavailable"
+
 	// BlockingPageContentPrioritySamwaf 优先使用 SamWaf 自定义模版（默认，保持历史行为）：
 	// 只要匹配上这条配置，无论后端有没有返回响应体，都用模版覆盖。
 	BlockingPageContentPrioritySamwaf = "samwaf"

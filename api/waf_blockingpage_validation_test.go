@@ -2,9 +2,38 @@ package api
 
 import (
 	"SamWaf/global"
+	"SamWaf/model"
+	"SamWaf/utils"
 	"strings"
 	"testing"
 )
+
+func TestValidateBackendUnavailablePage(t *testing.T) {
+	oldCode := global.GWAF_GLOBAL_HOST_CODE
+	global.GWAF_GLOBAL_HOST_CODE = "global-website-uuid"
+	t.Cleanup(func() { global.GWAF_GLOBAL_HOST_CODE = oldCode })
+	for _, tc := range []struct {
+		name, host, code, attack, content, headers string
+		valid                                      bool
+	}{
+		{"default", "global-website-uuid", "503", "", "", "[]", true},
+		{"template", "global-website-uuid", "503", "", `<p>[[.SAMWAF_HOST]] [[.SAMWAF_STATUS_CODE]]</p>`, `[{"name":"Retry-After","value":"30"}]`, true},
+		{"site", "site", "503", "", "", "[]", false},
+		{"status", "global-website-uuid", "200", "", "", "[]", false},
+		{"attack", "global-website-uuid", "503", "cc_attack", "", "[]", false},
+		{"large", "global-website-uuid", "503", "", strings.Repeat("a", utils.BackendUnavailablePageMaxBytes+1), "[]", false},
+		{"unknown field", "global-website-uuid", "503", "", `[[.UNKNOWN]]`, "[]", false},
+		{"function", "global-website-uuid", "503", "", `[[printf "%s" .SAMWAF_HOST]]`, "[]", false},
+		{"transport header", "global-website-uuid", "503", "", "", `[{"name":"Content-Length","value":"1"}]`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateBlockingPage(model.BlockingPageTypeBackendUnavailable, "test page", tc.host, tc.code, tc.attack, tc.content, tc.headers)
+			if (err == nil) != tc.valid {
+				t.Fatalf("valid=%v, err=%v", tc.valid, err)
+			}
+		})
+	}
+}
 
 func TestValidateUnmatchedHostPage(t *testing.T) {
 	oldCode := global.GWAF_GLOBAL_HOST_CODE

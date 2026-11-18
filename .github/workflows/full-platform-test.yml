@@ -25,7 +25,7 @@ jobs:
   # ============ 1. goreleaser 快照编译 linux amd64/arm64 + windows amd64 ============
   build-cross:
     name: build linux+windows (goreleaser snapshot)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
       - name: Checkout
@@ -100,7 +100,7 @@ jobs:
   # ============ 2. Linux amd64 启动冒烟 ============
   smoke-linux-amd64:
     name: startup test linux/amd64
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: build-cross
     timeout-minutes: 10
     steps:
@@ -372,7 +372,7 @@ jobs:
   # ============ 6. Win7/Win2008R2 专用版编译（补丁版 Go 1.25） ============
   build-win7:
     name: build win7/win2008r2 special
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: ${{ inputs.run_win7 != false }}
     timeout-minutes: 40
     steps:

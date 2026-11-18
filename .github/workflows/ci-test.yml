@@ -23,7 +23,7 @@ concurrency:
 jobs:
   # Linux 构建和测试
   build-and-test-linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - name: Checkout
@@ -140,7 +140,7 @@ jobs:
 
   # Windows 构建和基本测试
   build-and-test-windows:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - name: Checkout
@@ -213,7 +213,7 @@ jobs:
           retention-days: 3
   # # 代码质量检查
   # code-quality:
-  #   runs-on: ubuntu-latest
+  #   runs-on: ubuntu-24.04
   #   steps:
   #     - name: Checkout
   #       uses: actions/checkout@v4

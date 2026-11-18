@@ -15,7 +15,8 @@ env:
 jobs:
   # Linux 和 Windows 编译任务
   goreleaser-linux-windows:
-    runs-on: ubuntu-latest
+    # 固定 24.04：26.04 runner 上的 musl 是 x86-64-v3 构建，静态链接后的产物在无 AVX2/BMI 的 CPU 上启动即 SIGILL
+    runs-on: ubuntu-24.04
     # 卡死保护：apt/网络挂住时快速失败，而不是烧满 6 小时默认上限
     timeout-minutes: 60
     steps:
@@ -36,7 +37,7 @@ jobs:
           # 等哪天在 main 上加了缓存预热 job（默认分支的缓存所有 ref 都能读），再把这里改回 true。
           cache: false
       
-      # 说明：tar/gzip/wget/curl 是 ubuntu-latest 镜像自带的，原来的 "Install basic tools"
+      # 说明：tar/gzip/wget/curl 是 ubuntu runner 镜像自带的，原来的 "Install basic tools"
       # 步骤只是白跑一次 apt，却是 2026-08-19 卡住 72 分钟的那一步，已删除。
       - name: Install dependencies for cross-compilation
         timeout-minutes: 15
@@ -245,7 +246,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   win7win2008r2:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - name: Check if should build Win7
@@ -347,7 +348,7 @@ jobs:
   # 任何单一任务生成的 checksums 都会漏掉其余平台的资产。
   # 这里等三者全部完成、release 资产齐了以后统一下载、统一算 SHA256。
   release-checksums:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     needs: [goreleaser-linux-windows, goreleaser-macos, win7win2008r2]
     steps:

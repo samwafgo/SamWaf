@@ -1,6 +1,7 @@
 package wafenginecore
 
 import (
+	"SamWaf/common/httpbody"
 	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/model/detection"
@@ -262,7 +263,7 @@ func uploadBlock(weblog *innerbean.WebLog, title, content string) detection.Resu
 }
 
 // CheckUpload 文件上传内容检测：对 multipart 上传做 扩展名/大小/类型不符/Webshell 四维检测。
-// 关键：禁用 r.ParseMultipartForm（会清空 body 致后端丢包）；读整份 body 到内存解析副本并复位 r.Body。
+// 在缓冲预算内解析 multipart 副本，保留完整请求体供回源。
 func (waf *WafEngine) CheckUpload(r *http.Request, weblogbean *innerbean.WebLog, formValue url.Values,
 	hostTarget *wafenginmodel.HostSafe, globalHostTarget *wafenginmodel.HostSafe) detection.Result {
 	result := detection.Result{JumpGuardResult: false, IsBlock: false, Title: "", Content: ""}
@@ -293,10 +294,11 @@ func (waf *WafEngine) CheckUpload(r *http.Request, weblogbean *innerbean.WebLog,
 		return result
 	}
 
-	// 读 body（限检测缓冲上限）并复位 r.Body，保证后端能收到完整上传
 	limit := int64(cfg.MaxSizeKB)*1024 + uploadBufferSlack
-	raw, _ := io.ReadAll(io.LimitReader(r.Body, limit+1))
-	r.Body = io.NopCloser(bytes.NewReader(raw))
+	raw, err := httpbody.ReadPrefix(r, limit+1)
+	if err != nil {
+		return uploadBlock(weblogbean, "文件上传检测-报文异常", "multipart报文读取异常，已拦截")
+	}
 
 	// 请求体超过可检测上限：fail-closed 默认拦，避免“填大绕过内容检测”
 	if int64(len(raw)) > limit {

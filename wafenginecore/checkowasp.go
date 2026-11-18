@@ -5,10 +5,8 @@ import (
 	"SamWaf/global"
 	"SamWaf/innerbean"
 	"SamWaf/model/detection"
-	"SamWaf/model/wafenginmodel"
 	"SamWaf/wafowasp"
 	"net/http"
-	"net/url"
 	"strconv"
 	"time"
 )
@@ -17,7 +15,7 @@ import (
 //
 // 注意：本函数假设调用方已经判断过 OWASP 是否启用（参考 wafengine.go 调用处），
 // 内部不再解析 DEFENSE_JSON，避免热路径上重复 JSON 反序列化。
-func (waf *WafEngine) CheckOwasp(r *http.Request, weblogbean *innerbean.WebLog, formValue url.Values, hostTarget *wafenginmodel.HostSafe, globalHostTarget *wafenginmodel.HostSafe) detection.Result {
+func (waf *WafEngine) CheckOwasp(r *http.Request, weblogbean *innerbean.WebLog, retainBody func(func())) detection.Result {
 	result := detection.Result{
 		JumpGuardResult: false,
 		IsBlock:         false,
@@ -47,7 +45,7 @@ func (waf *WafEngine) CheckOwasp(r *http.Request, weblogbean *innerbean.WebLog, 
 	}
 
 	owaspStart := time.Now()
-	isInteeruption, interruption, err := inst.ProcessRequest(r, weblogbean)
+	isInteeruption, interruption, err := inst.ProcessRequest(r, weblogbean, retainBody)
 	if elapsed := time.Since(owaspStart); elapsed > 10*time.Second {
 		hint := ""
 		if wafowasp.GetBodyInspectLimit() == 0 {

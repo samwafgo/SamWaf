@@ -98,6 +98,26 @@ notes:
         Generation runs only in the active local Worker and resumes unfinished work after restart without duplicating blue-green upgrades.
       revert: Turning off any schedule or the master switch only stops automatic generation; manual creation and existing artifacts remain. Reducing retention or quota applies the new caps during cleanup.
 
+  - id: v1_3_25_large_upload_body
+    version: v1.3.25
+    kind: notice
+    level: normal
+    apply:
+      type: none
+    zh:
+      title: 放行的大文件上传完整回源
+      detail: >-
+        允许回源的上传会保留完整请求体。启用 OWASP 时，multipart 表单按 OWASP 的请求体上限和检测字节上限处理。
+        如需支持较大的文件，请按完整表单大小检查这两项，以及站点和源站的上传限制。
+      revert: 已有上传限制继续由各自的配置控制。
+    en:
+      title: Allowed large uploads reach the origin intact
+      detail: >-
+        Allowed uploads reach the origin with the complete request body. When OWASP is enabled, multipart forms use its
+        request body and inspection byte limits. For larger uploads, check those settings against the size of the entire
+        multipart form, along with the site and origin limits.
+      revert: Existing upload limits are controlled by their respective settings.
+
   - id: v1_3_25_custom_origin_host
     version: v1.3.25
     kind: check

@@ -7,6 +7,7 @@
 package wafproxy
 
 import (
+	"SamWaf/wafproxy/inner/ascii"
 	"bufio"
 	"bytes"
 	"context"
@@ -16,7 +17,6 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
-	"net/http/internal/ascii"
 	"net/url"
 	"os"
 	"reflect"

@@ -98,6 +98,28 @@ notes:
         Generation runs only in the active local Worker and resumes unfinished work after restart without duplicating blue-green upgrades.
       revert: Turning off any schedule or the master switch only stops automatic generation; manual creation and existing artifacts remain. Reducing retention or quota applies the new caps during cleanup.
 
+  - id: v1_3_25_custom_origin_host
+    version: v1.3.25
+    kind: check
+    level: normal
+    page: /waf-host/wafhost
+    apply:
+      type: navigate
+    zh:
+      title: 网站自定义回源 Host 开始生效
+      detail: >-
+        网站「自定义请求头」中已启用的有效 Host 配置会在升级后生效，优先于「传递后端域名」。
+        可填具体域名或 IP（可带端口），也可填 ${host} 保留访客 Host，或填 ${hostname} 只传访客主机名。
+        请核对已保存的 Host 值是否符合源站的虚拟主机配置。
+      revert: 删除自定义 Host 项或将值留空，即恢复按「传递后端域名」开关决定回源 Host。
+    en:
+      title: Custom origin Host settings take effect
+      detail: >-
+        After upgrading, valid Host entries in enabled custom request headers take precedence over the
+        Pass backend domain setting. Enter a concrete domain name or IP with an optional port, ${host} to keep
+        the visitor Host, or ${hostname} to send only the visitor hostname. Check saved values against your origin virtual host settings.
+      revert: Remove the custom Host entry or leave it empty to use the Pass backend domain setting again.
+
   - id: v1_3_25_log_record_bounds
     version: v1.3.25
     kind: check

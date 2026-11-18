@@ -463,6 +463,12 @@ func (waf *WafEngine) getCustomHeaders(r *http.Request, host string, isEnableLoa
 				continue
 			}
 
+			if http.CanonicalHeaderKey(header.HeaderName) == "Host" {
+				// Host 在 Director 内按当前请求计算，负载均衡代理可以安全复用。
+				customHeaders["Host"] = header.HeaderValue
+				continue
+			}
+
 			// 解析并替换变量
 			headerValue := waf.parseHeaderValue(header.HeaderValue, r, clientIP)
 

@@ -7,6 +7,7 @@
 package wafproxy
 
 import (
+	"SamWaf/common/validfield"
 	"SamWaf/wafproxy/inner/ascii"
 	"context"
 	"fmt"
@@ -195,15 +196,38 @@ func NewSingleHostReverseProxyCustomHeader(target *url.URL, customHeaders map[st
 			}
 		}
 
-		// 添加自定义 header（空值表示删除该 header）
+		// 添加自定义 header（空值表示删除普通请求头）
+		var hostOverride string
 		for key, value := range customHeaders {
+			if ascii.EqualFold(key, "Host") {
+				hostOverride = value
+				continue
+			}
 			if value == "" {
 				req.Header.Del(key)
 			} else {
 				req.Header.Set(key, value)
 			}
 		}
-		if customConfig["IsTransBackDomain"] == "1" {
+
+		switch hostOverride {
+		case validfield.OriginalRequestHost:
+			hostOverride = req.Host
+		case validfield.OriginalRequestHostname:
+			hostOverride = req.Host
+			if validfield.ValidRequestHost(hostOverride) {
+				if host, _, err := net.SplitHostPort(hostOverride); err == nil {
+					hostOverride = host
+					if strings.Contains(host, ":") {
+						hostOverride = "[" + host + "]"
+					}
+				}
+			}
+		}
+
+		if validfield.ValidRequestHost(hostOverride) {
+			req.Host = hostOverride
+		} else if customConfig["IsTransBackDomain"] == "1" {
 			// 拆分主机名和端口
 			hostPort := strings.Split(target.Host, ":")
 			if len(hostPort) == 2 {

@@ -814,6 +814,7 @@ func TestShouldAutoJumpHTTPS(t *testing.T) {
 				tt.requestURL,
 				tt.autoJumpHTTPS,
 				tt.ssl,
+				443,
 			)
 
 			if gotJump != tt.expectedJump {
@@ -841,7 +842,7 @@ func TestShouldAutoJumpHTTPS_Comprehensive(t *testing.T) {
 	// 场景1: 用户反馈的实际问题场景
 	t.Run("用户反馈场景1-非标准80端口", func(t *testing.T) {
 		// 场景：用户使用8080端口，之前无法跳转
-		jump, domain := shouldAutoJumpHTTPS("example.com:8080", "example.com", "/test", 1, 1)
+		jump, domain := shouldAutoJumpHTTPS("example.com:8080", "example.com", "/test", 1, 1, 443)
 		if !jump || domain != "example.com" {
 			t.Errorf("非标准80端口应该能跳转，实际: jump=%v, domain=%s", jump, domain)
 		} else {
@@ -851,7 +852,7 @@ func TestShouldAutoJumpHTTPS_Comprehensive(t *testing.T) {
 
 	t.Run("用户反馈场景2-泛域名匹配", func(t *testing.T) {
 		// 场景：host变量: aaa.samwaf.com:80, hostTarget.Host.Host变量: *.samwaf.com
-		jump, domain := shouldAutoJumpHTTPS("aaa.samwaf.com:80", "*.samwaf.com", "/test", 1, 1)
+		jump, domain := shouldAutoJumpHTTPS("aaa.samwaf.com:80", "*.samwaf.com", "/test", 1, 1, 443)
 		if !jump || domain != "aaa.samwaf.com" {
 			t.Errorf("泛域名应该能匹配，实际: jump=%v, domain=%s", jump, domain)
 		} else {
@@ -861,7 +862,7 @@ func TestShouldAutoJumpHTTPS_Comprehensive(t *testing.T) {
 
 	t.Run("用户反馈场景3-三级泛域名", func(t *testing.T) {
 		// 场景：bbb.aaa.samwaf.com:80 匹配 *.samwaf.com
-		jump, domain := shouldAutoJumpHTTPS("bbb.aaa.samwaf.com:80", "*.samwaf.com", "/test", 1, 1)
+		jump, domain := shouldAutoJumpHTTPS("bbb.aaa.samwaf.com:80", "*.samwaf.com", "/test", 1, 1, 443)
 		if !jump || domain != "bbb.aaa.samwaf.com" {
 			t.Errorf("三级泛域名应该能匹配，实际: jump=%v, domain=%s", jump, domain)
 		} else {
@@ -876,7 +877,7 @@ func TestShouldAutoJumpHTTPS_Comprehensive(t *testing.T) {
 			"/.well-known/acme-challenge/",
 		}
 		for _, path := range paths {
-			jump, _ := shouldAutoJumpHTTPS("example.com:80", "example.com", path, 1, 1)
+			jump, _ := shouldAutoJumpHTTPS("example.com:80", "example.com", path, 1, 1, 443)
 			if jump {
 				t.Errorf("SSL证书路径 %s 不应跳转", path)
 			} else {
@@ -890,7 +891,7 @@ func TestShouldAutoJumpHTTPS_Comprehensive(t *testing.T) {
 		ports := []string{"80", "8080", "8888", "9090", "3000", "5000"}
 		for _, port := range ports {
 			requestHost := "example.com:" + port
-			jump, domain := shouldAutoJumpHTTPS(requestHost, "example.com", "/test", 1, 1)
+			jump, domain := shouldAutoJumpHTTPS(requestHost, "example.com", "/test", 1, 1, 443)
 			if !jump || domain != "example.com" {
 				t.Errorf("端口 %s 应该能跳转，实际: jump=%v, domain=%s", port, jump, domain)
 			} else {
@@ -913,7 +914,7 @@ func TestShouldAutoJumpHTTPS_Comprehensive(t *testing.T) {
 		}
 
 		for _, tc := range testCases {
-			jump, domain := shouldAutoJumpHTTPS(tc.requestHost, tc.configHost, "/test", 1, 1)
+			jump, domain := shouldAutoJumpHTTPS(tc.requestHost, tc.configHost, "/test", 1, 1, 443)
 			expectedDomain := strings.Split(tc.requestHost, ":")[0]
 			if !jump || domain != expectedDomain {
 				t.Errorf("多级域名 %s 匹配 %s 失败，实际: jump=%v, domain=%s",

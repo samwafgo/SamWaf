@@ -120,6 +120,26 @@ notes:
         the visitor Host, or ${hostname} to send only the visitor hostname. Check saved values against your origin virtual host settings.
       revert: Remove the custom Host entry or leave it empty to use the Pass backend domain setting again.
 
+  - id: v1_3_25_https_redirect_bound_domains
+    version: v1.3.25
+    kind: check
+    level: normal
+    page: /waf-host/wafhost
+    apply:
+      type: navigate
+    zh:
+      title: 绑定域名遵循本站的 HTTPS 跳转设置
+      detail: >-
+        HTTPS 站点开启「强制80跳转HTTPS」时，绑定域名的 HTTP 请求也会跳转到该访问域名的 HTTPS 地址。
+        升级前请确认 TLS 证书覆盖每个使用的域名。
+      revert: 如需允许本站通过已配置的 HTTP 端口访问，可关闭该站点的「强制80跳转HTTPS」。
+    en:
+      title: Bound domains follow the site's HTTPS redirect setting
+      detail: >-
+        When an HTTPS site has its port 80 redirect enabled, HTTP requests for bound domains also redirect
+        to HTTPS on the requested domain. Check that your TLS certificate covers each domain in use before upgrading.
+      revert: To allow access over a configured HTTP listener, turn off the HTTPS redirect for that site.
+
   - id: v1_3_25_log_record_bounds
     version: v1.3.25
     kind: check

@@ -44,7 +44,7 @@ import (
 )
 
 type WafEngine struct {
-	//路由快照(RCU)：HostTarget/HostCode/HostTargetNoPort/HostTargetMoreDomain 收进不可变 routingTable，
+	//路由快照(RCU)：域名索引收进不可变 routingTable，
 	//由 atomic.Pointer 持有。读热路径走 waf.rt() 无锁读；写者一律 copy-on-write(见 routing_table.go)。
 	//writeMu 串行化所有写者(增删 host/端口、字段级热更新)，保证发布的快照完整一致。
 	routing atomic.Pointer[routingTable]
@@ -195,7 +195,8 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			debug.PrintStack()
 		}
 	}()
-	route := resolveRequestHost(waf.rt(), r.Host, r.TLS != nil, false)
+	rt := waf.rt()
+	route := resolveRequestHost(rt, r.Host, r.TLS != nil, false)
 	host, targetCode, findHost := route.Host, route.Code, route.Found
 	if route.CatchAllLog != "" {
 		zlog.Debug(fmt.Sprintf("%s %s", innerLogName, route.CatchAllLog))
@@ -203,7 +204,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// 检查域名是否已经注册
 	if findHost == true {
-		hostTarget := waf.rt().HostTarget[waf.rt().HostCode[targetCode]]
+		hostTarget := rt.HostTarget[rt.HostCode[targetCode]]
 		hostCode := hostTarget.Host.Code
 
 		incrementMonitor(hostCode)
@@ -364,23 +365,10 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		if r.TLS == nil {
-			// 检查是否需要自动跳转到HTTPS
-			shouldJump, domainJump := shouldAutoJumpHTTPS(host, hostTarget.Host.Host, weblogbean.URL, hostTarget.Host.AutoJumpHTTPS, hostTarget.Host.Ssl)
-			if shouldJump {
-				// 重定向到 HTTPS 版本的 URL
-				targetHttpsUrl := fmt.Sprintf("%s%s%s", "https://", domainJump, r.URL.Path)
-				// 只有在非标准端口时才显示端口号（443是标准端口）
-				if hostTarget.Host.Port != 443 {
-					targetHttpsUrl = fmt.Sprintf("%s%s:%d%s", "https://", domainJump, hostTarget.Host.Port, r.URL.Path)
-				}
-				if r.URL.RawQuery != "" {
-					targetHttpsUrl += "?" + r.URL.RawQuery
-				}
-				zlog.Info(innerLogName, "jump https", targetHttpsUrl)
-				http.Redirect(w, r, targetHttpsUrl, int(global.GCONFIG_RECORD_REDIRECT_HTTPS_CODE))
-				return
-			}
+		if target := httpsRedirectTarget(r, route, hostTarget.Host); target != "" {
+			zlog.Info(innerLogName, "jump https", "site", hostTarget.Host.Host)
+			http.Redirect(w, r, target, int(global.GCONFIG_RECORD_REDIRECT_HTTPS_CODE))
+			return
 		}
 
 		// 反向代理环路检测：SamWaf 每转发一跳就把 waf_req_hop 递增并带给后端；
@@ -2168,6 +2156,64 @@ func (waf *WafEngine) checkWithPlugins(r *http.Request, weblogbean *innerbean.We
 	return detection.Result{IsBlock: false}
 }
 
+func siteHTTPSRedirectPort(listens []utils.HostListen) int {
+	port := 0
+	for _, listen := range listens {
+		if listen.Protocol != utils.ListenProtoHTTPS {
+			continue
+		}
+		if listen.IsMain || listen.Port == 443 {
+			return listen.Port
+		}
+		if port == 0 {
+			port = listen.Port
+		}
+	}
+	return port
+}
+
+func httpsRedirectTarget(r *http.Request, match requestHostMatch, site model.Hosts) string {
+	if r.TLS != nil || !match.Found || match.Code != site.Code || site.AutoJumpHTTPS != 1 || site.Ssl != 1 {
+		return ""
+	}
+
+	port := siteHTTPSRedirectPort(utils.ResolveHostListens(site))
+	if port == 0 {
+		return ""
+	}
+
+	requestURI := r.URL.RequestURI()
+	jump, domain := shouldAutoJumpHTTPS(match.Authority, site.Host, requestURI, site.AutoJumpHTTPS, site.Ssl, port)
+	if !jump && site.BindMoreHost != "" {
+		for _, alias := range strings.Split(site.BindMoreHost, "\n") {
+			alias = strings.TrimSpace(alias)
+			if alias == "" {
+				continue
+			}
+			jump, domain = shouldAutoJumpHTTPS(match.Authority, alias, requestURI, site.AutoJumpHTTPS, site.Ssl, port)
+			if jump {
+				break
+			}
+		}
+	}
+	if !jump {
+		return ""
+	}
+
+	if port != 443 {
+		domain = net.JoinHostPort(domain, strconv.Itoa(port))
+	}
+	target := url.URL{
+		Scheme:     "https",
+		Host:       domain,
+		Path:       r.URL.Path,
+		RawPath:    r.URL.RawPath,
+		RawQuery:   r.URL.RawQuery,
+		ForceQuery: r.URL.ForceQuery,
+	}
+	return target.String()
+}
+
 // shouldAutoJumpHTTPS 判断是否应该自动跳转到HTTPS
 // 参数:
 //   - requestHost: 请求的host(如: aaa.samwaf.com:80 或 bbb.aaa.samwaf.com:8080)
@@ -2175,6 +2221,7 @@ func (waf *WafEngine) checkWithPlugins(r *http.Request, weblogbean *innerbean.We
 //   - requestURL: 请求的URL路径
 //   - autoJumpHTTPS: 是否开启自动跳转HTTPS
 //   - ssl: 是否启用了SSL
+//   - httpsPort: 目标 HTTPS 监听端口
 //
 // 返回:
 //   - bool: 是否应该跳转
@@ -2184,7 +2231,7 @@ func (waf *WafEngine) checkWithPlugins(r *http.Request, weblogbean *innerbean.We
 //   - 精确匹配: example.com:80 匹配 example.com
 //   - 二级泛域名: aaa.samwaf.com:80 匹配 *.samwaf.com
 //   - 多级泛域名: bbb.aaa.samwaf.com:8080 匹配 *.samwaf.com (利用MaskSubdomain)
-func shouldAutoJumpHTTPS(requestHost, configHost, requestURL string, autoJumpHTTPS, ssl int) (bool, string) {
+func shouldAutoJumpHTTPS(requestHost, configHost, requestURL string, autoJumpHTTPS, ssl, httpsPort int) (bool, string) {
 	// 检查基本条件：必须开启自动跳转和SSL
 	if autoJumpHTTPS != 1 || ssl != 1 {
 		return false, ""
@@ -2208,9 +2255,8 @@ func shouldAutoJumpHTTPS(requestHost, configHost, requestURL string, autoJumpHTT
 		requestDomain = requestHost
 	}
 
-	// 判断是否是HTTP端口（80或其他非443端口）
-	// 如果没有端口号或者端口是443，不需要跳转
-	if requestPort == "" || requestPort == "443" {
+	// 目标端口与来访端口相同时不重复跳转。
+	if requestPort == "" || requestPort == strconv.Itoa(httpsPort) {
 		return false, ""
 	}
 

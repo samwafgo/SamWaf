@@ -70,6 +70,7 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 	// 端口监听统一走 ResolveHostListens 唯一真源（issue #955）：显式 port_listens_json 优先，
 	// 空值按老规则派生；主端口/副端口/AutoJumpHTTPS 隐式 80 不再各写一套判定。
 	listens := utils.ResolveHostListens(inHost)
+	hasHTTPS := inHost.Ssl == 1 && siteHTTPSRedirectPort(listens) != 0
 	//定义一个port int数组（需要注册域名路由的副端口，不含主端口与隐式80）
 	var ports = []int{}
 	for _, listen := range listens {
@@ -217,11 +218,7 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 				}
 			}
 		}
-		for k, v := range nt.HostTargetMoreDomain {
-			if v == inHost.Code {
-				delete(nt.HostTargetMoreDomain, k)
-			}
-		}
+		nt.removeAliases(inHost.Code)
 		//目标关系情况
 		nt.HostTarget[inHost.Host+":"+strconv.Itoa(inHost.Port)] = hostsafe
 		//赋值到对照表里面
@@ -238,7 +235,6 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 		//如果存在强制跳转
 		if inHost.AutoJumpHTTPS == 1 {
 			nt.HostTarget[inHost.Host+":80"] = hostsafe
-			nt.HostCode[inHost.Code] = inHost.Host + ":80"
 		}
 		//如果是不限制端口的情况
 		if inHost.UnrestrictedPort == 1 {
@@ -278,9 +274,18 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 				}
 				// 主端口
 				nt.HostTargetMoreDomain[line+":"+strconv.Itoa(inHost.Port)] = inHost.Code
-				// 副端口（BindMorePort）也需要注册，否则副域名+副端口无法路由
-				for _, extraPort := range ports {
-					nt.HostTargetMoreDomain[line+":"+strconv.Itoa(extraPort)] = inHost.Code
+				for _, listen := range listens {
+					if listen.IsMain {
+						continue
+					}
+					key := line + ":" + strconv.Itoa(listen.Port)
+					if listen.Implied {
+						if hasHTTPS {
+							nt.addRedirectAlias(key, inHost.Code)
+						}
+					} else {
+						nt.HostTargetMoreDomain[key] = inHost.Code
+					}
 				}
 			}
 		}
@@ -408,12 +413,7 @@ func (waf *WafEngine) RemoveHost(host model.Hosts) {
 				}
 			}
 		}
-		//d.删除更多内容里面域名信息
-		for moreHost, hostCode := range nt.HostTargetMoreDomain {
-			if hostCode == host.Code {
-				delete(nt.HostTargetMoreDomain, moreHost)
-			}
-		}
+		nt.removeAliases(host.Code)
 	})
 
 	//c.移除某个端口下的证书数据

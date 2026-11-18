@@ -2,6 +2,7 @@ package wafenginecore
 
 import (
 	"SamWaf/model/wafenginmodel"
+	"slices"
 )
 
 // routingTable 不可变路由快照（RCU）。
@@ -9,28 +10,31 @@ import (
 // 发布(Store)之后只读、永不就地修改；写者一律 copy-on-write：复制出新表 → 在副本上改 → 原子替换。
 // 这样请求热路径读它时无需任何锁，也不会读到撕裂/半改状态。
 //
-// 4 张表的含义与原 WafEngine 字段一致：
+// 路由索引：
 //   - HostTarget:           host:port -> *HostSafe
 //   - HostCode:             主机code -> host:port(主端口)
 //   - HostTargetNoPort:     域名 -> host:port(宽松端口模式)
 //   - HostTargetMoreDomain: 域名:port -> 主机code(一机绑多域名)
+//   - HostTargetRedirectAlias: 隐式 HTTP 监听的绑定域名:port -> 主机code
 //
 // 注意：HostSafe.LoadBalanceRuntime 是“共享可变”子对象（每请求轮询状态 + 自带 Mux），
 // COW 浅拷贝 HostSafe 时共享其指针、绝不深拷贝。
 type routingTable struct {
-	HostTarget           map[string]*wafenginmodel.HostSafe
-	HostCode             map[string]string
-	HostTargetNoPort     map[string]string
-	HostTargetMoreDomain map[string]string
+	HostTarget              map[string]*wafenginmodel.HostSafe
+	HostCode                map[string]string
+	HostTargetNoPort        map[string]string
+	HostTargetMoreDomain    map[string]string
+	HostTargetRedirectAlias map[string][]string
 }
 
 // newRoutingTable 返回一张空表。
 func newRoutingTable() *routingTable {
 	return &routingTable{
-		HostTarget:           map[string]*wafenginmodel.HostSafe{},
-		HostCode:             map[string]string{},
-		HostTargetNoPort:     map[string]string{},
-		HostTargetMoreDomain: map[string]string{},
+		HostTarget:              map[string]*wafenginmodel.HostSafe{},
+		HostCode:                map[string]string{},
+		HostTargetNoPort:        map[string]string{},
+		HostTargetMoreDomain:    map[string]string{},
+		HostTargetRedirectAlias: map[string][]string{},
 	}
 }
 
@@ -50,14 +54,15 @@ func (waf *WafEngine) InitRouting() {
 	waf.routing.Store(newRoutingTable())
 }
 
-// clone 浅拷贝路由表：新建 4 个 map 头、复用其中的 HostSafe 指针与字符串值。
+// clone 浅拷贝路由表：复制索引，复用其中的 HostSafe 指针与字符串值。
 // 供写者在副本上增删改后 Store，发布前对读者不可见。
 func (t *routingTable) clone() *routingTable {
 	nt := &routingTable{
-		HostTarget:           make(map[string]*wafenginmodel.HostSafe, len(t.HostTarget)),
-		HostCode:             make(map[string]string, len(t.HostCode)),
-		HostTargetNoPort:     make(map[string]string, len(t.HostTargetNoPort)),
-		HostTargetMoreDomain: make(map[string]string, len(t.HostTargetMoreDomain)),
+		HostTarget:              make(map[string]*wafenginmodel.HostSafe, len(t.HostTarget)),
+		HostCode:                make(map[string]string, len(t.HostCode)),
+		HostTargetNoPort:        make(map[string]string, len(t.HostTargetNoPort)),
+		HostTargetMoreDomain:    make(map[string]string, len(t.HostTargetMoreDomain)),
+		HostTargetRedirectAlias: make(map[string][]string, len(t.HostTargetRedirectAlias)),
 	}
 	for k, v := range t.HostTarget {
 		nt.HostTarget[k] = v
@@ -71,7 +76,45 @@ func (t *routingTable) clone() *routingTable {
 	for k, v := range t.HostTargetMoreDomain {
 		nt.HostTargetMoreDomain[k] = v
 	}
+	for k, v := range t.HostTargetRedirectAlias {
+		nt.HostTargetRedirectAlias[k] = slices.Clone(v)
+	}
 	return nt
+}
+
+func (t *routingTable) removeAliases(code string) {
+	for key, owner := range t.HostTargetMoreDomain {
+		if owner == code {
+			delete(t.HostTargetMoreDomain, key)
+		}
+	}
+	for key, owners := range t.HostTargetRedirectAlias {
+		i, found := slices.BinarySearch(owners, code)
+		if !found {
+			continue
+		}
+		if len(owners) == 1 {
+			delete(t.HostTargetRedirectAlias, key)
+		} else {
+			t.HostTargetRedirectAlias[key] = slices.Delete(owners, i, i+1)
+		}
+	}
+}
+
+func (t *routingTable) addRedirectAlias(key, code string) {
+	owners := t.HostTargetRedirectAlias[key]
+	if i, found := slices.BinarySearch(owners, code); !found {
+		t.HostTargetRedirectAlias[key] = slices.Insert(owners, i, code)
+	}
+}
+
+func (t *routingTable) redirectAliasOwner(key string) string {
+	for _, code := range t.HostTargetRedirectAlias[key] {
+		if site := t.HostTarget[t.HostCode[code]]; site != nil && site.Host.Code == code && site.Host.START_STATUS == 0 {
+			return code
+		}
+	}
+	return ""
 }
 
 // withWriteTable 在 writeMu 保护下，克隆当前表 → 交给 fn 修改 → 原子发布。

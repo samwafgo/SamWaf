@@ -34,8 +34,7 @@ type HostListen struct {
 	IPVersion string `json:"ipv"`   // both | ipv4 | ipv6
 	Addr      string `json:"addr"`  // 恒为空，预留
 	IsMain    bool   `json:"is_main"`
-	// Implied 表示 AutoJumpHTTPS 隐式补出的 80 监听：只负责起监听，
-	// 不注册域名路由（路由由 LoadHost 既有的 AutoJumpHTTPS 分支处理）。
+	// Implied 表示 AutoJumpHTTPS 隐式补出的 HTTP 监听。
 	Implied bool `json:"implied"`
 }
 

@@ -252,7 +252,7 @@ func TestWebsiteDiagnosticNonOriginModes(t *testing.T) {
 }
 
 func TestWebsiteDiagnosticRootAndHTTPSRedirect(t *testing.T) {
-	host := &wafenginmodel.HostSafe{Host: model.Hosts{Code: "site", Host: "site.test", Ssl: 1, AutoJumpHTTPS: 1}, TargetHost: "http://origin.test:80", PathRules: []model.HostPathRule{{MatchType: 2, Path: "/", TargetType: 3}}}
+	host := &wafenginmodel.HostSafe{Host: model.Hosts{Code: "site", Host: "site.test", Port: 443, Ssl: 1, AutoJumpHTTPS: 1}, TargetHost: "http://origin.test:80", PathRules: []model.HostPathRule{{MatchType: 2, Path: "/", TargetType: 3}}}
 	waf := diagnosticTestEngine(host)
 	waf.rt().HostTarget["site.test:80"] = host
 	snapshot, err := waf.DiagnosticSnapshot("site", "http://site.test#fragment", "GET", nil)

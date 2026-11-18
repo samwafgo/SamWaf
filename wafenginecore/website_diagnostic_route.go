@@ -7,6 +7,7 @@ import (
 )
 
 type requestHostMatch struct {
+	Authority              string
 	Host, Port, Code, Kind string
 	Found                  bool
 	CatchAllLog            string
@@ -29,8 +30,9 @@ func resolveRequestHost(rt *routingTable, authority string, secure, trace bool) 
 			m.Port = parts[1]
 		}
 	}
+	m.Authority = m.Host
 	if trace {
-		m.Steps = append(m.Steps, "authority="+m.Host)
+		m.Steps = append(m.Steps, "authority="+m.Authority)
 	}
 	loose := false
 	if targetHost, ok := rt.HostTargetNoPort[utils.GetPureDomain(m.Host)]; ok {
@@ -81,6 +83,21 @@ func resolveRequestHost(rt *routingTable, authority string, secure, trace bool) 
 		if ok {
 			m.Found, m.Code, m.Kind = true, target.Host.Code, "catch_all"
 			m.CatchAllLog = "触发*逻辑"
+			if trace {
+				m.Steps = append(m.Steps, m.Kind+"="+m.Code)
+			}
+		}
+	}
+	if !secure && !m.Found && m.Port == "80" {
+		// 隐式跳转路由只在没有普通站点匹配时生效。
+		m.Code = rt.redirectAliasOwner(m.Authority)
+		if m.Code != "" {
+			m.Found, m.Kind = true, "alias"
+		} else if m.Code = rt.redirectAliasOwner(domaintool.MaskSubdomain(m.Authority)); m.Code != "" {
+			m.Found, m.Kind = true, "alias_wildcard"
+		}
+		if m.Found {
+			m.Host = m.Authority
 			if trace {
 				m.Steps = append(m.Steps, m.Kind+"="+m.Code)
 			}

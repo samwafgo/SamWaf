@@ -56,11 +56,9 @@ func (waf *WafEngine) DiagnosticSnapshot(hostCode, visitorURL, method string, he
 		snapshot.Mode = "disabled"
 		return snapshot, nil
 	}
-	if req.TLS == nil {
-		if jump, _ := shouldAutoJumpHTTPS(match.Host, host.Host.Host, req.URL.RequestURI(), host.Host.AutoJumpHTTPS, host.Host.Ssl); jump {
-			snapshot.Mode = "https_redirect"
-			return snapshot, nil
-		}
+	if httpsRedirectTarget(req, match, host.Host) != "" {
+		snapshot.Mode = "https_redirect"
+		return snapshot, nil
 	}
 	staticConfig := InitDefaultStaticSiteConfig()
 	_ = json.Unmarshal([]byte(host.Host.StaticSiteJSON), &staticConfig)

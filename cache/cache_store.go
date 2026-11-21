@@ -2,7 +2,8 @@ package cache
 
 import "time"
 
-// CacheStore 缓存后端接口，支持内存、Redis 等多种实现
+// CacheStore 是控制台/业务状态的缓存接口，运行后端使用 PostgreSQL KV/TTL。
+// 内存、Redis 适配器保留兼容用途；站点响应正文由独立 L1/L2 管理，不放入此接口。
 type CacheStore interface {
 	Set(key string, value interface{})
 	SetWithTTl(key string, value interface{}, ttl time.Duration)
@@ -35,6 +36,13 @@ type CacheStore interface {
 	GetExpireTime(key string) (time.Time, error)
 	ListAvailableKeys() map[string]time.Duration
 	ListAvailableKeysWithPrefix(prefix string) map[string]time.Duration
+}
+
+// AtomicAdder 提供可选的「不存在才写入」原子能力，避免为兼容旧适配器而扩展必选接口。
+// PostgreSQL 用条件 UPSERT 保证同键并发只有一个成功；错误不能解释为成功占用。
+type AtomicAdder interface {
+	// AddWithTTL 返回是否成功首次写入，未到期的同键不能被覆盖，过期键允许重新占用。
+	AddWithTTL(key string, value interface{}, ttl time.Duration) (bool, error)
 }
 
 // BackendStats 缓存后端运行状况，供运行诊断读取

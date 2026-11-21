@@ -26,7 +26,7 @@
  总之，在网站或 API 防护上做一款趁手的兵器，来抵御一些异常情况，确保网站和应用的正常运行。
  
 # 软件介绍
-SamWaf网站防火墙是一款适用于小公司、工作室和个人网站的开源轻量级网站防火墙，完全私有化部署，数据加密且仅保存本地，一键启动，支持 Linux、Windows 64位、ARM64，并提供 Docker 镜像。默认使用内置加密 SQLite 存储、无需安装任何外部依赖，也可按需切换 MySQL / PostgreSQL。
+SamWaf网站防火墙是一款适用于小公司、工作室和个人网站的开源轻量级网站防火墙，支持完全私有化部署、Linux、Windows 64位和 ARM64。本分支使用 PostgreSQL 保存主数据、日志和统计，控制台与业务状态使用 PostgreSQL KV/TTL 扩展，站点响应采用 L1 热缓存＋L2 磁盘缓存。部署、容量与旧 SQLite 数据迁移参见[分层缓存与 PostgreSQL](docs/TIERED-CACHE-POSTGRES.zh-CN.md)。
 
 ## 架构
 
@@ -92,7 +92,7 @@ SamWaf网站防火墙是一款适用于小公司、工作室和个人网站的�
 ### 基础特性
 - 代码完全开源（Apache 2.0）
 - 完全私有化部署，数据加密后仅保存本地
-- 单文件一键启动，轻量化不依赖三方服务（MySQL/Redis 均为可选）
+- 单文件应用配合 PostgreSQL 运行，控制台 KV/TTL 使用数据库内扩展
 - 完全独立引擎，防护功能不依赖 IIS、Nginx
 - 支持 IPV6
 
@@ -149,7 +149,7 @@ SamWaf网站防火墙是一款适用于小公司、工作室和个人网站的�
 - 账号 RBAC 权限、OTP 双因素认证、登录/操作日志
 - 数据统计报表、系统/主机监控
 - 数据保留策略与日志自动分片归档
-- 默认 SQLite（加密），可选 MySQL / PostgreSQL，内置 SQLite→MySQL / SQLite→PostgreSQL / MySQL→PostgreSQL 一键迁移
+- 运行数据库使用 PostgreSQL；保留离线 SQLite/MySQL → PostgreSQL 迁移工具及旧数据读取能力
 - 在线一键升级、零停机滚动重启、版本回退
 - 批量任务、定时任务、数据备份
 - 开放 API
@@ -196,6 +196,10 @@ curl -sSO https://update.samwaf.com/latest/install_samwaf.sh && bash install_sam
 
 
 ### Docker
+
+本分支使用仓库中的 Docker Compose 构建源码及 PostgreSQL KV/TTL 扩展。先设置 `SAMWAF_PG_PASSWORD`，然后执行 `docker compose up -d --build`。旧数据请按[迁移说明](docs/TIERED-CACHE-POSTGRES.zh-CN.md)先备份、迁移和验证。
+
+以下镜像命令属于上游版本的使用示例；`samwaf/samwaf` 不包含本分支的修改。
 ```
 docker run -d --name=samwaf-instance \
            --restart always \

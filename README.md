@@ -28,7 +28,7 @@ A lightweight open-source web application firewall
 In short, the goal was to create an effective tool for website or API protection to handle abnormal situations and ensure the normal operation of websites and applications.
 
 # Software Introduction
-SamWaf is a lightweight, open-source web application firewall for small companies, studios, and personal websites. It supports fully private deployment, encrypts data stored locally, is easy to start, and supports Linux, Windows 64-bit and ARM64, with Docker images available. By default it uses an embedded encrypted SQLite database with zero external dependencies, and can optionally switch to MySQL / PostgreSQL.
+SamWaf is a lightweight, open-source web application firewall supporting private deployment on Linux, Windows 64-bit and ARM64. This branch uses PostgreSQL for core data, logs and statistics, a PostgreSQL KV/TTL extension for control-plane state, and an L1 hot cache backed by an L2 disk cache for website responses. See [tiered cache and PostgreSQL deployment](docs/TIERED-CACHE-POSTGRES.zh-CN.md) for configuration and offline SQLite migration.
 
 ## Architecture
 
@@ -93,7 +93,7 @@ SamWaf is a lightweight, open-source web application firewall for small companie
 ### Basics
 - Completely open-source code (Apache 2.0)
 - Fully private deployment; data is encrypted and stored locally only
-- Single-file one-click start, lightweight with no third-party service dependencies (MySQL/Redis are optional)
+- Single application binary backed by PostgreSQL and its built-in KV/TTL extension schema
 - Fully independent engine; protection does not rely on IIS or Nginx
 - IPv6 support
 
@@ -150,7 +150,7 @@ SamWaf is a lightweight, open-source web application firewall for small companie
 - Account RBAC, OTP two-factor authentication, login/operation logs
 - Statistics reports and system/host monitoring
 - Data retention policy with automatic log sharding and archiving
-- SQLite (encrypted) by default, optional MySQL / PostgreSQL, with a built-in SQLite→MySQL / SQLite→PostgreSQL / MySQL→PostgreSQL migration tool
+- PostgreSQL runtime storage, with offline SQLite/MySQL → PostgreSQL migration and legacy source readers
 - Online one-click upgrade, zero-downtime rolling restart, and version rollback
 - Batch tasks, scheduled tasks, and data backup
 - Open API
@@ -195,6 +195,10 @@ curl -sSO https://update.samwaf.com/latest/install_samwaf.sh && bash install_sam
 ```
 
 ### Docker
+
+Set `SAMWAF_PG_PASSWORD`, then run `docker compose up -d --build` to build this branch and its PostgreSQL KV/TTL extension. Back up and migrate existing SQLite installations using the [migration guide](docs/TIERED-CACHE-POSTGRES.zh-CN.md).
+
+The image command below documents the upstream release. The upstream `samwaf/samwaf` image does not contain this branch's changes.
 ```
 docker run -d --name=samwaf-instance \
            --restart always \

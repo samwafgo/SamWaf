@@ -4,6 +4,7 @@ import (
 	"SamWaf/common/diagstat"
 	"SamWaf/enums"
 	"SamWaf/global"
+	"SamWaf/wafenginecore/wafwebcache"
 	"os"
 	"runtime"
 	"strings"
@@ -112,6 +113,8 @@ func RegisterBuiltins() {
 	diagstat.Register("db_queue", collectQueues)
 	diagstat.Register("chan", collectChans)
 	diagstat.Register("cache", collectCache)
+	// 与控制台 KV 的条目数分开，防止把网页正文配额和凭证状态计数混为一类。
+	diagstat.Register("web_cache", wafwebcache.Snapshot)
 	diagstat.Register("websocket", collectWebsocket)
 }
 

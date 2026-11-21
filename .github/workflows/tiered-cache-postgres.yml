@@ -1,0 +1,81 @@
+name: Tiered cache and PostgreSQL
+on:
+  # 分支推送也运行组件检查，便于 fork 在提交上游 PR 前取得可核对的验证结果。
+  push:
+    paths:
+      - '.github/workflows/tiered-cache-postgres.yml'
+      - 'cache/**'
+      - 'wafenginecore/**'
+      - 'wafconfig/**'
+      - 'wafdb/**'
+      - 'middleware/**'
+      - 'go.mod'
+      - 'go.sum'
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: tiered-cache-postgres-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  # 在两个 PostgreSQL 主版本上验证 SQL API，HTTP 分层与控制台 KV 使用各自的测试边界。
+  cache-and-postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      matrix:
+        postgres: ['17', '18']
+    services:
+      # trust 仅用于每次运行都销毁的 CI 服务，不作为部署示例；部署口令见 deploy/ 配置。
+      postgres:
+        image: postgres:${{ matrix.postgres }}-alpine
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: samwaf_cache_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d samwaf_cache_test"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      CGO_ENABLED: '1'
+      CGO_CFLAGS: -Wno-unused-variable -D_LARGEFILE64_SOURCE
+      SAMWAF_TEST_PG_CACHE_DSN: postgres://samwaf_ci@127.0.0.1:5432/samwaf_cache_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.9'
+      - name: Prepare an unprivileged application role
+        # 两种安装路径都使用普通数据库 owner，不能让超级用户权限掩盖扩展授权错误。
+        run: |
+          psql 'postgres://postgres@127.0.0.1:5432/postgres?sslmode=disable' -v ON_ERROR_STOP=1 \
+            -c 'CREATE ROLE samwaf_ci LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE' \
+            -c 'ALTER DATABASE samwaf_cache_test OWNER TO samwaf_ci'
+      - name: Test KV, HTTP tiers, authentication and cancellation
+        # 跳过上游只有固定长等待、没有断言的旧用例，保留新的 TTL/并发/取消语义回归。
+        run: >-
+          go test -race ./cache ./wafenginecore/wafwebcache ./wafconfig ./middleware
+          -skip '^TestWafCache_SetWithTTl$' -count=1 -timeout=180s
+      - name: Test engine integration and upload budgets
+        run: >-
+          go test ./wafenginecore
+          -run 'TestTieredCache|TestReadRequestBody|TestHttpAuthPathScope'
+          -count=1 -timeout=120s
+      - name: Test migration configuration and verified backup
+        run: go test ./wafdb -run '^TestMigratePostgresConfig' -count=1 -timeout=120s
+      - name: Test the trusted extension as an unprivileged owner
+        # 前面的空镜像验证嵌入 SQL 安装；这里在独立新库验证真实 CREATE EXTENSION 路径。
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+          SAMWAF_TEST_PG_CACHE_DSN: postgres://samwaf_ci@127.0.0.1:5432/samwaf_cache_extension_test?sslmode=disable
+        run: |
+          docker cp cache/postgres/samwaf_kv.control "$PG_CONTAINER:/usr/local/share/postgresql/extension/"
+          docker cp cache/postgres/samwaf_kv--1.0.sql "$PG_CONTAINER:/usr/local/share/postgresql/extension/"
+          psql 'postgres://postgres@127.0.0.1:5432/postgres?sslmode=disable' -v ON_ERROR_STOP=1 \
+            -c 'CREATE DATABASE samwaf_cache_extension_test OWNER samwaf_ci'
+          go test -race ./cache -run '^TestPostgresCache' -count=1 -timeout=180s
+          test "$(psql "$SAMWAF_TEST_PG_CACHE_DSN" -At -v ON_ERROR_STOP=1 \
+            -c "SELECT extversion FROM pg_extension WHERE extname='samwaf_kv'")" = '1.0'
+      - name: Build application
+        run: go build ./cmd/samwaf

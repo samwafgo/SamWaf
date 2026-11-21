@@ -420,7 +420,10 @@ func LoadAndInitConfig() {
 		fmt.Printf("%s\tINFO\t应急恢复路径已生成: %s\n", currentTime, global.GWAF_SECURITY_EMERGENCY_PATH)
 	}
 
-	// Cache后端配置
+	// 先补齐 PostgreSQL KV 的预算和类型别名，再兼容读取旧缓存连接字段。
+	if err := loadPostgresCacheConfig(config); err != nil {
+		panic(err)
+	}
 	if config.IsSet("cache.type") {
 		global.GCACHE_TYPE = config.GetString("cache.type")
 	} else {
@@ -467,10 +470,19 @@ func LoadAndInitConfig() {
 	if config.IsSet("database.driver") {
 		global.GWAF_DB_DRIVER = config.GetString("database.driver")
 	} else {
-		config.Set("database.driver", global.GWAF_DB_DRIVER) // 写入默认值 sqlite
+		// 检测到旧 SQLite 时只保留待迁移标识；正常 Worker 会要求显式迁移。
+		// 不能直接连到新建空 PostgreSQL，让用户把旧记录误认为已经丢失。
+		if _, err := os.Stat(utils.GetCurrentDir() + "/data/local.db"); err == nil {
+			global.GWAF_DB_DRIVER = "sqlite"
+		}
+		config.Set("database.driver", global.GWAF_DB_DRIVER)
 		configChanged = true
 	}
 
+	global.GWAF_DB_DRIVER = strings.ToLower(strings.TrimSpace(global.GWAF_DB_DRIVER))
+	if global.GWAF_DB_DRIVER == "pgsql" || global.GWAF_DB_DRIVER == "postgresql" {
+		global.GWAF_DB_DRIVER = "postgres"
+	}
 	if global.GWAF_DB_DRIVER == "mysql" {
 		// MySQL 连接参数（有默认值，仅在 config.yml 有对应键时才覆盖）
 		if config.IsSet("database.mysql.host") {
@@ -551,7 +563,10 @@ func LoadAndInitConfig() {
 		}
 	}
 
-	// 只有在配置发生变化时才写入文件（提前写，dialect 注册在下方）
+	// 文件参数读取后再应用环境覆盖；环境口令不写入 Viper，避免随下方配置保存落盘。
+	if err := postgresEnvironment(); err != nil {
+		panic(err)
+	}
 	if configChanged {
 		err := config.WriteConfig()
 		if err != nil {
@@ -574,15 +589,11 @@ func LoadAndInitConfig() {
 		// 只会让界面上所有时间静默偏移，是最难发现的一类问题。
 		fmt.Printf("%s\tINFO\t数据库驱动: PostgreSQL (%s:%d, timezone=%s)\n",
 			currentTime, global.GWAF_PG_HOST, global.GWAF_PG_PORT, global.GWAF_PG_TIMEZONE)
-	case "sqlite", "":
+	case "sqlite":
 		dialect.Register(&dialect.SQLiteDialect{})
 	default:
-		// 不认识的 driver 不能静默降级成 SQLite：那样 "postgre" 这种笔误会让用户
-		// 以为在跑 PG，实际数据全写进了本地 SQLite 文件。
-		fmt.Printf("%s\tWARN\t未知的数据库驱动 %q，已回退到 SQLite。可选值: sqlite | mysql | postgres\n",
-			currentTime, global.GWAF_DB_DRIVER)
-		global.GWAF_DB_DRIVER = "sqlite"
-		dialect.Register(&dialect.SQLiteDialect{})
+		// 驱动拼写错误必须终止，禁止生成与用户预期不同的空数据库。
+		panic(fmt.Sprintf("unsupported database driver %q; configure postgres or run migratedb for legacy data", global.GWAF_DB_DRIVER))
 	}
 }
 

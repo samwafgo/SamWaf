@@ -140,17 +140,23 @@ var (
 	GCACHE_WAFCACHE      cache.CacheStore      //cache
 	GCACHE_WECHAT_ACCESS string           = "" //微信访问密钥
 
-	// Cache后端配置
-	GCACHE_TYPE           string = "memory" // 缓存类型: memory（默认）| redis
+	// 控制台/业务状态后端；Redis 字段只供旧适配器兼容，站点正文使用独立 L1/L2。
+	GCACHE_TYPE           string = "postgres" // 控制台/业务状态默认使用 PostgreSQL KV/TTL
 	GCACHE_REDIS_HOST     string = "127.0.0.1"
 	GCACHE_REDIS_PORT     int    = 6379
 	GCACHE_REDIS_PASSWORD string = ""
 	GCACHE_REDIS_DB       int    = 0
 	// 连接池与单次操作上限，0 表示用 go-redis 默认值(池大小 10 × GOMAXPROCS)。
 	// 管理端鉴权与业务检测共用同一个池，机器核数多时不宜固定成小值。
-	GCACHE_REDIS_POOL_SIZE        int = 0
-	GCACHE_REDIS_POOL_TIMEOUT_SEC int = 0
-	GCACHE_REDIS_OP_TIMEOUT_SEC   int = 0
+	GCACHE_REDIS_POOL_SIZE        int    = 0
+	GCACHE_REDIS_POOL_TIMEOUT_SEC int    = 0
+	GCACHE_REDIS_OP_TIMEOUT_SEC   int    = 0
+	GCACHE_PG_DATABASE            string = "samwaf_cache" // 与主/日志/统计分离的持久 KV 数据库。
+	GCACHE_PG_NAMESPACE           string = "samwaf"       // 独立实例隔离；同实例滚动重启保留此值。
+	GCACHE_PG_POOL_SIZE           int    = 32             // 最大连接数，不代表缓存容量。
+	GCACHE_PG_OP_TIMEOUT_SEC      int    = 5              // 单次数据库操作预算，单位秒。
+	GCACHE_PG_CLEANUP_SEC         int    = 60             // 过期空间回收周期，读取仍即时判过期。
+	GCACHE_WEB_L1_CAPACITY_MB     int64  = 256            // 当前 Worker 全部站点 L1 的合计 MiB 配额。
 
 	/*********HTTP相关**************/
 	GWAF_HTTP_SENSITIVE_REPLACE_STRING = "**" //HTTP 敏感内容替换成
@@ -239,8 +245,8 @@ var (
 	GWAF_PWD_STATDB = "3Y)(27EtO^tK8Bj~STAT" //加密
 	GWAF_PWD_LOGDB  = "3Y)(27EtO^tK8Bj~LOG"  //加密
 
-	// Database driver: "sqlite" | "mysql" | "postgres" (default: sqlite)
-	GWAF_DB_DRIVER string = "sqlite"
+	// 正常运行使用 PostgreSQL；SQLite/MySQL 标识仅保留给旧数据迁移与维护路径。
+	GWAF_DB_DRIVER string = "postgres"
 
 	// MySQL connection config (populated from conf/config.yml database.mysql.*)
 	GWAF_MYSQL_HOST                      string = "127.0.0.1"

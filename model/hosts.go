@@ -28,7 +28,7 @@ type Hosts struct {
 	DEFENSE_JSON              string `gorm:"type:text" json:"defense_json"`                 //自身防御 json
 	START_STATUS              int    `json:"start_status"`                                  //启动状态 如果是0 启动  ; 如果是1 不启动
 	EXCLUDE_URL_LOG           string `gorm:"type:text" json:"exclude_url_log"`              //排除的url开头的数据 换行隔开
-	EXCLUDE_IP_LOG            string `gorm:"type:text" json:"exclude_ip_log"`             //排除记录日志的IP清单 换行或逗号隔开：单IP/CIDR/通配符/区间/group:组短码
+	EXCLUDE_IP_LOG            string `gorm:"type:text" json:"exclude_ip_log"`               //排除记录日志的IP清单 换行或逗号隔开：单IP/CIDR/通配符/区间/group:组短码
 	IsEnableLoadBalance       int    `json:"is_enable_load_balance"`                        //是否激活负载  1 激活  非1 没有激活
 	LoadBalanceStage          int    `json:"load_balance_stage"`                            //负载策略
 	UnrestrictedPort          int    `json:"unrestricted_port"`                             //不限来源匹配端口 0 限制 1，不限制
@@ -311,13 +311,22 @@ type AntiLeechConfig struct {
 	RedirectURL       string `json:"redirect_url"`         // 重定向URL，当Action为redirect时使用
 }
 
-// CacheConfig 缓存配置
+// CacheConfig 保存站点 L1 热缓存/L2 磁盘缓存预算；大小字段实际单位为 MiB。
+// 缺失或非正大小使用有限默认值，总容量与单对象上限分别约束，不能混作进程 RSS 上限。
 type CacheConfig struct {
-	IsEnableCache   int     `json:"is_enable_cache"`    // 是否开启缓存 1开启 0关闭
-	CacheLocation   string  `json:"cache_location"`     // 缓存位置: "memory"内存 或 "file"文件 或 "all"内存和文件
-	CacheDir        string  `json:"cache_dir"`          // 缓存目录，当location为file时使用
-	MaxFileSizeMB   float64 `json:"max_file_size_mb"`   // 最大缓存文件大小(MB)  0 是不限制
-	MaxMemorySizeMB float64 `json:"max_memory_size_mb"` // 最大内存缓存大小(MB)，当location为memory时使用  0 是不限制
+	IsEnableCache      int     `json:"is_enable_cache"`      // 是否开启缓存 1开启 0关闭
+	CacheLocation      string  `json:"cache_location"`       // tiered: L1 热缓存 + L2 磁盘；旧 memory/file/all 配置按 tiered 处理
+	CacheDir           string  `json:"cache_dir"`            // 分层模式的持久 L2 根目录，旧位置选项也会使用此目录。
+	MaxFileSizeMB      float64 `json:"max_file_size_mb"`     // L2 单对象上限，0 使用 32 MiB 默认值
+	MaxMemorySizeMB    float64 `json:"max_memory_size_mb"`   // L1 单对象上限，0 使用 4 MiB 默认值
+	L1CapacityMB       float64 `json:"l1_capacity_mb"`       // 站点 L1 总容量，默认 64 MiB
+	L2CapacityMB       float64 `json:"l2_capacity_mb"`       // 站点 L2 总容量，默认 1024 MiB
+	HeatThreshold      int     `json:"heat_threshold"`       // 固定窗口内达到该请求次数才进入 L1，默认 3
+	HeatWindowSeconds  int     `json:"heat_window_seconds"`  // 热度固定窗口，默认 5400 秒
+	InactiveSeconds    int     `json:"inactive_seconds"`     // L2 无访问回收时间，默认 86400 秒
+	MaxEntries         int     `json:"max_entries"`          // 每站点 L2 索引条目上限，默认 100000
+	LockTimeoutSeconds int     `json:"lock_timeout_seconds"` // 等待同键填充的时间，默认 5 秒
+	MinFreeMB          float64 `json:"min_free_mb"`          // 磁盘最少预留空间，默认 64 MiB
 }
 
 // StaticSecurityHeader 静态站点安全响应头项
@@ -752,11 +761,11 @@ func GetClientIPByMode(ipMode string, netSrcIp string, srcIP string) string {
 // 「24 小时绝对有效期 + 绑定登录 IP + 不启用空闲超时 + 整站保护」，即与加这套配置之前的行为逐条一致。
 // 数值字段用 FlexInt 是因为前端表单回传的是字符串，普通 int 会让该字段悄悄回落默认值。
 type HttpAuthConfig struct {
-	SessionTTL    FlexInt `json:"session_ttl"`    // 绝对有效期(分钟)，<=0 视为默认 1440
-	IdleTimeout   FlexInt `json:"idle_timeout"`   // 空闲超时(分钟)，0=不启用
-	BindIP        FlexInt `json:"bind_ip"`        // 1=登录令牌绑定登录时的 IP(默认) 0=不绑
-	PathScope     string  `json:"path_scope"`     // 保护范围：all=整站(默认) include=仅指定路径 exclude=除指定路径外
-	Paths         string  `json:"paths"`          // 路径模式清单（换行/逗号分隔，支持 * 通配），path_scope=all 时忽略
+	SessionTTL    FlexInt `json:"session_ttl"`     // 绝对有效期(分钟)，<=0 视为默认 1440
+	IdleTimeout   FlexInt `json:"idle_timeout"`    // 空闲超时(分钟)，0=不启用
+	BindIP        FlexInt `json:"bind_ip"`         // 1=登录令牌绑定登录时的 IP(默认) 0=不绑
+	PathScope     string  `json:"path_scope"`      // 保护范围：all=整站(默认) include=仅指定路径 exclude=除指定路径外
+	Paths         string  `json:"paths"`           // 路径模式清单（换行/逗号分隔，支持 * 通配），path_scope=all 时忽略
 	BypassIPGroup string  `json:"bypass_ip_group"` // 免密IP组 code，命中该组的来源跳过密码校验，空=不启用
 }
 

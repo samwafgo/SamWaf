@@ -23,9 +23,11 @@ import (
 	"SamWaf/wafcli"
 	"SamWaf/wafconfig"
 	"SamWaf/wafdb"
+	"SamWaf/wafdb/dialect"
 	"SamWaf/wafdiag"
 	"SamWaf/wafenginecore"
 	"SamWaf/wafenginecore/wafcaptcha"
+	"SamWaf/wafenginecore/wafwebcache"
 	"SamWaf/wafhostguard"
 	"SamWaf/wafinit"
 	"SamWaf/wafipban"
@@ -232,8 +234,20 @@ func (m *wafSystenService) run() {
 	}
 	//TODO 准备释放最新spider bot
 
-	//初始化cache
+	// 初始化持久业务状态缓存，网站正文容量与此后端完全分开。
 	{
+		// 迁移必须显式执行；不能把错误/旧驱动配置静默解释成空的内存或 SQLite 实例。
+		if global.GWAF_DB_DRIVER != "postgres" || global.GCACHE_TYPE != "postgres" {
+			zlog.Error("此版本运行需要 database.driver=postgres 和 cache.type=postgres；旧数据请先备份并运行 migratedb --from=sqlite --to=postgres，验证后再切换配置")
+			os.Exit(1)
+		}
+		// KV 在主库迁移前就会用于验证码等组件，因此先准备其独立数据库和 schema。
+		if err := wafdb.EnsurePostgresDatabase(global.GCACHE_PG_DATABASE); err != nil {
+			zlog.Error("初始化 PostgreSQL 缓存数据库失败", "error", err)
+			os.Exit(1)
+		}
+		// 全局 L1 配额按当前 Worker 汇总，站点自己的配额还会在准入时再次限制。
+		wafwebcache.ConfigureL1Capacity(global.GCACHE_WEB_L1_CAPACITY_MB * (1 << 20))
 		cacheStore, err := cache.NewCacheStore(global.GCACHE_TYPE, &cache.RedisCacheConfig{
 			Host:        global.GCACHE_REDIS_HOST,
 			Port:        global.GCACHE_REDIS_PORT,
@@ -242,6 +256,12 @@ func (m *wafSystenService) run() {
 			PoolSize:    global.GCACHE_REDIS_POOL_SIZE,
 			PoolTimeout: time.Duration(global.GCACHE_REDIS_POOL_TIMEOUT_SEC) * time.Second,
 			OpTimeout:   time.Duration(global.GCACHE_REDIS_OP_TIMEOUT_SEC) * time.Second,
+		}, &cache.PostgresCacheConfig{
+			DSN:             dialect.BuildPostgresDSN(global.GWAF_PG_HOST, global.GWAF_PG_PORT, global.GWAF_PG_USER, global.GWAF_PG_PASSWORD, global.GCACHE_PG_DATABASE, global.GWAF_PG_SSLMODE, global.GWAF_PG_TIMEZONE),
+			Namespace:       global.GCACHE_PG_NAMESPACE,
+			PoolSize:        global.GCACHE_PG_POOL_SIZE,
+			OpTimeout:       time.Duration(global.GCACHE_PG_OP_TIMEOUT_SEC) * time.Second,
+			CleanupInterval: time.Duration(global.GCACHE_PG_CLEANUP_SEC) * time.Second,
 		})
 		if err != nil {
 			zlog.Error("初始化缓存失败，程序退出，请检查conf/config.yml缓存配置是否正确", "error", err)
@@ -1127,7 +1147,11 @@ func (m *wafSystenService) Graceful() {
 		zlog.Info("Shutdown SamWaf LogExport...")
 		logExportWorkerLifecycle.stop(waf_service.WafLogExportServiceApp.Stop)
 		zlog.Info("Shutdown SamWaf LogExport finished")
-		m.stopSamWaf()           // 内部 CloseWaf→StopAllProxyServer 已优雅排空在途连接
+		m.stopSamWaf() // 内部 CloseWaf→StopAllProxyServer 已优雅排空在途连接
+		// 先排空代理，再停 KV 清理并关闭其池，避免在途鉴权访问已关闭连接。
+		if closer, ok := global.GCACHE_WAFCACHE.(interface{ Close() error }); ok {
+			_ = closer.Close()
+		}
 		wafsafeclear.SafeClear() // 最后关闭数据库连接
 		zlog.Info("[Graceful] 优雅停止完成")
 	})

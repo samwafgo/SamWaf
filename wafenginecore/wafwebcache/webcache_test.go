@@ -6,7 +6,9 @@ import (
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/model/wafenginmodel"
+	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -58,20 +60,20 @@ func createTestCacheConfig(isEnable int, location, dir string) model.CacheConfig
 	}
 }
 
-// 测试内存缓存存储和加载
+// TestMemoryCache 直接验证独立 L1 的读写，不再把网站正文写入控制台 CacheStore。
 func TestMemoryCache(t *testing.T) {
 	setupTestEnv()
 
-	hostCode := "test_host"
-	key := "test_key"
+	key := hashFields("test_key")
 	testData := []byte("test data content")
 	timeout := 10
 
-	// 测试存储到内存缓存
-	storeMemory(hostCode, key, testData, timeout)
+	m := metadata{Base: key, Key: variantKey(key, nil, nil), Size: int64(len(testData)), Stored: time.Now().UnixNano(), Expires: time.Now().Add(time.Duration(timeout) * time.Second).UnixNano()}
+	c := newMemoryCache(mib)
+	c.put("test_host", mib, m, testData)
 
 	// 测试从内存缓存加载
-	data := loadFormMemory(hostCode, key)
+	_, data, _ := c.get(key, nil, time.Now())
 	if data == nil {
 		t.Fatalf("从内存缓存加载失败")
 	}
@@ -81,7 +83,7 @@ func TestMemoryCache(t *testing.T) {
 	}
 }
 
-// 测试文件缓存存储和加载
+// TestFileCache 完整写入并提交新 L2 格式后读取正文，覆盖真实文件头、偏移和句柄关闭。
 func TestFileCache(t *testing.T) {
 	// 创建临时目录
 	tempDir, err := os.MkdirTemp("", "webcache_test")
@@ -90,16 +92,31 @@ func TestFileCache(t *testing.T) {
 	}
 	defer cleanupTestEnv(tempDir)
 
-	hostCode := "test_host"
-	key := "test_key"
+	key := hashFields("test_key")
 	testData := []byte("test file cache content")
 	timeout := 60
 
-	// 测试存储到文件缓存
-	storeFile(hostCode, key, testData, tempDir, timeout)
+	m := metadata{Base: key, Key: variantKey(key, nil, nil), Header: make(http.Header), Size: int64(len(testData)), Stored: time.Now().UnixNano(), Expires: time.Now().Add(time.Duration(timeout) * time.Second).UnixNano()}
+	c := newDiskCache(tempDir)
+	w, err := c.begin(context.Background(), m, normalize(model.CacheConfig{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.file.Write(testData); err != nil {
+		t.Fatal(err)
+	}
+	w.finish(true)
 
 	// 测试从文件缓存加载
-	data := loadFormFile(hostCode, key, tempDir)
+	_, f, offset := c.lookup(key, nil)
+	if f == nil {
+		t.Fatal("disk cache miss")
+	}
+	data, err := io.ReadAll(io.NewSectionReader(f, offset, int64(len(testData))))
+	f.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if data == nil {
 		t.Fatalf("从文件缓存加载失败")
 	}

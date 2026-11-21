@@ -10,7 +10,7 @@ type CacheRule struct {
 	RuleType      int    `json:"rule_type" gorm:"column:rule_type"`                   // 规则类型：1-后缀匹配 ，2-指定目录，3-指定文件
 	RuleContent   string `json:"rule_content" gorm:"column:rule_content;type:text"`   // 规则内容
 	ParamType     int    `json:"param_type" gorm:"column:param_type"`                 // 参数处理：1-忽略参数，2-完整参数
-	CacheTime     int    `json:"cache_time" gorm:"column:cache_time"`                 // 缓存时间(秒)：0-不缓存
+	CacheTime     int    `json:"cache_time" gorm:"column:cache_time"`                 // 缓存时间上限(秒)：<=0 不读取也不写入缓存
 	Priority      int    `json:"priority" gorm:"column:priority"`                     // 优先级：数字越大优先级越高
 	RequestMethod string `json:"request_method" gorm:"column:request_method;size:20"` // 请求方式：GET;HEAD;POST等，多个用分号分隔
 	Remarks       string `json:"remarks" gorm:"column:remarks;size:500"`              // 备注

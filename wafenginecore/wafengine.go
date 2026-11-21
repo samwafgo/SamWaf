@@ -27,7 +27,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -174,6 +173,8 @@ func inferAttackType(ruleTitle string) string {
 	return ""
 }
 func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// 代理正文消费完成后再释放填充锁；所有提前返回、错误和取消都必须覆盖。
+	defer wafwebcache.FinishRequest(r)
 	innerLogName := "WafEngine ServeHTTP"
 	global.IncrementQPS() // 使用统一的QPS增量函数
 
@@ -713,27 +714,55 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if waf.DoAccessGate(w, r, hostTarget, &weblogbean, clientIP) == accessHandled {
 			return
 		}
+		// 两套访问认证都必须在缓存和本地文件返回之前执行，缓存命中不能绕过站点密码门。
+		if hostTarget.Host.IsEnableHttpAuthBase == 1 {
+			authRes := waf.DoHttpAuthBase(hostTarget, w, r, model.GetClientIPByMode(hostTarget.Host.IPMode, weblogbean.NetSrcIp, weblogbean.SRC_IP))
+			if authRes.Blocked {
+				weblogbean.RES_BODY = authRes.Tip
+				weblogbean.RULE = httpAuthRuleName(hostTarget.Host)
+				weblogbean.STATUS = fmt.Sprintf("%d %s", authRes.Status, http.StatusText(authRes.Status))
+				weblogbean.STATUS_CODE = authRes.Status
+				weblogbean.TASK_FLAG = 1
+				if authRes.SelfServe {
+					weblogbean.ACTION = "放行"
+					weblogbean.RULE = ""
+				} else {
+					weblogbean.ACTION = "禁止"
+				}
+				truncateWebLogBodyForQueue(&weblogbean)
+				global.GQEQUE_LOG_DB.Enqueue(&weblogbean)
+				return
+			}
+		}
 
-		if cacheConfig.IsEnableCache == 1 && !strings.HasPrefix(weblogbean.URL, global.GSSL_HTTP_CHANGLE_PATH) {
-			cacheResp := wafwebcache.LoadWebDataFormCache(w, r, hostTarget, cacheConfig, &weblogbean)
+		// 只有反代路径会进入响应提交钩子；本地文件和跳转不建立无法填充的反代缓存锁。
+		cacheProxyPath := staticSiteConfig.IsEnableStaticSite != 1
+		if pathRule := MatchPathRule(hostTarget.PathRules, r.URL.Path); pathRule != nil && (pathRule.TargetType == 2 || pathRule.TargetType == 3) {
+			cacheProxyPath = false
+		}
+		if cacheConfig.IsEnableCache == 1 && !cacheProxyPath {
+			w.Header().Set("X-Cache", "BYPASS")
+			w.Header().Set("X-Cache-Layer", "off")
+		}
+		if cacheConfig.IsEnableCache == 1 && cacheProxyPath && !strings.HasPrefix(weblogbean.URL, global.GSSL_HTTP_CHANGLE_PATH) {
+			cacheResp := wafwebcache.LoadWebDataFormCache(w, r, hostTarget, cacheConfig, &weblogbean, rt.HostTarget[global.GWAF_GLOBAL_HOST_NAME])
 			if cacheResp != nil {
 				// 将缓存的响应写回给客户端
 				for k, v := range cacheResp.Header {
+					w.Header().Del(k)
 					for _, val := range v {
 						w.Header().Add(k, val)
 					}
 				}
 
-				w.Header().Add("X-Cache", "HIT")
 				w.WriteHeader(cacheResp.StatusCode)
 				// 读取并写入响应体
 				if cacheResp.Body != nil {
-					body, _ := ioutil.ReadAll(cacheResp.Body)
-					cacheResp.Body.Close()
-					w.Write(body)
-
-					// 重新创建一个body供后续使用
-					cacheResp.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+					// L2 正文可能较大，直接流式写出；HEAD 的元数据响应不发送正文。
+					if r.Method != http.MethodHead {
+						_, _ = io.Copy(w, cacheResp.Body)
+					}
+					_ = cacheResp.Body.Close()
 				}
 
 				// 设置响应并返回
@@ -769,29 +798,6 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		//如果正常的流量不记录请求原始包
 		if global.GCONFIG_RECORD_ALL_SRC_BYTE_INFO == 0 {
 			weblogbean.SrcByteBody = nil
-		}
-		//基本验证是否开关是否开启
-		if hostTarget.Host.IsEnableHttpAuthBase == 1 {
-			authRes := waf.DoHttpAuthBase(hostTarget, w, r, model.GetClientIPByMode(hostTarget.Host.IPMode, weblogbean.NetSrcIp, weblogbean.SRC_IP))
-			if authRes.Blocked {
-				// 记录日志
-				weblogbean.RES_BODY = authRes.Tip
-				weblogbean.RULE = httpAuthRuleName(hostTarget.Host)
-				weblogbean.STATUS = fmt.Sprintf("%d %s", authRes.Status, http.StatusText(authRes.Status))
-				weblogbean.STATUS_CODE = authRes.Status
-				weblogbean.TASK_FLAG = 1
-				if authRes.SelfServe {
-					// 认证网关自己的端点（登录页/登录校验）：请求由这道门应答，没有被拦，
-					// 动作记「放行」。记成「禁止」会让一次登录成功在访问日志里显示成被拦截。
-					weblogbean.ACTION = "放行"
-					weblogbean.RULE = ""
-				} else {
-					weblogbean.ACTION = "禁止"
-				}
-				truncateWebLogBodyForQueue(&weblogbean)
-				global.GQEQUE_LOG_DB.Enqueue(&weblogbean)
-				return
-			}
 		}
 
 		// 日志保存时候也是脱敏保存防止，数据库密码被破解，遭到敏感信息遭到泄露
@@ -1055,6 +1061,8 @@ func (waf *WafEngine) errorResponse() func(http.ResponseWriter, *http.Request, e
 }
 func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 	return func(resp *http.Response) error {
+		// 先注册、最后执行：在后注册的缓存提交钩子之后统一写可信诊断，保留再验证状态。
+		defer wafwebcache.PrepareResponse(resp)
 		resp.Header.Set("X-Xss-Protection", "1; mode=block")
 		if global.GCONFIG_RECORD_HIDE_SERVER_HEADER == 1 {
 			resp.Header.Del("Server")
@@ -1336,7 +1344,8 @@ func (waf *WafEngine) modifyResponse() func(*http.Response) error {
 				zlog.Debug("解析cache json失败")
 			}
 			if cacheConfig.IsEnableCache == 1 && !strings.HasPrefix(weblogfrist.URL, global.GSSL_HTTP_CHANGLE_PATH) {
-				wafwebcache.StoreWebDataCache(resp, waf.rt().HostTarget[host], cacheConfig, weblogfrist)
+				// 等其他响应处理确定最终头和正文后再安装流式填充，避免后续替换 Body 遗留预留。
+				defer wafwebcache.StoreWebDataCache(resp, waf.rt().HostTarget[host], cacheConfig, weblogfrist)
 			}
 
 			// ACME 证书校验必须与 isStaticAssist 判定并列，不能嵌套在它内部：
@@ -1429,24 +1438,21 @@ const detectBodyReadLimit = 1 << 20 // 1 MB
 
 // detectDecompressLimit 压缩请求体解压后的读取上限（检测预算）。
 // 高压缩比报文解压后可能远大于原始流，解压结果读取必须单独封顶；
-// 传 0 表示不限制（缓存等需要完整内容的场景）。
+// 站点响应缓存只接收无正文 GET/HEAD，不改变检测预算。
 const detectDecompressLimit = 10 << 20 // 10 MB
 
 // readRequestBodyForDetect 读取请求体作为检测输入，并保证 r.Body 对下游完整可重读。
 // 只要请求带 body（含分块传输、Content-Length 超过日志上限的大请求体）就总是读取：
 // 常规分支只读检测预算内的前缀，未读完的原始流拼回 r.Body，代理转发一字节不丢；
-// 缓存分支需要完整请求体计算缓存键与内容，保持全量读取。
-func (waf *WafEngine) readRequestBodyForDetect(r *http.Request, cacheEnabled bool) []byte {
+// 站点缓存开启也不全量复制上传正文。
+// 第二个参数只保留旧调用签名；公共响应缓存不接受正文请求，不再改变检测预算。
+func (waf *WafEngine) readRequestBodyForDetect(r *http.Request, _ bool) []byte {
 	if r.Body == nil || r.Body == http.NoBody {
 		return nil
 	}
 
 	// 压缩请求体：解压结果作为检测输入，原始流已在解压函数内还原。
-	// 缓存开启时不限制解压结果，保持完整内容语义
 	decompressLimit := int64(detectDecompressLimit)
-	if cacheEnabled {
-		decompressLimit = 0
-	}
 	if r.Header.Get("Content-Encoding") != "" {
 		decompressedBytes, decompressErr := waf.decompressRequestContent(r, decompressLimit)
 		if decompressErr != nil {
@@ -1460,13 +1466,6 @@ func (waf *WafEngine) readRequestBodyForDetect(r *http.Request, cacheEnabled boo
 			return decompressedBytes[:detectBodyReadLimit]
 		}
 		return decompressedBytes
-	}
-
-	if cacheEnabled {
-		// 缓存分支：完整请求体参与缓存键与内容，保持全量读取
-		bodyByte, _ := io.ReadAll(r.Body)
-		r.Body = io.NopCloser(bytes.NewBuffer(bodyByte))
-		return bodyByte
 	}
 
 	// 常规分支：只读检测预算内的前缀，剩余原始流原样拼回

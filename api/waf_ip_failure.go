@@ -3,10 +3,10 @@ package api
 import (
 	"SamWaf/enums"
 	"SamWaf/global"
-	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	response2 "SamWaf/model/response"
+	"SamWaf/service/waf_service"
 	"SamWaf/utils"
 	"SamWaf/wafipban"
 	"SamWaf/waftask"
@@ -183,15 +183,12 @@ func (w *WafIPFailureApi) RemoveIPFailureBanIPApi(c *gin.Context) {
 	var req request.WafIPFailureRemoveBanIpReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
-		// 直接清除失败记录窗口累积
-		manager := wafipban.GetIPFailureManager()
-		manager.ClearIPFailure(req.Ip)
-		// CC 封禁键按作用域分开存放，逐一清理（含升级前的旧格式键）
-		for cacheKey := range global.GCACHE_WAFCACHE.ListAvailableKeysWithPrefix(enums.CACHE_CCVISITBAN_PRE) {
-			if _, _, banIp, ok := model.ParseCCBanKey(cacheKey); ok && banIp == req.Ip {
-				global.GCACHE_WAFCACHE.Remove(cacheKey)
-			}
+		// 失败记录、CC 封禁与共享额度作为一个事务撤销，数据库故障不能返回假成功。
+		if err := waf_service.ReleaseCCIP(global.GCACHE_WAFCACHE, req.Ip, true); err != nil {
+			response.BackendUnavailableWithMessage("解除失败状态暂不可用，请重试", c)
+			return
 		}
+		global.GWAF_CHAN_CLEAR_CC_IP <- req.Ip
 		response.OkWithMessage(req.Ip+" 移除成功", c)
 	} else {
 		response.FailWithMessage("解析失败", c)

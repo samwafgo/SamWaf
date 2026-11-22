@@ -58,7 +58,7 @@ func ProcessLogDequeEngine() {
 					if global.GCONFIG_IP_FAILURE_BAN_ENABLED == 1 {
 						ipManager := wafipban.GetIPFailureManager()
 						for _, log := range webLogArray {
-							if ipManager.IsFailureStatusCode(log.STATUS_CODE) {
+							if !log.SkipFailureCount && ipManager.IsFailureStatusCode(log.STATUS_CODE) {
 								ipManager.RecordFailure(log)
 							}
 						}

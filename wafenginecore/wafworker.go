@@ -123,7 +123,10 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 
 	//查询ip白名单（停用条目不下发引擎，下同）
 	var ipwhitelist []model.IPAllowList
-	global.GWAF_LOCAL_DB.Where("host_code=? and is_enable = 1", inHost.Code).Find(&ipwhitelist)
+	if err := global.GWAF_LOCAL_DB.Where("host_code=? and is_enable = 1", inHost.Code).Find(&ipwhitelist).Error; err != nil {
+		zlog.Error("加载 IP 白名单失败，保留原站点快照")
+		return nil
+	}
 
 	//查询url白名单
 	var urlwhitelist []model.URLAllowList
@@ -131,7 +134,10 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 
 	//查询ip黑名单
 	var ipblocklist []model.IPBlockList
-	global.GWAF_LOCAL_DB.Where("host_code=? and is_enable = 1", inHost.Code).Find(&ipblocklist)
+	if err := global.GWAF_LOCAL_DB.Where("host_code=? and is_enable = 1", inHost.Code).Find(&ipblocklist).Error; err != nil {
+		zlog.Error("加载 IP 黑名单失败，保留原站点快照")
+		return nil
+	}
 
 	//查询url白名单
 	var urlblocklist []model.URLBlockList

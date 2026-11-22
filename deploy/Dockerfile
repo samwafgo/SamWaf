@@ -13,7 +13,8 @@ RUN go build -trimpath -ldflags="-s -w" -o /out/SamWafLinux64 ./cmd/samwaf
 
 # 运行镜像只带应用及必要运行依赖，编译器和构建目录不进入最终镜像。
 FROM alpine:3.22
-RUN apk add --no-cache ca-certificates tzdata iptables
+# Linux 系统封禁由内嵌 eBPF 执行，运行镜像不再携带旧外部规则命令。
+RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 COPY --from=build /out/SamWafLinux64 /app/SamWafLinux64
 ENV TZ=Asia/Shanghai

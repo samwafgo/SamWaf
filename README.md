@@ -28,7 +28,7 @@ A lightweight open-source web application firewall
 In short, the goal was to create an effective tool for website or API protection to handle abnormal situations and ensure the normal operation of websites and applications.
 
 # Software Introduction
-SamWaf is a lightweight, open-source web application firewall supporting private deployment on Linux, Windows 64-bit and ARM64. This branch uses PostgreSQL for core data, logs and statistics, a PostgreSQL KV/TTL extension for control-plane state, and an L1 hot cache backed by an L2 disk cache for website responses. See [tiered cache and PostgreSQL deployment](docs/TIERED-CACHE-POSTGRES.zh-CN.md) for configuration and offline SQLite migration.
+SamWaf is a lightweight, open-source web application firewall supporting private deployment on Linux, Windows 64-bit and ARM64. This branch uses PostgreSQL for core data, logs and statistics, a PostgreSQL KV/TTL extension for control-plane state, and an L1 hot cache backed by an L2 disk cache for website responses. Linux system IP enforcement uses embedded eBPF. See [tiered cache and PostgreSQL deployment](docs/TIERED-CACHE-POSTGRES.zh-CN.md) and [eBPF enforcement and shared security state](docs/EBPF-IP-BAN.zh-CN.md) for requirements, configuration and migration.
 
 ## Architecture
 

@@ -40,7 +40,7 @@ var outputFormat = "text"
 
 func SetResultOutput(w io.Writer) { resultOut = w }
 func IsAutomationCommand(args []string) bool {
-	return len(args) > 1 && (args[1] == "site" || args[1] == "apikey")
+	return len(args) > 1 && (args[1] == "site" || args[1] == "apikey" || args[1] == "ebpf")
 }
 
 func newRootCommand(deps Deps) *cobra.Command {
@@ -70,6 +70,7 @@ func newRootCommand(deps Deps) *cobra.Command {
 		&cobra.Group{ID: "auto", Title: "自动化:"},
 	)
 	addLegacyCommands(root, deps)
+	addEBPFCommand(root)
 	apikey := newAPIKeyCommand()
 	site := newSiteCommand()
 	for _, cmd := range []*cobra.Command{apikey, site} {

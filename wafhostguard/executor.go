@@ -74,6 +74,9 @@ func (e *BanExecutor) useIncremental() bool {
 
 // useRuleMode 是否走逐条防火墙规则而不是集合
 func (e *BanExecutor) useRuleMode() bool {
+	if platformExecMode() == "ebpf" {
+		return false
+	} // Linux 的旧 rule/ipset 选项都由新的来源隔离 eBPF 组承接。
 	if global.GCONFIG_HOST_GUARD_EXEC_MODE == "rule" {
 		return true
 	}
@@ -86,6 +89,9 @@ func (e *BanExecutor) useRuleMode() bool {
 
 // ExecMode 返回当前实际使用的执行方式，供状态展示
 func (e *BanExecutor) ExecMode() string {
+	if mode := platformExecMode(); mode != "" {
+		return mode
+	}
 	if e.useRuleMode() {
 		return model.HostBanExecRule
 	}
@@ -175,6 +181,9 @@ func (e *BanExecutor) rebuildAfterScopeChange() {
 func (e *BanExecutor) Apply(add, del []string) error {
 	if len(add) == 0 && len(del) == 0 {
 		return nil
+	}
+	if handled, err := e.applyPlatform(add, del); handled {
+		return err
 	}
 
 	e.mu.Lock()
@@ -324,6 +333,9 @@ func (e *BanExecutor) ReplayOnStart() error {
 	if err != nil {
 		return err
 	}
+	if handled, err := e.replayPlatform(bans); handled {
+		return err
+	}
 	if len(bans) == 0 {
 		return nil
 	}
@@ -370,6 +382,9 @@ func (e *BanExecutor) Count() int {
 
 // Contains 该 IP 当前是否在封禁集合内
 func (e *BanExecutor) Contains(ip string) bool {
+	if handled, active := e.platformContains(ip); handled {
+		return active
+	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	_, ok := e.current[ip]

@@ -7,6 +7,7 @@ toolchain go1.25.9
 require (
 	github.com/andybalholm/brotli v1.2.0
 	github.com/bytedance/godlp v1.2.15
+	github.com/cilium/ebpf v0.19.0
 	github.com/corazawaf/coraza/v3 v3.3.3
 	github.com/corazawaf/libinjection-go v0.3.2
 	github.com/denisbrodbeck/machineid v1.0.1

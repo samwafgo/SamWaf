@@ -44,6 +44,13 @@ import (
 )
 
 type WafEngine struct {
+	// 手工黑名单按数据库版本同步；重载锁与路由发布锁分开，不持路由锁执行 SQL。
+	ipBlockReloadMu     sync.Mutex
+	ipBlockRevision     atomic.Int64
+	ipBlockSyncMu       sync.Mutex
+	ipBlockSyncCancel   context.CancelFunc
+	ipBlockSyncDone     chan struct{}
+	SystemBanReconciler func(context.Context, bool) error // 独立控制协程核对内核来源，不能阻塞逐请求判定。
 	//路由快照(RCU)：域名索引收进不可变 routingTable，
 	//由 atomic.Pointer 持有。读热路径走 waf.rt() 无锁读；写者一律 copy-on-write(见 routing_table.go)。
 	//writeMu 串行化所有写者(增删 host/端口、字段级热更新)，保证发布的快照完整一致。
@@ -324,6 +331,8 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Scheme:               r.Proto,
 			SrcURL:               []byte(r.RequestURI),
 		}
+		// 日志展示与安全身份分开；失败统计必须与该站点的 CC/封禁 IP 模式一致。
+		weblogbean.SecurityIP = model.GetClientIPByMode(hostTarget.Host.IPMode, weblogbean.NetSrcIp, weblogbean.SRC_IP)
 		// 检查是否为WebSocket升级请求
 		if strings.ToLower(r.Header.Get("Upgrade")) == "websocket" {
 			if r.TLS != nil {
@@ -432,6 +441,11 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			//一系列检测逻辑
 			handleBlock := func(checkFunc func(*http.Request, *innerbean.WebLog, url.Values, *wafenginmodel.HostSafe, *wafenginmodel.HostSafe) detection.Result, messageType ...string) bool {
 				detectionResult := checkFunc(r, &weblogbean, formValues, hostTarget, waf.rt().HostTarget[waf.rt().HostCode[global.GWAF_GLOBAL_HOST_CODE]])
+				// 安全后端故障是服务错误，与规则命中/仅记录模式分开处理。
+				if detectionResult.BackendUnavailable {
+					securityBackendUnavailable(w, r, &weblogbean)
+					return true
+				}
 				//自定义规则放行：不拦截，按需跳过后续检测
 				if detectionResult.IsRuleAllow {
 					if detectionResult.JumpGuardResult {
@@ -493,17 +507,23 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			//检测白名单结束
 			if detectionWhiteResult.JumpGuardResult == false {
+				// 合并读取全部临时封禁状态，不缓存负结果；数据库故障必须阻止本次受保护请求。
+				bans, banErr := lookupIPBans(r.Context(), hostTarget.Host.Code, weblogbean.NetSrcIp, weblogbean.SRC_IP, hostTarget.Host.IPMode)
+				if banErr != nil {
+					securityBackendUnavailable(w, r, &weblogbean)
+					return
+				}
 
 				// CC 封禁期拦截。位置有两个讲究：
 				// 一是放在 GUARD_STATUS 判断之内——站点关闭防护后不该再拦；
 				// 二是放在白名单检测之后——白名单内的 IP 不受封禁影响，配错了阈值还能靠白名单自救。
-				if hitKey, banIP := matchCCBan(hostTarget.Host.Code, weblogbean.NetSrcIp, weblogbean.SRC_IP, hostTarget.Host.IPMode); hitKey != "" {
+				if bans.CCKey != "" {
 					if hostTarget.Host.LogOnlyMode == 1 {
 						// 仅记录模式：只在日志上留痕，不阻断，继续走后续检测
 						weblogbean.LogOnlyMode = 1
 						weblogbean.RULE = "CC封禁"
 					} else {
-						notifyCCBanOnce(hitKey, banIP, region)
+						notifyCCBanOnce(bans.CCKey, bans.ClientIP, region)
 						responseCode := EchoErrorInfo(w, r, &weblogbean, "", "当前IP由于访问频次太高暂时无法访问", hostTarget, waf.rt().HostTarget[waf.rt().HostCode[global.GWAF_GLOBAL_HOST_CODE]], false, "cc_attack")
 						global.GQEQUE_LOG_DB.Enqueue(ccBanLog(&weblogbean, responseCode))
 						return
@@ -511,7 +531,7 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 
 				// 规则封禁期拦截。位置与 CC 封禁同理：白名单之后（白名单 IP 可自救）、站点防护之内。
-				if hitKey, _ := matchRuleBan(hostTarget.Host.Code, weblogbean.NetSrcIp, weblogbean.SRC_IP, hostTarget.Host.IPMode); hitKey != "" {
+				if bans.RuleKey != "" {
 					if hostTarget.Host.LogOnlyMode == 1 {
 						weblogbean.LogOnlyMode = 1
 						weblogbean.RULE = "规则封禁"
@@ -1493,7 +1513,8 @@ func joinHeader(h http.Header) string {
 	return buf.String()
 }
 
-func (waf *WafEngine) StartWaf() {
+// StartWaf 在开始监听前确认安全名单已成功加载；错误由启动调用方处理。
+func (waf *WafEngine) StartWaf() error {
 
 	waf.EngineCurrentStatus = 1
 	waf.ensureGlobalHost()
@@ -1505,6 +1526,10 @@ func (waf *WafEngine) StartWaf() {
 
 	//第一步 检测合法性并加入到全局
 	waf.LoadAllHost()
+	if err := waf.StartIPBlockSync(global.GWAF_LOCAL_DB); err != nil {
+		waf.EngineCurrentStatus = 0
+		return err
+	}
 
 	wafSysLog := model.WafSysLog{
 		BaseOrm: baseorm.BaseOrm{
@@ -1520,6 +1545,7 @@ func (waf *WafEngine) StartWaf() {
 	global.GQEQUE_LOG_DB.Enqueue(&wafSysLog)
 
 	waf.StartAllProxyServer()
+	return nil
 }
 
 // ensureGlobalHost 确保全局保护主机存在（首次启动时创建）。
@@ -1614,6 +1640,7 @@ func (waf *WafEngine) ReloadAllHostZeroGap() {
 
 // CloseWaf 关闭waf
 func (waf *WafEngine) CloseWaf() {
+	waf.StopIPBlockSync()
 	defer func() {
 		e := recover()
 		if e != nil { // 捕获该协程的panic 111111

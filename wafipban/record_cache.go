@@ -1,6 +1,46 @@
 package wafipban
 
-import "SamWaf/cache"
+import (
+	"SamWaf/cache"
+	"encoding/json"
+	"time"
+)
+
+// readRecordE 将未命中与后端/反序列化故障分开，安全规则不能把查询失败解释成零次失败。
+func readRecordE[T any](store cache.CacheStore, key string) (*T, error) {
+	if _, memory := store.(*cache.WafCache); memory {
+		return loadRecord[T](store, key), nil
+	}
+	var record *T
+	if err := store.GetAs(key, &record); err != nil {
+		if cache.IsMiss(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return record, nil
+}
+
+// updateRecord 在 PostgreSQL 事务内调用修改函数；兼容内存路径由原管理器的锁保护。
+func updateRecord[T any](store cache.CacheStore, key string, ttl time.Duration, change func(*T) *T) error {
+	if updater, ok := store.(cache.JSONUpdater); ok {
+		return updater.UpdateJSONE(key, ttl, func(previous []byte) ([]byte, error) {
+			var record *T
+			if len(previous) > 0 {
+				if err := json.Unmarshal(previous, &record); err != nil {
+					return nil, err
+				}
+			}
+			return json.Marshal(change(record))
+		})
+	}
+	record, err := readRecordE[T](store, key)
+	if err != nil {
+		return err
+	}
+	store.SetWithTTlRenewTime(key, change(record), ttl)
+	return nil
+}
 
 // loadRecord 从缓存读取结构体记录，两种缓存后端语义一致：
 // 内存后端(WafCache) Get 原样返回存入的 Go 值，断言快路径一次命中；

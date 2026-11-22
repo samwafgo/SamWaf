@@ -35,8 +35,8 @@ func (receiver *WafBlockIpService) AddApi(req request.WafBlockIpAddReq) error {
 		GroupCode: req.GroupCode,
 		IsEnable:  isEnable,
 	}
-	global.GWAF_LOCAL_DB.Create(bean)
-	return nil
+	// 保存失败必须返回，不能继续通知并向控制台报告“添加成功”。
+	return global.GWAF_LOCAL_DB.Create(bean).Error
 }
 
 // ToggleApi 切换条目启用状态，返回所属网站编码供调用方通知引擎

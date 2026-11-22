@@ -57,6 +57,8 @@ type shard struct {
 
 // Counter 进程内分片计数器。
 type Counter struct {
+	// 正常 PostgreSQL Worker 使用共享原子后端；独立测试和兼容路径保留原进程内实现。
+	shared atomic.Pointer[sharedCounter]
 	shards [shardCount]*shard
 
 	metaMu   sync.Mutex
@@ -115,9 +117,10 @@ func shardFor(key string) int {
 
 // Result 一次计数的结果。
 type Result struct {
-	Count    int64 // 当前窗口内的计数（含本次）
-	Degraded bool  // 该规则的维度基数超限，调用方应改用 IP 维度重试
-	Rejected bool  // 计数键总量已达上限，本次未计数
+	BackendUnavailable bool  // 后端错误必须向请求链传播，不能以零计数放行。
+	Count              int64 // 当前窗口内的计数（含本次）
+	Degraded           bool  // 该规则的维度基数超限，调用方应改用 IP 维度重试
+	Rejected           bool  // 计数键总量已达上限，本次未计数
 }
 
 // Incr 累加一次并返回窗口内计数。
@@ -127,6 +130,9 @@ type Result struct {
 func (c *Counter) Incr(ruleID, dimValue string, windowSec int) Result {
 	if windowSec <= 0 {
 		windowSec = 1
+	}
+	if shared := c.shared.Load(); shared != nil {
+		return shared.incr(ruleID, dimValue, windowSec, atomic.LoadInt64(&c.maxKeys), c.ruleQuota)
 	}
 	bucketWidth := windowSec / numBuckets
 	if bucketWidth <= 0 {
@@ -210,6 +216,9 @@ func (c *Counter) releaseKey(ruleID string) {
 
 // Cleanup 回收空闲超过 idleSeconds 的计数键。由定时任务驱动。
 func (c *Counter) Cleanup(idleSeconds int64) int {
+	if c.shared.Load() != nil {
+		return 0
+	} // 共享键由后端按绝对期限回收，不由单 Worker 的空闲观察删除。
 	if idleSeconds <= 0 {
 		idleSeconds = 300
 	}
@@ -231,6 +240,12 @@ func (c *Counter) Cleanup(idleSeconds int64) int {
 
 // DropRule 删除某条规则的全部计数键，用于规则被删除或停用时立即释放内存。
 func (c *Counter) DropRule(ruleID string) {
+	if shared := c.shared.Load(); shared != nil {
+		if err := shared.store.DropSecurityCounters("cc|" + ruleID + "|"); err != nil {
+			shared.failures.Add(1)
+		}
+		return
+	}
 	for _, sh := range c.shards {
 		sh.mu.Lock()
 		for key, ring := range sh.keys {
@@ -245,6 +260,12 @@ func (c *Counter) DropRule(ruleID string) {
 
 // Reset 清空全部计数，仅用于测试与手工重置。
 func (c *Counter) Reset() {
+	if shared := c.shared.Load(); shared != nil {
+		if err := shared.store.DropSecurityCounters("cc|"); err != nil {
+			shared.failures.Add(1)
+		}
+		return
+	}
 	for _, sh := range c.shards {
 		sh.mu.Lock()
 		sh.keys = make(map[string]*bucketRing)
@@ -258,6 +279,9 @@ func (c *Counter) Reset() {
 
 // Stats 当前计量值，供运行诊断展示。内存读取级别，不做任何 IO。
 func (c *Counter) Stats() map[string]int64 {
+	if shared := c.shared.Load(); shared != nil {
+		return shared.stats(atomic.LoadInt64(&c.maxKeys), c.ruleQuota)
+	}
 	c.metaMu.Lock()
 	rules := int64(len(c.ruleKeys))
 	c.metaMu.Unlock()
@@ -272,4 +296,9 @@ func (c *Counter) Stats() map[string]int64 {
 }
 
 // ActiveKeys 当前计数键总数。
-func (c *Counter) ActiveKeys() int64 { return atomic.LoadInt64(&c.totalKeys) }
+func (c *Counter) ActiveKeys() int64 {
+	if c.shared.Load() != nil {
+		return -1
+	}
+	return atomic.LoadInt64(&c.totalKeys)
+}

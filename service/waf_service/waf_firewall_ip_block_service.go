@@ -12,6 +12,8 @@ import (
 	"SamWaf/wafdb/dialect"
 	"errors"
 	"fmt"
+	"gorm.io/gorm"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -72,6 +74,9 @@ func (receiver *WafFirewallIPBlockService) AddApi(req request.WafFirewallIPBlock
 	if err := validateBlockIP(req.IP); err != nil {
 		return err
 	}
+	if runtime.GOOS == "linux" {
+		return receiver.addKernelBlock(req)
+	}
 
 	// 2. 环境不具备防火墙能力时直接给出明确原因，不要把底层命令错误抛给用户
 	if err := receiver.fw.CheckAvailable(); err != nil {
@@ -86,7 +91,7 @@ func (receiver *WafFirewallIPBlockService) AddApi(req request.WafFirewallIPBlock
 	}
 
 	// 4. 调用防火墙封禁IP
-	err = receiver.fw.BlockIP(req.IP, req.Reason)
+	err = receiver.fw.BlockIPWithExpiry(req.IP, req.Reason, req.ExpireTime)
 	if err != nil {
 		return fmt.Errorf("防火墙封禁失败: %v", err)
 	}
@@ -136,6 +141,9 @@ func (receiver *WafFirewallIPBlockService) ModifyApi(req request.WafFirewallIPBl
 	if err := validateBlockIP(req.IP); err != nil {
 		return err
 	}
+	if runtime.GOOS == "linux" {
+		return receiver.modifyKernelBlock(req)
+	}
 
 	// 1. 获取原记录
 	var oldBean model.FirewallIPBlock
@@ -160,11 +168,11 @@ func (receiver *WafFirewallIPBlockService) ModifyApi(req request.WafFirewallIPBl
 		}
 
 		// 添加新的防火墙规则
-		err = receiver.fw.BlockIP(req.IP, req.Reason)
+		err = receiver.fw.BlockIPWithExpiry(req.IP, req.Reason, req.ExpireTime)
 		if err != nil {
 			// 如果新规则添加失败，恢复旧规则
 			if oldBean.Status == "active" {
-				receiver.fw.BlockIP(oldBean.IP, oldBean.Reason)
+				receiver.fw.BlockIPWithExpiry(oldBean.IP, oldBean.Reason, oldBean.ExpireTime)
 			}
 			return fmt.Errorf("更新防火墙规则失败: %v", err)
 		}
@@ -189,18 +197,22 @@ func (receiver *WafFirewallIPBlockService) ModifyApi(req request.WafFirewallIPBl
 		if oldBean.IP != req.IP && fwErr == nil {
 			receiver.fw.UnblockIP(req.IP)
 			if oldBean.Status == "active" {
-				receiver.fw.BlockIP(oldBean.IP, oldBean.Reason)
+				receiver.fw.BlockIPWithExpiry(oldBean.IP, oldBean.Reason, oldBean.ExpireTime)
 			}
 		}
 		return fmt.Errorf("更新数据库失败: %v", err)
 	}
 
-	// 5. 如果状态改变，更新防火墙（防火墙不可用时只改数据库状态）
-	if oldBean.Status != req.Status && fwErr == nil {
+	// eBPF 在内核判定到期；仅修改期限时也必须更新内核，不能等待状态变化才同步。
+	if (oldBean.Status != req.Status || oldBean.ExpireTime != req.ExpireTime) && fwErr == nil {
 		if req.Status == "active" {
-			receiver.fw.BlockIP(req.IP, req.Reason)
+			if err := receiver.fw.BlockIPWithExpiry(req.IP, req.Reason, req.ExpireTime); err != nil {
+				return fmt.Errorf("同步封禁期限失败: %w", err)
+			}
 		} else {
-			receiver.fw.UnblockIP(req.IP)
+			if err := receiver.fw.UnblockIP(req.IP); err != nil {
+				return fmt.Errorf("撤销封禁失败: %w", err)
+			}
 		}
 	}
 
@@ -259,6 +271,15 @@ func (receiver *WafFirewallIPBlockService) GetListApi(req request.WafFirewallIPB
 
 // DelApi 删除防火墙IP封禁（同时删除系统防火墙规则）
 func (receiver *WafFirewallIPBlockService) DelApi(req request.WafFirewallIPBlockDelReq) error {
+	if runtime.GOOS == "linux" {
+		return receiver.mutateKernel(func(tx *gorm.DB) error {
+			var row model.FirewallIPBlock
+			if err := tx.Where("id=?", req.Id).First(&row).Error; err != nil {
+				return err
+			}
+			return tx.Delete(&row).Error
+		})
+	}
 	// 1. 获取记录
 	var bean model.FirewallIPBlock
 	err := global.GWAF_LOCAL_DB.Where("id = ?", req.Id).First(&bean).Error
@@ -281,6 +302,9 @@ func (receiver *WafFirewallIPBlockService) DelApi(req request.WafFirewallIPBlock
 
 // BatchDelApi 批量删除防火墙IP封禁
 func (receiver *WafFirewallIPBlockService) BatchDelApi(req request.WafFirewallIPBlockBatchDelReq) error {
+	if runtime.GOOS == "linux" {
+		return receiver.mutateKernel(func(tx *gorm.DB) error { return tx.Where("id IN ?", req.Ids).Delete(&model.FirewallIPBlock{}).Error })
+	}
 	if len(req.Ids) == 0 {
 		return errors.New("删除ID列表不能为空")
 	}
@@ -354,6 +378,9 @@ func (receiver *WafFirewallIPBlockService) BatchAddApi(req request.WafFirewallIP
 
 // EnableApi 启用防火墙IP封禁
 func (receiver *WafFirewallIPBlockService) EnableApi(req request.WafFirewallIPBlockEnableReq) error {
+	if runtime.GOOS == "linux" {
+		return receiver.changeKernelBlockStatus(req.Id, "active")
+	}
 	// 1. 获取记录
 	var bean model.FirewallIPBlock
 	err := global.GWAF_LOCAL_DB.Where("id = ?", req.Id).First(&bean).Error
@@ -372,7 +399,7 @@ func (receiver *WafFirewallIPBlockService) EnableApi(req request.WafFirewallIPBl
 	}
 
 	// 2. 添加防火墙规则
-	err = receiver.fw.BlockIP(bean.IP, bean.Reason)
+	err = receiver.fw.BlockIPWithExpiry(bean.IP, bean.Reason, bean.ExpireTime)
 	if err != nil {
 		return fmt.Errorf("启用防火墙规则失败: %v", err)
 	}
@@ -390,6 +417,9 @@ func (receiver *WafFirewallIPBlockService) EnableApi(req request.WafFirewallIPBl
 
 // DisableApi 禁用防火墙IP封禁
 func (receiver *WafFirewallIPBlockService) DisableApi(req request.WafFirewallIPBlockDisableReq) error {
+	if runtime.GOOS == "linux" {
+		return receiver.changeKernelBlockStatus(req.Id, "inactive")
+	}
 	// 1. 获取记录
 	var bean model.FirewallIPBlock
 	err := global.GWAF_LOCAL_DB.Where("id = ?", req.Id).First(&bean).Error
@@ -438,21 +468,26 @@ func (receiver *WafFirewallIPBlockService) SyncFirewallRules(hostCode string) (s
 	}
 
 	// 2. 批量添加到防火墙
-	var ips []string
+	entries := map[string]int64{}
 	for _, bean := range beans {
 		if validateBlockIP(bean.IP) != nil {
 			failedCount++
 			continue
 		}
-		ips = append(ips, bean.IP)
+		if bean.ExpireTime > 0 && bean.ExpireTime <= time.Now().Unix() {
+			continue
+		}
+		entries[bean.IP] = bean.ExpireTime
 	}
 
-	if len(ips) > 0 {
+	if len(entries) > 0 {
 		if fwErr := receiver.fw.CheckAvailable(); fwErr != nil {
 			return 0, failedCount, fwErr
 		}
-		count, failedIPs, blockErr := receiver.fw.BlockIPList(ips)
-		return count, failedCount + len(failedIPs), blockErr
+		if err := receiver.fw.SyncTimedBlocks(entries); err != nil {
+			return 0, failedCount + len(entries), err
+		}
+		return len(entries), failedCount, nil
 	}
 
 	return 0, failedCount, nil
@@ -463,6 +498,15 @@ func (receiver *WafFirewallIPBlockService) SyncFirewallRules(hostCode string) (s
 // 以前只是把状态置为 inactive，导致过期记录长期堆积在库里、再次点“清理过期”也不消失，
 // 用户期望“清理”即彻底删除，故改为硬删除(与手工删除一致)。永久封禁(expire_time=0)不受影响。
 func (receiver *WafFirewallIPBlockService) ClearExpiredRules() (int, error) {
+	if runtime.GOOS == "linux" {
+		var removed int64
+		err := receiver.mutateKernel(func(tx *gorm.DB) error {
+			query := tx.Where("expire_time>0 AND expire_time<=?", time.Now().Unix()).Delete(&model.FirewallIPBlock{})
+			removed = query.RowsAffected
+			return query.Error
+		})
+		return int(removed), err
+	}
 	// 1. 查找所有过期的记录（ExpireTime > 0 且 < 当前时间，任意状态）
 	// 只取清理循环需要的列(id/ip/status)，避免把 reason/remarks 等大字段一并读出加重 IO；
 	// 命中 (status, expire_time) 复合索引后该查询应为毫秒级。

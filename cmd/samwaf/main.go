@@ -43,6 +43,7 @@ import (
 	"SamWaf/waftask"
 	"SamWaf/waftunnelengine"
 	"SamWaf/wafupdate"
+	"context"
 	"crypto/tls"
 	"embed"
 	_ "embed"
@@ -267,6 +268,10 @@ func (m *wafSystenService) run() {
 			zlog.Error("初始化缓存失败，程序退出，请检查conf/config.yml缓存配置是否正确", "error", err)
 			os.Exit(1)
 		}
+		// 计数与封禁状态共享同一 namespace；多 Worker 不再把一个站点的 CC 阈值乘以进程数。
+		if shared, ok := cacheStore.(cache.SecurityCounterStore); ok {
+			wafenginecore.GCCCounter.UseSharedStore(shared)
+		}
 		global.GCACHE_WAFCACHE = cacheStore
 		// 缓存后端决定了令牌等凭证放在哪里，排障时是第一个要确认的事实，启动就写进日志。
 		if d, ok := cacheStore.(cache.BackendDescriber); ok {
@@ -394,6 +399,11 @@ func (m *wafSystenService) run() {
 		zlog.Error("初始化核心数据库失败，程序退出，请检查conf/config.yml数据库配置是否正确", "error", err)
 		os.Exit(1)
 	}
+	// 手工系统封禁有持久记录时，必须在接流量前完成内核重放，不能只显示数据库状态。
+	if err := waf_service.RestoreSystemBansOnStartup(); err != nil {
+		zlog.Error("恢复系统封禁失败，停止启动", "error", err)
+		os.Exit(1)
+	}
 	//存量敏感字段静态加密迁移：把旧格式密文一次性重写为每实例 DEK 密文(幂等，单行失败跳过)。
 	wafdb.MigrateDataKeyEncryption(global.GWAF_LOCAL_DB)
 	if _, err := wafdb.InitLogDb(""); err != nil {
@@ -491,6 +501,7 @@ func (m *wafSystenService) run() {
 		EngineCurrentStatus: 0, // 当前waf引擎状态
 		Sensitive:           make([]model.Sensitive, 0),
 		PluginManager:       globalobj.GWAF_RUNTIME_OBJ_PLUGIN_MANAGER, // 设置插件管理器
+		SystemBanReconciler: waf_service.PeriodicSystemBanReconcile,    // 手工内核策略有独立重试，不阻塞 IP 名单版本检查。
 	}
 	//初始化路由快照(RCU 空表)，之后 StartWaf→LoadAllHost 通过 copy-on-write 填充
 	globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.InitRouting()
@@ -506,7 +517,10 @@ func (m *wafSystenService) run() {
 	//所以这一行的作用是把真实策略尽早顶上去。
 	waf_service.WafAccessConfigServiceApp.PublishConfig()
 	http.Handle("/", globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE)
-	globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartWaf()
+	if err := globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartWaf(); err != nil {
+		zlog.Error("加载 IP 安全名单失败，停止启动", "error", err)
+		os.Exit(1)
+	}
 
 	//启动隧道
 	globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE = waftunnelengine.NewWafTunnelEngine()
@@ -678,16 +692,12 @@ func (m *wafSystenService) run() {
 					zlog.Debug("远程配置", zap.Any("UrlWhiteLists", urlWhiteLists))
 					break
 				case enums.ChanTypeBlockIP:
-					ipBlockLists := msg.Content.([]model.IPBlockList)
-					// 同上：编译与抽取放在 mutator 外面，mutator 里只做字段赋值
-					ipBlockIndex := wafenginecore.BuildIPBlockIndex(ipBlockLists)
-					ipBlockGroupCodes := wafenginecore.ExtractBlockGroupCodes(ipBlockLists)
-					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.UpdateHost(msg.HostCode, func(h *wafenginmodel.HostSafe) {
-						h.IPBlockLists = ipBlockLists
-						h.IPBlockIndex = ipBlockIndex
-						h.IPBlockGroupCodes = ipBlockGroupCodes
-					})
-					zlog.Debug("远程配置", zap.Any("IPBlockLists", msg))
+					// 从数据库重新读取当前一致快照，不能让排队的旧消息覆盖版本同步器刚发布的新名单。
+					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					if err := globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ReloadIPBlocks(ctx, global.GWAF_LOCAL_DB); err != nil {
+						zlog.Error("IP 黑名单重载失败，保留旧快照并等待重试")
+					}
+					cancel()
 					break
 				case enums.ChanTypeBlockURL:
 					urlBlockLists := msg.Content.([]model.URLBlockList)
@@ -1173,6 +1183,10 @@ func main() {
 				os.Exit(wafcli.ReportStartupFailure())
 			}
 		}()
+	}
+	// eBPF 本机维护必须在数据库/密钥/服务初始化前可用，故障回退不依赖控制台正常运行。
+	if len(os.Args) > 1 && os.Args[1] == "ebpf" {
+		os.Exit(wafcli.Execute(wafcli.Deps{}))
 	}
 	global.GWAF_WEB_VERSION = public.WebFrontendVersion()
 	fmt.Println(`

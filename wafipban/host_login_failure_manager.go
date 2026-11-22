@@ -77,8 +77,14 @@ func cloneHostLoginRecord(r *HostLoginFailureRecord) *HostLoginFailureRecord {
 // retentionMinutes 是事件保留窗口，取 max(统计窗口, 封禁时长)，保证解封后
 // 仍能看到历史(用于展示)，但又不会无限增长。
 func (m *HostLoginFailureManager) Record(source, ip string, windowMinutes, retentionMinutes int64) int64 {
+	count, _ := m.RecordE(source, ip, windowMinutes, retentionMinutes)
+	return count
+}
+
+// RecordE 对跨 Worker 的登录失败事件执行原子更新，显式返回持久后端故障。
+func (m *HostLoginFailureManager) RecordE(source, ip string, windowMinutes, retentionMinutes int64) (int64, error) {
 	if m == nil || ip == "" {
-		return 0
+		return 0, nil
 	}
 	if windowMinutes <= 0 {
 		windowMinutes = 10
@@ -86,47 +92,38 @@ func (m *HostLoginFailureManager) Record(source, ip string, windowMinutes, reten
 	if retentionMinutes < windowMinutes {
 		retentionMinutes = windowMinutes
 	}
-
-	key := hostLoginKey(source, ip)
-	now := time.Now()
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	record := cloneHostLoginRecord(m.load(source, ip))
-	if record == nil {
-		record = &HostLoginFailureRecord{
-			Source:    source,
-			IP:        ip,
-			Events:    []time.Time{},
-			FirstTime: now,
-		}
+	if _, shared := m.cache.(cache.JSONUpdater); !shared {
+		m.mu.Lock()
+		defer m.mu.Unlock()
 	}
-
-	record.Events = append(record.Events, now)
-
-	// 按保留窗口裁剪，同时统计落在统计窗口内的次数
-	retentionStart := now.Add(-time.Duration(retentionMinutes) * time.Minute)
-	windowStart := now.Add(-time.Duration(windowMinutes) * time.Minute)
-	valid := make([]time.Time, 0, len(record.Events))
 	var inWindow int64
-	for _, t := range record.Events {
-		if t.After(retentionStart) {
-			valid = append(valid, t)
-			if t.After(windowStart) {
-				inWindow++
+	err := updateRecord[HostLoginFailureRecord](m.cache, hostLoginKey(source, ip), time.Duration(retentionMinutes)*time.Minute, func(previous *HostLoginFailureRecord) *HostLoginFailureRecord {
+		now := time.Now()
+		record := cloneHostLoginRecord(previous)
+		if record == nil {
+			record = &HostLoginFailureRecord{Source: source, IP: ip, FirstTime: now}
+		}
+		record.Events = append(record.Events, now)
+		retentionStart := now.Add(-time.Duration(retentionMinutes) * time.Minute)
+		windowStart := now.Add(-time.Duration(windowMinutes) * time.Minute)
+		valid := make([]time.Time, 0, len(record.Events))
+		for _, at := range record.Events {
+			if at.After(retentionStart) {
+				valid = append(valid, at)
+				if at.After(windowStart) {
+					inWindow++
+				}
 			}
 		}
-	}
-	record.Events = valid
-	record.Count = int64(len(valid))
-	if len(valid) > 0 {
-		record.FirstTime = valid[0]
-	}
-	record.LastTime = now
-
-	m.cache.SetWithTTlRenewTime(key, record, time.Duration(retentionMinutes)*time.Minute)
-	return inWindow
+		record.Events = valid
+		record.Count = int64(len(valid))
+		if len(valid) > 0 {
+			record.FirstTime = valid[0]
+		}
+		record.LastTime = now
+		return record
+	})
+	return inWindow, err
 }
 
 // GetCount 查询窗口内失败次数(不写入)

@@ -2,6 +2,8 @@
 
 本分支基于 SamWAF `df095c943e049f655a77dab2d5e93a6ca43d8092`。运行时主库、日志库和统计库使用 PostgreSQL，控制台及业务状态使用独立 PostgreSQL KV/TTL 数据库。站点响应缓存独立于该 KV 后端。
 
+后续 Linux 系统封禁、共享 CC 计数、封禁故障处理及跨 Worker 黑名单同步参见 [eBPF 与安全状态](EBPF-IP-BAN.zh-CN.md)。
+
 ## 参考实现
 
 本实现用 Go 完成 SamWAF 请求链路内的分层缓存，不加载 Nginx 模块、不读写 Nginx 私有缓存文件。

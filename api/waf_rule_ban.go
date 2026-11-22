@@ -101,7 +101,10 @@ func (w *WafRuleBanApi) RemoveBanIpApi(c *gin.Context) {
 			response.FailWithMessage("站点编码格式不合法", c)
 			return
 		}
-		wafRuleBanService.RemoveBanIpApi(req)
+		if err := wafRuleBanService.RemoveBanIpApi(req); err != nil {
+			response.BackendUnavailableWithMessage("规则解封暂不可用，请重试", c)
+			return
+		}
 		response.OkWithMessage(req.Ip+" 移除成功", c)
 	} else {
 		response.FailWithMessage("解析失败", c)

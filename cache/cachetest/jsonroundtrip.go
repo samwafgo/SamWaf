@@ -8,13 +8,21 @@ package cachetest
 
 import (
 	"encoding/json"
-	"errors"
 	"sync"
 	"time"
 )
 
 // ErrMiss 键不存在或已过期
-var ErrMiss = errors.New("cachetest: key miss")
+var ErrMiss = missError{}
+
+// missError 保持测试包独立，同时让错误感知的调用者识别正常未命中。
+type missError struct{}
+
+// Error 延续旧测试适配器的可读错误文本。
+func (missError) Error() string { return "cachetest: key miss" }
+
+// IsCacheMiss 提供无包依赖的缺失标记。
+func (missError) IsCacheMiss() bool { return true }
 
 type item struct {
 	value     string

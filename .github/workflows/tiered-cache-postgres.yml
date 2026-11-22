@@ -1,10 +1,21 @@
-name: Tiered cache and PostgreSQL
+name: Tiered cache, PostgreSQL and eBPF
 on:
   # 分支推送也运行组件检查，便于 fork 在提交上游 PR 前取得可核对的验证结果。
   push:
     paths:
       - '.github/workflows/tiered-cache-postgres.yml'
       - 'cache/**'
+      - 'firewall/**'
+      - 'wafipban/**'
+      - 'wafhostguard/**'
+      - 'webplugin/**'
+      - 'api/**'
+      - 'service/**'
+      - 'innerbean/**'
+      - 'wafcli/**'
+      - 'cmd/**'
+      - 'model/**'
+      - '.github/scripts/test-ebpf.sh'
       - 'wafenginecore/**'
       - 'wafconfig/**'
       - 'wafdb/**'
@@ -55,15 +66,18 @@ jobs:
       - name: Test KV, HTTP tiers, authentication and cancellation
         # 跳过上游只有固定长等待、没有断言的旧用例，保留新的 TTL/并发/取消语义回归。
         run: >-
-          go test -race ./cache ./wafenginecore/wafwebcache ./wafconfig ./middleware
+          go test -race ./cache ./wafenginecore/wafwebcache ./wafenginecore/cccounter
+          ./wafipban ./webplugin ./wafconfig ./middleware
           -skip '^TestWafCache_SetWithTTl$' -count=1 -timeout=180s
       - name: Test engine integration and upload budgets
         run: >-
           go test ./wafenginecore
-          -run 'TestTieredCache|TestReadRequestBody|TestHttpAuthPathScope'
+          -run 'TestTieredCache|TestReadRequestBody|TestHttpAuthPathScope|TestIPBans|TestIPBlockPostgresWorkerSync|TestCheckRuleBan|TestCCBan'
           -count=1 -timeout=120s
       - name: Test migration configuration and verified backup
         run: go test ./wafdb -run '^TestMigratePostgresConfig' -count=1 -timeout=120s
+      - name: Test database fault handling and policy publication
+        run: go test ./api -run 'TestIPBlockDatabaseErrors|TestEditHandlersMustUseNotifyHelper' -count=1 -timeout=120s
       - name: Test the trusted extension as an unprivileged owner
         # 前面的空镜像验证嵌入 SQL 安装；这里在独立新库验证真实 CREATE EXTENSION 路径。
         env:
@@ -74,8 +88,42 @@ jobs:
           docker cp cache/postgres/samwaf_kv--1.0.sql "$PG_CONTAINER:/usr/local/share/postgresql/extension/"
           psql 'postgres://postgres@127.0.0.1:5432/postgres?sslmode=disable' -v ON_ERROR_STOP=1 \
             -c 'CREATE DATABASE samwaf_cache_extension_test OWNER samwaf_ci'
-          go test -race ./cache -run '^TestPostgresCache' -count=1 -timeout=180s
+          go test -race ./cache -run '^TestPostgres' -count=1 -timeout=180s
           test "$(psql "$SAMWAF_TEST_PG_CACHE_DSN" -At -v ON_ERROR_STOP=1 \
             -c "SELECT extversion FROM pg_extension WHERE extname='samwaf_kv'")" = '1.0'
       - name: Build application
         run: go build ./cmd/samwaf
+
+  # 独立网络/挂载命名空间覆盖真实内核路径，另以两个能力和非 root 运行控制器。
+  kernel-and-control:
+    strategy:
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    env:
+      CGO_ENABLED: '1'
+      CGO_CFLAGS: -Wno-unused-variable -D_LARGEFILE64_SOURCE
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.9'
+      - name: Install isolated test dependencies
+        run: bash .github/scripts/apt-install.sh clang llvm libbpf-dev postgresql postgresql-client iproute2 libcap2-bin
+      - name: Compile the committed embedded objects and service tests
+        run: |
+          mkdir -p .data/kernel-tests
+          go test -mod=readonly -c ./firewall -o .data/kernel-tests/firewall.test
+          go test -mod=readonly -c ./service/waf_service -o .data/kernel-tests/service.test
+      - name: Validate real packets, SQL faults, restart and restricted capabilities
+        run: |
+          sudo env FIREWALL_TEST_BIN="$PWD/.data/kernel-tests/firewall.test" \
+            SERVICE_TEST_BIN="$PWD/.data/kernel-tests/service.test" sh .github/scripts/test-ebpf.sh
+      - name: Rebuild the dataplane from its C source
+        # 新生成对象也跑同一内核用例，避免只验证提交的二进制而遗漏源代码构建。
+        run: |
+          sh firewall/bpf/generate.sh
+          go test -mod=readonly -c ./firewall -o .data/kernel-tests/firewall.test
+          sudo env FIREWALL_TEST_BIN="$PWD/.data/kernel-tests/firewall.test" \
+            SERVICE_TEST_BIN="$PWD/.data/kernel-tests/service.test" sh .github/scripts/test-ebpf.sh

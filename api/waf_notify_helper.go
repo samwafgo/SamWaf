@@ -1,5 +1,16 @@
 package api
 
+import "errors"
+
+// notifyWafHostChangedE 保留新旧站点都刷新的顺序，同时把任一重载故障返回给管理接口。
+func notifyWafHostChangedE(notify func(string) error, oldHost, newHost string) error {
+	err := notify(newHost)
+	if oldHost != "" && oldHost != newHost {
+		err = errors.Join(err, notify(oldHost))
+	}
+	return err
+}
+
 // notifyWafHostChanged 编辑类接口统一的「新旧网站都要通知」帮助函数。
 //
 // 背景(issue #898)：编辑名单时可以把记录的所属网站(host_code)从 A 改到 B。

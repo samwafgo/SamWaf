@@ -138,6 +138,24 @@ func installPostgresKV(ctx context.Context, db *sql.DB) error {
 			return err
 		}
 	}
+	// 新的安全计数 schema 由应用角色持有；已有 KV v1 安装也可独立补齐，无需改超级用户对象。
+	var securityInstalled bool
+	if err = tx.QueryRowContext(ctx, "SELECT to_regprocedure('samwaf_security.version()') IS NOT NULL").Scan(&securityInstalled); err != nil {
+		return err
+	}
+	if !securityInstalled {
+		if _, err = tx.ExecContext(ctx, securityDDL); err != nil {
+			return err
+		}
+	} else {
+		var version int
+		if err = tx.QueryRowContext(ctx, "SELECT samwaf_security.version()").Scan(&version); err != nil {
+			return err
+		}
+		if version != 1 {
+			return errors.New("unsupported security counter schema version")
+		}
+	}
 	return tx.Commit()
 }
 
@@ -330,10 +348,7 @@ func (p *PostgresCache) ExistsE(key string) (bool, error) {
 
 // Remove 幂等删除键；沿用旧接口返回 nil，后端删除失败会记录到 BackendStats。
 func (p *PostgresCache) Remove(key string) interface{} {
-	ctx, cancel := p.op()
-	defer cancel()
-	_, err := p.db.ExecContext(ctx, "SELECT samwaf_kv.kv_delete($1,$2)", p.namespace, key)
-	p.note("delete", err)
+	_ = p.RemoveE(key)
 	return nil
 }
 
@@ -360,28 +375,31 @@ func (p *PostgresCache) ListAvailableKeys() map[string]time.Duration {
 // ListAvailableKeysWithPrefix 在一次查询中返回字面前缀匹配的键和绝对到期时间。
 // %/_ 不作为 SQL 通配符；剩余时长由本机估算，真正可见性仍由数据库时钟决定。
 func (p *PostgresCache) ListAvailableKeysWithPrefix(prefix string) map[string]time.Duration {
+	result, _ := p.KeysWithPrefixE(prefix)
+	return result
+}
+
+// KeysWithPrefixE 返回枚举故障，供解封/安全状态列表使用；兼容接口的错误统计仍由 note 记录。
+func (p *PostgresCache) KeysWithPrefixE(prefix string) (map[string]time.Duration, error) {
 	result := map[string]time.Duration{}
 	ctx, cancel := p.op()
 	defer cancel()
 	rows, err := p.db.QueryContext(ctx, "SELECT cache_key,expires_at FROM samwaf_kv.kv_keys($1,$2)", p.namespace, prefix)
 	if err != nil {
-		p.note("keys", err)
-		return result
+		return result, p.note("keys", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var key string
 		var expires time.Time
 		if err := rows.Scan(&key, &expires); err != nil {
-			p.note("keys", err)
-			break
+			return result, p.note("keys", err)
 		}
 		if ttl := time.Until(expires); ttl > 0 {
 			result[key] = ttl
 		}
 	}
-	p.note("keys", rows.Err())
-	return result
+	return result, p.note("keys", rows.Err())
 }
 
 // AddWithTTL 通过条件 UPSERT 实现原子「不存在才写入」，已过期键可重新占用。
@@ -428,6 +446,12 @@ func (p *PostgresCache) cleanupContext(ctx context.Context) (int64, error) {
 	if err != nil {
 		return 0, p.note("cleanup", err)
 	}
+	// 空间回收不改变有效窗口，其他 Worker 正在写的键由 SQL 的 SKIP LOCKED 避开。
+	var securityRemoved int64
+	if err = p.db.QueryRowContext(ctx, "SELECT samwaf_security.cleanup($1,NULL,5000)", p.namespace).Scan(&securityRemoved); err != nil {
+		return removed, p.note("security_cleanup", err)
+	}
+	removed += securityRemoved
 	return removed, nil
 }
 

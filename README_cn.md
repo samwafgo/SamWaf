@@ -26,7 +26,7 @@
  总之，在网站或 API 防护上做一款趁手的兵器，来抵御一些异常情况，确保网站和应用的正常运行。
  
 # 软件介绍
-SamWaf网站防火墙是一款适用于小公司、工作室和个人网站的开源轻量级网站防火墙，支持完全私有化部署、Linux、Windows 64位和 ARM64。本分支使用 PostgreSQL 保存主数据、日志和统计，控制台与业务状态使用 PostgreSQL KV/TTL 扩展，站点响应采用 L1 热缓存＋L2 磁盘缓存。部署、容量与旧 SQLite 数据迁移参见[分层缓存与 PostgreSQL](docs/TIERED-CACHE-POSTGRES.zh-CN.md)。
+SamWaf网站防火墙是一款适用于小公司、工作室和个人网站的开源轻量级网站防火墙，支持完全私有化部署、Linux、Windows 64位和 ARM64。本分支使用 PostgreSQL 保存主数据、日志和统计，控制台与业务状态使用 PostgreSQL KV/TTL 扩展，站点响应采用 L1 热缓存＋L2 磁盘缓存，Linux 系统 IP 封禁使用内嵌 eBPF。部署与迁移参见[分层缓存与 PostgreSQL](docs/TIERED-CACHE-POSTGRES.zh-CN.md)及[eBPF 封禁与共享安全状态](docs/EBPF-IP-BAN.zh-CN.md)。
 
 ## 架构
 

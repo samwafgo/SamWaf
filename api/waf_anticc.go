@@ -8,6 +8,7 @@ import (
 	"SamWaf/model/request"
 	response2 "SamWaf/model/response"
 	"SamWaf/model/spec"
+	"SamWaf/service/waf_service"
 	"SamWaf/utils"
 	"errors"
 	"fmt"
@@ -172,21 +173,13 @@ func (w *WafAntiCCApi) RemoveCCBanIPApi(c *gin.Context) {
 	var req request.WafAntiCCRemoveBanIpReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
-		// 同一个 IP 可能同时存在全局封禁、各站点封禁以及升级前的旧格式键，逐一清理
-		removed := false
-		for cacheKey := range global.GCACHE_WAFCACHE.ListAvailableKeysWithPrefix(enums.CACHE_CCVISITBAN_PRE) {
-			_, _, banIp, ok := model.ParseCCBanKey(cacheKey)
-			if ok && banIp == req.Ip {
-				global.GCACHE_WAFCACHE.Remove(cacheKey)
-				removed = true
-			}
+		if err := waf_service.ReleaseCCIP(global.GCACHE_WAFCACHE, req.Ip, false); err != nil {
+			response.BackendUnavailableWithMessage("CC 解封暂不可用，请重试", c)
+			return
 		}
-		if removed {
-			global.GWAF_CHAN_CLEAR_CC_IP <- req.Ip
-			response.OkWithMessage(req.Ip+" 移除成功", c)
-		} else {
-			response.FailWithMessage("键值未找到或以过期", c)
-		}
+		// 后端已重置共享额度；旧内存限流器也由通道清理，解封操作保持幂等。
+		global.GWAF_CHAN_CLEAR_CC_IP <- req.Ip
+		response.OkWithMessage(req.Ip+" 移除成功", c)
 	} else {
 		response.FailWithMessage("解析失败", c)
 	}

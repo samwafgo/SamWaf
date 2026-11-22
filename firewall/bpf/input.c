@@ -159,9 +159,10 @@ int samwaf_input(struct bpf_nf_ctx *ctx) {
 
     __u16 port = 0;
     if (protocol == 6) {
-        __u8 tcp[4];
-        if (offset <= 65535 && !bpf_dynptr_read(tcp, 4, &packet, offset, 0))
-            __builtin_memcpy(&port, &tcp[2], 2);
+        // 使用完整对齐槽，旧 LTS 的非特权验证器禁止辅助函数部分覆盖曾保存指针的栈槽。
+        __u64 tcp = 0;
+        if (offset <= 65535 && !bpf_dynptr_read(&tcp, sizeof(tcp), &packet, offset, 0))
+            __builtin_memcpy(&port, ((__u8 *)&tcp) + 2, 2);
         else opaque = 1;
     }
     struct lookup_state lookup = { .base = base, .port = port, .opaque = opaque,

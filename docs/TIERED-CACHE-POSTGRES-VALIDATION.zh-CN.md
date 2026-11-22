@@ -1,5 +1,7 @@
 # 分层缓存与 PostgreSQL 验证记录
 
+本页记录缓存阶段 `c8d96c7`。后续 eBPF 与共享安全状态改造的最终提交验证、平台限制和部署结果见 [eBPF 验证记录](EBPF-IP-BAN-VALIDATION.zh-CN.md)，不能把本页历史结果视作后续提交的全仓通过证明。
+
 验证日期为 2026-11-20 至 2026-11-21，日期按 America/Los_Angeles 记录。实现基于官方 `df095c943e049f655a77dab2d5e93a6ca43d8092`，包含本 PR 的分层缓存、PostgreSQL KV/TTL、配置迁移和 trusted 扩展授权修复。
 
 本记录不包含服务器地址、凭据、管理入口、数据库备份或业务数据。

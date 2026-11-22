@@ -20,7 +20,7 @@ import (
 
 // validateBlockIP 校验待下发的系统防火墙封禁目标。
 //
-// 只接受单 IP 与 CIDR（iptables/netsh 表达不了通配符与区间），且不允许覆盖整个
+// 只接受单 IP 与 CIDR（内核前缀表及其他原生后端不接收通配符与区间），且不允许覆盖整个
 // 地址空间：系统防火墙封禁对整机所有端口生效，全网封禁会把管理端一并锁死。
 func validateBlockIP(ip string) error {
 	ip = strings.TrimSpace(ip)
@@ -45,7 +45,7 @@ func (receiver *WafFirewallIPBlockService) CheckFirewallAvailable() error {
 	return receiver.fw.CheckAvailable()
 }
 
-// SupportsIPSet 报告当前环境是否可用"大列表批量封禁"(Linux ipset / Windows 分片规则 / macOS pf table)。
+// SupportsIPSet 沿用公共接口名，报告大列表批量封禁能力（Linux eBPF 来源表、Windows 分片规则、macOS pf table）。
 // 供威胁情报订阅"系统层落地"判定是否可下发大列表。
 func (receiver *WafFirewallIPBlockService) SupportsIPSet() bool {
 	return receiver.fw.SupportsIPSet()
@@ -519,7 +519,7 @@ func (receiver *WafFirewallIPBlockService) ClearExpiredRules() (int, error) {
 		return 0, err
 	}
 
-	// 2. 防火墙不可用时（如容器内没有 iptables），跳过防火墙操作，只删数据库记录
+	// 2. 此处仅为非 Linux 原生后端的兼容流程；后端不可用时只删除数据库记录。
 	fwAvailable := receiver.fw.CheckAvailable() == nil
 
 	count := 0

@@ -1,0 +1,229 @@
+{
+  "date": "2026-11-21",
+  "timezone": "America/Los_Angeles",
+  "executed_source_commit": "c24d6c9e46739b18dd9aa46a5c23683095b46da3",
+  "executed_source_tree": "97b71e06716adb84866e418eddf0f7db22761ab4",
+  "binary_sha256": "53f31491000e9a885d9cb3cad5122bdb71d05042c31fe21fb6ad82e3aff5f8d0",
+  "target_platform": "Debian 13.8 ARM64",
+  "target_kernel": "6.12.117+deb13-cloud-arm64",
+  "postgresql": "17.12",
+  "ci": {
+    "url": "https://github.com/ph-nb/SamWaf/actions/runs/44983618426",
+    "head": "c24d6c9e46739b18dd9aa46a5c23683095b46da3",
+    "conclusion": "success",
+    "jobs": [
+      "PostgreSQL 17",
+      "PostgreSQL 18",
+      "Ubuntu amd64 kernel, committed and rebuilt objects",
+      "Ubuntu ARM64 kernel, committed and rebuilt objects"
+    ]
+  },
+  "native_kernel": {
+    "root_packet_and_pg_lifecycle": "passed",
+    "restricted_identity": "UID/GID 65534, BPF/NET_ADMIN, NoNewPrivileges",
+    "restricted_packet_and_pg_lifecycle": "passed",
+    "raw_packet_generation": "root suite; explicitly skipped without NET_RAW"
+  },
+  "end_to_end": {
+    "passed": true,
+    "checks": [
+      {
+        "name": "console_https_and_security_entry",
+        "status": "pass"
+      },
+      {
+        "name": "existing_console_v2_login",
+        "status": "pass"
+      },
+      {
+        "name": "console_authenticated_queries",
+        "status": "pass"
+      },
+      {
+        "name": "postgres_application_role_and_persistent_console_session",
+        "status": "pass"
+      },
+      {
+        "name": "site_crud_and_origin_l2_l1",
+        "status": "pass",
+        "layers": [
+          "origin",
+          "l2",
+          "l2",
+          "l1"
+        ]
+      },
+      {
+        "name": "head_shared_representation",
+        "status": "pass"
+      },
+      {
+        "name": "private_request_response_isolation",
+        "status": "pass"
+      },
+      {
+        "name": "vary_and_query_isolation",
+        "status": "pass"
+      },
+      {
+        "name": "object_limit_and_range_bypass",
+        "status": "pass"
+      },
+      {
+        "name": "large_upload_integrity",
+        "status": "pass",
+        "bytes": 2640000
+      },
+      {
+        "name": "concurrent_fill_lock",
+        "status": "pass",
+        "requests": 12,
+        "origin_reads": 1
+      },
+      {
+        "name": "origin_conditional_revalidation",
+        "status": "pass"
+      },
+      {
+        "name": "configuration_revision_invalidation",
+        "status": "pass"
+      },
+      {
+        "name": "service_restart_postgres_and_l2_recovery",
+        "status": "pass"
+      },
+      {
+        "name": "runtime_diagnostics",
+        "status": "pass"
+      },
+      {
+        "name": "temporary_site_removed",
+        "status": "pass"
+      },
+      {
+        "name": "logout_invalidates_console_session",
+        "status": "pass"
+      }
+    ]
+  },
+  "live_network_checks": {
+    "passed": true,
+    "checks": [
+      {
+        "name": "live_worker_add_and_kernel_drop",
+        "status": "pass"
+      },
+      {
+        "name": "live_worker_disable_enable_and_metadata_edit",
+        "status": "pass"
+      },
+      {
+        "name": "live_worker_restart_and_delete",
+        "status": "pass"
+      },
+      {
+        "name": "live_worker_kernel_expiry",
+        "status": "pass"
+      }
+    ],
+    "cleanup_passed": true
+  },
+  "live_storage_fault": {
+    "passed": true,
+    "checks": [
+      {
+        "name": "live_pg_fault_business_503_and_console_code_minus6",
+        "status": "pass"
+      },
+      {
+        "name": "live_pg_privileges_and_service_recovered",
+        "status": "pass"
+      }
+    ],
+    "cleanup_passed": true
+  },
+  "cold_boot": {
+    "reboot_requested": true,
+    "boot_id_changed": true,
+    "services": {
+      "samwaf": "active",
+      "postgresql@17-main": "active",
+      "samwaf-ebpf-prepare.service": "active",
+      "fail2ban": "active"
+    },
+    "samwaf_enabled": "enabled",
+    "binary_sha256": "53f31491000e9a885d9cb3cad5122bdb71d05042c31fe21fb6ad82e3aff5f8d0",
+    "kernel": "6.12.117+deb13-cloud-arm64",
+    "unit_properties": {
+      "NRestarts": "0",
+      "CapabilityBoundingSet": "cap_net_bind_service cap_net_admin cap_bpf",
+      "AmbientCapabilities": "cap_net_bind_service cap_net_admin cap_bpf",
+      "User": "samwaf",
+      "NoNewPrivileges": "yes"
+    },
+    "bpf_mount": [
+      {
+        "target": "/run/samwaf-bpf",
+        "fstype": "bpf",
+        "options": "rw,nosuid,nodev,noexec,relatime,uid=999,gid=995,mode=700"
+      }
+    ],
+    "bpf_root_mode": "0o1700",
+    "bpf_status": {
+      "backend": "ebpf",
+      "loaded": true,
+      "hook": "LOCAL_IN",
+      "published_sources": 0,
+      "dropped_packets": 0,
+      "program_tag": "5066e64c097a2991"
+    },
+    "management_login_passed": true,
+    "business_site_count": 0,
+    "active_manual_system_bans": 0,
+    "temporary_ban_records_remaining": 0,
+    "temporary_network_remaining": false,
+    "database_role": [
+      {
+        "superuser": false,
+        "createdb": false
+      },
+      {
+        "kv_select_restored": true
+      },
+      {
+        "security_schema_owner": "samwaf"
+      }
+    ],
+    "performance_cache_cleanup": [
+      {
+        "name": "performance-ebpf-before",
+        "removed": true
+      },
+      {
+        "name": "performance-ebpf-after",
+        "removed": true
+      }
+    ],
+    "passed": true
+  },
+  "backup_before_cutover": {
+    "four_real_database_restores_passed": true,
+    "downloaded_encrypted_backup_round_trip_passed": true,
+    "private_material_in_repository": false
+  },
+  "whole_repository": {
+    "final_head_full_suite_green": false,
+    "prior_tree": "456481bad87e01b7cd81a8348c885e7bcbb67720",
+    "prior_events": {
+      "package_pass": 64,
+      "package_fail": 15,
+      "package_skip_or_no_tests": 47,
+      "test_or_subtest_pass": 3041,
+      "test_or_subtest_fail": 39,
+      "test_or_subtest_skip": 21
+    },
+    "metadata_edit_regression_targeted_fix": "passed",
+    "windows_cli": "SQLiteConn.Backup undefined; same error reproduced on unmodified c8d96c7",
+    "docker_runtime": "not validated in this round"
+  }
+}

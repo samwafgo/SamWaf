@@ -51,7 +51,7 @@ func normalizeIPEntry(in ipEntryInput) (ipType string, ip string, groupCode stri
 
 // checkSystemLayerSupported 判断一条黑名单条目能否下发到系统防火墙层。
 //
-// iptables / netsh 只认单 IP 与 CIDR：通配符、区间、IP 组引用都无法表达。
+// 系统封禁后端只接受单 IP 与 CIDR；通配符、区间、组引用须先在应用层解析。
 // 这里必须挡住——底层 firewall 包拿到这类字符串会报错或行为未定义。
 func checkSystemLayerSupported(ipType, ip string) error {
 	if ipType == model.IPEntryTypeGroup {

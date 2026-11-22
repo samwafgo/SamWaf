@@ -34,8 +34,8 @@ func (w *WafFirewallIPBlockApi) AddApi(c *gin.Context) {
 		return
 	}
 
-	// 严格校验：本接口直达系统防火墙(iptables/netsh)，只能接受单IP与CIDR。
-	// 通配符、区间这些 WAF 应用层的写法在这里表达不了，必须挡住而不是传给底层命令。
+	// 严格校验：本接口直达系统封禁后端（Linux eBPF、Windows netsh 等），只接受单 IP 与 CIDR。
+	// 通配符、区间属于 WAF 应用层表达式，不能直接发布到内核前缀表或原生规则。
 	if serr := checkSystemLayerSupported(model.IPEntryTypeIP, strings.TrimSpace(req.IP)); serr != nil {
 		response.FailWithMessage(serr.Error(), c)
 		return
@@ -279,7 +279,7 @@ func (w *WafFirewallIPBlockApi) GetStatisticsApi(c *gin.Context) {
 
 // GetCapabilityApi 获取当前环境的系统防火墙能力
 // @Summary      获取系统防火墙能力
-// @Description  探测当前运行环境是否支持系统防火墙封禁（如容器内未安装 iptables 或缺少 NET_ADMIN 权限时不可用）
+// @Description  探测系统封禁能力；Linux 需要匹配的 eBPF 内核、专用 bpffs 和 BPF/NET_ADMIN 权限
 // @Tags         防火墙-IP封禁
 // @Produce      json
 // @Success      200  {object}  response.Response  "获取成功"

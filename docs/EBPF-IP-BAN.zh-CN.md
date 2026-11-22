@@ -2,6 +2,8 @@
 
 本改造接续 `c8d96c7` 的 L1/L2、PostgreSQL 工作。Linux 的系统封禁由内嵌 eBPF 执行，手动应用层黑名单、CC、规则封禁保持各自的作用域。
 
+最终代码的 CI、目标内核、二进制部署、故障注入及重启证据见[验证记录](EBPF-IP-BAN-VALIDATION.zh-CN.md)；同条件 HTTP 前后测试见[性能对比](PERFORMANCE-EBPF-SECURITY.zh-CN.md)。
+
 ## 数据路径与边界
 
 - 系统封禁程序类型为 `BPF_PROG_TYPE_NETFILTER`，分别挂 IPv4、IPv6 的 `LOCAL_IN`，优先级 -75。它承接原本 INPUT 的本机入站范围；不更换 XDP/TC 程序，不过滤路由转发链。

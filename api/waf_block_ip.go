@@ -57,7 +57,7 @@ func (w *WafBlockIpApi) AddApi(c *gin.Context) {
 	// 系统防火墙层封禁
 	if layer == "system" || layer == "both" {
 		// 系统层只认单IP与CIDR，通配符/区间/组引用必须挡在这里，
-		// 否则底层 iptables/netsh 拿到这类字符串会报错或行为未定义
+		// Linux eBPF 前缀表及其他平台的原生规则均不接受这些应用层表达式。
 		if serr := checkSystemLayerSupported(ipType, ip); serr != nil {
 			response.FailWithMessage(serr.Error(), c)
 			return

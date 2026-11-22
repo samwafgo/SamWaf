@@ -94,14 +94,16 @@ func (i *IPRateLimiter) AddIP(ip string) *rate.Limiter {
 // Otherwise calls AddIP to add IP address to the map
 func (i *IPRateLimiter) GetLimiter(ip string) *rate.Limiter {
 	i.mu.Lock()
+	defer i.mu.Unlock()
 	limiter, exists := i.ips[ip]
 
 	if !exists {
-		i.mu.Unlock()
-		return i.AddIP(ip)
+		// 首次查询与创建必须在同一临界区；解锁后 AddIP 会让并发请求各得到一个满令牌桶。
+		limiter = rate.NewLimiter(i.r, i.b)
+		i.ips[ip] = limiter
+		i.requests[ip] = []time.Time{}
 	}
 	i.lastSeen[ip] = time.Now()
-	i.mu.Unlock()
 
 	return limiter
 }

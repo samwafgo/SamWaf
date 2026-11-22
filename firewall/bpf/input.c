@@ -93,6 +93,32 @@ drop:
     return 1;
 }
 
+// 扩展头也使用有限回调，老 LTS 验证器不必枚举 16 层协议分支的所有排列。
+struct extension_state {
+    struct bpf_dynptr *packet;
+    __u32 offset;
+    __u8 protocol;
+    __u8 opaque;
+};
+
+// 返回 1 表示解析完成/失败停止；失败仅标记已受限来源的保守拒绝路径。
+static long visit_extension(__u32 index, void *context) {
+    struct extension_state *state = context;
+    __u8 protocol = state->protocol;
+    if (index >= 16 || (protocol != 0 && protocol != 43 && protocol != 60 && protocol != 51 && protocol != 44)) return 1;
+    __u8 extension[8];
+    if (state->offset > 65535 || bpf_dynptr_read(extension, 8, state->packet, state->offset, 0)) {
+        state->protocol = 0; state->opaque = 1; return 1;
+    }
+    if (protocol == 44 && (extension[2] || (extension[3] & 0xf8))) {
+        state->protocol = 0; state->opaque = 1; return 1;
+    }
+    __u32 length = protocol == 44 ? 8 : protocol == 51 ? (extension[1] + 2) * 4 : (extension[1] + 1) * 8;
+    state->protocol = extension[0];
+    state->offset += length;
+    return 0;
+}
+
 // 先解析报文身份，再通过有限回调检查各来源；命中只更新内核计数并丢包。
 SEC("netfilter")
 int samwaf_input(struct bpf_nf_ctx *ctx) {
@@ -123,19 +149,11 @@ int samwaf_input(struct bpf_nf_ctx *ctx) {
         base.family = 6;
         base.prefix = 64 + 128;
         __builtin_memcpy(base.address, &header[8], 16);
-        protocol = header[6];
-        offset = 40;
-        // 有界解析 IPv6 扩展头；AH 长度单位与其他扩展头不同。
-        #pragma clang loop unroll(disable)
-        for (int i = 0; i < 16; i++) {
-            if (protocol != 0 && protocol != 43 && protocol != 60 && protocol != 51 && protocol != 44) break;
-            __u8 extension[8];
-            if (offset > 65535 || bpf_dynptr_read(extension, 8, &packet, offset, 0)) { protocol = 0; opaque = 1; break; }
-            if (protocol == 44 && ((extension[2] & 0xff) || (extension[3] & 0xf8))) { protocol = 0; opaque = 1; break; }
-            __u32 length = protocol == 44 ? 8 : protocol == 51 ? (extension[1] + 2) * 4 : (extension[1] + 1) * 8;
-            protocol = extension[0];
-            offset += length;
-        }
+        struct extension_state extension = { .packet = &packet, .offset = 40, .protocol = header[6] };
+        bpf_loop(16, visit_extension, &extension, 0);
+        protocol = extension.protocol;
+        offset = extension.offset;
+        opaque = extension.opaque;
         if (protocol == 0 || protocol == 43 || protocol == 60 || protocol == 51 || protocol == 44) opaque = 1;
     } else return NF_ACCEPT;
 

@@ -35,6 +35,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     strategy:
+      fail-fast: false
       matrix:
         postgres: ['17', '18']
     services:
@@ -97,6 +98,7 @@ jobs:
   # 独立网络/挂载命名空间覆盖真实内核路径，另以两个能力和非 root 运行控制器。
   kernel-and-control:
     strategy:
+      fail-fast: false
       matrix:
         runner: [ubuntu-24.04, ubuntu-24.04-arm]
     runs-on: ${{ matrix.runner }}

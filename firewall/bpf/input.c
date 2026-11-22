@@ -154,6 +154,9 @@ int samwaf_input(struct bpf_nf_ctx *ctx) {
         protocol = extension.protocol;
         offset = extension.offset;
         opaque = extension.opaque;
+        // 回调结束后清除完整指针槽；不同 Clang 会把后续 lookup 结构复用到这里。
+        // volatile 保证清理不被“变量已结束生命周期”的优化删除，兼容非特权 LTS 校验。
+        *(struct bpf_dynptr *volatile *)&extension.packet = 0;
         if (protocol == 0 || protocol == 43 || protocol == 60 || protocol == 51 || protocol == 44) opaque = 1;
     } else return NF_ACCEPT;
 

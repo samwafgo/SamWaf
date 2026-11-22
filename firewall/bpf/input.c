@@ -59,6 +59,41 @@ static __noinline int blocked(void *rules, struct rule_key *key, __u64 now) {
     return value && (!value->expires || value->expires > now);
 }
 
+// 回调状态放在本次程序栈中，不使用可能被同 CPU 另一个报文覆盖的共享临时 map。
+struct lookup_state {
+    struct rule_key base;
+    __u16 port;
+    __u8 opaque;
+    __u8 drop;
+    __u64 active;
+    __u64 now;
+};
+
+// bpf_loop 让 6.6/6.12 验证器独立验证有限来源遍历，避免 64 份展开叠加 IPv6 分支爆炸。
+static long visit_group(__u32 group, void *context) {
+    struct lookup_state *state = context;
+    if (group >= MAX_GROUPS || !(state->active & (1ULL << group))) return 0;
+    void *rules = bpf_map_lookup_elem(&ban_groups, &group);
+    if (!rules) return 0;
+    struct rule_key key = state->base;
+    if (blocked(rules, &key, state->now)) goto drop;
+    if (state->port) {
+        key = state->base;
+        key.port = state->port;
+        if (blocked(rules, &key, state->now)) goto drop;
+    }
+    if (state->opaque) {
+        key = state->base;
+        key.family |= 256;
+        if (blocked(rules, &key, state->now)) goto drop;
+    }
+    return 0;
+drop:
+    state->drop = 1;
+    return 1;
+}
+
+// 先解析报文身份，再通过有限回调检查各来源；命中只更新内核计数并丢包。
 SEC("netfilter")
 int samwaf_input(struct bpf_nf_ctx *ctx) {
     __u32 zero = 0;
@@ -111,31 +146,10 @@ int samwaf_input(struct bpf_nf_ctx *ctx) {
             __builtin_memcpy(&port, &tcp[2], 2);
         else opaque = 1;
     }
-    __u64 now = bpf_ktime_get_boot_ns();
-    // 显式展开固定槽位，避免编译器把循环计数与子调用寄存器合并，造成验证器误判无界循环。
-    // 大名单仍在 LPM 表中查询，不逐条遍历 IP；空槽只执行一次位图检查。
-    #define GROUP(N) do { \
-        if (active & (1ULL << (N))) { \
-            __u32 group = (N); \
-            void *rules = bpf_map_lookup_elem(&ban_groups, &group); \
-            if (rules) { \
-                struct rule_key key = base; \
-                if (blocked(rules, &key, now)) goto drop; \
-                if (port) { key = base; key.port = port; if (blocked(rules, &key, now)) goto drop; } \
-                if (opaque) { key = base; key.family |= 256; if (blocked(rules, &key, now)) goto drop; } \
-            } \
-        } \
-    } while (0)
-    GROUP(0); GROUP(1); GROUP(2); GROUP(3); GROUP(4); GROUP(5); GROUP(6); GROUP(7);
-    GROUP(8); GROUP(9); GROUP(10); GROUP(11); GROUP(12); GROUP(13); GROUP(14); GROUP(15);
-    GROUP(16); GROUP(17); GROUP(18); GROUP(19); GROUP(20); GROUP(21); GROUP(22); GROUP(23);
-    GROUP(24); GROUP(25); GROUP(26); GROUP(27); GROUP(28); GROUP(29); GROUP(30); GROUP(31);
-    GROUP(32); GROUP(33); GROUP(34); GROUP(35); GROUP(36); GROUP(37); GROUP(38); GROUP(39);
-    GROUP(40); GROUP(41); GROUP(42); GROUP(43); GROUP(44); GROUP(45); GROUP(46); GROUP(47);
-    GROUP(48); GROUP(49); GROUP(50); GROUP(51); GROUP(52); GROUP(53); GROUP(54); GROUP(55);
-    GROUP(56); GROUP(57); GROUP(58); GROUP(59); GROUP(60); GROUP(61); GROUP(62); GROUP(63);
-    return NF_ACCEPT;
-drop:;
+    struct lookup_state lookup = { .base = base, .port = port, .opaque = opaque,
+                                   .active = active, .now = bpf_ktime_get_boot_ns() };
+    bpf_loop(MAX_GROUPS, visit_group, &lookup, 0);
+    if (!lookup.drop) return NF_ACCEPT;
     __u64 *count = bpf_map_lookup_elem(&drop_count, &zero);
     if (count) (*count)++;
     return NF_DROP;

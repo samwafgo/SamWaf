@@ -59,6 +59,11 @@ func (receiver *WafFirewallIPBlockService) kernelSnapshot(tx *gorm.DB) error {
 
 // mutateKernel 先在事务内变更持久账本，完整内核表发布成功才提交；失败时重新读取已提交真相恢复。
 func (receiver *WafFirewallIPBlockService) mutateKernel(change func(*gorm.DB) error) error {
+	return receiver.mutateKernelPolicy(func(tx *gorm.DB) (bool, error) { return true, change(tx) })
+}
+
+// mutateKernelPolicy 允许纯备注/归属字段编辑只提交数据库，不无故要求内核后端在线。
+func (receiver *WafFirewallIPBlockService) mutateKernelPolicy(change func(*gorm.DB) (bool, error)) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	attempted := false
@@ -66,8 +71,12 @@ func (receiver *WafFirewallIPBlockService) mutateKernel(change func(*gorm.DB) er
 		if err := lockKernelLedger(tx); err != nil {
 			return err
 		}
-		if err := change(tx); err != nil {
+		changed, err := change(tx)
+		if err != nil {
 			return err
+		}
+		if !changed {
+			return nil
 		}
 		attempted = true
 		return receiver.kernelSnapshot(tx)
@@ -122,12 +131,13 @@ func (receiver *WafFirewallIPBlockService) modifyKernelBlock(req request.WafFire
 			return err
 		}
 	}
-	return receiver.mutateKernel(func(tx *gorm.DB) error {
+	return receiver.mutateKernelPolicy(func(tx *gorm.DB) (bool, error) {
 		var old model.FirewallIPBlock
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id=?", req.Id).First(&old).Error; err != nil {
-			return err
+			return false, err
 		}
-		return tx.Model(&old).Updates(map[string]interface{}{"host_code": "", "ip": req.IP, "reason": req.Reason, "block_type": req.BlockType, "status": req.Status, "expire_time": req.ExpireTime, "remarks": req.Remarks, "UPDATE_TIME": customtype.JsonTime(time.Now())}).Error
+		changed := old.IP != req.IP || old.Status != req.Status || old.ExpireTime != req.ExpireTime
+		return changed, tx.Model(&old).Updates(map[string]interface{}{"host_code": "", "ip": req.IP, "reason": req.Reason, "block_type": req.BlockType, "status": req.Status, "expire_time": req.ExpireTime, "remarks": req.Remarks, "UPDATE_TIME": customtype.JsonTime(time.Now())}).Error
 	})
 }
 

@@ -2489,6 +2489,12 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 				return tx.Migrator().DropTable(&model.SecurityReportTask{}, &model.SecurityReportSettings{})
 			},
 		},
+		{
+			ID:      "202611190001_add_tunnel_access_protection",
+			Migrate: addTunnelProtectionColumns,
+			// 保留配置，旧版本忽略这两个字段。
+			Rollback: func(*gorm.DB) error { return nil },
+		},
 	})
 
 	// 执行迁移
@@ -2502,6 +2508,17 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 	ensureIPTagIndexes(db, true)
 
 	zlog.Info("core数据库迁移成功完成")
+	return nil
+}
+
+func addTunnelProtectionColumns(tx *gorm.DB) error {
+	for _, field := range []string{"RegionProtection", "DDNSProtection"} {
+		if !tx.Migrator().HasColumn(&model.Tunnel{}, field) {
+			if err := tx.Migrator().AddColumn(&model.Tunnel{}, field); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 

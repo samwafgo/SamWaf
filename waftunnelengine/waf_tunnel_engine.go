@@ -8,6 +8,8 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 )
 
 type WafTunnelEngine struct {
@@ -19,6 +21,17 @@ type WafTunnelEngine struct {
 	TCPConnections *waftunnelmodel.SafeTCPConnMap
 	//UDP连接管理
 	UDPConnections *waftunnelmodel.SafeUDPConnMap
+
+	// OnDDNSAudit is assigned before StartTunnel and called by the active scheduler.
+	OnDDNSAudit func(model.Tunnel, model.TunnelDDNSBinding, string, []string, []string)
+	ddns        ddnsRuntime
+	lifecycleMu sync.Mutex
+	active      bool
+	starts      map[string]*tunnelListenerStart
+}
+
+type tunnelListenerStart struct {
+	key, tunnelID string
 }
 
 func NewWafTunnelEngine() *WafTunnelEngine {
@@ -30,39 +43,72 @@ func NewWafTunnelEngine() *WafTunnelEngine {
 	}
 }
 
-// StartTunnel 启动tunnel
+// StartTunnel 启动活动 Worker 的隧道与域名解析。
 func (waf *WafTunnelEngine) StartTunnel() {
-	// 启动tunnel
-	waf.LoadAllTunnel()
-	waf.StartAllTunnelServer()
+	waf.lifecycleMu.Lock()
+	defer waf.lifecycleMu.Unlock()
+	if !waf.active {
+		waf.startTunnel()
+	}
 }
 
-// CloseTunnel 关闭tunnel
+// ReloadActiveTunnel preserves the Worker activation gate during a full reload.
+func (waf *WafTunnelEngine) ReloadActiveTunnel() {
+	waf.lifecycleMu.Lock()
+	defer waf.lifecycleMu.Unlock()
+	if waf.active {
+		waf.closeTunnel()
+		waf.startTunnel()
+	}
+}
+
+func (waf *WafTunnelEngine) startTunnel() {
+	waf.active = true
+	waf.starts = make(map[string]*tunnelListenerStart)
+	waf.loadAllTunnel()
+	waf.ddns.start(newDDNSResolver(global.GCONFIG_TUNNEL_DDNS_RESOLVERS), waf.OnDDNSAudit)
+	waf.startAllTunnelServer()
+}
+
+// CloseTunnel 关闭隧道并等待解析与审计回调退出。
 func (waf *WafTunnelEngine) CloseTunnel() {
-	// 关闭tunnel
+	waf.lifecycleMu.Lock()
+	defer waf.lifecycleMu.Unlock()
+	waf.closeTunnel()
+}
+
+func (waf *WafTunnelEngine) closeTunnel() {
+	waf.active = false
+	waf.starts = nil
+	waf.ddns.stop()
 	zlog.Info("开始关闭所有隧道服务...")
 	waf.StopAllTunnelServer()
-	// 清理隧道目标信息
 	waf.TunnelTarget.Clear()
-
-	// 清理服务在线情况
 	waf.NetListerOnline.Clear()
 	zlog.Info("所有隧道服务已关闭")
 }
 
-// LoadAllTunnel 加载全部tunnel
-func (waf *WafTunnelEngine) LoadAllTunnel() {
-	//重新查询
+func (waf *WafTunnelEngine) loadAllTunnel() {
 	var tunnels []model.Tunnel
 	global.GWAF_LOCAL_DB.Find(&tunnels)
-	for i := 0; i < len(tunnels); i++ {
-		waf.LoadTunnel(tunnels[i])
+	for _, tunnel := range tunnels {
+		waf.ddns.update(tunnel, time.Now())
+		waf.loadTunnelPorts(tunnel)
 	}
 }
 
 // LoadTunnel 加载指定tunnel
 func (waf *WafTunnelEngine) LoadTunnel(inTunnel model.Tunnel) []waftunnelmodel.NetRunTime {
+	waf.lifecycleMu.Lock()
+	defer waf.lifecycleMu.Unlock()
+	if !waf.active {
+		return nil
+	}
+	waf.ddns.update(inTunnel, time.Now())
+	return waf.loadTunnelPorts(inTunnel)
+}
 
+func (waf *WafTunnelEngine) loadTunnelPorts(inTunnel model.Tunnel) []waftunnelmodel.NetRunTime {
 	netRunTimes := make([]waftunnelmodel.NetRunTime, 0)
 
 	// 先处理端口
@@ -104,7 +150,12 @@ func (waf *WafTunnelEngine) LoadTunnel(inTunnel model.Tunnel) []waftunnelmodel.N
 
 // EditTunnel 编辑隧道配置
 func (waf *WafTunnelEngine) EditTunnel(oldTunnel model.Tunnel, newTunnel model.Tunnel) []waftunnelmodel.NetRunTime {
-	// 返回值：新增的端口运行时, 移除的端口运行时
+	waf.lifecycleMu.Lock()
+	defer waf.lifecycleMu.Unlock()
+	if !waf.active {
+		return nil
+	}
+	waf.ddns.update(newTunnel, time.Now())
 	addedRunTimes := make([]waftunnelmodel.NetRunTime, 0)
 
 	// 解析旧端口列表
@@ -165,19 +216,18 @@ func (waf *WafTunnelEngine) EditTunnel(oldTunnel model.Tunnel, newTunnel model.T
 			for port := range oldPortMap {
 				key := oldTunnel.Protocol + port
 				// 更新隧道目标信息
-				if tunnelSafe, ok := waf.TunnelTarget.Get(key); ok {
-					tunnelSafe.Tunnel = newTunnel
-					waf.TunnelTarget.Set(key, tunnelSafe)
+				if _, ok := waf.TunnelTarget.Get(key); ok {
+					waf.TunnelTarget.Set(key, &waftunnelmodel.TunnelSafe{Tunnel: newTunnel})
 				}
 			}
 
 			// 如果需要重启服务
 			if needRestart {
 				// 先移除旧的服务
-				waf.RemoveTunnel(oldTunnel)
+				waf.removeTunnelPorts(oldTunnel)
 				// 如果新状态是启动的，重新加载
 				if newTunnel.StartStatus != 0 {
-					netRunTimes := waf.LoadTunnel(newTunnel)
+					netRunTimes := waf.loadTunnelPorts(newTunnel)
 					addedRunTimes = append(addedRunTimes, netRunTimes...)
 				}
 			}
@@ -193,6 +243,7 @@ func (waf *WafTunnelEngine) EditTunnel(oldTunnel model.Tunnel, newTunnel model.T
 			// 这个端口在新配置中不存在，需要移除
 			key := oldTunnel.Protocol + port
 			if netRuntime, ok := waf.NetListerOnline.Get(key); ok {
+				delete(waf.starts, key)
 				// 停止服务
 				waf.StopTunnelServer(netRuntime)
 				// 从在线列表中移除
@@ -254,11 +305,11 @@ func (waf *WafTunnelEngine) EditTunnel(oldTunnel model.Tunnel, newTunnel model.T
 					tunnelSafe.Tunnel.SSLProtocols != newTunnel.SSLProtocols
 
 				// 更新隧道信息
-				tunnelSafe.Tunnel = newTunnel
-				waf.TunnelTarget.Set(key, tunnelSafe)
+				waf.TunnelTarget.Set(key, &waftunnelmodel.TunnelSafe{Tunnel: newTunnel})
 
 				// 如果需要重启服务
 				if needRestart {
+					delete(waf.starts, key)
 					// 获取当前的运行时信息
 					if netRuntime, ok := waf.NetListerOnline.Get(key); ok {
 						// 停止旧服务
@@ -291,6 +342,13 @@ func (waf *WafTunnelEngine) EditTunnel(oldTunnel model.Tunnel, newTunnel model.T
 
 // RemoveTunnel 移除指定tunnel
 func (waf *WafTunnelEngine) RemoveTunnel(inTunnel model.Tunnel) []waftunnelmodel.NetRunTime {
+	waf.lifecycleMu.Lock()
+	defer waf.lifecycleMu.Unlock()
+	waf.ddns.remove(inTunnel.Id)
+	return waf.removeTunnelPorts(inTunnel)
+}
+
+func (waf *WafTunnelEngine) removeTunnelPorts(inTunnel model.Tunnel) []waftunnelmodel.NetRunTime {
 	removedRunTimes := make([]waftunnelmodel.NetRunTime, 0)
 
 	// 处理端口
@@ -309,6 +367,7 @@ func (waf *WafTunnelEngine) RemoveTunnel(inTunnel model.Tunnel) []waftunnelmodel
 		key := inTunnel.Protocol + portItem // 唯一识别 协议+端口
 		netRuntime, ok := waf.NetListerOnline.Get(key)
 		if ok {
+			delete(waf.starts, key)
 			// 存在，需要移除
 			removedRunTimes = append(removedRunTimes, netRuntime)
 			// 停止服务
@@ -324,11 +383,9 @@ func (waf *WafTunnelEngine) RemoveTunnel(inTunnel model.Tunnel) []waftunnelmodel
 	return removedRunTimes
 }
 
-// StartAllTunnelServer 开启所有隧道服务
-func (waf *WafTunnelEngine) StartAllTunnelServer() {
-	netMap := waf.NetListerOnline.GetAll()
-	for _, v := range netMap {
-		waf.StartTunnelServer(v)
+func (waf *WafTunnelEngine) startAllTunnelServer() {
+	for _, runtime := range waf.NetListerOnline.GetAll() {
+		waf.startTunnelServer(runtime)
 	}
 	waf.EnumAllPortTunnelServer()
 }
@@ -346,33 +403,81 @@ func (waf *WafTunnelEngine) EnumAllPortTunnelServer() {
 
 // StartTunnelServer 启动指定隧道服务
 func (waf *WafTunnelEngine) StartTunnelServer(netRuntime waftunnelmodel.NetRunTime) {
-	if netRuntime.Status == 0 {
-		// 已启动完成的就不处理
-		return
+	waf.lifecycleMu.Lock()
+	defer waf.lifecycleMu.Unlock()
+	if waf.active {
+		waf.startTunnelServer(netRuntime)
 	}
-	if netRuntime.ServerType == "" {
-		// 如果协议类型为空就不处理
-		return
-	}
+}
 
-	go func(netRuntime waftunnelmodel.NetRunTime) {
+func (waf *WafTunnelEngine) startTunnelServer(netRuntime waftunnelmodel.NetRunTime) {
+	key := netRuntime.ServerType + strconv.Itoa(netRuntime.Port)
+	current, ok := waf.NetListerOnline.Get(key)
+	tunnel, found := waf.TunnelTarget.Get(key)
+	if !ok || !found || current.Status == 0 || netRuntime.Status == 0 || waf.starts[key] != nil {
+		return
+	}
+	start := &tunnelListenerStart{key: key, tunnelID: tunnel.Tunnel.Id}
+	waf.starts[key] = start
+	go func() {
 		defer func() {
-			e := recover()
-			if e != nil {
+			waf.lifecycleMu.Lock()
+			if waf.starts[key] == start {
+				delete(waf.starts, key)
+			}
+			waf.lifecycleMu.Unlock()
+			if e := recover(); e != nil {
 				zlog.Warn("tunnel server recover ", e)
 			}
 		}()
-
-		// 根据协议类型启动不同的服务
 		switch strings.ToLower(netRuntime.ServerType) {
 		case "tcp":
-			waf.startTCPServer(netRuntime)
+			waf.startTCPServer(netRuntime, start)
 		case "udp":
-			waf.startUDPServer(netRuntime)
+			waf.startUDPServer(netRuntime, start)
 		default:
 			zlog.Warn("不支持的协议类型: " + netRuntime.ServerType)
 		}
-	}(netRuntime)
+	}()
+}
+
+func tunnelListenNetwork(protocol, family string) (network, host string) {
+	switch family {
+	case "ipv4":
+		return protocol + "4", "0.0.0.0"
+	case "ipv6":
+		return protocol + "6", "::"
+	case "", "both":
+	default:
+		zlog.Warn("未知的IP版本配置，使用默认值both", "ipVersion", family)
+	}
+	return protocol, ""
+}
+
+// Asynchronous startup binds and publishes the socket together with the current configuration.
+func openTunnelListener[T any](waf *WafTunnelEngine, start *tunnelListenerStart, bind func() (T, error)) (T, error) {
+	waf.lifecycleMu.Lock()
+	defer waf.lifecycleMu.Unlock()
+	var zero T
+	if !waf.active || waf.starts[start.key] != start {
+		return zero, nil
+	}
+	runtime, exists := waf.NetListerOnline.Get(start.key)
+	target, found := waf.TunnelTarget.Get(start.key)
+	if !exists || !found || target.Tunnel.Id != start.tunnelID {
+		return zero, nil
+	}
+	server, err := bind()
+	if err != nil {
+		return zero, err
+	}
+	if conn, ok := any(server).(*net.UDPConn); ok {
+		waf.UDPConnections.AddConn(runtime.Port, conn, waftunnelmodel.ConnTypeSource)
+	}
+	runtime.Status = 0
+	runtime.Svr = server
+	waf.NetListerOnline.Set(start.key, runtime)
+	return server, nil
 }
 
 // StopAllTunnelServer 关闭所有隧道服务

@@ -10,7 +10,7 @@ import (
 )
 
 // startUDPServer 启动UDP服务器
-func (waf *WafTunnelEngine) startUDPServer(netRuntime waftunnelmodel.NetRunTime) {
+func (waf *WafTunnelEngine) startUDPServer(netRuntime waftunnelmodel.NetRunTime, start *tunnelListenerStart) {
 	// 获取隧道配置以确定IP版本
 	key := "udp" + strconv.Itoa(netRuntime.Port)
 	tunnelInfo, ok := waf.TunnelTarget.Get(key)
@@ -20,93 +20,21 @@ func (waf *WafTunnelEngine) startUDPServer(netRuntime waftunnelmodel.NetRunTime)
 		return
 	}
 
-	// 根据IP版本设置监听地址和网络类型
-	var conn *net.UDPConn
-	var err error
-	ipVersion := tunnelInfo.Tunnel.IpVersion
-	if ipVersion == "" {
-		ipVersion = "both" // 默认值
-	}
-
-	switch ipVersion {
-	case "ipv4":
-		// 明确使用 udp4 网络类型，只监听 IPv4
-		addr := "0.0.0.0:" + strconv.Itoa(netRuntime.Port)
-		zlog.Debug(fmt.Sprintf("端口[%s]: IP版本: %s 最后隧道本地监听地址: %s", strconv.Itoa(netRuntime.Port), ipVersion, addr))
-		udpAddr, errResolve := net.ResolveUDPAddr("udp4", addr)
-		if errResolve != nil {
-			serverPort := strconv.Itoa(netRuntime.Port)
-			zlog.Error(fmt.Sprintf("UDP地址解析失败 [服务端口:%s IP版本:%s 错误:%s]", serverPort, ipVersion, errResolve.Error()))
-			return
-		}
-		conn, err = net.ListenUDP("udp4", udpAddr)
-		if err != nil {
-			serverPort := strconv.Itoa(netRuntime.Port)
-			zlog.Error(fmt.Sprintf("UDP服务器启动失败 [服务端口:%s IP版本:%s 错误:%s]", serverPort, ipVersion, err.Error()))
-			return
-		}
-	case "ipv6":
-		// 明确使用 udp6 网络类型，只监听 IPv6
-		addr := "[::]:" + strconv.Itoa(netRuntime.Port)
-		zlog.Debug(fmt.Sprintf("端口[%s]: IP版本: %s 最后隧道本地监听地址: %s", strconv.Itoa(netRuntime.Port), ipVersion, addr))
-		udpAddr, errResolve := net.ResolveUDPAddr("udp6", addr)
-		if errResolve != nil {
-			serverPort := strconv.Itoa(netRuntime.Port)
-			zlog.Error(fmt.Sprintf("UDP地址解析失败 [服务端口:%s IP版本:%s 错误:%s]", serverPort, ipVersion, errResolve.Error()))
-			return
-		}
-		conn, err = net.ListenUDP("udp6", udpAddr)
-		if err != nil {
-			serverPort := strconv.Itoa(netRuntime.Port)
-			zlog.Error(fmt.Sprintf("UDP服务器启动失败 [服务端口:%s IP版本:%s 错误:%s]", serverPort, ipVersion, err.Error()))
-			return
-		}
-	case "both":
-		// 使用 udp 网络类型，同时监听 IPv4 和 IPv6（如果系统支持）
-		addr := ":" + strconv.Itoa(netRuntime.Port)
-		zlog.Debug(fmt.Sprintf("端口[%s]: IP版本: %s 最后隧道本地监听地址: %s", strconv.Itoa(netRuntime.Port), ipVersion, addr))
-		udpAddr, err := net.ResolveUDPAddr("udp", addr)
-		if err != nil {
-			serverPort := strconv.Itoa(netRuntime.Port)
-			zlog.Error(fmt.Sprintf("UDP地址解析失败 [服务端口:%s IP版本:%s 错误:%s]", serverPort, ipVersion, err.Error()))
-			return
-		}
-		conn, err = net.ListenUDP("udp", udpAddr)
-		if err != nil {
-			serverPort := strconv.Itoa(netRuntime.Port)
-			zlog.Error(fmt.Sprintf("UDP服务器启动失败 [服务端口:%s IP版本:%s 错误:%s]", serverPort, ipVersion, err.Error()))
-			return
-		}
-	default:
-		// 未知值，使用默认行为（both）
-		zlog.Warn(fmt.Sprintf("未知的IP版本配置: %s，使用默认值both [服务端口:%s]", ipVersion, strconv.Itoa(netRuntime.Port)))
-		addr := ":" + strconv.Itoa(netRuntime.Port)
-		zlog.Debug(fmt.Sprintf("端口[%s]: IP版本: both 最后隧道本地监听地址: %s", strconv.Itoa(netRuntime.Port), addr))
-		udpAddr, err := net.ResolveUDPAddr("udp", addr)
-		if err != nil {
-			serverPort := strconv.Itoa(netRuntime.Port)
-			zlog.Error(fmt.Sprintf("UDP地址解析失败 [服务端口:%s IP版本:both 错误:%s]", serverPort, err.Error()))
-			return
-		}
-		conn, err = net.ListenUDP("udp", udpAddr)
-		if err != nil {
-			serverPort := strconv.Itoa(netRuntime.Port)
-			zlog.Error(fmt.Sprintf("UDP服务器启动失败 [服务端口:%s IP版本:both 错误:%s]", serverPort, err.Error()))
-			return
-		}
-	}
-
-	// 将服务器连接添加到活动连接列表，标记为来源连接
-	waf.UDPConnections.AddConn(netRuntime.Port, conn, waftunnelmodel.ConnTypeSource)
-
-	// 更新状态
-	netClone, _ := waf.NetListerOnline.Get(key)
-	netClone.Status = 0
-	netClone.Svr = conn
-	waf.NetListerOnline.Set(key, netClone)
-
 	serverPort := strconv.Itoa(netRuntime.Port)
-	zlog.Info(fmt.Sprintf("启动UDP服务器 [服务端口:%s]", serverPort))
+	network, host := tunnelListenNetwork("udp", tunnelInfo.Tunnel.IpVersion)
+	conn, err := openTunnelListener(waf, start, func() (*net.UDPConn, error) {
+		return net.ListenUDP(network, &net.UDPAddr{IP: net.ParseIP(host), Port: netRuntime.Port})
+	})
+	if err != nil {
+		zlog.Error("UDP服务器启动失败", "port", serverPort, "network", network, "error", err)
+		return
+	}
+	if conn == nil {
+		return
+	}
+	defer conn.Close()
+	defer waf.UDPConnections.RemoveConn(netRuntime.Port, conn)
+	zlog.Info("启动UDP服务器", "port", serverPort)
 
 	// 处理UDP数据
 	buffer := make([]byte, 1024)
@@ -140,15 +68,14 @@ func (waf *WafTunnelEngine) startUDPServer(netRuntime waftunnelmodel.NetRunTime)
 		}
 
 		// 处理UDP数据
-		go waf.handleUDPData(conn, remoteAddr, buffer[:n], netRuntime.Port)
+		go waf.handleUDPData(conn, remoteAddr, append([]byte(nil), buffer[:n]...), netRuntime.Port, start.tunnelID)
 	}
 
 	zlog.Info(fmt.Sprintf("UDP服务器关闭 [服务端口:%s]", serverPort))
-	waf.UDPConnections.RemoveConn(netRuntime.Port, conn)
 }
 
 // handleUDPData 处理UDP数据
-func (waf *WafTunnelEngine) handleUDPData(serverConn *net.UDPConn, clientAddr *net.UDPAddr, data []byte, port int) {
+func (waf *WafTunnelEngine) handleUDPData(serverConn *net.UDPConn, clientAddr *net.UDPAddr, data []byte, port int, tunnelID string) {
 	// 获取客户端IP和端口
 	clientIP := clientAddr.IP.String()
 	clientPort := strconv.Itoa(clientAddr.Port)
@@ -156,21 +83,14 @@ func (waf *WafTunnelEngine) handleUDPData(serverConn *net.UDPConn, clientAddr *n
 
 	// 获取隧道配置
 	tunnelInfo, ok := waf.TunnelTarget.Get("udp" + strconv.Itoa(port))
-	if !ok {
+	if !ok || tunnelInfo.Tunnel.Id != tunnelID {
 		zlog.Error(fmt.Sprintf("未找到端口对应的隧道配置 [客户端IP:%s 客户端端口:%s 服务端口:%s]",
 			clientIP, clientPort, serverPort))
 		return
 	}
 
-	// 检查IP访问权限
-	if !CheckIPAccess("UDP", clientIP, clientPort, serverPort, tunnelInfo.Tunnel) {
-		zlog.Warn(fmt.Sprintf("UDP数据被拒绝 [客户端IP:%s 客户端端口:%s 服务端口:%s]",
-			clientIP, clientPort, serverPort))
-		return
-	}
-
-	// 检查时间访问权限
-	if !CheckTimeAccess("UDP", clientIP, clientPort, serverPort, tunnelInfo.Tunnel) {
+	if reason := waf.checkTunnelAccess(clientIP, tunnelID); reason != "" {
+		logTunnelAccessDenied(reason, "UDP", clientIP, clientPort, port, tunnelID)
 		return
 	}
 

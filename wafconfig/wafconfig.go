@@ -309,6 +309,13 @@ func LoadAndInitConfig() {
 		configChanged = true
 	}
 
+	if config.IsSet("security.tunnel_ddns_resolvers") {
+		global.GCONFIG_TUNNEL_DDNS_RESOLVERS = config.GetString("security.tunnel_ddns_resolvers")
+	} else {
+		config.Set("security.tunnel_ddns_resolvers", global.GCONFIG_TUNNEL_DDNS_RESOLVERS)
+		configChanged = true
+	}
+
 	//CORS 跨域来源白名单（逗号分隔，大小写不敏感）。同放 config.yml 而非数据库：
 	//异地部署的前端跨域配错会连不上后端，改文件即可自救；回环/本机来源(dev server)在代码里始终放行。
 	if config.IsSet("security.cors_allow_origins") {

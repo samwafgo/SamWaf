@@ -2,6 +2,7 @@ package model
 
 import (
 	"SamWaf/model/baseorm"
+	"encoding/json"
 )
 
 // 审计分类：access_audit_log 已升级为「统一安全审计流水」security_audit_log，
@@ -36,6 +37,11 @@ const (
 	AuditEventConfigDiagPackage    = "config_diag_package"     //运行诊断包生成下载（result 1成功 0失败）
 	AuditEventConfigReport         = "config_security_report"
 	AuditEventConfigLogExport      = "config_log_export" //日志统一导出任务与产物下载（result 1成功 0失败/被拒）
+
+	AuditEventConfigTunnelRegion         = "config_tunnel_region"
+	AuditEventConfigTunnelDDNS           = "config_tunnel_ddns"
+	AuditEventConfigTunnelDDNSAddresses  = "config_tunnel_ddns_addresses"
+	AuditEventConfigTunnelDDNSResolution = "config_tunnel_ddns_resolution"
 
 	AuditEventAppAdd       = "app_add"
 	AuditEventAppEdit      = "app_edit"
@@ -83,6 +89,11 @@ var auditEventCategory = map[string]string{
 	HttpAuthEventKick:              AuditCategoryHttpAuth,
 	HttpAuthEventExpired:           AuditCategoryHttpAuth,
 	HttpAuthEventDenied:            AuditCategoryHttpAuth,
+
+	AuditEventConfigTunnelRegion:         AuditCategoryConfig,
+	AuditEventConfigTunnelDDNS:           AuditCategoryConfig,
+	AuditEventConfigTunnelDDNSAddresses:  AuditCategoryConfig,
+	AuditEventConfigTunnelDDNSResolution: AuditCategoryConfig,
 }
 
 // AuditEventCategory 取事件所属分类，未知事件回退 access。
@@ -92,6 +103,8 @@ func AuditEventCategory(event string) string {
 	}
 	return AuditCategoryAccess
 }
+
+const AuditObjectTypeTunnel = "tunnel"
 
 // 审计结果
 const (
@@ -137,6 +150,11 @@ var AccessEventNames = map[string]string{
 	HttpAuthEventKick:              "网站密码会话被踢下线",
 	HttpAuthEventExpired:           "网站密码会话到期",
 	HttpAuthEventDenied:            "未登录访问被拦截",
+
+	AuditEventConfigTunnelRegion:         "隧道地区策略变更",
+	AuditEventConfigTunnelDDNS:           "隧道 DDNS 配置操作",
+	AuditEventConfigTunnelDDNSAddresses:  "隧道 DDNS 地址变更",
+	AuditEventConfigTunnelDDNSResolution: "隧道 DDNS 解析状态变更",
 }
 
 // AccessEventName 取事件中文名，未知事件回退成原始事件码而不是空串。
@@ -177,21 +195,24 @@ var AccessNotifyEvents = map[string]bool{
 // 生命周期一致；且 wafdb/log_shard.go 的分库只搬 web_logs 一张表，本表不受影响。
 type SecurityAuditLog struct {
 	baseorm.BaseOrm
-	Category    string `gorm:"size:16;index" json:"category"` //审计分类，见 AuditCategory* 常量
-	Event       string `gorm:"size:32" json:"event"`          //见上方 AccessEvent* / AuditEventConfig* 常量
-	AccountName string `gorm:"size:128" json:"account_name"`
-	SessionCode string `gorm:"size:64" json:"session_code"`
-	Host        string `gorm:"size:255" json:"host"`
-	HostCode    string `gorm:"size:64" json:"host_code"`
-	URL         string `gorm:"type:text" json:"url"`
-	ClientIP    string `gorm:"size:64" json:"client_ip"`
-	Country     string `gorm:"size:64" json:"country"`
-	City        string `gorm:"size:64" json:"city"`
-	UserAgent   string `gorm:"size:512" json:"user_agent"`
-	Fingerprint string `gorm:"size:64" json:"fingerprint"`
-	Result      int    `json:"result"`                  //1成功 0失败
-	Message     string `gorm:"size:500" json:"message"` //人类可读说明，不得含密码/令牌明文
-	Day         int    `json:"day"`                     //20260804，按天清理与按天统计都靠它
+	Category    string          `gorm:"size:16;index" json:"category"` //审计分类，见 AuditCategory* 常量
+	Event       string          `gorm:"size:32" json:"event"`          //见上方 AccessEvent* / AuditEventConfig* 常量
+	AccountName string          `gorm:"size:128" json:"account_name"`
+	SessionCode string          `gorm:"size:64" json:"session_code"`
+	Host        string          `gorm:"size:255" json:"host"`
+	HostCode    string          `gorm:"size:64" json:"host_code"`
+	URL         string          `gorm:"type:text" json:"url"`
+	ClientIP    string          `gorm:"size:64" json:"client_ip"`
+	Country     string          `gorm:"size:64" json:"country"`
+	City        string          `gorm:"size:64" json:"city"`
+	UserAgent   string          `gorm:"size:512" json:"user_agent"`
+	Fingerprint string          `gorm:"size:64" json:"fingerprint"`
+	ObjectType  string          `gorm:"size:32;index:idx_security_audit_object,priority:1" json:"object_type"`
+	ObjectID    string          `gorm:"size:64;index:idx_security_audit_object,priority:2" json:"object_id"`
+	Detail      json.RawMessage `gorm:"serializer:json;type:text" json:"detail,omitempty"`
+	Result      int             `json:"result"`                  //1成功 0失败
+	Message     string          `gorm:"size:500" json:"message"` //人类可读说明，不得含密码/令牌明文
+	Day         int             `json:"day"`                     //20260804，按天清理与按天统计都靠它
 }
 
 func (SecurityAuditLog) TableName() string {

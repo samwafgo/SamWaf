@@ -20,7 +20,7 @@ type Manager struct {
 	// IPv4 后端
 	v4Source     DBSource
 	v4Format     DBFormat
-	v4Searcher   *xdb.Searcher  // ip2region IPv4 (buffer 模式并发安全)
+	v4Searcher   *xdb.Searcher  // ip2region IPv4 (buffer 模式)
 	v4GeoReader  *geoip2.Reader // GeoLite2 (备选)
 	v4LoadTime   time.Time
 	v4FileSize   int64
@@ -65,20 +65,23 @@ func (m *Manager) Lookup(ipStr string) *IPLocationResult {
 		return &IPLocationResult{Country: "无效IP", Unresolved: true}
 	}
 
-	// 判断 IP 类型
-	if ip.To4() != nil {
-		// IPv4
-		return m.lookupV4(ipStr)
-	} else {
-		// IPv6
-		return m.lookupV6(ipStr)
+	if v4 := ip.To4(); v4 != nil {
+		return m.lookupV4(v4)
 	}
+	return m.lookupV6(ip)
+}
+
+// Search mutates the searcher's I/O counter even in buffer mode. Copying its
+// state keeps the counter local while sharing the read-only database bytes.
+func searchXDB(searcher *xdb.Searcher, ip []byte) (string, error) {
+	local := *searcher
+	return local.Search(ip)
 }
 
 // lookupV4 查询 IPv4 地址
-func (m *Manager) lookupV4(ipStr string) *IPLocationResult {
+func (m *Manager) lookupV4(ip net.IP) *IPLocationResult {
 	if m.v4Source == SourceIp2Region && m.v4Searcher != nil {
-		region, err := m.v4Searcher.SearchByStr(ipStr)
+		region, err := searchXDB(m.v4Searcher, ip)
 		if err != nil {
 			return &IPLocationResult{Country: "查询失败", Unresolved: true}
 		}
@@ -87,7 +90,6 @@ func (m *Manager) lookupV4(ipStr string) *IPLocationResult {
 		}
 		return ParseRegion(region, m.v4Format)
 	} else if m.v4Source == SourceGeoLite2 && m.v4GeoReader != nil {
-		ip := net.ParseIP(ipStr)
 		record, err := m.v4GeoReader.Country(ip)
 		if err != nil {
 			return &IPLocationResult{Country: "查询失败", Unresolved: true}
@@ -98,7 +100,7 @@ func (m *Manager) lookupV4(ipStr string) *IPLocationResult {
 		}
 		return &IPLocationResult{Country: countryName}
 	} else if m.v4Source == SourceIpdb && m.ipdbReader != nil {
-		info, err := m.ipdbReader.FindMap(ipStr, "CN")
+		info, err := m.ipdbReader.FindMap(ip.String(), "CN")
 		if err != nil {
 			return &IPLocationResult{Country: "查询失败", Unresolved: true}
 		}
@@ -109,12 +111,12 @@ func (m *Manager) lookupV4(ipStr string) *IPLocationResult {
 }
 
 // lookupV6 查询 IPv6 地址
-func (m *Manager) lookupV6(ipStr string) *IPLocationResult {
+func (m *Manager) lookupV6(ip net.IP) *IPLocationResult {
 	// IPv6 侧要留意：GeoLite2 去内嵌后，配置仍是 geolite2 但磁盘没有 mmdb 的老用户，
 	// ReloadFromConfig 会把 v6Source 运行时降级成 ip2region；若连 ip2region_v6.xdb 也没有，
 	// 就会落到最后的 Unresolved 分支，由调用方放行，而不是返回一个会被规则误判的国家名。
 	if m.v6Source == SourceIp2Region && m.v6Searcher != nil {
-		region, err := m.v6Searcher.SearchByStr(ipStr)
+		region, err := searchXDB(m.v6Searcher, ip)
 		if err != nil {
 			return &IPLocationResult{Country: "查询失败", Unresolved: true}
 		}
@@ -123,7 +125,6 @@ func (m *Manager) lookupV6(ipStr string) *IPLocationResult {
 		}
 		return ParseRegion(region, m.v6Format)
 	} else if m.v6Source == SourceGeoLite2 && m.v6GeoReader != nil {
-		ip := net.ParseIP(ipStr)
 		record, err := m.v6GeoReader.Country(ip)
 		if err != nil {
 			return &IPLocationResult{Country: "查询失败", Unresolved: true}
@@ -137,7 +138,7 @@ func (m *Manager) lookupV6(ipStr string) *IPLocationResult {
 		}
 		return &IPLocationResult{Country: countryName}
 	} else if m.v6Source == SourceIpdb && m.ipdbReader != nil {
-		info, err := m.ipdbReader.FindMap(ipStr, "CN")
+		info, err := m.ipdbReader.FindMap(ip.String(), "CN")
 		if err != nil {
 			return &IPLocationResult{Country: "查询失败", Unresolved: true}
 		}
@@ -147,21 +148,41 @@ func (m *Manager) lookupV6(ipStr string) *IPLocationResult {
 	return &IPLocationResult{Country: "未配置", Unresolved: true}
 }
 
+const xdbIndexStart = xdb.HeaderInfoLength + xdb.VectorIndexRows*xdb.VectorIndexCols*xdb.VectorIndexSize
+
+func newXDBSearcher(version *xdb.Version, data []byte) (*xdb.Searcher, error) {
+	if len(data) < xdbIndexStart+version.SegmentIndexSize {
+		return nil, fmt.Errorf("XDB 文件长度不足")
+	}
+	header, err := xdb.NewHeader(data[:xdb.HeaderInfoLength])
+	if err != nil {
+		return nil, err
+	}
+	actual, err := xdb.VersionFromHeader(header)
+	if err != nil {
+		return nil, err
+	}
+	if actual.Id != version.Id {
+		return nil, fmt.Errorf("XDB 地址类型为 %s，需要 %s", actual.Name, version.Name)
+	}
+	start, end, width := uint64(header.StartIndexPtr), uint64(header.EndIndexPtr), uint64(version.SegmentIndexSize)
+	if start < xdbIndexStart || end < start || end+width > uint64(len(data)) || (end-start)%width != 0 {
+		return nil, fmt.Errorf("XDB 索引范围无效")
+	}
+	return xdb.NewWithBuffer(version, data)
+}
+
 // LoadV4Ip2Region 加载 IPv4 ip2region 数据库
 func (m *Manager) LoadV4Ip2Region(data []byte, format DBFormat) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// 关闭旧的 searcher
-	if m.v4Searcher != nil {
-		m.v4Searcher.Close()
-		m.v4Searcher = nil
-	}
-
-	// 创建新的 searcher (buffer 模式并发安全)
-	searcher, err := xdb.NewWithBuffer(xdb.IPv4, data)
+	searcher, err := newXDBSearcher(xdb.IPv4, data)
 	if err != nil {
 		return fmt.Errorf("创建 IPv4 searcher 失败: %w", err)
+	}
+	if m.v4Searcher != nil {
+		m.v4Searcher.Close()
 	}
 
 	m.v4Searcher = searcher
@@ -207,16 +228,12 @@ func (m *Manager) LoadV6Ip2Region(data []byte, format DBFormat) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// 关闭旧的 searcher
-	if m.v6Searcher != nil {
-		m.v6Searcher.Close()
-		m.v6Searcher = nil
-	}
-
-	// 创建新的 searcher (buffer 模式并发安全)
-	searcher, err := xdb.NewWithBuffer(xdb.IPv6, data)
+	searcher, err := newXDBSearcher(xdb.IPv6, data)
 	if err != nil {
 		return fmt.Errorf("创建 IPv6 searcher 失败: %w", err)
+	}
+	if m.v6Searcher != nil {
+		m.v6Searcher.Close()
 	}
 
 	m.v6Searcher = searcher

@@ -1,7 +1,6 @@
 package waftunnelengine
 
 import (
-	"SamWaf/common/zlog"
 	"SamWaf/model"
 	"fmt"
 	"strconv"
@@ -119,25 +118,18 @@ func IsTimeAllowed(timeRanges []TimeRange, currentTime time.Time) bool {
 	return false
 }
 
-// CheckTimeAccess 检查隧道的时间访问权限
-func CheckTimeAccess(protocol string, clientIP string, clientPort string, serverPort string, tunnel model.Tunnel) bool {
-	// 解析时间范围
-	timeRanges, err := ParseTimeRanges(tunnel.AllowedTimeRanges)
+// CheckTimeAccess 检查隧道的时间访问权限。
+func CheckTimeAccess(_ string, _ string, _ string, _ string, tunnel model.Tunnel) bool {
+	return tunnelTimeDenial(tunnel.AllowedTimeRanges, time.Now()) == ""
+}
+
+func tunnelTimeDenial(config string, now time.Time) tunnelAccessDenial {
+	timeRanges, err := ParseTimeRanges(config)
 	if err != nil {
-		zlog.Error(fmt.Sprintf("解析时间范围失败 [协议:%s 客户端IP:%s 客户端端口:%s 服务端口:%s 错误:%s]",
-			protocol, clientIP, clientPort, serverPort, err.Error()))
-		// 解析失败时，为了安全起见，拒绝访问
-		return false
+		return denyInvalidSchedule
 	}
-
-	// 检查当前时间是否允许访问
-	currentTime := time.Now()
-	allowed := IsTimeAllowed(timeRanges, currentTime)
-
-	if !allowed {
-		zlog.Warn(fmt.Sprintf("%s连接被时间限制拒绝 [客户端IP:%s 客户端端口:%s 服务端口:%s 当前时间:%s 允许时间段:%s]",
-			protocol, clientIP, clientPort, serverPort, currentTime.Format("15:04"), tunnel.AllowedTimeRanges))
+	if !IsTimeAllowed(timeRanges, now) {
+		return denyOutsideSchedule
 	}
-
-	return allowed
+	return ""
 }

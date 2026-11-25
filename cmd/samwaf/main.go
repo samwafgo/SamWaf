@@ -489,7 +489,9 @@ func (m *wafSystenService) run() {
 	globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartWaf()
 
 	//启动隧道
-	globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE = waftunnelengine.NewWafTunnelEngine()
+	tunnelEngine := waftunnelengine.NewWafTunnelEngine()
+	tunnelEngine.OnDDNSAudit = waf_service.WafSecurityAuditServiceApp.WriteTunnelDDNSRuntime
+	globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE = tunnelEngine
 	//启动应用管理引擎
 	globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE = wafappengine.NewWafAppEngine()
 	// 隧道/应用是独占型单例(独占端口/外部进程)，不能与旧 Worker 并存。
@@ -860,11 +862,10 @@ func (m *wafSystenService) run() {
 				zlog.Info("准备零空档重载WAF引擎")
 				globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ReloadAllHostZeroGap()
 
-				// 隧道引擎为独立特性，仍按原逻辑重启（与 HTTP 业务端口无关）
-				zlog.Info("准备关闭隧道引擎")
-				globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE.CloseTunnel()
-				zlog.Info("准备启动隧道引擎")
-				globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE.StartTunnel()
+				// 只重载已接管监听与解析任务的隧道引擎。
+				// 必须 go 出去 —— 停隧道要等 DNS 在途查询与审计回调排空，
+				// 同步做会把整个主消息循环堵住。
+				go globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE.ReloadActiveTunnel()
 
 			}
 			break

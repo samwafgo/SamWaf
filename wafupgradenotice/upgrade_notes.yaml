@@ -12,6 +12,31 @@
 #   5. fresh_install: true 的条目只在"全新安装"时生成，不参与版本区间计算
 
 notes:
+  - id: v1_3_26_tunnel_access_protection
+    version: v1.3.26
+    kind: notice
+    level: normal
+    page: /tunnel/Tunnel
+    apply:
+      type: navigate
+    zh:
+      title: 隧道新增地区防御和动态域名白名单
+      detail: >-
+        每条隧道可独立设置国家规则与动态域名绑定，升级后不改变存量隧道的访问行为。
+        启用动态域名白名单后，首次解析成功前及地址过期后，未命中固定白名单的来源不会通过名单检查。
+        地址变化影响新 TCP 连接及后续 UDP 报文。配置和解析变化可在系统设置的安全审计中查看。
+        动态域名只将解析到的公网地址纳入白名单；用于内网环境的域名请在固定白名单中填写内网地址。
+      revert: 可关闭地区防御或停用动态域名绑定；停用最后一个绑定前，请核对固定白名单，避免改变隧道可访问范围。
+    en:
+      title: Tunnel country rules and dynamic DNS allowlists
+      detail: >-
+        Country rules and dynamic DNS bindings are configured per tunnel. Existing tunnels keep their behavior after upgrading.
+        Once a dynamic binding is enabled, sources not in the fixed allowlist cannot pass the allowlist check until an address resolves,
+        or after its addresses expire. Address changes apply to new TCP connections and subsequent UDP datagrams.
+        Review configuration and resolution changes in Security Audit under System Settings.
+        Only public addresses resolved from a dynamic domain enter the allowlist; for intranet deployments, list intranet addresses in the fixed allowlist.
+      revert: Turn off country rules or disable dynamic bindings. Review the fixed allowlist before disabling the last binding so the tunnel does not open more broadly than intended.
+
   - id: v1_3_26_log_event_fold
     version: v1.3.26
     kind: notice

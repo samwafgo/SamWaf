@@ -157,6 +157,12 @@ func WarnCall(message string, fields ...zap.Field) {
 	fields = append(fields, callerFields...)
 	logger.Warn(message, fields...)
 }
+
+// WarnFields 记录带结构化字段的警告。
+func WarnFields(message string, fields ...zap.Field) {
+	logger.Warn(message, fields...)
+}
+
 func Warn(message string, inter ...interface{}) {
 	fields := append([]zap.Field{zap.String("pid", strconv.Itoa(os.Getpid()))}, zap.Any("warn", inter))
 	logger.Warn(message, fields...)

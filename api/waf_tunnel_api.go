@@ -5,10 +5,12 @@ import (
 	"SamWaf/global"
 	"SamWaf/globalobj"
 	"SamWaf/innerbean"
+	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	"SamWaf/model/spec"
 	"SamWaf/model/waftunnelmodel"
+	"SamWaf/service/waf_service"
 	"SamWaf/utils"
 	"errors"
 	"fmt"
@@ -35,6 +37,8 @@ func (w *WafTunnelApi) AddApi(c *gin.Context) {
 	var req request.WafTunnelAddReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		tunnelChangeMu.Lock()
+		defer tunnelChangeMu.Unlock()
 
 		portStrArray := strings.Split(req.Port, ",")
 		protocol := strings.ToLower(req.Protocol)
@@ -160,7 +164,15 @@ func (w *WafTunnelApi) DelApi(c *gin.Context) {
 	var req request.WafTunnelDelReq
 	err := c.ShouldBind(&req)
 	if err == nil {
+		tunnelChangeMu.Lock()
+		defer tunnelChangeMu.Unlock()
 		tunnel := wafTunnelService.GetDetailByIdApi(req.Id)
+		var protection waf_service.TunnelProtectionConfig
+		var states []model.TunnelDDNSStatus
+		if tunnel.DDNSProtection != "" || tunnel.RegionProtection != "" {
+			protection, _ = wafTunnelService.GetProtection(c.Request.Context(), req.Id)
+			states = tunnelDDNSStatuses(protection)
+		}
 		err = wafTunnelService.DelApi(req)
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 			response.FailWithMessage("请检测参数", c)
@@ -174,6 +186,10 @@ func (w *WafTunnelApi) DelApi(c *gin.Context) {
 				OldContent: tunnel,
 			}
 			global.GWAF_CHAN_COMMON_MSG <- chanInfo
+			if protection.Region.Revision > 0 {
+				auditTunnelProtection(c, tunnel, model.AuditEventConfigTunnelRegion, "delete", &waf_service.TunnelAuditState{Region: &protection.Region}, nil)
+			}
+			auditTunnelBindingChanges(c, tunnel, protection.DDNS.Bindings, nil, states)
 			response.OkWithMessage("删除成功", c)
 		}
 	} else {
@@ -195,6 +211,8 @@ func (w *WafTunnelApi) ModifyApi(c *gin.Context) {
 	var req request.WafTunnelEditReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		tunnelChangeMu.Lock()
+		defer tunnelChangeMu.Unlock()
 		oldTunnel := wafTunnelService.GetDetailByIdApi(req.Id)
 		err = wafTunnelService.ModifyApi(req)
 		if err != nil {

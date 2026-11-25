@@ -513,9 +513,9 @@ func RunLogDBMigrations(db *gorm.DB) error {
 					// 保留期清理按 create_time 删
 					{"idx_al_create_time", "access_log", "CREATE INDEX IF NOT EXISTS idx_al_create_time ON access_log (create_time)"},
 					{"idx_se_create_time", "security_event", "CREATE INDEX IF NOT EXISTS idx_se_create_time ON security_event (create_time)"},
-				// 行为视角按访客键汇总（索引名全库唯一，两张表各建各的）
-				{"idx_al_actor", "access_log", "CREATE INDEX IF NOT EXISTS idx_al_actor ON access_log (tenant_id, user_code, actor_key, day)"},
-				{"idx_se_actor", "security_event", "CREATE INDEX IF NOT EXISTS idx_se_actor ON security_event (tenant_id, user_code, actor_key, day)"},
+					// 行为视角按访客键汇总（索引名全库唯一，两张表各建各的）
+					{"idx_al_actor", "access_log", "CREATE INDEX IF NOT EXISTS idx_al_actor ON access_log (tenant_id, user_code, actor_key, day)"},
+					{"idx_se_actor", "security_event", "CREATE INDEX IF NOT EXISTS idx_se_actor ON security_event (tenant_id, user_code, actor_key, day)"},
 				} {
 					start := time.Now()
 					if err := safeCreateIndex(tx, ix.table, ix.name, ix.ddl); err != nil {
@@ -531,6 +531,12 @@ func RunLogDBMigrations(db *gorm.DB) error {
 				return tx.Migrator().DropTable(&model.AccessLog{}, &model.SecurityEvent{})
 			},
 		},
+		{
+			ID:      "202611190001_add_security_audit_object_detail",
+			Migrate: addSecurityAuditObjectFields,
+			// 保留审计明细；旧版本仍可读取原有列。
+			Rollback: func(tx *gorm.DB) error { return nil },
+		},
 	})
 
 	// 执行迁移
@@ -541,6 +547,25 @@ func RunLogDBMigrations(db *gorm.DB) error {
 	}
 
 	zlog.Info("log数据库迁移成功完成")
+	return nil
+}
+
+func addSecurityAuditObjectFields(tx *gorm.DB) error {
+	audit := &model.SecurityAuditLog{}
+	m := tx.Migrator()
+	for _, field := range []string{"ObjectType", "ObjectID", "Detail"} {
+		if !m.HasColumn(audit, field) {
+			if err := m.AddColumn(audit, field); err != nil {
+				return fmt.Errorf("添加 security_audit_log.%s 失败: %w", field, err)
+			}
+		}
+	}
+	const index = "idx_security_audit_object"
+	if !m.HasIndex(audit, index) {
+		if err := m.CreateIndex(audit, index); err != nil {
+			return fmt.Errorf("创建 %s 失败: %w", index, err)
+		}
+	}
 	return nil
 }
 

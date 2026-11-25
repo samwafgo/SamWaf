@@ -389,8 +389,9 @@ func (w *WafAccessSessionApi) KickAllApi(c *gin.Context) {
 type WafAccessAuditApi struct {
 }
 
-// GetListApi 获取访问认证审计日志
-// @Summary      获取统一访问认证审计日志
+// GetListApi 获取安全审计日志
+// @Summary      获取安全审计日志
+// @Description  object_type、object_id 可独立使用，按完整值匹配
 // @Tags         统一访问认证-审计
 // @Accept       json
 // @Produce      json

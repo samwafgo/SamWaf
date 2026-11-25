@@ -2,7 +2,7 @@ package global
 
 var (
 	/******记录参数配置****************/
-	GCONFIG_LOG_PERSIST_ENABLED         int64  = 1                   //是否将web日志持久化到日志库（默认1 ） 1 持久化入库 0 不入库
+	GCONFIG_LOG_PERSIST_ENABLED int64 = 1 //是否将web日志持久化到日志库（默认1 ） 1 持久化入库 0 不入库
 	// GCONFIG_LOG_FOLD_PER_MINUTE 同一「站点+IP+规则」的安全事件，每分钟最多落库的完整明细条数（0=不折叠，默认0）。
 	// 超过部分不落库（security_event/access_log/event_payload 都不写），但统计、分析、CC、文件与 Kafka 出口照常拿全量，
 	// 面板计数与封禁行为不受影响。大批量同类攻击下把明细写入量压到 K 条/分钟/来源，避免日志队列积压。
@@ -20,6 +20,7 @@ var (
 	GCONFIG_COMM_LEGACY_KEY             bool   = true                //是否保留 legacy 传输通道(旧客户端用内置密钥的CBC报文)。默认开，任何版本不自动翻转；确认无旧独立前端/旧App后可手动关
 	GCONFIG_BATCH_IMPORT_ALLOWED_DIRS   string = ""                  //批量任务本地来源允许的额外目录（绝对路径，逗号分隔）；只从config.yml读、不进DB/API。内置默认data/import恒允许，留空=只允许该默认目录
 	GCONFIG_OUTBOUND_ALLOWED_HOSTS      string = ""                  //用户可配的对外拉取地址允许清单（主机名/IP/CIDR，逗号分隔）；只从config.yml读、不进DB/API。留空=只允许公网目标；内网镜像源须运营方在此带外声明
+	GCONFIG_TUNNEL_DDNS_RESOLVERS       string = ""                  //隧道 DDNS 递归 DNS（IP 或 IP:端口，逗号分隔）；留空使用系统 DNS
 	GCONFIG_RECORD_AUTO_LOAD_SSL        int64  = 1                   //是否每天凌晨3点自动加载ssl证书
 	GCONFIG_RECORD_KAFKA_ENABLE         int64  = 0                   //kafka 是否激活
 	GCONFIG_RECORD_KAFKA_URL            string = "127.0.0.1:9092"    //kafka url地址

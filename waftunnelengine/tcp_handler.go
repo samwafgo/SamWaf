@@ -15,7 +15,7 @@ import (
 )
 
 // startTCPServer 启动TCP服务器
-func (waf *WafTunnelEngine) startTCPServer(netRuntime waftunnelmodel.NetRunTime) {
+func (waf *WafTunnelEngine) startTCPServer(netRuntime waftunnelmodel.NetRunTime, start *tunnelListenerStart) {
 	// 获取隧道配置以确定IP版本
 	key := "tcp" + strconv.Itoa(netRuntime.Port)
 	tunnelInfo, ok := waf.TunnelTarget.Get(key)
@@ -25,71 +25,20 @@ func (waf *WafTunnelEngine) startTCPServer(netRuntime waftunnelmodel.NetRunTime)
 		return
 	}
 
-	// 根据IP版本设置监听地址和网络类型
-	var listener net.Listener
-	var err error
-	ipVersion := tunnelInfo.Tunnel.IpVersion
-	if ipVersion == "" {
-		ipVersion = "both" // 默认值
-	}
-
-	switch ipVersion {
-	case "ipv4":
-		// 明确使用 tcp4 网络类型，只监听 IPv4
-		addr := "0.0.0.0:" + strconv.Itoa(netRuntime.Port)
-		zlog.Debug(fmt.Sprintf("端口[%s]: IP版本: %s 最后隧道本地监听地址: %s", strconv.Itoa(netRuntime.Port), ipVersion, addr))
-		listener, err = net.Listen("tcp4", addr)
-		if err != nil {
-			serverPort := strconv.Itoa(netRuntime.Port)
-			zlog.Error(fmt.Sprintf("TCP服务器启动失败 [服务端口:%s IP版本:%s 错误:%s]", serverPort, ipVersion, err.Error()))
-			return
-		}
-	case "ipv6":
-		// 明确使用 tcp6 网络类型，只监听 IPv6
-		addr := "[::]:" + strconv.Itoa(netRuntime.Port)
-		zlog.Debug(fmt.Sprintf("端口[%s]: IP版本: %s 最后隧道本地监听地址: %s", strconv.Itoa(netRuntime.Port), ipVersion, addr))
-		listener, err = net.Listen("tcp6", addr)
-		if err != nil {
-			serverPort := strconv.Itoa(netRuntime.Port)
-			zlog.Error(fmt.Sprintf("TCP服务器启动失败 [服务端口:%s IP版本:%s 错误:%s]", serverPort, ipVersion, err.Error()))
-			return
-		}
-	case "both":
-		// 使用 tcp 网络类型，同时监听 IPv4 和 IPv6（如果系统支持）
-		addr := ":" + strconv.Itoa(netRuntime.Port)
-		zlog.Debug(fmt.Sprintf("端口[%s]: IP版本: %s 最后隧道本地监听地址: %s", strconv.Itoa(netRuntime.Port), ipVersion, addr))
-		listener, err = net.Listen("tcp", addr)
-		if err != nil {
-			serverPort := strconv.Itoa(netRuntime.Port)
-			zlog.Error(fmt.Sprintf("TCP服务器启动失败 [服务端口:%s IP版本:%s 错误:%s]", serverPort, ipVersion, err.Error()))
-			return
-		}
-	default:
-		// 未知值，使用默认行为（both）
-		zlog.Warn(fmt.Sprintf("未知的IP版本配置: %s，使用默认值both [服务端口:%s]", ipVersion, strconv.Itoa(netRuntime.Port)))
-		addr := ":" + strconv.Itoa(netRuntime.Port)
-		zlog.Debug(fmt.Sprintf("端口[%s]: IP版本: both 最后隧道本地监听地址: %s", strconv.Itoa(netRuntime.Port), addr))
-		listener, err = net.Listen("tcp", addr)
-		if err != nil {
-			serverPort := strconv.Itoa(netRuntime.Port)
-			zlog.Error(fmt.Sprintf("TCP服务器启动失败 [服务端口:%s IP版本:both 错误:%s]", serverPort, err.Error()))
-			return
-		}
-	}
-
-	// 如果开启了 SSL，用 TLS 包装 listener
+	serverPort := strconv.Itoa(netRuntime.Port)
+	network, host := tunnelListenNetwork("tcp", tunnelInfo.Tunnel.IpVersion)
+	var tlsConfig *tls.Config
 	if tunnelInfo.Tunnel.SSLStatus == 1 {
 		certFile := tunnelInfo.Tunnel.SSLCertificate
 		keyFile := tunnelInfo.Tunnel.SSLCertificateKey
 		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 		if err != nil {
-			listener.Close()
 			zlog.Error(fmt.Sprintf("加载 SSL 证书失败 [服务端口:%s 证书:%s 错误:%s]",
-				strconv.Itoa(netRuntime.Port), certFile, err.Error()))
+				serverPort, certFile, err.Error()))
 			return
 		}
 
-		tlsConfig := &tls.Config{
+		tlsConfig = &tls.Config{
 			Certificates: []tls.Certificate{cert},
 			MinVersion:   tls.VersionTLS12,
 		}
@@ -120,19 +69,23 @@ func (waf *WafTunnelEngine) startTCPServer(netRuntime waftunnelmodel.NetRunTime)
 			}
 		}
 
-		listener = tls.NewListener(listener, tlsConfig)
-		zlog.Info(fmt.Sprintf("TCP 服务器已启用 SSL/TLS [服务端口:%s 证书:%s 协议:%s]",
-			strconv.Itoa(netRuntime.Port), certFile, tunnelInfo.Tunnel.SSLProtocols))
 	}
-
-	// 更新状态
-	netClone, _ := waf.NetListerOnline.Get(key)
-	netClone.Status = 0
-	netClone.Svr = listener
-	waf.NetListerOnline.Set(key, netClone)
-
-	serverPort := strconv.Itoa(netRuntime.Port)
-	zlog.Info(fmt.Sprintf("启动TCP服务器 [服务端口:%s]", serverPort))
+	listener, err := openTunnelListener(waf, start, func() (net.Listener, error) {
+		listener, err := net.Listen(network, net.JoinHostPort(host, serverPort))
+		if err == nil && tlsConfig != nil {
+			listener = tls.NewListener(listener, tlsConfig)
+		}
+		return listener, err
+	})
+	if err != nil {
+		zlog.Error("TCP服务器启动失败", "port", serverPort, "network", network, "error", err)
+		return
+	}
+	if listener == nil {
+		return
+	}
+	defer listener.Close()
+	zlog.Info("启动TCP服务器", "port", serverPort, "tls", tlsConfig != nil)
 
 	for {
 		conn, err := listener.Accept()
@@ -178,14 +131,14 @@ func (waf *WafTunnelEngine) startTCPServer(netRuntime waftunnelmodel.NetRunTime)
 		}
 
 		// 处理连接
-		go waf.handleTCPConnection(conn, netRuntime.Port)
+		go waf.handleTCPConnection(conn, netRuntime.Port, start.tunnelID)
 	}
 
 	zlog.Info(fmt.Sprintf("TCP服务器关闭 [服务端口:%s]", serverPort))
 }
 
 // handleTCPConnection 处理TCP连接
-func (waf *WafTunnelEngine) handleTCPConnection(clientConn net.Conn, port int) {
+func (waf *WafTunnelEngine) handleTCPConnection(clientConn net.Conn, port int, tunnelID string) {
 	// 获取客户端IP和端口
 	clientAddr := clientConn.RemoteAddr().String()
 	clientIP, clientPort, _ := net.SplitHostPort(clientAddr)
@@ -197,21 +150,18 @@ func (waf *WafTunnelEngine) handleTCPConnection(clientConn net.Conn, port int) {
 
 	// 获取隧道配置
 	tunnelInfo, ok := waf.TunnelTarget.Get("tcp" + strconv.Itoa(port))
-	if !ok {
+	if !ok || tunnelInfo.Tunnel.Id != tunnelID {
 		zlog.Error(fmt.Sprintf("未找到端口对应的隧道配置 [客户端IP:%s 客户端端口:%s 服务端口:%s]", clientIP, clientPort, serverPort))
 		clientConn.Close()
 		return
 	}
 
-	// 检查IP访问权限
-	if !CheckIPAccess("TCP", clientIP, clientPort, serverPort, tunnelInfo.Tunnel) {
-		zlog.Warn(fmt.Sprintf("TCP连接被拒绝 [客户端IP:%s 客户端端口:%s 服务端口:%s]", clientIP, clientPort, serverPort))
-		clientConn.Close()
-		return
-	}
-
-	// 检查时间访问权限
-	if !CheckTimeAccess("TCP", clientIP, clientPort, serverPort, tunnelInfo.Tunnel) {
+	if reason := waf.checkTunnelAccess(clientIP, tunnelID); reason != "" {
+		protocol := "TCP"
+		if _, isTLS := clientConn.(*tls.Conn); isTLS {
+			protocol = "TLS"
+		}
+		logTunnelAccessDenied(reason, protocol, clientIP, clientPort, port, tunnelID)
 		clientConn.Close()
 		return
 	}

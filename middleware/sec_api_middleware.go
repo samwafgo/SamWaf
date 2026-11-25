@@ -15,8 +15,11 @@ import (
 // SecApi 鉴权中间件
 func SecApi() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if strings.HasSuffix(c.Request.URL.Path, "/api/v1/wafhost/host/diagnostic") {
+		switch {
+		case strings.HasSuffix(c.Request.URL.Path, "/api/v1/wafhost/host/diagnostic"):
 			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 32<<10)
+		case strings.HasPrefix(c.Request.URL.Path, "/api/v1/tunnel/tunnel/protection/"):
+			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 64<<10)
 		}
 		bodyBytes, err := io.ReadAll(c.Request.Body)
 		if err != nil {

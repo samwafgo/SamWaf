@@ -28,4 +28,6 @@ type Tunnel struct {
 	SSLCertificate    string `gorm:"size:500" json:"ssl_certificate"`     // SSL证书路径
 	SSLCertificateKey string `gorm:"size:500" json:"ssl_certificate_key"` // SSL密钥路径
 	SSLProtocols      string `gorm:"size:100" json:"ssl_protocols"`       // SSL协议版本 如 TLSv1.2 TLSv1.3
+	RegionProtection  string `gorm:"column:region_protection;type:text" json:"-"`
+	DDNSProtection    string `gorm:"column:ddns_protection;type:text" json:"-"`
 }

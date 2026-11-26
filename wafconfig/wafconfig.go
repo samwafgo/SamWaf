@@ -300,6 +300,16 @@ func LoadAndInitConfig() {
 		configChanged = true
 	}
 
+	//静态站点与静态路径路由允许的目录（绝对路径，逗号分隔）。同 batch_import_allowed_dirs 口径：
+	//只放 config.yml、不进数据库/API。内置默认 data/static_site 恒允许；留空=只允许该默认目录。
+	//只约束新增或改动的静态目录，已保存且未改动的配置照常运行。
+	if config.IsSet("security.static_site_allowed_dirs") {
+		global.GCONFIG_STATIC_SITE_ALLOWED_DIRS = config.GetString("security.static_site_allowed_dirs")
+	} else {
+		config.Set("security.static_site_allowed_dirs", global.GCONFIG_STATIC_SITE_ALLOWED_DIRS)
+		configChanged = true
+	}
+
 	//用户可配的对外地址允许清单（主机名/IP/CIDR，逗号分隔）。覆盖：通知渠道 Webhook、
 	//批量任务远端来源、威胁情报订阅、CDN 回源段拉取。默认只允许公网目标；确有内网目标的部署，
 	if config.IsSet("security.outbound_allowed_hosts") {

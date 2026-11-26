@@ -19,6 +19,7 @@ var (
 	GCONFIG_COMM_KEY_FILE               string = ""                  //每实例传输密钥(X25519)文件的自管路径；只从config.yml读、不进DB/API。留空=默认data/.keys/comm_key(首启自动生成,0600)
 	GCONFIG_COMM_LEGACY_KEY             bool   = true                //是否保留 legacy 传输通道(旧客户端用内置密钥的CBC报文)。默认开，任何版本不自动翻转；确认无旧独立前端/旧App后可手动关
 	GCONFIG_BATCH_IMPORT_ALLOWED_DIRS   string = ""                  //批量任务本地来源允许的额外目录（绝对路径，逗号分隔）；只从config.yml读、不进DB/API。内置默认data/import恒允许，留空=只允许该默认目录
+	GCONFIG_STATIC_SITE_ALLOWED_DIRS    string = ""                  //静态站点/静态路径路由允许的目录（绝对路径，逗号分隔）；只从config.yml读、不进DB/API。内置默认data/static_site恒允许，留空=只允许该默认目录
 	GCONFIG_OUTBOUND_ALLOWED_HOSTS      string = ""                  //用户可配的对外拉取地址允许清单（主机名/IP/CIDR，逗号分隔）；只从config.yml读、不进DB/API。留空=只允许公网目标；内网镜像源须运营方在此带外声明
 	GCONFIG_TUNNEL_DDNS_RESOLVERS       string = ""                  //隧道 DDNS 递归 DNS（IP 或 IP:端口，逗号分隔）；留空使用系统 DNS
 	GCONFIG_RECORD_AUTO_LOAD_SSL        int64  = 1                   //是否每天凌晨3点自动加载ssl证书

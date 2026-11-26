@@ -6,6 +6,7 @@ import (
 	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/model/wafenginmodel"
+	"SamWaf/utils"
 	"bytes"
 	"mime"
 	"net/http"
@@ -78,22 +79,22 @@ func splitConfigString(configStr string) []string {
 
 // getDefaultSensitivePathsString 获取默认敏感路径配置字符串
 func getDefaultSensitivePathsString() string {
-	return "/etc/passwd,/etc/shadow,/etc/group,/etc/gshadow,/etc/hosts,/etc/hostname,/etc/resolv.conf,/etc/ssh/,/var/log/,/.ssh/,/.bash_history,/.profile,/.bashrc,/etc/crontab,/var/spool/cron/,/etc/apache2/,/etc/nginx/,/etc/httpd/,/var/www/,/usr/share/,/var/tmp/,/var/run/,c:\\windows\\,c:\\program files\\,c:\\program files (x86)\\,c:\\users\\,c:\\documents and settings\\,c:\\windows\\system32\\,c:\\windows\\syswow64\\,c:\\boot.ini,c:\\autoexec.bat,c:\\config.sys,\\windows\\,\\program files\\,\\program files (x86)\\,\\users\\,\\documents and settings\\,\\windows\\system32\\,\\windows\\syswow64\\,boot.ini,autoexec.bat,config.sys,ntuser.dat,pagefile.sys,hiberfil.sys,swapfile.sys"
+	return model.StaticSiteDefaultSensitivePaths
 }
 
 // getDefaultSensitiveExtensionsString 获取默认敏感文件扩展名字符串
 func getDefaultSensitiveExtensionsString() string {
-	return ".key,.pem,.crt,.p12,.pfx,.jks,.bak,.backup,.old,.orig,.save,.sql,.db,.sqlite,.mdb,.env,.htaccess,.htpasswd,.git,.svn,.hg,.bzr,.DS_Store,Thumbs.db,desktop.ini,.tmp,.temp,.lock,.pid"
+	return model.StaticSiteDefaultSensitiveExtensions
 }
 
 // getDefaultAllowedExtensionsString 获取默认允许的文件扩展名字符串
 func getDefaultAllowedExtensionsString() string {
-	return ".html,.htm,.css,.js,.mjs,.cjs,.json,.map,.png,.jpg,.jpeg,.gif,.svg,.ico,.webp,.avif,.pdf,.txt,.md,.xml,.woff,.woff2,.ttf,.eot,.otf,.mp4,.webm,.ogg,.mp3,.wav,.zip,.tar,.gz,.rar"
+	return model.StaticSiteDefaultAllowedExtensions
 }
 
 // getDefaultSensitivePatternsString 获取默认敏感文件名模式字符串
 func getDefaultSensitivePatternsString() string {
-	return `(?i)\.git(/|\\),(?i)\.svn(/|\\),(?i)\.env,(?i)database\.(php|xml|json|yaml|yml),(?i)(backup|dump|export)\.(sql|db|tar|zip|gz),(?i)(id_rsa|id_dsa|id_ecdsa|id_ed25519),(?i)\.ssh(/|\\).*,(?i)(access|error|debug)\.log,(?i)web\.config,(?i)phpinfo\.php`
+	return model.StaticSiteDefaultSensitivePatterns
 }
 
 // getSensitivePathsFromConfig 从配置获取敏感路径数组
@@ -230,6 +231,11 @@ func (waf *WafEngine) serveStaticFile(w http.ResponseWriter, r *http.Request, co
 		return true
 	}
 
+	// SamWaf 自身的配置、数据与密钥文件不对外伺服，与静态目录配置无关
+	if waf.denyProtectedStaticFile(w, r, absFullPath, originalPath, weblog) {
+		return true
+	}
+
 	// spaFallback 内联函数：回退到 index.html（SPA history 模式）
 	spaFallback := func() bool {
 		if config.SpaFallback != 1 {
@@ -237,6 +243,9 @@ func (waf *WafEngine) serveStaticFile(w http.ResponseWriter, r *http.Request, co
 		}
 		indexPath := filepath.Join(config.StaticSitePath, "index.html")
 		if idxInfo, idxErr := os.Stat(indexPath); idxErr == nil && !idxInfo.IsDir() {
+			if absIndex, absErr := filepath.Abs(indexPath); absErr == nil && waf.denyProtectedStaticFile(w, r, absIndex, originalPath, weblog) {
+				return true
+			}
 			waf.setSecurityHeaders(w, config)
 			http.ServeFile(w, r, indexPath)
 			return true
@@ -272,6 +281,9 @@ func (waf *WafEngine) serveStaticFile(w http.ResponseWriter, r *http.Request, co
 		// 先尝试目录下的 index.html
 		indexInDir := filepath.Join(absFullPath, "index.html")
 		if idxInfo, idxErr := os.Stat(indexInDir); idxErr == nil && !idxInfo.IsDir() {
+			if waf.denyProtectedStaticFile(w, r, indexInDir, originalPath, weblog) {
+				return true
+			}
 			waf.setSecurityHeaders(w, config)
 			http.ServeFile(w, r, indexInDir)
 			return true
@@ -637,6 +649,17 @@ func (waf *WafEngine) logSecurityEvent(eventType, path, remoteAddr, details stri
 		zap.String("path", path),
 		zap.String("remote_addr", remoteAddr),
 		zap.String("details", details))
+}
+
+// denyProtectedStaticFile 将要伺服的文件属于 SamWaf 自身的配置、数据或密钥文件时返回 403。
+func (waf *WafEngine) denyProtectedStaticFile(w http.ResponseWriter, r *http.Request, absPath, originalPath string, weblog *innerbean.WebLog) bool {
+	if !utils.IsProtectedStaticFile(absPath) {
+		return false
+	}
+	waf.logSecurityEvent("访问程序自身文件", originalPath, r.RemoteAddr, "", weblog)
+	w.WriteHeader(http.StatusForbidden)
+	w.Write([]byte("403 Forbidden: Access to sensitive file denied"))
+	return true
 }
 
 // 初始化静态站点配置的默认值

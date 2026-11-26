@@ -12,6 +12,36 @@
 #   5. fresh_install: true 的条目只在"全新安装"时生成，不参与版本区间计算
 
 notes:
+  - id: v1_3_26_host_role_static_root
+    version: v1.3.26
+    kind: notice
+    level: high
+    page: /sys/wafaccessaudit
+    apply:
+      type: navigate
+    zh:
+      title: 网站配置写操作按角色授权，静态目录须位于允许目录内
+      detail: >-
+        网站、路径路由、负载均衡、网站分组、批量任务与网站导入的写操作需要安全管理员或超级管理员角色；
+        审计管理员只能查看，各类写操作返回 403。被拒的请求记入安全审计「角色权限拒绝」。
+        新增或修改静态站点、静态路径路由的目录时，目录须位于内置目录 data/static_site，
+        或 conf/config.yml 的 security.static_site_allowed_dirs 声明的目录（绝对路径，逗号分隔），
+        且不能是 SamWaf 自身的 conf、data 目录。已保存且未改动的静态目录照常生效，编辑网站其他字段不受影响。
+        SamWaf 的配置、数据与密钥文件不会经静态站点对外提供。
+        启动时会核对现有静态目录与静态文件清单，需要核对的项记入安全审计「静态目录巡检」，只记录，不改配置。
+      revert: 需要继续使用现有目录时，把该目录写入 security.static_site_allowed_dirs 后重启；需要系统管理员维护网站时，将其角色调整为安全管理员。
+    en:
+      title: Site configuration changes require a security role; static directories must be in allowed locations
+      detail: >-
+        Changes to sites, path rules, load balancing, site groups, batch tasks and site import require the Security Admin or Super Admin role.
+        Audit Admin accounts are read-only and receive 403 for write operations. Denied requests are recorded in Security Audit as "Role denied".
+        When a static site or static path rule directory is added or changed, it must be under the built-in data/static_site directory
+        or a directory listed in security.static_site_allowed_dirs in conf/config.yml (absolute paths, comma separated),
+        and must not be SamWaf's own conf or data directory. Saved directories that are not changed keep working, and editing other site fields is unaffected.
+        SamWaf's configuration, data and key files are not served through static sites.
+        At startup, existing static directories and static file lists are reviewed; items to check are recorded in Security Audit as "Static directory review". Nothing is changed.
+      revert: To keep using an existing directory, add it to security.static_site_allowed_dirs and restart. If a System Admin needs to manage sites, change that account to Security Admin.
+
   - id: v1_3_26_tunnel_access_protection
     version: v1.3.26
     kind: notice

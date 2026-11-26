@@ -6,6 +6,7 @@ import (
 	"SamWaf/global"
 	"SamWaf/model"
 	"SamWaf/model/baseorm"
+	"SamWaf/utils"
 	"errors"
 	"fmt"
 	"math"
@@ -118,6 +119,11 @@ func processImportData(rows [][]string, strategy string, result *ReturnImportDat
 		}
 		if err := checkHostPortData(host.Host, host.Port); err != nil {
 			result.addRowFailure(rowNumber, err)
+			continue
+		}
+		// 导入按新增处理，开启的静态站点一律按允许目录校验；错误信息只给分类，不回显单元格内容
+		if chk := CheckHostStaticSiteChange(host.StaticSiteJSON, ""); chk.Err != nil {
+			result.addRowFailure(rowNumber, fmt.Errorf("字段 StaticSiteJSON 静态目录不符合允许目录策略(%s)", utils.StaticRootErrorCode(chk.Err)))
 			continue
 		}
 		now := customtype.JsonTime(time.Now())

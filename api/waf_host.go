@@ -186,6 +186,12 @@ func (w *WafHostAPi) AddApi(c *gin.Context) {
 			response.FailWithMessage(verr.Error(), c)
 			return
 		}
+		staticChk := waf_service.CheckHostStaticSiteChange(req.StaticSiteJSON, "")
+		if staticChk.Err != nil {
+			wafAccessAuditService.WriteStaticRootChange(staticRootAuditTarget(c, model.AuditObjectTypeHost, "", "", req.Host, "网站 "+req.Host), staticChk, nil)
+			response.FailWithMessage(staticChk.Err.Error(), c)
+			return
+		}
 		// 端口监听表校验（issue #955）：仅当本次显式携带时才阻断（脏数据/addr预留/HTTPS无证书一律拒绝）
 		listens, verr := wafHostService.ValidatePortListensReq(req.PortListensJSON, req.Port, req.Ssl, req.AutoJumpHTTPS)
 		if verr != nil {
@@ -212,6 +218,7 @@ func (w *WafHostAPi) AddApi(c *gin.Context) {
 		err = wafHostService.CheckIsExistApi(req)
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 			hostCode, err := wafHostService.AddApi(req)
+			wafAccessAuditService.WriteStaticRootChange(staticRootAuditTarget(c, model.AuditObjectTypeHost, hostCode, hostCode, req.Host, "网站 "+req.Host), staticChk, err)
 			if err == nil {
 				// 给新站点铺一套开箱可用的 CC 规则。失败只记日志：
 				// 建站本身已经成功，不该因为附带的默认规则没生成而让用户以为建站失败。
@@ -493,6 +500,14 @@ func (w *WafHostAPi) ModifyHostApi(c *gin.Context) {
 			response.FailWithMessage(verr.Error(), c)
 			return
 		}
+		// 静态目录只在新开启或改了路径时按允许目录校验，已保存且未改动的配置照常保存
+		staticChk := waf_service.CheckHostStaticSiteChange(req.StaticSiteJSON, wafHostOld.StaticSiteJSON)
+		staticTarget := staticRootAuditTarget(c, model.AuditObjectTypeHost, req.CODE, req.CODE, req.Host, "网站 "+req.Host)
+		if staticChk.Err != nil {
+			wafAccessAuditService.WriteStaticRootChange(staticTarget, staticChk, nil)
+			response.FailWithMessage(staticChk.Err.Error(), c)
+			return
+		}
 		// 端口监听表校验（issue #955）：nil=本次未携带（旧前端），不校验不阻断（存量冲突不能卡死普通编辑）
 		if req.PortListensJSON != nil && strings.TrimSpace(*req.PortListensJSON) != "" {
 			listens, verr := wafHostService.ValidatePortListensReq(*req.PortListensJSON, req.Port, req.Ssl, req.AutoJumpHTTPS)
@@ -518,6 +533,7 @@ func (w *WafHostAPi) ModifyHostApi(c *gin.Context) {
 			req.START_STATUS = 1 //设置成不能启动
 		}
 		err = wafHostService.ModifyApi(req)
+		wafAccessAuditService.WriteStaticRootChange(staticTarget, staticChk, err)
 		if err != nil {
 			response.FailWithMessage("编辑发生错误", c)
 		} else {

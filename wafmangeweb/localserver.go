@@ -143,6 +143,62 @@ func logExportTransportLimit() gin.HandlerFunc {
 	}
 }
 
+// registerSharedRoutes 注册共享组路由。单独成函数，路由策略表的守护单测用它枚举共享组的全部路由。
+func registerSharedRoutes(g *gin.RouterGroup) {
+	router.ApiGroupApp.InitHostRouter(g)
+	router.ApiGroupApp.InitHostGroupRouter(g)
+	router.ApiGroupApp.InitLogRouter(g)
+	router.ApiGroupApp.InitEngineRouter(g)
+	router.ApiGroupApp.InitStatRouter(g)
+	router.ApiGroupApp.InitLoginOutRouter(g)
+	router.ApiGroupApp.InitWebSocketRouter(g)
+	router.ApiGroupApp.InitSysInfoRouter(g)
+	router.ApiGroupApp.InitWafCommonRouter(g)
+	router.ApiGroupApp.InitOneKeyModRouter(g)
+	router.ApiGroupApp.InitLicenseRouter(g)
+	router.ApiGroupApp.InitLoadBalanceRouter(g)
+	router.ApiGroupApp.InitSslConfigRouter(g)
+	router.ApiGroupApp.InitBatchTaskRouter(g)
+	router.ApiGroupApp.InitSslOrderRouter(g)
+	router.ApiGroupApp.InitWafSslExpireRouter(g)
+	router.ApiGroupApp.InitWafHttpAuthBaseRouter(g)
+	router.ApiGroupApp.InitWafHttpAuthSessionRouter(g)
+	router.ApiGroupApp.InitWafTaskRouter(g)
+	router.ApiGroupApp.InitWafBlockingPageRouter(g)
+	router.ApiGroupApp.InitGPTRouter(g)
+	router.ApiGroupApp.InitAnalysisRouter(g)
+	router.ApiGroupApp.InitWafPrivateInfoRouter(g)
+	router.ApiGroupApp.InitWafPrivateGroupRouter(g)
+	router.ApiGroupApp.InitWafCacheRuleRouter(g)
+	router.ApiGroupApp.InitWafTamperRuleRouter(g)
+	router.ApiGroupApp.InitWafTunnelRouter(g)
+	router.ApiGroupApp.InitWafVpConfigRouter(g)
+	router.ApiGroupApp.InitWafFileRouter(g)
+	router.ApiGroupApp.InitWafSystemMonitorRouter(g)
+	router.ApiGroupApp.InitWafCaServerInfoRouter(g)
+	router.ApiGroupApp.InitNotifyChannelRouter(g)
+	router.ApiGroupApp.InitNotifySubscriptionRouter(g)
+	router.ApiGroupApp.InitNotifyLogRouter(g)
+	router.ApiGroupApp.InitFirewallIPBlockRouter(g)
+	router.ApiGroupApp.InitHostGuardRouter(g)
+	router.ApiGroupApp.InitHostConnRouter(g)
+	router.ApiGroupApp.InitThreatIPRouter(g)
+	router.ApiGroupApp.InitCDNIPRouter(g)
+	router.ApiGroupApp.InitIPLookupRouter(g)
+	router.ApiGroupApp.InitLogFileWriteRouter(g)
+	router.ApiGroupApp.InitIPLocationRouter(g)
+	router.ApiGroupApp.InitWafDataRetentionRouter(g)
+	router.ApiGroupApp.InitWafHostPathRuleRouter(g)
+	// 界面偏好：按登录账号隔离（账号归属即授权边界），任意已登录角色均可存取本人的界面偏好
+	router.ApiGroupApp.InitWafUIPreferenceRouter(g)
+
+	// 升级须知：只读查询 + 本机处理状态标记，首页提示条对所有角色都要可见
+	router.ApiGroupApp.InitUpgradeNoticeRouter(g)
+
+	// 自助改密：任意已登录角色均可修改本人密码（含首次登录/到期强制改密场景），不受角色域限制
+	g.POST("/api/v1/account/changemypwd", api.APIGroupAPP.WafAccountApi.ChangeMyPasswordApi)
+}
+
 func (web *WafWebManager) initRouter(r *gin.Engine) {
 
 	PublicRouterGroup := r.Group("")
@@ -154,59 +210,10 @@ func (web *WafWebManager) initRouter(r *gin.Engine) {
 	RouterGroup := r.Group("")
 	RouterGroup.Use(logExportTransportLimit(), middleware.Auth(), middleware.ReplayProtect(), middleware.OpenApiLogMiddleware(), middleware.IPWhitelist(), middleware.DomainWhitelist(), middleware.SecApi(), middleware.GinGlobalExceptionMiddleWare())
 	{
-		// 共享/运维类接口：任意已登录角色可访问
-		router.ApiGroupApp.InitHostRouter(RouterGroup)
-		router.ApiGroupApp.InitHostGroupRouter(RouterGroup)
-		router.ApiGroupApp.InitLogRouter(RouterGroup)
-		router.ApiGroupApp.InitEngineRouter(RouterGroup)
-		router.ApiGroupApp.InitStatRouter(RouterGroup)
-		router.ApiGroupApp.InitLoginOutRouter(RouterGroup)
-		router.ApiGroupApp.InitWebSocketRouter(RouterGroup)
-		router.ApiGroupApp.InitSysInfoRouter(RouterGroup)
-		router.ApiGroupApp.InitWafCommonRouter(RouterGroup)
-		router.ApiGroupApp.InitOneKeyModRouter(RouterGroup)
-		router.ApiGroupApp.InitLicenseRouter(RouterGroup)
-		router.ApiGroupApp.InitLoadBalanceRouter(RouterGroup)
-		router.ApiGroupApp.InitSslConfigRouter(RouterGroup)
-		router.ApiGroupApp.InitBatchTaskRouter(RouterGroup)
-		router.ApiGroupApp.InitSslOrderRouter(RouterGroup)
-		router.ApiGroupApp.InitWafSslExpireRouter(RouterGroup)
-		router.ApiGroupApp.InitWafHttpAuthBaseRouter(RouterGroup)
-		router.ApiGroupApp.InitWafHttpAuthSessionRouter(RouterGroup)
-		router.ApiGroupApp.InitWafTaskRouter(RouterGroup)
-		router.ApiGroupApp.InitWafBlockingPageRouter(RouterGroup)
-		router.ApiGroupApp.InitGPTRouter(RouterGroup)
-		router.ApiGroupApp.InitAnalysisRouter(RouterGroup)
-		router.ApiGroupApp.InitWafPrivateInfoRouter(RouterGroup)
-		router.ApiGroupApp.InitWafPrivateGroupRouter(RouterGroup)
-		router.ApiGroupApp.InitWafCacheRuleRouter(RouterGroup)
-		router.ApiGroupApp.InitWafTamperRuleRouter(RouterGroup)
-		router.ApiGroupApp.InitWafTunnelRouter(RouterGroup)
-		router.ApiGroupApp.InitWafVpConfigRouter(RouterGroup)
-		router.ApiGroupApp.InitWafFileRouter(RouterGroup)
-		router.ApiGroupApp.InitWafSystemMonitorRouter(RouterGroup)
-		router.ApiGroupApp.InitWafCaServerInfoRouter(RouterGroup)
-		router.ApiGroupApp.InitNotifyChannelRouter(RouterGroup)
-		router.ApiGroupApp.InitNotifySubscriptionRouter(RouterGroup)
-		router.ApiGroupApp.InitNotifyLogRouter(RouterGroup)
-		router.ApiGroupApp.InitFirewallIPBlockRouter(RouterGroup)
-		router.ApiGroupApp.InitHostGuardRouter(RouterGroup)
-		router.ApiGroupApp.InitHostConnRouter(RouterGroup)
-		router.ApiGroupApp.InitThreatIPRouter(RouterGroup)
-		router.ApiGroupApp.InitCDNIPRouter(RouterGroup)
-		router.ApiGroupApp.InitIPLookupRouter(RouterGroup)
-		router.ApiGroupApp.InitLogFileWriteRouter(RouterGroup)
-		router.ApiGroupApp.InitIPLocationRouter(RouterGroup)
-		router.ApiGroupApp.InitWafDataRetentionRouter(RouterGroup)
-		router.ApiGroupApp.InitWafHostPathRuleRouter(RouterGroup)
-		// 界面偏好：按登录账号隔离（账号归属即授权边界），任意已登录角色均可存取本人的界面偏好
-		router.ApiGroupApp.InitWafUIPreferenceRouter(RouterGroup)
-
-		// 升级须知：只读查询 + 本机处理状态标记，首页提示条对所有角色都要可见
-		router.ApiGroupApp.InitUpgradeNoticeRouter(RouterGroup)
-
-		// 自助改密：任意已登录角色均可修改本人密码（含首次登录/到期强制改密场景），不受角色域限制
-		RouterGroup.POST("/api/v1/account/changemypwd", api.APIGroupAPP.WafAccountApi.ChangeMyPasswordApi)
+		// 共享组：读接口任意已登录角色可访问，写接口按 middleware/route_policy.go 的路由策略表授权
+		sharedGroup := RouterGroup.Group("")
+		sharedGroup.Use(middleware.RoutePolicy())
+		registerSharedRoutes(sharedGroup)
 
 		// === 安全管理员域：WAF 防护策略/规则（三权分立强制点）===
 		securityAdminGroup := RouterGroup.Group("")

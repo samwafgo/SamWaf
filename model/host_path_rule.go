@@ -2,6 +2,9 @@ package model
 
 import "SamWaf/model/baseorm"
 
+// PathRuleTargetStatic 路径路由目标类型：静态文件
+const PathRuleTargetStatic = 2
+
 // HostPathRule 路径路由规则（类似 nginx location 块）
 type HostPathRule struct {
 	baseorm.BaseOrm

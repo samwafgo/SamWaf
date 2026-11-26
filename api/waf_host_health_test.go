@@ -247,7 +247,7 @@ func TestHealthTestRouteRegistered(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(server, []byte("middleware.Auth()")) || !bytes.Contains(server, []byte("InitHostRouter(RouterGroup)")) {
+	if !bytes.Contains(server, []byte("middleware.Auth()")) || !bytes.Contains(server, []byte("InitHostRouter(g)")) || !bytes.Contains(server, []byte("sharedGroup.Use(middleware.RoutePolicy())")) {
 		t.Fatal("host routes must use authenticated group")
 	}
 }

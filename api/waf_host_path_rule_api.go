@@ -7,6 +7,7 @@ import (
 	"SamWaf/model/common/response"
 	"SamWaf/model/request"
 	"SamWaf/model/spec"
+	"SamWaf/service/waf_service"
 	"errors"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -25,7 +26,16 @@ func (w *WafHostPathRuleApi) AddApi(c *gin.Context) {
 		response.FailWithMessage("当前记录已经存在", c)
 		return
 	}
-	if err := wafHostPathRuleService.AddApi(req); err != nil {
+	staticChk := waf_service.CheckPathRuleStaticChange(req.TargetType, req.StaticRoot, nil)
+	staticTarget := staticRootAuditTarget(c, model.AuditObjectTypePathRule, "", req.HostCode, "", "路径路由 "+req.Path)
+	if staticChk.Err != nil {
+		wafAccessAuditService.WriteStaticRootChange(staticTarget, staticChk, nil)
+		response.FailWithMessage(staticChk.Err.Error(), c)
+		return
+	}
+	err := wafHostPathRuleService.AddApi(req)
+	wafAccessAuditService.WriteStaticRootChange(staticTarget, staticChk, err)
+	if err != nil {
 		response.FailWithMessage("添加失败", c)
 		return
 	}
@@ -92,7 +102,17 @@ func (w *WafHostPathRuleApi) ModifyApi(c *gin.Context) {
 	}
 	//编辑前先取旧记录，拿到可能被本次编辑改掉的旧 host_code(issue #898)
 	bean := wafHostPathRuleService.GetDetailByIdApi(req.Id)
-	if err := wafHostPathRuleService.ModifyApi(req); err != nil {
+	// 静态目录只在新改成静态目标或改了路径时按允许目录校验
+	staticChk := waf_service.CheckPathRuleStaticChange(req.TargetType, req.StaticRoot, &bean)
+	staticTarget := staticRootAuditTarget(c, model.AuditObjectTypePathRule, req.Id, req.HostCode, "", "路径路由 "+req.Path)
+	if staticChk.Err != nil {
+		wafAccessAuditService.WriteStaticRootChange(staticTarget, staticChk, nil)
+		response.FailWithMessage(staticChk.Err.Error(), c)
+		return
+	}
+	err := wafHostPathRuleService.ModifyApi(req)
+	wafAccessAuditService.WriteStaticRootChange(staticTarget, staticChk, err)
+	if err != nil {
 		response.FailWithMessage("编辑发生错误"+err.Error(), c)
 		return
 	}

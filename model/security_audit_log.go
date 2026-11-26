@@ -38,6 +38,10 @@ const (
 	AuditEventConfigReport         = "config_security_report"
 	AuditEventConfigLogExport      = "config_log_export" //日志统一导出任务与产物下载（result 1成功 0失败/被拒）
 
+	AuditEventConfigRoleDenied       = "config_role_denied"        //管理端接口角色校验未通过
+	AuditEventConfigStaticRootChange = "config_static_root_change" //网站/路径路由静态目录变更（result 1已保存 0被拒）
+	AuditEventConfigStaticRootReview = "config_static_root_review" //启动巡检：静态目录配置待核对
+
 	AuditEventConfigTunnelRegion         = "config_tunnel_region"
 	AuditEventConfigTunnelDDNS           = "config_tunnel_ddns"
 	AuditEventConfigTunnelDDNSAddresses  = "config_tunnel_ddns_addresses"
@@ -67,28 +71,31 @@ const (
 
 // auditEventCategory 事件 → 分类映射。未登记的事件默认归 access（历史事件全是 access 类）。
 var auditEventCategory = map[string]string{
-	AuditEventAppAdd:               AuditCategoryApp,
-	AuditEventAppEdit:              AuditCategoryApp,
-	AuditEventAppDel:               AuditCategoryApp,
-	AuditEventAppStart:             AuditCategoryApp,
-	AuditEventAppStop:              AuditCategoryApp,
-	AuditEventAppRestart:           AuditCategoryApp,
-	AuditEventAppUpload:            AuditCategoryApp,
-	AuditEventAppUpgrade:           AuditCategoryApp,
-	AuditEventAppRollback:          AuditCategoryApp,
-	AuditEventAppClearLogs:         AuditCategoryApp,
-	AuditEventAppOpDenied:          AuditCategoryApp,
-	AuditEventConfigSSLExportWrite: AuditCategoryConfig,
-	AuditEventConfigBatchTaskRun:   AuditCategoryConfig,
-	AuditEventConfigDiagPackage:    AuditCategoryConfig,
-	AuditEventConfigLogExport:      AuditCategoryConfig,
-	AuditEventConfigReport:         AuditCategoryConfig,
-	HttpAuthEventLoginOK:           AuditCategoryHttpAuth,
-	HttpAuthEventLoginFail:         AuditCategoryHttpAuth,
-	HttpAuthEventLocked:            AuditCategoryHttpAuth,
-	HttpAuthEventKick:              AuditCategoryHttpAuth,
-	HttpAuthEventExpired:           AuditCategoryHttpAuth,
-	HttpAuthEventDenied:            AuditCategoryHttpAuth,
+	AuditEventAppAdd:                 AuditCategoryApp,
+	AuditEventAppEdit:                AuditCategoryApp,
+	AuditEventAppDel:                 AuditCategoryApp,
+	AuditEventAppStart:               AuditCategoryApp,
+	AuditEventAppStop:                AuditCategoryApp,
+	AuditEventAppRestart:             AuditCategoryApp,
+	AuditEventAppUpload:              AuditCategoryApp,
+	AuditEventAppUpgrade:             AuditCategoryApp,
+	AuditEventAppRollback:            AuditCategoryApp,
+	AuditEventAppClearLogs:           AuditCategoryApp,
+	AuditEventAppOpDenied:            AuditCategoryApp,
+	AuditEventConfigSSLExportWrite:   AuditCategoryConfig,
+	AuditEventConfigBatchTaskRun:     AuditCategoryConfig,
+	AuditEventConfigDiagPackage:      AuditCategoryConfig,
+	AuditEventConfigLogExport:        AuditCategoryConfig,
+	AuditEventConfigReport:           AuditCategoryConfig,
+	AuditEventConfigRoleDenied:       AuditCategoryConfig,
+	AuditEventConfigStaticRootChange: AuditCategoryConfig,
+	AuditEventConfigStaticRootReview: AuditCategoryConfig,
+	HttpAuthEventLoginOK:             AuditCategoryHttpAuth,
+	HttpAuthEventLoginFail:           AuditCategoryHttpAuth,
+	HttpAuthEventLocked:              AuditCategoryHttpAuth,
+	HttpAuthEventKick:                AuditCategoryHttpAuth,
+	HttpAuthEventExpired:             AuditCategoryHttpAuth,
+	HttpAuthEventDenied:              AuditCategoryHttpAuth,
 
 	AuditEventConfigTunnelRegion:         AuditCategoryConfig,
 	AuditEventConfigTunnelDDNS:           AuditCategoryConfig,
@@ -104,7 +111,11 @@ func AuditEventCategory(event string) string {
 	return AuditCategoryAccess
 }
 
-const AuditObjectTypeTunnel = "tunnel"
+const (
+	AuditObjectTypeTunnel   = "tunnel"
+	AuditObjectTypeHost     = "host"
+	AuditObjectTypePathRule = "path_rule"
+)
 
 // 审计结果
 const (
@@ -115,41 +126,44 @@ const (
 // AccessEventNames 事件的中文名，通知正文用。
 // 与上面的常量放在一起，是为了新增事件时一眼看到还有这张表要补。
 var AccessEventNames = map[string]string{
-	AuditEventAppAdd:               "新增应用",
-	AuditEventAppEdit:              "修改应用",
-	AuditEventAppDel:               "删除应用",
-	AuditEventAppStart:             "启动应用",
-	AuditEventAppStop:              "停止应用",
-	AuditEventAppRestart:           "重启应用",
-	AuditEventAppUpload:            "上传应用文件",
-	AuditEventAppUpgrade:           "升级应用",
-	AuditEventAppRollback:          "回滚应用",
-	AuditEventAppClearLogs:         "清空应用日志",
-	AuditEventAppOpDenied:          "应用操作被拒绝",
-	AccessEventLoginOK:             "登录成功",
-	AccessEventLoginFail:           "密码错误",
-	AccessEventOtpFail:             "动态码错误",
-	AccessEventLocked:              "登录失败次数超限，已锁定",
-	AccessEventLogout:              "主动注销",
-	AccessEventKick:                "管理端踢下线",
-	AccessEventTicketIssue:         "签发跨站点票据",
-	AccessEventTicketConsume:       "票据兑换成功",
-	AccessEventTicketReplay:        "票据重放或伪造",
-	AccessEventBadReturnTo:         "回跳地址异常，疑似开放重定向攻击",
-	AccessEventDenied:              "未认证访问被拦截",
-	AccessEventBypassIP:            "命中免认证IP组放行",
-	AccessEventBypassToken:         "命中服务令牌放行",
-	AuditEventConfigSSLExportWrite: "SSL证书导出落盘",
-	AuditEventConfigBatchTaskRun:   "批量任务执行",
-	AuditEventConfigDiagPackage:    "运行诊断包下载",
-	AuditEventConfigLogExport:      "日志统一导出",
-	AuditEventConfigReport:         "安全运营报告",
-	HttpAuthEventLoginOK:           "网站密码登录成功",
-	HttpAuthEventLoginFail:         "网站密码错误",
-	HttpAuthEventLocked:            "网站密码失败超限，已锁定",
-	HttpAuthEventKick:              "网站密码会话被踢下线",
-	HttpAuthEventExpired:           "网站密码会话到期",
-	HttpAuthEventDenied:            "未登录访问被拦截",
+	AuditEventAppAdd:                 "新增应用",
+	AuditEventAppEdit:                "修改应用",
+	AuditEventAppDel:                 "删除应用",
+	AuditEventAppStart:               "启动应用",
+	AuditEventAppStop:                "停止应用",
+	AuditEventAppRestart:             "重启应用",
+	AuditEventAppUpload:              "上传应用文件",
+	AuditEventAppUpgrade:             "升级应用",
+	AuditEventAppRollback:            "回滚应用",
+	AuditEventAppClearLogs:           "清空应用日志",
+	AuditEventAppOpDenied:            "应用操作被拒绝",
+	AccessEventLoginOK:               "登录成功",
+	AccessEventLoginFail:             "密码错误",
+	AccessEventOtpFail:               "动态码错误",
+	AccessEventLocked:                "登录失败次数超限，已锁定",
+	AccessEventLogout:                "主动注销",
+	AccessEventKick:                  "管理端踢下线",
+	AccessEventTicketIssue:           "签发跨站点票据",
+	AccessEventTicketConsume:         "票据兑换成功",
+	AccessEventTicketReplay:          "票据重放或伪造",
+	AccessEventBadReturnTo:           "回跳地址异常，疑似开放重定向攻击",
+	AccessEventDenied:                "未认证访问被拦截",
+	AccessEventBypassIP:              "命中免认证IP组放行",
+	AccessEventBypassToken:           "命中服务令牌放行",
+	AuditEventConfigSSLExportWrite:   "SSL证书导出落盘",
+	AuditEventConfigBatchTaskRun:     "批量任务执行",
+	AuditEventConfigDiagPackage:      "运行诊断包下载",
+	AuditEventConfigLogExport:        "日志统一导出",
+	AuditEventConfigReport:           "安全运营报告",
+	AuditEventConfigRoleDenied:       "角色权限拒绝",
+	AuditEventConfigStaticRootChange: "静态目录变更",
+	AuditEventConfigStaticRootReview: "静态目录巡检",
+	HttpAuthEventLoginOK:             "网站密码登录成功",
+	HttpAuthEventLoginFail:           "网站密码错误",
+	HttpAuthEventLocked:              "网站密码失败超限，已锁定",
+	HttpAuthEventKick:                "网站密码会话被踢下线",
+	HttpAuthEventExpired:             "网站密码会话到期",
+	HttpAuthEventDenied:              "未登录访问被拦截",
 
 	AuditEventConfigTunnelRegion:         "隧道地区策略变更",
 	AuditEventConfigTunnelDDNS:           "隧道 DDNS 配置操作",

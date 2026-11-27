@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/smtp"
+	"regexp"
 	"strings"
 )
 
@@ -381,6 +382,14 @@ func (e *EmailNotifier) sendWithSTARTTLS(addr string, auth smtp.Auth, message st
 	return nil
 }
 
+// 聚合通知每条记录带 "**[1]** " 前缀，正文自身又以 "**标签:** 值" 开头，
+// 一行里会出现多段加粗。这里分别识别前缀与字段，避免只取前两段导致内容丢失。
+var (
+	mdListPrefixRe = regexp.MustCompile(`^\*\*\[(\d+)\]\*\*\s*`)
+	mdFieldRe      = regexp.MustCompile(`^\*\*([^*]+)\*\*\s*(.*)$`)
+	mdBoldRe       = regexp.MustCompile(`\*\*(.+?)\*\*`)
+)
+
 // markdownToHTML 将简单的Markdown转换为HTML
 func (e *EmailNotifier) markdownToHTML(markdown string) string {
 	html := `<!DOCTYPE html>
@@ -408,22 +417,38 @@ func (e *EmailNotifier) markdownToHTML(markdown string) string {
 			continue
 		}
 
-		// 处理加粗文本 **text**
-		if strings.Contains(line, "**") {
-			parts := strings.Split(line, "**")
-			if len(parts) >= 3 {
-				label := parts[1]
-				value := ""
-				if len(parts) > 2 {
-					value = strings.TrimSpace(parts[2])
-				}
-				html += fmt.Sprintf(`        <div class="info"><span class="label">%s</span> <span class="value">%s</span></div>`, label, value)
-				html += "\n"
-				continue
-			}
+		// 聚合通知的分隔线
+		if line == "---" {
+			html += "        <hr/>\n"
+			continue
 		}
 
-		// 普通文本
+		// 先剥离 "**[n]** " 这样的序号前缀，保留下来拼到标签前面
+		badge := ""
+		if m := mdListPrefixRe.FindStringSubmatch(line); m != nil {
+			badge = m[1]
+			line = strings.TrimSpace(line[len(m[0]):])
+		}
+
+		// 字段行："**标签:** 值"。要求值里不能再有加粗片段，
+		// 否则说明同一行不止一个加粗片段，交给下面的通用逻辑处理，
+		// 避免像旧实现那样只取前两段而丢掉后面的内容（例如域名）。
+		if m := mdFieldRe.FindStringSubmatch(line); m != nil && !strings.Contains(m[2], "**") {
+			label := m[1]
+			if badge != "" {
+				label = "[" + badge + "] " + label
+			}
+			value := strings.TrimSpace(m[2])
+			html += fmt.Sprintf(`        <div class="info"><span class="label">%s</span> <span class="value">%s</span></div>`, label, value)
+			html += "\n"
+			continue
+		}
+
+		// 普通文本：把加粗标记转成 <strong>，整行内容原样保留
+		line = mdBoldRe.ReplaceAllString(line, "<strong>$1</strong>")
+		if badge != "" {
+			line = "[" + badge + "] " + line
+		}
 		html += fmt.Sprintf("        <p>%s</p>\n", line)
 	}
 

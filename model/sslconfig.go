@@ -3,6 +3,7 @@ package model
 import (
 	"SamWaf/customtype"
 	"SamWaf/model/baseorm"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
@@ -129,6 +130,12 @@ func (s *SslConfig) CheckKeyAndCertFileLoad() (error, SslConfig, SslConfig, Cert
 		// 正常情况：路径文件与库内证书相同，无需更新
 		diag.SkipLevel = "info"
 		return errors.New("证书相同直接忽略"), SslConfig{}, SslConfig{}, diag
+	}
+
+	// 写库前校验证书与私钥是否配对：不配对时若继续更新，会出现「证书夹已换成新证书、
+	// 引擎因加载失败仍服务旧证书」的静默不一致，故此处拦截并保持现有证书不变。
+	if _, err := tls.X509KeyPair(certContent, keyContent); err != nil {
+		return fmt.Errorf("证书与私钥不匹配，已跳过更新: %v", err), SslConfig{}, SslConfig{}, diag
 	}
 
 	subject := cert.Subject.String()

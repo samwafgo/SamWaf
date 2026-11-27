@@ -135,7 +135,7 @@ func (s *WafSslConfigApi) ModifySslConfigApi(c *gin.Context) {
 		oldSslBean := wafSslConfigService.GetDetailInner(req.Id)
 		err = wafSslConfigService.ModifyApi(req)
 		if err != nil {
-			response.FailWithMessage("编辑发生错误", c)
+			response.FailWithMessage("编辑失败:"+err.Error(), c)
 		} else {
 			newSslBean := wafSslConfigService.GetDetailInner(req.Id)
 			if oldSslBean.SerialNo != newSslBean.SerialNo {

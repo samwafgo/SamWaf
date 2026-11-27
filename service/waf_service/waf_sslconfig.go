@@ -38,7 +38,7 @@ func validateCertKeyPair(certContent, keyContent string) error {
 		return nil
 	}
 	if _, err := tls.X509KeyPair([]byte(certContent), []byte(keyContent)); err != nil {
-		return errors.New("私钥格式非法或与证书不匹配")
+		return errors.New("私钥格式非法或与证书不匹配（请确认 crt 与 key 来自同一次签发）")
 	}
 	return nil
 }

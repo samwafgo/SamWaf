@@ -105,6 +105,8 @@ var (
 	// 版本/清单检查请求是否附带运行环境标识(os/arch/rt)。默认开：升级源据此判断存量版本
 	// 与运行环境分布。关闭后只保留一直都有的 v(版本)与 u(实例码)，即回到旧版本的携带内容。
 	GCONFIG_UPDATE_ENV_REPORT bool = true
+
+	GACME_CONFIG = DefaultACMEConfig()
 	//GCONFIG_RECORD_PATCH_VERSION_CORE  int64 = 20250106 // 核心数据库补丁日期
 	//GCONFIG_RECORD_PATCH_VERSION_LOG   int64 = 20250106 // 日志数据库补丁日期
 	GCONFIG_RECORD_ALL_SRC_BYTE_INFO int64 = 0 //记录原始信息(默认不开启)

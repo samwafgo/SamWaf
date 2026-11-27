@@ -33,29 +33,10 @@ func (receiver *WafSSLOrderService) AddApi(req request.WafSslorderaddReq) (model
 		ApplyStatus:      "submitted",
 		PrivateGroupName: req.PrivateGroupName,
 	}
-	global.GWAF_LOCAL_DB.Create(bean)
-
-	return *bean, nil
+	err := global.GWAF_LOCAL_DB.Create(bean).Error
+	return *bean, err
 }
 
-func (receiver *WafSSLOrderService) ModifyApi(req request.WafSslordereditReq) error {
-
-	sslOrderMap := map[string]interface{}{
-		"HostCode":         req.HostCode,
-		"ApplyPlatform":    req.ApplyPlatform,
-		"ApplyMethod":      req.ApplyMethod,
-		"SkipDNSVerify":    req.SkipDNSVerify,
-		"ApplyDns":         req.ApplyDns,
-		"ApplyDomain":      req.ApplyDomain,
-		"ApplyEmail":       req.ApplyEmail,
-		"ApplyStatus":      req.ApplyStatus,
-		"PrivateGroupName": req.PrivateGroupName,
-		"UPDATE_TIME":      customtype.JsonTime(time.Now()),
-	}
-	err := global.GWAF_LOCAL_DB.Model(model.SslOrder{}).Where("id = ?", req.Id).Updates(sslOrderMap).Error
-
-	return err
-}
 func (receiver *WafSSLOrderService) GetDetailApi(req request.WafSslorderdetailReq) model.SslOrder {
 	return receiver.GetDetailById(req.Id)
 }
@@ -133,10 +114,19 @@ func (receiver *WafSSLOrderService) ModifyById(sslOrder model.SslOrder) error {
 	return err
 }
 
-// RenewAdd续期
-func (receiver *WafSSLOrderService) RenewAdd(orderId string) (model.SslOrder, error) {
+func (receiver *WafSSLOrderService) FailSubmittedOrder(order model.SslOrder, reason string) error {
+	return global.GWAF_LOCAL_DB.Model(&model.SslOrder{}).
+		Where("id = ? AND tenant_id = ? AND user_code = ? AND apply_status = ?", order.Id, order.Tenant_ID, order.USER_CODE, "submitted").
+		Updates(map[string]interface{}{
+			"apply_status":       "fail",
+			"result_certificate": nil,
+			"result_error":       reason,
+			"update_time":        customtype.JsonTime(time.Now()),
+		}).Error
+}
 
-	order := receiver.GetDetailById(orderId)
+// RenewAdd续期
+func (receiver *WafSSLOrderService) RenewAdd(order model.SslOrder, req request.WafSslordereditReq) (model.SslOrder, error) {
 	var bean = &model.SslOrder{
 		BaseOrm: baseorm.BaseOrm{
 			Id:          uuid.GenUUID(),
@@ -146,12 +136,12 @@ func (receiver *WafSSLOrderService) RenewAdd(orderId string) (model.SslOrder, er
 			UPDATE_TIME: customtype.JsonTime(time.Now()),
 		},
 		HostCode:                order.HostCode,
-		ApplyPlatform:           order.ApplyPlatform,
-		ApplyMethod:             order.ApplyMethod,
-		SkipDNSVerify:           order.SkipDNSVerify,
-		ApplyDns:                order.ApplyDns,
-		ApplyDomain:             order.ApplyDomain,
-		ApplyEmail:              order.ApplyEmail,
+		ApplyPlatform:           req.ApplyPlatform,
+		ApplyMethod:             req.ApplyMethod,
+		SkipDNSVerify:           req.SkipDNSVerify,
+		ApplyDns:                req.ApplyDns,
+		ApplyDomain:             req.ApplyDomain,
+		ApplyEmail:              req.ApplyEmail,
 		ApplyKey:                order.ApplyKey,
 		ApplyStatus:             "submitted",
 		ResultDomain:            order.ResultDomain,
@@ -161,19 +151,26 @@ func (receiver *WafSSLOrderService) RenewAdd(orderId string) (model.SslOrder, er
 		ResultCertificate:       order.ResultCertificate,
 		ResultIssuerCertificate: order.ResultIssuerCertificate,
 		ResultCSR:               order.ResultCSR,
-		PrivateGroupName:        order.PrivateGroupName,
+		PrivateGroupName:        req.PrivateGroupName,
 	}
-	global.GWAF_LOCAL_DB.Create(bean)
-	return *bean, nil
+	err := global.GWAF_LOCAL_DB.Create(bean).Error
+	return *bean, err
+}
+
+func (receiver *WafSSLOrderService) MarkRenewed(orderID string, renewal model.SslOrder) error {
+	return global.GWAF_LOCAL_DB.Model(&model.SslOrder{}).
+		Where("id = ? AND tenant_id = ? AND user_code = ? AND apply_status = ?", orderID, renewal.Tenant_ID, renewal.USER_CODE, "success").
+		Updates(map[string]interface{}{"apply_status": "renewed", "update_time": customtype.JsonTime(time.Now())}).Error
 }
 
 // GetLastedInfo 查询最新的没有过期的
 func (receiver *WafSSLOrderService) GetLastedInfo(hostCode string) (model.SslOrder, error) {
 	var bean model.SslOrder
 
-	global.GWAF_LOCAL_DB.Model(&model.SslOrder{}).Where("host_code=?", hostCode).Where("result_certificate is not null").Order("create_time desc").Limit(1).First(&bean)
-
-	return bean, nil
+	err := global.GWAF_LOCAL_DB.Model(&model.SslOrder{}).
+		Where("host_code = ? AND result_certificate IS NOT NULL AND result_valid_to IS NOT NULL", hostCode).
+		Order("create_time desc").Limit(1).Find(&bean).Error
+	return bean, err
 }
 
 // GetCAServerAddress 根据CA服务器名称获取地址

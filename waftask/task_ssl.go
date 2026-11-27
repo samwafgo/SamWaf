@@ -10,6 +10,7 @@ import (
 	"SamWaf/model/spec"
 	"SamWaf/service/waf_service"
 	"SamWaf/utils"
+	"SamWaf/wafssl"
 	"fmt"
 	"time"
 )
@@ -192,7 +193,10 @@ func SSLOrderReload() {
 							Type:    enums.ChanSslOrderrenew,
 							Content: lastSslOrderInfo,
 						}
-						global.GWAF_CHAN_SSLOrder <- chanInfo
+						if err := wafssl.SubmitScheduledOrder(chanInfo); err != nil {
+							zlog.Warn(innerLogName, err)
+							return
+						}
 					}
 				}
 			}

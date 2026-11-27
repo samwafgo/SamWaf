@@ -9,6 +9,7 @@ import (
 	"SamWaf/model/request"
 	"SamWaf/model/spec"
 	"SamWaf/utils"
+	"SamWaf/wafssl"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -113,7 +114,10 @@ func (w *WafSslOrderApi) AddApi(c *gin.Context) {
 		}
 		addResult, err := wafSslOrderService.AddApi(req)
 		if err == nil {
-			w.NotifyWaf(enums.ChanSslOrderSubmitted, addResult)
+			if err := w.NotifyWaf(enums.ChanSslOrderSubmitted, addResult, ""); err != nil {
+				response.FailWithMessage(err.Error(), c)
+				return
+			}
 			response.OkWithMessage("添加成功", c)
 		} else {
 			response.FailWithMessage("添加失败", c)
@@ -237,7 +241,11 @@ func (w *WafSslOrderApi) ModifyApi(c *gin.Context) {
 		}
 		// 续期与申请走同一套挑战：http01 同样要求 80 端口是 HTTP 明文，
 		// 否则每次续期都会在 ACME 侧失败（还会消耗服务商的失败频率配额）
-		if existingOrder.ApplyMethod == "http01" {
+		if req.HostCode != "" && req.HostCode != existingOrder.HostCode {
+			response.FailWithMessage("续期不能更换关联网站，请在目标网站发起新申请", c)
+			return
+		}
+		if req.ApplyMethod == "http01" {
 			hostBean := wafHostService.GetDetailByCodeApi(existingOrder.HostCode)
 			if hostBean.Id != "" {
 				if ok, proto := w.check80Port(hostBean); !ok {
@@ -260,19 +268,16 @@ func (w *WafSslOrderApi) ModifyApi(c *gin.Context) {
 			return
 		}
 
-		err = wafSslOrderService.ModifyApi(req)
+		renewOrder, err := wafSslOrderService.RenewAdd(existingOrder, req)
 		if err != nil {
-			response.FailWithMessage("续期发生错误", c)
-		} else {
-			//发起续期
-			renewAdd, err := wafSslOrderService.RenewAdd(req.Id)
-			if err == nil {
-				w.NotifyWaf(enums.ChanSslOrderrenew, renewAdd)
-				response.OkWithMessage("续期成功", c)
-			} else {
-				response.FailWithMessage("续期失败", c)
-			}
+			response.FailWithMessage("续期失败", c)
+			return
 		}
+		if err := w.NotifyWaf(enums.ChanSslOrderrenew, renewOrder, existingOrder.Id); err != nil {
+			response.FailWithMessage(err.Error(), c)
+			return
+		}
+		response.OkWithMessage("续期成功", c)
 	} else {
 		response.FailWithMessage("续期解析失败", c)
 	}
@@ -282,12 +287,14 @@ func (w *WafSslOrderApi) ModifyApi(c *gin.Context) {
 *
 发送SSL证书订单通知
 */
-func (w *WafSslOrderApi) NotifyWaf(chanType int, bean model.SslOrder) {
-	var chanInfo = spec.ChanSslOrder{
-		Type:    chanType,
-		Content: bean,
+func (w *WafSslOrderApi) NotifyWaf(chanType int, bean model.SslOrder, sourceOrderID string) error {
+	err := wafssl.SubmitOrder(spec.ChanSslOrder{Type: chanType, Content: bean, Submitted: true, SourceOrderID: sourceOrderID})
+	if err != nil {
+		if saveErr := wafSslOrderService.FailSubmittedOrder(bean, err.Error()); saveErr != nil {
+			zlog.Error("记录未受理的证书订单失败", saveErr)
+		}
 	}
-	global.GWAF_CHAN_SSLOrder <- chanInfo
+	return err
 }
 
 // validApplyMethod 是订单里唯一被逐值判断的枚举字段，其余 apply_* 均为自由文本。

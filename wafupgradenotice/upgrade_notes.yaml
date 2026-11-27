@@ -12,6 +12,25 @@
 #   5. fresh_install: true 的条目只在"全新安装"时生成，不参与版本区间计算
 
 notes:
+  - id: acme_directory_retry
+    version: v1.3.26
+    kind: notice
+    level: normal
+    apply:
+      type: none
+    zh:
+      title: 证书申请与续期在读取 CA 目录时支持自动重试
+      detail: >-
+        默认每次目录请求最多等待 30 秒，遇到暂时性网络故障时最多额外重试 5 次。重试期间，其他已受理的证书任务继续排队，不影响现有证书或业务请求。
+        如需调整，在 conf/config.yml 设置 acme.directory_timeout_seconds（5–120 秒）和 acme.directory_max_retries（0–5 次，0 表示不重试）后重启。
+        本机测试或自建 ACME CA 可在 acme.trusted_cas 下匹配 CA 目录地址，并使用 conf/acme-ca 内的 PEM 信任证书；未配置的 CA 不变。
+    en:
+      title: Certificate issuance and renewal retry temporary CA directory failures
+      detail: >-
+        Each directory request has a 30-second timeout by default, with up to five additional attempts after temporary failures.
+        Other certificate jobs remain queued during retries. Existing certificates and proxied traffic are unaffected.
+        To change these defaults, set acme.directory_timeout_seconds (5–120 seconds) and acme.directory_max_retries (0–5, where 0 disables retries) in conf/config.yml, then restart.
+        For locally tested or privately hosted ACME CAs, acme.trusted_cas can match a directory URL to a PEM trust file in conf/acme-ca. Unconfigured CAs are unchanged.
   - id: v1_3_26_host_role_static_root
     version: v1.3.26
     kind: notice

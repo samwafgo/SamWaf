@@ -38,6 +38,7 @@ import (
 	"SamWaf/wafsafeclear"
 	"SamWaf/wafsec"
 	"SamWaf/wafsnowflake"
+	"SamWaf/wafssl"
 	"SamWaf/waftask"
 	"SamWaf/waftunnelengine"
 	"SamWaf/wafupdate"
@@ -565,6 +566,7 @@ func (m *wafSystenService) run() {
 	//结束 需要添加到任务注册器里面的
 	// cron 任务调度同样是单例（避免新旧 Worker 重复执行定时任务）；takeover 模式延迟到 ACTIVATE 再启动。
 	if !global.GWAF_RUNTIME_IS_TAKEOVER {
+		wafssl.StartOrderWorker(globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ApplySSLOrder)
 		globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler.Start()
 		// 日志导出执行器与任务调度同一接管边界启动，蓝绿升级时只有一个 Worker 受理任务。
 		logExportWorkerLifecycle.start(waf_service.WafLogExportServiceApp.Start)
@@ -937,10 +939,6 @@ func (m *wafSystenService) run() {
 			zlog.Debug("远程配置", sensitive)
 			globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ReLoadSensitive()
 			break
-		case sslOrderChan := <-global.GWAF_CHAN_SSLOrder:
-			zlog.Debug("ssl证书申请", sslOrderChan)
-			globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ApplySSLOrder(sslOrderChan.Type, sslOrderChan.Content.(model.SslOrder))
-			break
 		case sslExpireCheck := <-global.GWAF_CHAN_SSL_EXPIRE_CHECK:
 			zlog.Debug("ssl证书到期检测", sslExpireCheck)
 			waftask.SSLExpireCheck()
@@ -984,6 +982,7 @@ func (m *wafSystenService) run() {
 
 // 停止要提前关闭的 是服务的主要逻辑
 func (m *wafSystenService) stopSamWaf() {
+	wafssl.CancelOrderWorker()
 	zlog.Info("Shutdown SamWaf Engine...")
 	if globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE != nil {
 		globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.CloseWaf()
@@ -991,6 +990,7 @@ func (m *wafSystenService) stopSamWaf() {
 	} else {
 		zlog.Warn("WAF Engine is nil, skipping shutdown")
 	}
+	wafssl.StopOrderWorker()
 
 	zlog.Info("Shutdown SamWaf Tunnel Engine...")
 	if globalobj.GWAF_RUNTIME_OBJ_TUNNEL_ENGINE != nil {
@@ -1385,6 +1385,10 @@ func activateSingletons() {
 		}
 		if globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE != nil {
 			globalobj.GWAF_RUNTIME_OBJ_APP_ENGINE.StartApps()
+		}
+		if engine := globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE; engine != nil {
+			engine.RefreshSiteCertificates()
+			wafssl.StartOrderWorker(engine.ApplySSLOrder)
 		}
 		if globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler != nil {
 			globalobj.GWAF_RUNTIME_OBJ_WAF_TaskScheduler.Start()

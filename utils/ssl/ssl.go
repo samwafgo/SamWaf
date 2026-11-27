@@ -5,6 +5,7 @@ import (
 	"SamWaf/customtype"
 	"SamWaf/model"
 	"SamWaf/utils"
+	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -18,7 +19,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-acme/lego/v4/certcrypto"
 	"github.com/go-acme/lego/v4/certificate"
 	"github.com/go-acme/lego/v4/challenge"
 	"github.com/go-acme/lego/v4/challenge/dns01"
@@ -47,7 +47,7 @@ func (u *MyUser) GetPrivateKey() crypto.PrivateKey {
 	return u.key
 }
 
-func RegistrationSSL(order model.SslOrder, savePath string, caServerAddress string, applyPlatform string, eab_kid string, eab_hmac_key string) (model.SslOrder, error) {
+func RegistrationSSL(ctx context.Context, order model.SslOrder, savePath string, caServerAddress string, applyPlatform string, eab_kid string, eab_hmac_key string) (model.SslOrder, error) {
 	isIpSSL := utils.IsIP(order.ApplyDomain)
 	myUser := MyUser{
 		Email: order.ApplyEmail,
@@ -74,18 +74,7 @@ func RegistrationSSL(order model.SslOrder, savePath string, caServerAddress stri
 		}
 	}
 
-	//order.ApplyKey = privateKey
-	config := lego.NewConfig(&myUser)
-
-	config.CADirURL = caServerAddress
-	config.Certificate.KeyType = certcrypto.RSA2048
-	if isIpSSL {
-		//是否是ip申请ssl证书
-		config.Certificate.DisableCommonName = true
-	}
-
-	// A client facilitates communication with the CA server.
-	client, err := lego.NewClient(config)
+	client, err := newACMEClient(ctx, &myUser, caServerAddress, isIpSSL)
 	if err != nil {
 		return order, err
 	}
@@ -111,7 +100,7 @@ func RegistrationSSL(order model.SslOrder, savePath string, caServerAddress stri
 			zlog.Error(fmt.Sprintf("%sDNS校验-初始化渠道失败 渠道=%s 错误=%v", acmeLogPrefix, order.ApplyDns, err))
 			return order, err
 		}
-		err = setDNS01ProviderWithRetry(client, newLoggingDNSProvider(dnsProvider, order.ApplyDns), order.SkipDNSVerify)
+		err = setDNS01ProviderWithRetry(ctx, client, newLoggingDNSProvider(dnsProvider, order.ApplyDns), order.SkipDNSVerify)
 		if err != nil {
 			zlog.Error(fmt.Sprintf("%sDNS校验-设置provider失败 渠道=%s 错误=%v", acmeLogPrefix, order.ApplyDns, err))
 		}
@@ -232,7 +221,7 @@ func RegistrationSSL(order model.SslOrder, savePath string, caServerAddress stri
 	return order, nil
 }
 
-func ReNewSSL(order model.SslOrder, savePath string, caServerAddress string, applyPlatform string, eab_kid string, eab_hmac_key string) (model.SslOrder, error) {
+func ReNewSSL(ctx context.Context, order model.SslOrder, savePath string, caServerAddress string, applyPlatform string, eab_kid string, eab_hmac_key string) (model.SslOrder, error) {
 	// 判断是否是IP证书
 	isIpSSL := utils.IsIP(order.ApplyDomain)
 
@@ -261,18 +250,7 @@ func ReNewSSL(order model.SslOrder, savePath string, caServerAddress string, app
 		}
 	}
 
-	//order.ApplyKey = privateKey
-	config := lego.NewConfig(&myUser)
-	config.CADirURL = caServerAddress
-	config.Certificate.KeyType = certcrypto.RSA2048
-
-	if isIpSSL {
-		//是否是ip申请ssl证书
-		config.Certificate.DisableCommonName = true
-	}
-
-	// A client facilitates communication with the CA server.
-	client, err := lego.NewClient(config)
+	client, err := newACMEClient(ctx, &myUser, caServerAddress, isIpSSL)
 	if err != nil {
 		return order, err
 	}
@@ -298,7 +276,7 @@ func ReNewSSL(order model.SslOrder, savePath string, caServerAddress string, app
 			zlog.Error(fmt.Sprintf("%s续期-DNS校验-初始化渠道失败 渠道=%s 错误=%v", acmeLogPrefix, order.ApplyDns, err))
 			return order, err
 		}
-		err = setDNS01ProviderWithRetry(client, newLoggingDNSProvider(dnsProvider, order.ApplyDns), order.SkipDNSVerify)
+		err = setDNS01ProviderWithRetry(ctx, client, newLoggingDNSProvider(dnsProvider, order.ApplyDns), order.SkipDNSVerify)
 		if err != nil {
 			zlog.Error(fmt.Sprintf("%s续期-DNS校验-设置provider失败 渠道=%s 错误=%v", acmeLogPrefix, order.ApplyDns, err))
 		}
@@ -478,7 +456,7 @@ func GetDnsProvider(dnsName string) (challenge.Provider, error) {
 	}
 }
 
-func setDNS01ProviderWithRetry(client *lego.Client, dnsProvider challenge.Provider, skipDNSVerify int64) error {
+func setDNS01ProviderWithRetry(ctx context.Context, client *lego.Client, dnsProvider challenge.Provider, skipDNSVerify int64) error {
 	// 默认重试10次，每次间隔30秒
 	dnsPrecheckRetry := 10
 	dnsPrecheckRetryInterval := 30 * time.Second
@@ -489,7 +467,9 @@ func setDNS01ProviderWithRetry(client *lego.Client, dnsProvider challenge.Provid
 	if skipDNSVerify == 1 {
 		// 跳过本地DNS传播校验：固定等待后直接通知CA进行验证
 		zlog.Info(fmt.Sprintf("%sDNS校验-已按配置跳过本地传播校验，固定等待 %v 后直接通知CA", acmeLogPrefix, propagationTimeout))
-		return client.Challenge.SetDNS01Provider(dnsProvider, dns01.PropagationWait(propagationTimeout, true))
+		return client.Challenge.SetDNS01Provider(dnsProvider, dns01.WrapPreCheck(func(_, _, _ string, _ dns01.PreCheckFunc) (bool, error) {
+			return true, waitACMERetry(ctx, propagationTimeout)
+		}))
 	}
 	zlog.Info(fmt.Sprintf("%sDNS校验-启用本地传播校验 最多重试%d次 间隔%v", acmeLogPrefix, dnsPrecheckRetry, dnsPrecheckRetryInterval))
 
@@ -498,6 +478,9 @@ func setDNS01ProviderWithRetry(client *lego.Client, dnsProvider challenge.Provid
 		dns01.WrapPreCheck(func(domain, fqdn, value string, check dns01.PreCheckFunc) (bool, error) {
 			var lastErr error
 			for i := 1; i <= dnsPrecheckRetry; i++ {
+				if err := ctx.Err(); err != nil {
+					return true, err
+				}
 				ok, err := check(fqdn, value)
 				if ok && err == nil {
 					zlog.Info(fmt.Sprintf("%sDNS校验-传播校验通过(第%d/%d次) 域名=%s 记录=TXT %s",
@@ -510,7 +493,9 @@ func setDNS01ProviderWithRetry(client *lego.Client, dnsProvider challenge.Provid
 				zlog.Warn(fmt.Sprintf("%sDNS校验-传播尚未生效(第%d/%d次) 域名=%s 记录=TXT %s 期望值=%s 错误=%v",
 					acmeLogPrefix, i, dnsPrecheckRetry, domain, fqdn, value, err))
 				if i < dnsPrecheckRetry {
-					time.Sleep(dnsPrecheckRetryInterval)
+					if err := waitACMERetry(ctx, dnsPrecheckRetryInterval); err != nil {
+						return true, err
+					}
 				}
 			}
 

@@ -2,11 +2,9 @@ package wafssl
 
 import (
 	"SamWaf/common/zlog"
-	"SamWaf/global"
 	"SamWaf/service/waf_service"
 	"fmt"
 	"os"
-	"strings"
 )
 
 // LoadDnsProviderEnvInfo 初始化dns所需要的参数信息
@@ -49,16 +47,4 @@ func LoadDnsProviderEnvInfo(groupName string, belongCloud string) {
 
 	zlog.Info(fmt.Sprintf("Successfully loaded %d credentials for cloud `%s` group `%s`", len(privateInfos), belongCloud, groupName))
 
-	if global.GWAF_RELEASE == "false" {
-		zlog.Debug("Current DNS-related environment variables:")
-		for _, env := range os.Environ() {
-			parts := strings.SplitN(env, "=", 2)
-			key := parts[0]
-			value := ""
-			if len(parts) > 1 {
-				value = parts[1]
-			}
-			zlog.Debug(fmt.Sprintf("%s = %s", key, value))
-		}
-	}
 }

@@ -14,6 +14,7 @@ import (
 	"SamWaf/utils"
 	"SamWaf/utils/ssl"
 	"SamWaf/wafssl"
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -26,7 +27,19 @@ var (
 )
 
 // ApplySSLOrder 申请SSL证书处理
-func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
+func (waf *WafEngine) ApplySSLOrder(ctx context.Context, job spec.ChanSslOrder) {
+	bean := job.Content
+	if !job.Submitted {
+		current, err := wafSslOrderService.GetLastedInfo(bean.HostCode)
+		if err != nil {
+			zlog.Warn("检查待续期的证书订单失败", err)
+			return
+		}
+		if current.Id == "" || current.Id != bean.Id || !time.Time(current.ResultValidTo).Equal(time.Time(bean.ResultValidTo)) {
+			return
+		}
+		bean = current
+	}
 	if bean.ApplyMethod == "dns01" {
 		//加载环境变量
 		privateGroupName := bean.PrivateGroupName
@@ -41,7 +54,7 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 		eab_kid = global.GCONFIG_ZEROSSL_EAB_KID
 		eab_hmac_key = global.GCONFIG_ZEROSSL_EAB_HMAC_KEY
 	}
-	if chanType == enums.ChanSslOrderSubmitted {
+	if job.Type == enums.ChanSslOrderSubmitted {
 		//发起申请
 		zlog.Info(fmt.Sprintf("%s 正在进行首次证书申请", bean.ApplyDomain))
 		filePath := utils.GetCurrentDir() + "/data/vhost/" + bean.HostCode
@@ -49,11 +62,15 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 		if filePathErr != nil {
 			zlog.Error("ApplySSLOrder", filePathErr.Error())
 		}
-		updateSSLOrder, err := ssl.RegistrationSSL(bean, filePath, waf_service.GetCAServerAddress(bean.ApplyPlatform), bean.ApplyPlatform, eab_kid, eab_hmac_key)
+		updateSSLOrder, err := ssl.RegistrationSSL(ctx, bean, filePath, waf_service.GetCAServerAddress(bean.ApplyPlatform), bean.ApplyPlatform, eab_kid, eab_hmac_key)
+		if err != nil && ctx.Err() != nil {
+			failInterruptedSSLOrder(bean)
+			return
+		}
 		if err == nil {
 			zlog.Info(fmt.Sprintf("%s 首次证书申请成功", bean.ApplyDomain))
 
-			err := waf.processSSL(updateSSLOrder, bean)
+			err := waf.processSSL(ctx, updateSSLOrder, bean)
 			if err != nil {
 				zlog.Error(fmt.Sprintf("%s 证书首次申请后续 失败 %v", bean.ApplyDomain, err.Error()))
 				updateSSLOrder.ApplyStatus = "fail"
@@ -156,7 +173,7 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 			})
 		}
 
-	} else if chanType == enums.ChanSslOrderrenew {
+	} else if job.Type == enums.ChanSslOrderrenew {
 		//发起申请
 		zlog.Info(fmt.Sprintf("%s 正在证书续期申请处理", bean.ApplyDomain))
 		filePath := utils.GetCurrentDir() + "/data/vhost/" + bean.HostCode
@@ -164,16 +181,22 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 		if filePathErr != nil {
 			zlog.Error("ApplySSLOrder", filePathErr.Error())
 		}
-		updateSSLOrder, err := ssl.ReNewSSL(bean, filePath, waf_service.GetCAServerAddress(bean.ApplyPlatform), bean.ApplyPlatform, eab_kid, eab_hmac_key)
+		updateSSLOrder, err := ssl.ReNewSSL(ctx, bean, filePath, waf_service.GetCAServerAddress(bean.ApplyPlatform), bean.ApplyPlatform, eab_kid, eab_hmac_key)
+		if err != nil && ctx.Err() != nil {
+			failInterruptedSSLOrder(bean)
+			return
+		}
 		if err == nil {
 			zlog.Info(fmt.Sprintf("%s 证书续期申请成功", bean.ApplyDomain))
 
-			err := waf.processSSL(updateSSLOrder, bean)
+			err := waf.processSSL(ctx, updateSSLOrder, bean)
 			if err != nil {
 				zlog.Error(fmt.Sprintf("%s 证书续期申请处理后续 失败 %v", bean.ApplyDomain, err.Error()))
-				updateSSLOrder.ApplyStatus = "fail"
-				updateSSLOrder.ResultError = err.Error()
-				wafSslOrderService.ModifyById(updateSSLOrder)
+				if job.Submitted {
+					if saveErr := wafSslOrderService.FailSubmittedOrder(bean, err.Error()); saveErr != nil {
+						zlog.Error("保存证书续期失败状态失败", saveErr)
+					}
+				}
 
 				// 发送SSL证书续期失败的系统日志和消息通知
 				sslError := fmt.Sprintf("SSL证书续期失败 - 域名: %s, 错误: %v", bean.ApplyDomain, err.Error())
@@ -205,7 +228,15 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 				zlog.Info(fmt.Sprintf("%s 证书续期处理后续 成功", bean.ApplyDomain))
 				updateSSLOrder.ApplyStatus = "success"
 				updateSSLOrder.ResultError = ""
-				wafSslOrderService.ModifyById(updateSSLOrder)
+				if err := wafSslOrderService.ModifyById(updateSSLOrder); err != nil {
+					zlog.Error("保存证书续期结果失败", err)
+					return
+				}
+				if job.SourceOrderID != "" {
+					if err := wafSslOrderService.MarkRenewed(job.SourceOrderID, updateSSLOrder); err != nil {
+						zlog.Error("更新上一笔证书订单状态失败", err)
+					}
+				}
 
 				// 发送SSL证书续期成功的系统日志和消息通知
 				sslSuccess := fmt.Sprintf("SSL证书续期成功 - 域名: %s, 有效期至: %s", bean.ApplyDomain, time.Time(updateSSLOrder.ResultValidTo).Format("2006-01-02"))
@@ -237,9 +268,11 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 		} else {
 			//设置数据
 			zlog.Error(fmt.Sprintf("%s 续期证书申请 失败 %v", bean.ApplyDomain, err.Error()))
-			updateSSLOrder.ApplyStatus = "fail"
-			updateSSLOrder.ResultError = err.Error()
-			wafSslOrderService.ModifyById(updateSSLOrder)
+			if job.Submitted {
+				if saveErr := wafSslOrderService.FailSubmittedOrder(bean, err.Error()); saveErr != nil {
+					zlog.Error("保存证书续期失败状态失败", saveErr)
+				}
+			}
 
 			// 发送SSL证书续期失败的系统日志和消息通知
 			sslError := fmt.Sprintf("SSL证书续期失败 - 域名: %s, 错误: %v", bean.ApplyDomain, err.Error())
@@ -267,6 +300,14 @@ func (waf *WafEngine) ApplySSLOrder(chanType int, bean model.SslOrder) {
 				},
 				OperaCnt: sslError,
 			})
+		}
+	}
+}
+
+func failInterruptedSSLOrder(order model.SslOrder) {
+	if order.ApplyStatus == "submitted" {
+		if err := wafSslOrderService.FailSubmittedOrder(order, "服务停止，证书任务已中断，请重新发起"); err != nil {
+			zlog.Error("记录中断的证书订单失败", err)
 		}
 	}
 }
@@ -314,7 +355,7 @@ func exportSslConfigFile(sslConfigId string, domain string, scene string) {
 	}
 }
 
-func (waf *WafEngine) processSSL(updateSSLOrder model.SslOrder, bean model.SslOrder) error {
+func (waf *WafEngine) processSSL(ctx context.Context, updateSSLOrder model.SslOrder, bean model.SslOrder) error {
 	newSslConfig := model.SslConfig{
 		BaseOrm: baseorm.BaseOrm{
 			Id:          uuid.GenUUID(),
@@ -353,16 +394,20 @@ func (waf *WafEngine) processSSL(updateSSLOrder model.SslOrder, bean model.SslOr
 		} else {
 			err = wafHostService.UpdateSSLInfoAndBindId(string(updateSSLOrder.ResultCertificate), string(updateSSLOrder.ResultPrivateKey), bean.HostCode, sslConfigId)
 		}
-		if err == nil {
-			hostBean.Keyfile = string(updateSSLOrder.ResultPrivateKey)
-			hostBean.Certfile = string(updateSSLOrder.ResultCertificate)
-			var chanInfo = spec.ChanCommonHost{
-				HostCode:   bean.HostCode,
-				Type:       enums.ChanTypeSSL,
-				Content:    hostBean,
-				OldContent: hostBean,
-			}
-			global.GWAF_CHAN_MSG <- chanInfo
+		if err != nil {
+			return err
+		}
+		hostBean.Keyfile = string(updateSSLOrder.ResultPrivateKey)
+		hostBean.Certfile = string(updateSSLOrder.ResultCertificate)
+		var chanInfo = spec.ChanCommonHost{
+			HostCode:   bean.HostCode,
+			Type:       enums.ChanTypeSSL,
+			Content:    hostBean,
+			OldContent: hostBean,
+		}
+		select {
+		case global.GWAF_CHAN_MSG <- chanInfo:
+		case <-ctx.Done():
 		}
 	} else {
 		zlog.Info(fmt.Sprintf("%s 当前主机已配置证书文件夹绑定关系", bean.ApplyDomain))
@@ -375,7 +420,9 @@ func (waf *WafEngine) processSSL(updateSSLOrder model.SslOrder, bean model.SslOr
 			//该证书夹由 SamWaf 自动申请管理，关闭路径自动加载，避免凌晨3点被本地旧文件覆盖
 			newSslConfig.AutoLoadPath = 0
 			//把最新的配置上去
-			wafSslConfigService.ModifyInner(newSslConfig)
+			if err := wafSslConfigService.ModifyInner(newSslConfig); err != nil {
+				return err
+			}
 
 			//证书导出(落盘)：申请/续期成功后把新证书同步成实体文件，供 nginx 等外部程序使用
 			exportSslConfigFile(newSslConfig.Id, bean.ApplyDomain, "证书申请/续期")
@@ -410,7 +457,10 @@ func (waf *WafEngine) processSSL(updateSSLOrder model.SslOrder, bean model.SslOr
 					Content:    updatedHost,
 					OldContent: host,
 				}
-				global.GWAF_CHAN_MSG <- chanInfo
+				select {
+				case global.GWAF_CHAN_MSG <- chanInfo:
+				case <-ctx.Done():
+				}
 				zlog.Info(fmt.Sprintf("成功更新主机 %s(%s) 的证书信息", updatedHost.Host, updatedHost.Code))
 			}
 		} else {

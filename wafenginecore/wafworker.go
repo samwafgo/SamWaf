@@ -41,6 +41,30 @@ func (waf *WafEngine) LoadAllHost() {
 	}
 }
 
+// RefreshSiteCertificates 加载接管期间已保存的站点证书，不重新加载站点路由。
+func (waf *WafEngine) RefreshSiteCertificates() {
+	hosts, _, err := wafHostService.GetAllSSLHost()
+	if err != nil {
+		zlog.Warn("加载站点证书快照失败", err)
+		return
+	}
+	for i := len(hosts) - 1; i >= 0; i-- {
+		waf.loadSiteCertificate(hosts[i])
+	}
+}
+
+func (waf *WafEngine) loadSiteCertificate(host model.Hosts) {
+	if host.Ssl != 1 {
+		return
+	}
+	waf.AllCertificate.LoadSSL(host.Host, host.Certfile, host.Keyfile)
+	for _, line := range strings.Split(host.BindMoreHost, "\n") {
+		if name := strings.TrimSpace(line); name != "" {
+			waf.AllCertificate.LoadSSL(name, host.Certfile, host.Keyfile)
+		}
+	}
+}
+
 // 加载指定host
 func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 
@@ -48,22 +72,7 @@ func (waf *WafEngine) LoadHost(inHost model.Hosts) []innerbean.ServerRunTime {
 	// 原先由重载路径中的 RemoveHost 负责；现重载改为 LoadHost 原子替换、不再先 RemoveHost，故在此清理。
 	waf.purgeTransportForHost(inHost)
 
-	//检测https
-	if inHost.Ssl == 1 {
-		// 为主域名加载证书
-		waf.AllCertificate.LoadSSL(inHost.Host, inHost.Certfile, inHost.Keyfile)
-
-		// 为绑定的多个域名也加载相同的证书
-		if inHost.BindMoreHost != "" {
-			lines := strings.Split(inHost.BindMoreHost, "\n")
-			for _, line := range lines {
-				line = strings.TrimSpace(line)
-				if line != "" {
-					waf.AllCertificate.LoadSSL(line, inHost.Certfile, inHost.Keyfile)
-				}
-			}
-		}
-	}
+	waf.loadSiteCertificate(inHost)
 	if inHost.GLOBAL_HOST == 1 {
 		global.GWAF_GLOBAL_HOST_CODE = inHost.Code
 	}

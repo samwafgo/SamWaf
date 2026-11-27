@@ -350,6 +350,7 @@ func ensureCapacity(now time.Time) bool {
 	}
 	if err := exec.Apply(nil, ips); err != nil {
 		zlog.Warn("[主机登录防护] 容量淘汰时解封失败", "error", err.Error())
+		return false // 内核撤销失败时保留账本，不留下仍在拦截但无人管理的规则。
 	}
 	global.GWAF_LOCAL_DB.Model(&model.HostGuardBan{}).
 		Where("id in ?", ids).

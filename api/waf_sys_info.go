@@ -8,6 +8,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/common/response"
 	"SamWaf/utils"
+	"SamWaf/wafenginecore/wafwebcache"
 	"SamWaf/wafupdate"
 	"errors"
 	"fmt"
@@ -229,16 +230,24 @@ func (w *WafSysInfoApi) SystemParamsApi(c *gin.Context) {
 		database["host"] = global.GWAF_PG_HOST
 		database["port"] = global.GWAF_PG_PORT
 	}
-	// 当前缓存（memory|redis），redis 额外给出连接目标（不含密码）
+	// 控制台状态后端展示连接目标，不能返回含口令的 DSN；网站 L1/L2 容量另行计量。
 	cache := gin.H{"type": global.GCACHE_TYPE}
 	if global.GCACHE_TYPE == "redis" {
 		cache["host"] = global.GCACHE_REDIS_HOST
 		cache["port"] = global.GCACHE_REDIS_PORT
 	}
+	if global.GCACHE_TYPE == "postgres" {
+		// 这里只展示目标和扩展名，错误详情/键名不属于系统信息响应。
+		cache["host"] = global.GWAF_PG_HOST
+		cache["port"] = global.GWAF_PG_PORT
+		cache["database"] = global.GCACHE_PG_DATABASE
+		cache["extension"] = "samwaf_kv"
+	}
 	response.OkWithDetailed(gin.H{
 		"emergency_path": "/" + global.GWAF_SECURITY_EMERGENCY_PATH,
 		"database":       database,
 		"cache":          cache,
+		"web_cache":      wafwebcache.Snapshot(),
 	}, "获取成功", c)
 }
 

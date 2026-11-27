@@ -240,7 +240,7 @@ func (r *WafThreatIPService) markLandedByCode(code, landedSha string, count int)
 
 // destroySystemSet 清理某渠道在系统防火墙上的集合。
 // 只在系统防火墙确实可用时才动手：纯 WAF 落地的渠道从没往系统层写过东西，
-// 无条件调用只会白白 fork 一堆 iptables/netsh(Windows 上还可能长时间空转并占着同步锁)。
+// 无条件调用会重复重建 Linux eBPF 来源表或其他平台原生规则，增加控制锁与系统调用成本。
 func (r *WafThreatIPService) destroySystemSet(code string) {
 	if !r.fw.SupportsIPSet() {
 		zlog.Debug("系统防火墙不可用，跳过系统层集合清理", "channel", code)

@@ -64,7 +64,13 @@ func Decide(ev LoginFailEvent) BanResult {
 			}
 			// 事件保留窗口取统计窗口的 3 倍，让页面上还能看到"刚过窗口"的历史，
 			// 同时不至于无限增长
-			hitCount = mgr.Record(ev.Source, ev.IP, window, window*3)
+			// 后端错误不能伪装成零次失败，也不能据此升级封禁。
+			var countErr error
+			hitCount, countErr = mgr.RecordE(ev.Source, ev.IP, window, window*3)
+			if countErr != nil {
+				res.Skipped = "登录失败计数后端暂不可用"
+				return res
+			}
 		}
 	} else if !white {
 		action = model.HostEventActionSkipped

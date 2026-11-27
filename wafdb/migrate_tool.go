@@ -5,6 +5,8 @@ import (
 	"SamWaf/utils"
 	"SamWaf/wafdb/dialect"
 	"bufio"
+	"bytes"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"net/url"
@@ -718,8 +720,17 @@ func (t *MigrateTool) promptPostgresConfig() error {
 	if err := must(&global.GWAF_PG_USER, "用户名", global.GWAF_PG_USER); err != nil {
 		return err
 	}
-	if err := must(&global.GWAF_PG_PASSWORD, "密码", global.GWAF_PG_PASSWORD); err != nil {
-		return err
+	if _, fromEnv := os.LookupEnv("SAMWAF_PG_PASSWORD"); fromEnv {
+		// 环境口令已经加载，不再作为交互默认值回显，也不在目标配置中持久化。
+		fmt.Println("密码使用 SAMWAF_PG_PASSWORD 环境变量")
+	} else {
+		password, err := readLine(r, "密码（回车保留已配置值）", "")
+		if err != nil {
+			return err
+		}
+		if password != "" {
+			global.GWAF_PG_PASSWORD = password
+		}
 	}
 	if err := must(&global.GWAF_PG_SSLMODE, "SSL 模式", global.GWAF_PG_SSLMODE); err != nil {
 		return err
@@ -752,8 +763,9 @@ func (t *MigrateTool) promptPostgresConfig() error {
 	return nil
 }
 
-// saveTargetToConfig writes database.driver and the target's connection params to
-// config.yml. Uses the yaml.v3 Node API to preserve key order (viper sorts keys).
+// saveTargetToConfig 在迁移确认切换后更新驱动与连接参数，保留 YAML 的现有键顺序。
+// PostgreSQL 目标同时切换控制台 KV；覆盖前保留并读回校验原配置，再原子替换新文件。
+// 此处仅备份配置，数据库和外部密钥仍须由迁移前的一致性备份保护。
 func (t *MigrateTool) saveTargetToConfig() error {
 	configPath := filepath.Join(t.opts.CurrentDir, "conf", "config.yml")
 
@@ -795,7 +807,9 @@ func (t *MigrateTool) saveTargetToConfig() error {
 		appendStr("host", global.GWAF_PG_HOST)
 		appendInt("port", global.GWAF_PG_PORT)
 		appendStr("user", global.GWAF_PG_USER)
-		appendStr("password", global.GWAF_PG_PASSWORD)
+		if _, fromEnv := os.LookupEnv("SAMWAF_PG_PASSWORD"); !fromEnv {
+			appendStr("password", global.GWAF_PG_PASSWORD)
+		}
 		appendStr("sslmode", global.GWAF_PG_SSLMODE)
 		appendStr("timezone", global.GWAF_PG_TIMEZONE)
 		appendStr("maintenance_db", global.GWAF_PG_MAINTENANCE_DB)
@@ -803,6 +817,11 @@ func (t *MigrateTool) saveTargetToConfig() error {
 		appendStr("log_db", global.GWAF_PG_LOG_DB)
 		appendStr("stats_db", global.GWAF_PG_STATS_DB)
 		yamlSetNode(dbNode, "postgres", sect)
+		// 只切数据库却沿用旧 Redis/内存类型会被新 Worker 拒绝，必须同步选择持久 KV。
+		cacheNode := yamlEnsureMapping(root, "cache")
+		yamlSetNode(cacheNode, "type", &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "postgres"})
+		kvNode := yamlEnsureMapping(cacheNode, "postgres")
+		yamlSetNode(kvNode, "database", &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: global.GCACHE_PG_DATABASE})
 	default: // mysql
 		appendStr("host", global.GWAF_MYSQL_HOST)
 		appendInt("port", global.GWAF_MYSQL_PORT)
@@ -818,7 +837,52 @@ func (t *MigrateTool) saveTargetToConfig() error {
 	if err != nil {
 		return fmt.Errorf("序列化 config.yml 失败: %w", err)
 	}
-	return os.WriteFile(configPath, out, 0644)
+	// 原配置可能含凭据，使用 CreateTemp 的 0600 权限保存并 Sync，再逐字节读回校验。
+	backup, err := os.CreateTemp(filepath.Dir(configPath), "config.pre-"+t.dstKind+"-*.yml")
+	if err != nil {
+		return err
+	}
+	backupName := backup.Name()
+	if _, err = backup.Write(data); err == nil {
+		err = backup.Sync()
+	}
+	closeErr := backup.Close()
+	if err != nil {
+		return err
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	verified, err := os.ReadFile(backupName)
+	if err != nil || !bytes.Equal(data, verified) {
+		return fmt.Errorf("configuration backup verification failed")
+	}
+	sum := sha256.Sum256(data)
+	// 额外保留摘要供操作者独立验证回退文件；写入失败时不覆盖当前配置。
+	if err := os.WriteFile(backupName+".sha256", []byte(fmt.Sprintf("%x  %s\n", sum, filepath.Base(backupName))), 0600); err != nil {
+		return err
+	}
+	// 同目录暂存完整新配置，只有写入和关闭都成功后才替换，避免普通写失败留下半文件。
+	staged, err := os.CreateTemp(filepath.Dir(configPath), "config.new-*.yml")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(staged.Name())
+	if _, err = staged.Write(out); err == nil {
+		err = staged.Sync()
+	}
+	closeErr = staged.Close()
+	if err != nil {
+		return err
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	if err = os.Rename(staged.Name(), configPath); err != nil {
+		return err
+	}
+	fmt.Printf("原配置备份已校验: %s\n", backupName)
+	return nil
 }
 
 // yamlEnsureMapping finds or creates a MappingNode child for key under parent.

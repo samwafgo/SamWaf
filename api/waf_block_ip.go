@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	"sync"
 )
 
 type WafBlockIpApi struct {
@@ -56,7 +57,7 @@ func (w *WafBlockIpApi) AddApi(c *gin.Context) {
 	// 系统防火墙层封禁
 	if layer == "system" || layer == "both" {
 		// 系统层只认单IP与CIDR，通配符/区间/组引用必须挡在这里，
-		// 否则底层 iptables/netsh 拿到这类字符串会报错或行为未定义
+		// Linux eBPF 前缀表及其他平台的原生规则均不接受这些应用层表达式。
 		if serr := checkSystemLayerSupported(ipType, ip); serr != nil {
 			response.FailWithMessage(serr.Error(), c)
 			return
@@ -90,8 +91,15 @@ func (w *WafBlockIpApi) AddApi(c *gin.Context) {
 			response.FailWithMessage("添加失败", c)
 			return
 		}
-		w.NotifyWaf(req.HostCode)
+		if err := w.NotifyWaf(req.HostCode); err != nil {
+			response.BackendUnavailableWithMessage("配置已保存，运行时重载暂不可用，将自动重试", c)
+			return
+		}
 		response.OkWithMessage("添加成功", c)
+		return
+	}
+	if err != nil {
+		response.BackendUnavailableWithMessage("黑名单数据库暂不可用", c)
 		return
 	}
 	// WAF 层已存在：若同时已成功加系统层(both)，视为成功；否则提示已存在
@@ -177,7 +185,10 @@ func (w *WafBlockIpApi) DelBlockIpApi(c *gin.Context) {
 		} else if err != nil {
 			response.FailWithMessage("发生错误", c)
 		} else {
-			w.NotifyWaf(bean.HostCode)
+			if err := w.NotifyWaf(bean.HostCode); err != nil {
+				response.BackendUnavailableWithMessage("配置已保存，运行时重载暂不可用，将自动重试", c)
+				return
+			}
 			response.OkWithMessage("删除成功", c)
 		}
 
@@ -221,7 +232,10 @@ func (w *WafBlockIpApi) ModifyBlockIpApi(c *gin.Context) {
 		if err != nil {
 			response.FailWithMessage("编辑发生错误", c)
 		} else {
-			notifyWafHostChanged(w.NotifyWaf, bean.HostCode, req.HostCode)
+			if err := notifyWafHostChangedE(w.NotifyWaf, bean.HostCode, req.HostCode); err != nil {
+				response.BackendUnavailableWithMessage("配置已保存，运行时重载暂不可用，将自动重试", c)
+				return
+			}
 			response.OkWithMessage("编辑成功", c)
 		}
 
@@ -249,7 +263,10 @@ func (w *WafBlockIpApi) BatchDelBlockIpApi(c *gin.Context) {
 		} else {
 			// 通知所有相关的网站更新配置
 			for _, hostCode := range hostCodes {
-				w.NotifyWaf(hostCode)
+				if err := w.NotifyWaf(hostCode); err != nil {
+					response.BackendUnavailableWithMessage("配置已保存，运行时重载暂不可用，将自动重试", c)
+					return
+				}
 			}
 			response.OkWithMessage(fmt.Sprintf("成功删除 %d 条记录", len(req.Ids)), c)
 		}
@@ -276,7 +293,10 @@ func (w *WafBlockIpApi) DelAllBlockIpApi(c *gin.Context) {
 		} else {
 			// 通知所有相关的网站更新配置
 			for _, hostCode := range hostCodes {
-				w.NotifyWaf(hostCode)
+				if err := w.NotifyWaf(hostCode); err != nil {
+					response.BackendUnavailableWithMessage("配置已保存，运行时重载暂不可用，将自动重试", c)
+					return
+				}
 			}
 			if len(req.HostCode) > 0 {
 				response.OkWithMessage("成功删除该网站的所有IP黑名单", c)
@@ -314,7 +334,10 @@ func (w *WafBlockIpApi) ToggleApi(c *gin.Context) {
 		response.FailWithMessage("操作失败", c)
 		return
 	}
-	w.NotifyWaf(hostCode)
+	if err := w.NotifyWaf(hostCode); err != nil {
+		response.BackendUnavailableWithMessage("配置已保存，运行时重载暂不可用，将自动重试", c)
+		return
+	}
 	response.OkWithMessage("操作成功", c)
 }
 
@@ -322,13 +345,23 @@ func (w *WafBlockIpApi) ToggleApi(c *gin.Context) {
 *
 通知到waf引擎实时生效
 */
-func (w *WafBlockIpApi) NotifyWaf(host_code string) {
+// blockPublishMu 让读取与投递按同一顺序执行，避免较旧查询结果晚到而覆盖较新的快照。
+var blockPublishMu sync.Mutex
+
+// NotifyWaf 只投递成功读取的快照；查询故障返回给管理接口，版本同步器继续负责恢复。
+func (w *WafBlockIpApi) NotifyWaf(host_code string) error {
+	blockPublishMu.Lock()
+	defer blockPublishMu.Unlock()
 	var ipWhites []model.IPBlockList
-	global.GWAF_LOCAL_DB.Where("host_code = ? and is_enable = 1", host_code).Find(&ipWhites)
+	// 数据库错误不能解释为空名单；故障期间保留引擎现有快照，版本同步器恢复后再重载。
+	if err := global.GWAF_LOCAL_DB.Where("host_code = ? and is_enable = 1", host_code).Find(&ipWhites).Error; err != nil {
+		return err
+	}
 	var chanInfo = spec.ChanCommonHost{
 		HostCode: host_code,
 		Type:     enums.ChanTypeBlockIP,
 		Content:  ipWhites,
 	}
 	global.GWAF_CHAN_MSG <- chanInfo
+	return nil
 }

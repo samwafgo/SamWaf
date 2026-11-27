@@ -1,0 +1,6 @@
+# 纯 SQL 扩展：不需要 module_pathname 或原生共享库。
+# 固定 schema 为 samwaf_kv，版本与应用安装检查保持同步。
+comment = 'SamWAF durable KV/TTL cache, atomic renewal and counters'
+default_version = '1.0'
+relocatable = false
+trusted = true

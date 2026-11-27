@@ -39,7 +39,10 @@ func (s *WafRuleBanService) GetBanIpListApi() ([]response2.RuleBanIpResp, error)
 }
 
 func ruleBanIPList(store cache.CacheStore, hostName func(string) string) ([]response2.RuleBanIpResp, error) {
-	keys := store.ListAvailableKeysWithPrefix(enums.CACHE_RULE_BAN_PRE)
+	keys, listErr := cache.KeysE(store, enums.CACHE_RULE_BAN_PRE)
+	if listErr != nil {
+		return nil, listErr
+	}
 	beans := make([]response2.RuleBanIpResp, 0, len(keys))
 	for key, duration := range keys {
 		hostCode, ip, ok := model.ParseRuleBanKey(key)
@@ -76,18 +79,25 @@ func ruleBanIPList(store cache.CacheStore, hostName func(string) string) ([]resp
 	return beans, nil
 }
 
-func (s *WafRuleBanService) RemoveBanIpApi(req request.WafRuleBanRemoveBanIpReq) {
-	removeRuleBanIP(global.GCACHE_WAFCACHE, req.HostCode, req.Ip)
+// RemoveBanIpApi 只有后端确认删除后才允许管理接口返回成功。
+func (s *WafRuleBanService) RemoveBanIpApi(req request.WafRuleBanRemoveBanIpReq) error {
+	return removeRuleBanIP(global.GCACHE_WAFCACHE, req.HostCode, req.Ip)
 }
 
-func removeRuleBanIP(store cache.CacheStore, hostCode, ip string) {
+// removeRuleBanIP 保留本站/全部站点作用域，并传播枚举或删除失败。
+func removeRuleBanIP(store cache.CacheStore, hostCode, ip string) error {
 	if hostCode != "" {
-		store.Remove(model.BuildRuleBanKey(hostCode, ip))
-		return
+		return cache.ReleaseE(store, []string{model.BuildRuleBanKey(hostCode, ip)}, "")
 	}
-	for key := range store.ListAvailableKeysWithPrefix(enums.CACHE_RULE_BAN_PRE) {
+	keys, err := cache.KeysE(store, enums.CACHE_RULE_BAN_PRE)
+	if err != nil {
+		return err
+	}
+	remove := []string{}
+	for key := range keys {
 		if _, banIP, ok := model.ParseRuleBanKey(key); ok && banIP == ip {
-			store.Remove(key)
+			remove = append(remove, key)
 		}
 	}
+	return cache.ReleaseE(store, remove, "")
 }

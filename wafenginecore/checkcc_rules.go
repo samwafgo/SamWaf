@@ -102,15 +102,21 @@ func (waf *WafEngine) runCCRuleSet(
 		}
 
 		res := GCCCounter.Incr(cr.Rule.Id, dimValue, cr.Rule.WindowSec)
+		if res.BackendUnavailable {
+			return detection.Result{BackendUnavailable: true}, true
+		}
 		if res.Degraded {
 			// 维度基数失控（典型是拿可伪造字段当维度），降级为按 IP 统计后重试一次。
 			// 归堆的键跟着换成 IP，看板上才不会把降级前后的量算到两个不同的来源上。
 			dimValue = clientIP
 			res = GCCCounter.Incr(cr.Rule.Id, dimValue, cr.Rule.WindowSec)
+			if res.BackendUnavailable {
+				return detection.Result{BackendUnavailable: true}, true
+			}
 		}
-		if res.Rejected {
-			// 计数键总量到顶，本次放弃计数而不是继续吃内存
-			continue
+		if res.Rejected || res.Degraded {
+			// 总配额到顶不能把未计数请求当作阈值未超；按防护不可用结束本次请求。
+			return detection.Result{BackendUnavailable: true}, true
 		}
 
 		threshold := int64(cr.Rule.Threshold + cr.Rule.Burst)
@@ -204,7 +210,9 @@ func (waf *WafEngine) applyCCAction(
 		if scope != model.CCBanScopeHost {
 			scope = model.CCBanScopeGlobal
 		}
-		banCCWithScope(hostTarget, scope, ruleHostCode, clientIP, rule.ActionSeconds)
+		if err := banCCWithScope(hostTarget, scope, ruleHostCode, clientIP, rule.ActionSeconds); err != nil {
+			return detection.Result{BackendUnavailable: true}, true
+		}
 		return detection.Result{
 			IsBlock: true,
 			Title:   title,

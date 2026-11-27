@@ -20,15 +20,17 @@ const (
 
 // IPRateLimiter .
 type IPRateLimiter struct {
-	ips      map[string]*rate.Limiter
-	mu       *sync.RWMutex
-	r        rate.Limit
-	b        int
-	mode     LimitMode
-	window   int                    // 时间窗口大小(秒)
-	requests map[string][]time.Time // 用于滑动窗口模式记录请求时间
-	lastSeen map[string]time.Time   // 平均速率模式下每个IP的最后活跃时间，供清理判断空闲
-	Rule     *utils.RuleHelper
+	// SharedAllow 在正常 Worker 中执行跨进程原子限流；nil 保留兼容测试的本地算法。
+	SharedAllow func(string) (bool, error)
+	ips         map[string]*rate.Limiter
+	mu          *sync.RWMutex
+	r           rate.Limit
+	b           int
+	mode        LimitMode
+	window      int                    // 时间窗口大小(秒)
+	requests    map[string][]time.Time // 用于滑动窗口模式记录请求时间
+	lastSeen    map[string]time.Time   // 平均速率模式下每个IP的最后活跃时间，供清理判断空闲
+	Rule        *utils.RuleHelper
 }
 
 // NewIPRateLimiter 创建一个新的IP限流器
@@ -92,14 +94,16 @@ func (i *IPRateLimiter) AddIP(ip string) *rate.Limiter {
 // Otherwise calls AddIP to add IP address to the map
 func (i *IPRateLimiter) GetLimiter(ip string) *rate.Limiter {
 	i.mu.Lock()
+	defer i.mu.Unlock()
 	limiter, exists := i.ips[ip]
 
 	if !exists {
-		i.mu.Unlock()
-		return i.AddIP(ip)
+		// 首次查询与创建必须在同一临界区；解锁后 AddIP 会让并发请求各得到一个满令牌桶。
+		limiter = rate.NewLimiter(i.r, i.b)
+		i.ips[ip] = limiter
+		i.requests[ip] = []time.Time{}
 	}
 	i.lastSeen[ip] = time.Now()
-	i.mu.Unlock()
 
 	return limiter
 }
@@ -107,12 +111,21 @@ func (i *IPRateLimiter) GetLimiter(ip string) *rate.Limiter {
 // Allow 检查是否允许请求通过
 // 根据模式使用不同的限流策略
 func (i *IPRateLimiter) Allow(ip string) bool {
+	allowed, _ := i.AllowE(ip)
+	return allowed
+}
+
+// AllowE 区分超阈值与后端故障，请求链必须使用该接口，不能把故障误记成 CC 攻击。
+func (i *IPRateLimiter) AllowE(ip string) (bool, error) {
+	if i.SharedAllow != nil {
+		return i.SharedAllow(ip)
+	}
 	if i.mode == RateMode {
 		// 使用令牌桶算法限流
-		return i.GetLimiter(ip).Allow()
+		return i.GetLimiter(ip).Allow(), nil
 	} else {
 		// 使用滑动窗口算法限流
-		return i.allowByWindow(ip)
+		return i.allowByWindow(ip), nil
 	}
 }
 

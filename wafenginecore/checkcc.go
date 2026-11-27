@@ -1,6 +1,7 @@
 package wafenginecore
 
 import (
+	"SamWaf/cache"
 	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/innerbean"
@@ -59,12 +60,18 @@ func (waf *WafEngine) CheckCC(r *http.Request, weblogbean *innerbean.WebLog, for
 		// isCheckCC 只决定「本请求要不要纳入局部CC计数」。
 		// 前置规则没命中时仍要继续走全局CC：局部规则的作用范围是本站点，不该顺带把全局防护也一起关掉。
 		if isCheckCC {
-			if !hostTarget.PluginIpRateLimiter.Allow(clientIP) {
+			allowed, err := hostTarget.PluginIpRateLimiter.AllowE(clientIP)
+			if err != nil {
+				return detection.Result{BackendUnavailable: true}
+			}
+			if !allowed {
 				weblogbean.RISK_LEVEL = 1
 				result.IsBlock = true
 				result.Title = "【局部】触发IP频次访问限制"
 				result.Content = "您的访问被阻止超量了"
-				banCC(hostTarget, hostTarget.Host.Code, clientIP, hostTarget.AntiCCBean.LockIPMinutes)
+				if err := banCC(hostTarget, hostTarget.Host.Code, clientIP, hostTarget.AntiCCBean.LockIPMinutes); err != nil {
+					result.BackendUnavailable = true
+				}
 				return result
 			}
 			// 局部CC已检测且未封禁，若配置了跳过全局CC则直接返回
@@ -82,12 +89,18 @@ func (waf *WafEngine) CheckCC(r *http.Request, weblogbean *innerbean.WebLog, for
 		// 属于部署事实；全局网站不承载流量，它的这个值取不到实际意义。
 		// 两者不一致时，同一个请求会在站点规则与全局规则里按两个不同的 IP 计数。
 		globalClientIP := clientIP
-		if !globalHost.PluginIpRateLimiter.Allow(globalClientIP) {
+		allowed, err := globalHost.PluginIpRateLimiter.AllowE(globalClientIP)
+		if err != nil {
+			return detection.Result{BackendUnavailable: true}
+		}
+		if !allowed {
 			weblogbean.RISK_LEVEL = 1
 			result.IsBlock = true
 			result.Title = "【全局】触发IP频次访问限制"
 			result.Content = "您的访问被阻止超量了"
-			banCC(hostTarget, globalHost.Host.Code, globalClientIP, globalHost.AntiCCBean.LockIPMinutes)
+			if err := banCC(hostTarget, globalHost.Host.Code, globalClientIP, globalHost.AntiCCBean.LockIPMinutes); err != nil {
+				result.BackendUnavailable = true
+			}
 			return result
 		}
 	}
@@ -101,23 +114,25 @@ func (waf *WafEngine) CheckCC(r *http.Request, weblogbean *innerbean.WebLog, for
 //
 // 作用域固定为 global（一处触发、全部站点生效），与既有行为一致。
 // 多规则改造后改为按规则配置的 BanScope 决定，新建规则默认只封本站点。
-func banCC(hostTarget *wafenginmodel.HostSafe, hostCode, clientIP string, lockMinutes int) {
-	banCCWithScope(hostTarget, model.CCBanScopeGlobal, hostCode, clientIP, lockMinutes*60)
+func banCC(hostTarget *wafenginmodel.HostSafe, hostCode, clientIP string, lockMinutes int) error {
+	return banCCWithScope(hostTarget, model.CCBanScopeGlobal, hostCode, clientIP, lockMinutes*60)
 }
 
 // banCCWithScope 按指定作用域与时长写入封禁期。
 //
 // 「仅记录模式」下不落封禁：该模式的语义是只记录不阻断，而封禁一旦写入，
 // 后续请求会在封禁拦截点被挡下，两者必须保持一致。
-func banCCWithScope(hostTarget *wafenginmodel.HostSafe, scope, hostCode, clientIP string, seconds int) {
+func banCCWithScope(hostTarget *wafenginmodel.HostSafe, scope, hostCode, clientIP string, seconds int) error {
 	if hostTarget != nil && hostTarget.Host.LogOnlyMode == 1 {
 		zlog.Debug("CC仅记录模式，跳过封禁写入", clientIP)
-		return
+		return nil
 	}
 	if seconds <= 0 || clientIP == "" || global.GCACHE_WAFCACHE == nil {
-		return
+		return nil
 	}
 	cacheKey := model.BuildCCBanKey(scope, hostCode, clientIP)
 	// 值沿用「分钟数」，封禁列表与提醒都按这个口径展示
-	global.GCACHE_WAFCACHE.SetWithTTl(cacheKey, seconds/60, time.Duration(seconds)*time.Second)
+	// 原子首次占用，避免多个 Worker 同时触发时互相刷新已确定的封禁期限。
+	_, err := cache.AddOnceE(global.GCACHE_WAFCACHE, cacheKey, seconds/60, time.Duration(seconds)*time.Second)
+	return err
 }

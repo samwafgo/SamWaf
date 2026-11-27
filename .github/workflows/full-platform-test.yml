@@ -99,11 +99,17 @@ jobs:
 
   # ============ 2. Linux amd64 启动冒烟 ============
   smoke-linux-amd64:
+    # 各平台运行验证都使用 PostgreSQL，编译成功不能代替持久后端的启动验证。
     name: startup test linux/amd64
     runs-on: ubuntu-24.04
     needs: build-cross
     timeout-minutes: 10
+    env:
+      SAMWAF_PG_USER: samwaf_ci
     steps:
+      - uses: ankane/setup-postgres@9a532808f26bd7aeb121293d7d2a06e3658237e3
+        with:
+          user: samwaf_ci
       - name: Download binary
         uses: actions/download-artifact@v4
         with:
@@ -156,7 +162,12 @@ jobs:
     runs-on: ubuntu-24.04-arm
     needs: build-cross
     timeout-minutes: 10
+    env:
+      SAMWAF_PG_USER: samwaf_ci
     steps:
+      - uses: ankane/setup-postgres@9a532808f26bd7aeb121293d7d2a06e3658237e3
+        with:
+          user: samwaf_ci
       - name: Download binary
         uses: actions/download-artifact@v4
         with:
@@ -209,7 +220,12 @@ jobs:
     runs-on: windows-2022
     needs: build-cross
     timeout-minutes: 10
+    env:
+      SAMWAF_PG_USER: samwaf_ci
     steps:
+      - uses: ankane/setup-postgres@9a532808f26bd7aeb121293d7d2a06e3658237e3
+        with:
+          user: samwaf_ci
       - name: Download binary
         uses: actions/download-artifact@v4
         with:
@@ -262,7 +278,12 @@ jobs:
     runs-on: macos-latest
     if: ${{ inputs.run_macos != false }}
     timeout-minutes: 40
+    env:
+      SAMWAF_PG_USER: samwaf_ci
     steps:
+      - uses: ankane/setup-postgres@9a532808f26bd7aeb121293d7d2a06e3658237e3
+        with:
+          user: samwaf_ci
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -444,7 +465,12 @@ jobs:
     needs: build-win7
     if: ${{ inputs.run_win7 != false }}
     timeout-minutes: 10
+    env:
+      SAMWAF_PG_USER: samwaf_ci
     steps:
+      - uses: ankane/setup-postgres@9a532808f26bd7aeb121293d7d2a06e3658237e3
+        with:
+          user: samwaf_ci
       - name: Download binary
         uses: actions/download-artifact@v4
         with:

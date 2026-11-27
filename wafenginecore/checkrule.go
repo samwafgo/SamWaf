@@ -1,6 +1,7 @@
 package wafenginecore
 
 import (
+	"SamWaf/cache"
 	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/innerbean"
@@ -172,10 +173,10 @@ func matchRules(ruleHelper *utils.RuleHelper, weblogbean *innerbean.WebLog, titl
 // salience 只在单个 KnowledgeBase 内排序，而站点和全局是两个独立的规则引擎，
 // 所以跨作用域的优先级必须在这里显式仲裁，否则用户在界面上填的"优先级"跨作用域就是空的。
 //
-//	1. 只有一侧命中 → 用那一侧
-//	2. 两侧都命中 → salience 高的一侧胜出
-//	3. salience 相同 → 按 拦截 > 放行 > 仅记录 取，保证偏安全，也和历史行为一致
-//	   （老配置站点和全局默认都是 salience 10，此时全局拦截依旧压过站点放行）
+//  1. 只有一侧命中 → 用那一侧
+//  2. 两侧都命中 → salience 高的一侧胜出
+//  3. salience 相同 → 按 拦截 > 放行 > 仅记录 取，保证偏安全，也和历史行为一致
+//     （老配置站点和全局默认都是 salience 10，此时全局拦截依旧压过站点放行）
 //
 // 两侧同为放行且同优先级时，跳过模块取并集、Title 拼接。
 func arbitrate(local, globalR ruleMatchResult) ruleMatchResult {
@@ -263,6 +264,10 @@ func (waf *WafEngine) CheckRule(r *http.Request, weblogbean *innerbean.WebLog, f
 		globalResult = matchRules(globalHost.Rule, weblogbean, "【全局】")
 	}
 
+	// 规则求值及阈值记录均可能读取共享后端，故障时不能进入“条件不成立”的放行分支。
+	if weblogbean.SecurityBackendError {
+		return detection.Result{BackendUnavailable: true}
+	}
 	final := arbitrate(localResult, globalResult)
 	if !final.Matched {
 		return result
@@ -280,9 +285,9 @@ func (waf *WafEngine) CheckRule(r *http.Request, weblogbean *innerbean.WebLog, f
 				banIP := model.GetClientIPByMode(hostTarget.Host.IPMode, weblogbean.NetSrcIp, weblogbean.SRC_IP)
 				if banIP != "" && final.Action.BanMinutes > 0 {
 					banKey := model.BuildRuleBanKey(hostTarget.Host.Code, banIP)
-					if !global.GCACHE_WAFCACHE.IsKeyExist(banKey) {
-						global.GCACHE_WAFCACHE.SetWithTTl(banKey, final.Action.BanMinutes,
-							time.Duration(final.Action.BanMinutes)*time.Minute)
+					// 原子写入且传播数据库故障；“只查再写”既会吞错，也会在跨 Worker 竞争时续期。
+					if _, err := cache.AddOnceE(global.GCACHE_WAFCACHE, banKey, final.Action.BanMinutes, time.Duration(final.Action.BanMinutes)*time.Minute); err != nil {
+						result.BackendUnavailable = true
 					}
 				}
 			}

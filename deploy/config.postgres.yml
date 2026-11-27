@@ -1,0 +1,29 @@
+# Copy to conf/config.yml. Pass the password as SAMWAF_PG_PASSWORD; it is not
+# written back into this file by the application.
+database:
+  # 正常 Worker 必须为 postgres；旧 SQLite 安装先离线迁移，不自动建空库替代。
+  driver: postgres
+  postgres:
+    host: postgres
+    port: 5432
+    user: samwaf
+    sslmode: disable
+    timezone: Asia/Shanghai
+    core_db: samwaf_core
+    log_db: samwaf_log
+    stats_db: samwaf_stats
+    max_open_conns: 50
+    max_idle_conns: 10
+cache:
+  # 与网页正文缓存分开：这里保存控制台凭据、验证码、封禁及防重放等状态。
+  type: postgres
+  postgres:
+    database: samwaf_cache
+    namespace: samwaf
+    pool_size: 32
+    op_timeout_seconds: 5
+    cleanup_seconds: 60
+web_cache:
+  # Aggregate L1 capacity across all sites in one worker. Each site's own
+  # cache_json also limits that site's L1/L2 capacity and individual objects.
+  l1_capacity_mb: 256

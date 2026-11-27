@@ -3,35 +3,39 @@ package innerbean
 import "strings"
 
 type WebLog struct {
-	WafInnerDFlag      string `gorm:"size:10" json:"waf_inner_dflag"` //日志队列处理方式
-	HOST               string `gorm:"size:255" json:"host"`
-	URL                string `gorm:"type:text" json:"url"`
-	RawQuery           string `gorm:"type:text" json:"raw_query"` //原始URL查询
-	REFERER            string `gorm:"type:text" json:"referer"`
-	USER_AGENT         string `gorm:"size:500" json:"user_agent"`
-	METHOD             string `gorm:"size:20" json:"method"`
-	HEADER             string `gorm:"type:text" json:"header"`
-	SRC_IP             string `gorm:"size:64" json:"src_ip"`
-	SRC_PORT           string `gorm:"size:10" json:"src_port"`
-	COUNTRY            string `gorm:"size:100" json:"country"`
-	PROVINCE           string `gorm:"size:100" json:"province"`
-	CITY               string `gorm:"size:100" json:"city"`
-	CREATE_TIME        string `gorm:"size:32;index:idx_weblog_time" json:"create_time"`
-	CONTENT_LENGTH     int64  `json:"content_length"`
-	RES_CONTENT_LENGTH int64  `json:"res_content_length"` //响应内容大小（字节）
-	COOKIES            string `gorm:"type:text" json:"cookies"`
-	BODY               string `gorm:"type:text" json:"body"`
-	REQ_UUID           string `gorm:"size:64" json:"req_uuid"`
-	USER_CODE          string `gorm:"size:64;index" json:"user_code"`
-	TenantId           string `gorm:"size:64;index" json:"tenant_id"` //租户ID（主要键）
-	HOST_CODE          string `gorm:"size:64" json:"host_code"`       //主机ID （主要键）
-	Day                int    `json:"day"`                            //日 （主要键）
-	ACTION             string `gorm:"size:100" json:"action"`
-	RULE               string `gorm:"type:text" json:"rule"`
-	STATUS             string `gorm:"size:50" json:"status"`      //状态
-	STATUS_CODE        int    `json:"status_code"`                //状态编码
-	RES_BODY           string `gorm:"type:text" json:"res_body"`  //返回信息
-	POST_FORM          string `gorm:"type:text" json:"post_form"` //提交的表单数据
+	// 内部故障标志不落库、不对外序列化，避免后端故障 503 又被计成访客失败或攻击证据。
+	SkipFailureCount     bool   `gorm:"-" json:"-"`
+	SecurityBackendError bool   `gorm:"-" json:"-"`
+	SecurityIP           string `gorm:"-" json:"-"`                     // 计数/封禁使用的站点身份，展示 IP 仍保留 SRC_IP。
+	WafInnerDFlag        string `gorm:"size:10" json:"waf_inner_dflag"` //日志队列处理方式
+	HOST                 string `gorm:"size:255" json:"host"`
+	URL                  string `gorm:"type:text" json:"url"`
+	RawQuery             string `gorm:"type:text" json:"raw_query"` //原始URL查询
+	REFERER              string `gorm:"type:text" json:"referer"`
+	USER_AGENT           string `gorm:"size:500" json:"user_agent"`
+	METHOD               string `gorm:"size:20" json:"method"`
+	HEADER               string `gorm:"type:text" json:"header"`
+	SRC_IP               string `gorm:"size:64" json:"src_ip"`
+	SRC_PORT             string `gorm:"size:10" json:"src_port"`
+	COUNTRY              string `gorm:"size:100" json:"country"`
+	PROVINCE             string `gorm:"size:100" json:"province"`
+	CITY                 string `gorm:"size:100" json:"city"`
+	CREATE_TIME          string `gorm:"size:32;index:idx_weblog_time" json:"create_time"`
+	CONTENT_LENGTH       int64  `json:"content_length"`
+	RES_CONTENT_LENGTH   int64  `json:"res_content_length"` //响应内容大小（字节）
+	COOKIES              string `gorm:"type:text" json:"cookies"`
+	BODY                 string `gorm:"type:text" json:"body"`
+	REQ_UUID             string `gorm:"size:64" json:"req_uuid"`
+	USER_CODE            string `gorm:"size:64;index" json:"user_code"`
+	TenantId             string `gorm:"size:64;index" json:"tenant_id"` //租户ID（主要键）
+	HOST_CODE            string `gorm:"size:64" json:"host_code"`       //主机ID （主要键）
+	Day                  int    `json:"day"`                            //日 （主要键）
+	ACTION               string `gorm:"size:100" json:"action"`
+	RULE                 string `gorm:"type:text" json:"rule"`
+	STATUS               string `gorm:"size:50" json:"status"`      //状态
+	STATUS_CODE          int    `json:"status_code"`                //状态编码
+	RES_BODY             string `gorm:"type:text" json:"res_body"`  //返回信息
+	POST_FORM            string `gorm:"type:text" json:"post_form"` //提交的表单数据
 	// ── S1 检测归一化副本（gorm:"-" 不落库、json:"-" 不外传，仅供各 check 使用）──
 	BodyDecoded          string   `gorm:"-" json:"-"`                                                        //body 多轮URL解码（RCE 等按整串匹配用）
 	CookiesDecoded       string   `gorm:"-" json:"-"`                                                        //cookie 多轮URL解码
@@ -158,8 +162,22 @@ func (w *WebLog) GetIPFailureCount(minutes int64) int64 {
 		}
 	}
 
-	// 直接调用IP失败管理器（延迟导入避免编译时循环依赖）
-	return getIPFailureCount(w.SRC_IP, minutes)
+	// 与 CC/黑名单使用同一站点 IP 模式，后端故障留下请求内部标志供规则链返回 503。
+	ip := w.SecurityIP
+	if ip == "" {
+		ip = w.SRC_IP
+	}
+	if getIPFailureCountE != nil {
+		count, err := getIPFailureCountE(ip, minutes)
+		if err != nil {
+			w.SecurityBackendError = true
+		}
+		return count
+	}
+	if getIPFailureCount == nil {
+		return 0
+	}
+	return getIPFailureCount(ip, minutes)
 }
 
 // RecordIPFailureThreshold 记录IP失败封禁的阈值信息（当规则匹配时调用）
@@ -184,8 +202,18 @@ func (w *WebLog) RecordIPFailureThreshold(minutes int64, count int64) {
 	}
 
 	// 调用IP失败管理器记录阈值（延迟导入避免编译时循环依赖）
+	ip := w.SecurityIP
+	if ip == "" {
+		ip = w.SRC_IP
+	}
+	if recordIPFailureThresholdE != nil {
+		if err := recordIPFailureThresholdE(ip, minutes, count); err != nil {
+			w.SecurityBackendError = true
+		}
+		return
+	}
 	if recordIPFailureThreshold != nil {
-		recordIPFailureThreshold(w.SRC_IP, minutes, count)
+		recordIPFailureThreshold(ip, minutes, count)
 	}
 }
 
@@ -203,6 +231,19 @@ var getIPFailureCount func(string, int64) int64
 // SetIPFailureCountGetter 设置IP失败次数获取函数
 func SetIPFailureCountGetter(fn func(string, int64) int64) {
 	getIPFailureCount = fn
+	getIPFailureCountE = nil
+}
+
+// 错误感知回调用于正常 Worker；旧回调仅保留兼容测试/插件入口。
+var getIPFailureCountE func(string, int64) (int64, error)
+var recordIPFailureThresholdE func(string, int64, int64) error
+
+// SetIPFailureCountGetterE 安装能区分未命中与后端错误的计数读取。
+func SetIPFailureCountGetterE(fn func(string, int64) (int64, error)) { getIPFailureCountE = fn }
+
+// SetIPFailureThresholdRecorderE 安装事务化阈值记录器。
+func SetIPFailureThresholdRecorderE(fn func(string, int64, int64) error) {
+	recordIPFailureThresholdE = fn
 }
 
 // recordIPFailureThreshold 记录IP失败封禁阈值（通过函数变量实现延迟导入）
@@ -211,6 +252,7 @@ var recordIPFailureThreshold func(string, int64, int64)
 // SetIPFailureThresholdRecorder 设置IP失败封禁阈值记录函数
 func SetIPFailureThresholdRecorder(fn func(string, int64, int64)) {
 	recordIPFailureThreshold = fn
+	recordIPFailureThresholdE = nil
 }
 
 type WAFLog struct {

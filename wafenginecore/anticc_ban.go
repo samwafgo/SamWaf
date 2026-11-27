@@ -3,7 +3,6 @@ package wafenginecore
 import (
 	"SamWaf/global"
 	"SamWaf/innerbean"
-	"SamWaf/model"
 	"strings"
 	"time"
 )
@@ -11,25 +10,6 @@ import (
 // ccBanNotifyThrottle 同一封禁键的提醒推送间隔。
 // 被封 IP 会持续重试，逐请求推送会把消息队列刷爆（反向代理环路告警用的是同一套节流思路）。
 const ccBanNotifyThrottle = 5 * time.Minute
-
-// matchCCBan 判断该站点的这个客户端当前是否处于 CC 封禁期。
-// 依次查全局作用域、本站点作用域，以及升级前写入的旧格式键；命中返回具体的键，便于取时长与做节流。
-func matchCCBan(hostCode, netSrcIP, srcIP, ipMode string) (hitKey string, clientIP string) {
-	if global.GCACHE_WAFCACHE == nil {
-		return "", ""
-	}
-	clientIP = model.GetClientIPByMode(ipMode, netSrcIP, srcIP)
-	if clientIP == "" {
-		return "", ""
-	}
-	keys := append(model.CCBanLookupKeys(hostCode, clientIP), model.LegacyCCBanKey(clientIP))
-	for _, key := range keys {
-		if global.GCACHE_WAFCACHE.IsKeyExist(key) {
-			return key, clientIP
-		}
-	}
-	return "", clientIP
-}
 
 func ccBanLog(log *innerbean.WebLog, responseCode int) *innerbean.WebLog {
 	recorded := *log

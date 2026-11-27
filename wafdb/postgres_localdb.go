@@ -9,6 +9,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/wafdb/dialect"
 	"fmt"
+	"strings"
 	"time"
 
 	pgdriver "gorm.io/driver/postgres"
@@ -105,10 +106,14 @@ func buildPGDSN(dbName string) string {
 	)
 }
 
-// pgIdent quotes an identifier for DDL built here (database names).
+// pgIdent 为建库 DDL 引用数据库标识符；标识符不能当作 SQL 参数绑定，内部双引号必须转义。
 func pgIdent(name string) string {
-	return `"` + name + `"`
+	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
 }
+
+// EnsurePostgresDatabase 在 KV 初始化前准备独立缓存数据库。
+// 有建库权限时创建；无权限但库已可连接时正常继续，不删除或覆盖既有库。
+func EnsurePostgresDatabase(name string) error { return ensurePostgresDatabase(name) }
 
 // openPostgresDB opens a GORM connection to the named PostgreSQL database,
 // applying connection pool settings from global config.

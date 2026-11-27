@@ -23,9 +23,11 @@ import (
 	"SamWaf/wafcli"
 	"SamWaf/wafconfig"
 	"SamWaf/wafdb"
+	"SamWaf/wafdb/dialect"
 	"SamWaf/wafdiag"
 	"SamWaf/wafenginecore"
 	"SamWaf/wafenginecore/wafcaptcha"
+	"SamWaf/wafenginecore/wafwebcache"
 	"SamWaf/wafhostguard"
 	"SamWaf/wafinit"
 	"SamWaf/wafipban"
@@ -42,6 +44,7 @@ import (
 	"SamWaf/waftask"
 	"SamWaf/waftunnelengine"
 	"SamWaf/wafupdate"
+	"context"
 	"crypto/tls"
 	"embed"
 	_ "embed"
@@ -233,8 +236,20 @@ func (m *wafSystenService) run() {
 	}
 	//TODO 准备释放最新spider bot
 
-	//初始化cache
+	// 初始化持久业务状态缓存，网站正文容量与此后端完全分开。
 	{
+		// 迁移必须显式执行；不能把错误/旧驱动配置静默解释成空的内存或 SQLite 实例。
+		if global.GWAF_DB_DRIVER != "postgres" || global.GCACHE_TYPE != "postgres" {
+			zlog.Error("此版本运行需要 database.driver=postgres 和 cache.type=postgres；旧数据请先备份并运行 migratedb --from=sqlite --to=postgres，验证后再切换配置")
+			os.Exit(1)
+		}
+		// KV 在主库迁移前就会用于验证码等组件，因此先准备其独立数据库和 schema。
+		if err := wafdb.EnsurePostgresDatabase(global.GCACHE_PG_DATABASE); err != nil {
+			zlog.Error("初始化 PostgreSQL 缓存数据库失败", "error", err)
+			os.Exit(1)
+		}
+		// 全局 L1 配额按当前 Worker 汇总，站点自己的配额还会在准入时再次限制。
+		wafwebcache.ConfigureL1Capacity(global.GCACHE_WEB_L1_CAPACITY_MB * (1 << 20))
 		cacheStore, err := cache.NewCacheStore(global.GCACHE_TYPE, &cache.RedisCacheConfig{
 			Host:        global.GCACHE_REDIS_HOST,
 			Port:        global.GCACHE_REDIS_PORT,
@@ -243,10 +258,20 @@ func (m *wafSystenService) run() {
 			PoolSize:    global.GCACHE_REDIS_POOL_SIZE,
 			PoolTimeout: time.Duration(global.GCACHE_REDIS_POOL_TIMEOUT_SEC) * time.Second,
 			OpTimeout:   time.Duration(global.GCACHE_REDIS_OP_TIMEOUT_SEC) * time.Second,
+		}, &cache.PostgresCacheConfig{
+			DSN:             dialect.BuildPostgresDSN(global.GWAF_PG_HOST, global.GWAF_PG_PORT, global.GWAF_PG_USER, global.GWAF_PG_PASSWORD, global.GCACHE_PG_DATABASE, global.GWAF_PG_SSLMODE, global.GWAF_PG_TIMEZONE),
+			Namespace:       global.GCACHE_PG_NAMESPACE,
+			PoolSize:        global.GCACHE_PG_POOL_SIZE,
+			OpTimeout:       time.Duration(global.GCACHE_PG_OP_TIMEOUT_SEC) * time.Second,
+			CleanupInterval: time.Duration(global.GCACHE_PG_CLEANUP_SEC) * time.Second,
 		})
 		if err != nil {
 			zlog.Error("初始化缓存失败，程序退出，请检查conf/config.yml缓存配置是否正确", "error", err)
 			os.Exit(1)
+		}
+		// 计数与封禁状态共享同一 namespace；多 Worker 不再把一个站点的 CC 阈值乘以进程数。
+		if shared, ok := cacheStore.(cache.SecurityCounterStore); ok {
+			wafenginecore.GCCCounter.UseSharedStore(shared)
 		}
 		global.GCACHE_WAFCACHE = cacheStore
 		// 缓存后端决定了令牌等凭证放在哪里，排障时是第一个要确认的事实，启动就写进日志。
@@ -375,6 +400,11 @@ func (m *wafSystenService) run() {
 		zlog.Error("初始化核心数据库失败，程序退出，请检查conf/config.yml数据库配置是否正确", "error", err)
 		os.Exit(1)
 	}
+	// 手工系统封禁有持久记录时，必须在接流量前完成内核重放，不能只显示数据库状态。
+	if err := waf_service.RestoreSystemBansOnStartup(); err != nil {
+		zlog.Error("恢复系统封禁失败，停止启动", "error", err)
+		os.Exit(1)
+	}
 	//存量敏感字段静态加密迁移：把旧格式密文一次性重写为每实例 DEK 密文(幂等，单行失败跳过)。
 	wafdb.MigrateDataKeyEncryption(global.GWAF_LOCAL_DB)
 	if _, err := wafdb.InitLogDb(""); err != nil {
@@ -475,6 +505,7 @@ func (m *wafSystenService) run() {
 		EngineCurrentStatus: 0, // 当前waf引擎状态
 		Sensitive:           make([]model.Sensitive, 0),
 		PluginManager:       globalobj.GWAF_RUNTIME_OBJ_PLUGIN_MANAGER, // 设置插件管理器
+		SystemBanReconciler: waf_service.PeriodicSystemBanReconcile,    // 手工内核策略有独立重试，不阻塞 IP 名单版本检查。
 	}
 	//初始化路由快照(RCU 空表)，之后 StartWaf→LoadAllHost 通过 copy-on-write 填充
 	globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.InitRouting()
@@ -490,7 +521,10 @@ func (m *wafSystenService) run() {
 	//所以这一行的作用是把真实策略尽早顶上去。
 	waf_service.WafAccessConfigServiceApp.PublishConfig()
 	http.Handle("/", globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE)
-	globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartWaf()
+	if err := globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.StartWaf(); err != nil {
+		zlog.Error("加载 IP 安全名单失败，停止启动", "error", err)
+		os.Exit(1)
+	}
 
 	//启动隧道
 	tunnelEngine := waftunnelengine.NewWafTunnelEngine()
@@ -665,16 +699,12 @@ func (m *wafSystenService) run() {
 					zlog.Debug("远程配置", zap.Any("UrlWhiteLists", urlWhiteLists))
 					break
 				case enums.ChanTypeBlockIP:
-					ipBlockLists := msg.Content.([]model.IPBlockList)
-					// 同上：编译与抽取放在 mutator 外面，mutator 里只做字段赋值
-					ipBlockIndex := wafenginecore.BuildIPBlockIndex(ipBlockLists)
-					ipBlockGroupCodes := wafenginecore.ExtractBlockGroupCodes(ipBlockLists)
-					globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.UpdateHost(msg.HostCode, func(h *wafenginmodel.HostSafe) {
-						h.IPBlockLists = ipBlockLists
-						h.IPBlockIndex = ipBlockIndex
-						h.IPBlockGroupCodes = ipBlockGroupCodes
-					})
-					zlog.Debug("远程配置", zap.Any("IPBlockLists", msg))
+					// 从数据库重新读取当前一致快照，不能让排队的旧消息覆盖版本同步器刚发布的新名单。
+					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					if err := globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE.ReloadIPBlocks(ctx, global.GWAF_LOCAL_DB); err != nil {
+						zlog.Error("IP 黑名单重载失败，保留旧快照并等待重试")
+					}
+					cancel()
 					break
 				case enums.ChanTypeBlockURL:
 					urlBlockLists := msg.Content.([]model.URLBlockList)
@@ -1131,7 +1161,11 @@ func (m *wafSystenService) Graceful() {
 		zlog.Info("Shutdown SamWaf LogExport...")
 		logExportWorkerLifecycle.stop(waf_service.WafLogExportServiceApp.Stop)
 		zlog.Info("Shutdown SamWaf LogExport finished")
-		m.stopSamWaf()           // 内部 CloseWaf→StopAllProxyServer 已优雅排空在途连接
+		m.stopSamWaf() // 内部 CloseWaf→StopAllProxyServer 已优雅排空在途连接
+		// 先排空代理，再停 KV 清理并关闭其池，避免在途鉴权访问已关闭连接。
+		if closer, ok := global.GCACHE_WAFCACHE.(interface{ Close() error }); ok {
+			_ = closer.Close()
+		}
 		wafsafeclear.SafeClear() // 最后关闭数据库连接
 		zlog.Info("[Graceful] 优雅停止完成")
 	})
@@ -1153,6 +1187,10 @@ func main() {
 				os.Exit(wafcli.ReportStartupFailure())
 			}
 		}()
+	}
+	// eBPF 本机维护必须在数据库/密钥/服务初始化前可用，故障回退不依赖控制台正常运行。
+	if len(os.Args) > 1 && os.Args[1] == "ebpf" {
+		os.Exit(wafcli.Execute(wafcli.Deps{}))
 	}
 	global.GWAF_WEB_VERSION = public.WebFrontendVersion()
 	fmt.Println(`

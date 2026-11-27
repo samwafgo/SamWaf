@@ -31,6 +31,22 @@ func (wafCache *WafCache) Set(key string, value interface{}) {
 	wafCache.SetWithTTl(key, value, 100*365*24*time.Hour)
 }
 
+// AddWithTTL 在同一临界区检查并占用键，为内存适配器提供与 PostgreSQL 相同的原子新增契约。
+// 未到期键不覆盖，正 TTL 才允许新增；不能拆成 IsKeyExist 后再 Set。
+func (wafCache *WafCache) AddWithTTL(key string, value interface{}, ttl time.Duration) (bool, error) {
+	wafCache.mu.Lock()
+	defer wafCache.mu.Unlock()
+	now := time.Now()
+	if item, ok := wafCache.cache[key]; ok && now.Before(item.expireTime) {
+		return false, nil
+	}
+	if ttl <= 0 {
+		return false, nil
+	}
+	wafCache.cache[key] = WafCacheItem{value: value, createTime: now, expireTime: now.Add(ttl), ttl: ttl}
+	return true, nil
+}
+
 // SetWithTTl 写入并设置存活时长。
 //
 // 注意语义（踩过坑，别再改回去）：对**已存在**的 key 会沿用原 createTime，
@@ -117,6 +133,7 @@ func (wafCache *WafCache) IsKeyExist(key string) bool {
 	delete(wafCache.cache, key)
 	return false
 }
+
 // ExistsE 内存实现不会有后端故障，error 恒为 nil
 func (wafCache *WafCache) ExistsE(key string) (bool, error) {
 	return wafCache.IsKeyExist(key), nil

@@ -137,15 +137,15 @@ func TestReadRequestBodyEmpty(t *testing.T) {
 	}
 }
 
-// TestReadRequestBodyCacheBranchFullRead 缓存分支保持全量读取（缓存键与内容需要完整请求体）。
-func TestReadRequestBodyCacheBranchFullRead(t *testing.T) {
+// Enabling the public response cache must not turn uploads into full copies.
+func TestReadRequestBodyCacheBranchBounded(t *testing.T) {
 	payload := bytes.Repeat([]byte("C"), 2<<20) // 2 MB
 	req := newBodyRequest(t, payload, false)
 	waf := &WafEngine{}
 
 	got := waf.readRequestBodyForDetect(req, true)
-	if int64(len(got)) != int64(len(payload)) {
-		t.Fatalf("缓存分支应全量读取，得到%d字节，期望%d字节", len(got), len(payload))
+	if int64(len(got)) != detectBodyReadLimit {
+		t.Fatalf("缓存开启时检测输入仍应封顶，得到%d字节，期望%d字节", len(got), detectBodyReadLimit)
 	}
 	rest, err := io.ReadAll(req.Body)
 	if err != nil {

@@ -1,0 +1,47 @@
+services:
+  # 数据库不映射宿主端口，应用通过 Compose 内部网络访问；数据卷与应用 L2 分开持久化。
+  postgres:
+    build:
+      context: ..
+      dockerfile: deploy/postgres/Dockerfile
+    environment:
+      # 首次初始化的角色可创建主、日志、统计和 KV 数据库；口令由运行环境注入。
+      POSTGRES_USER: samwaf
+      POSTGRES_DB: samwaf_core
+      POSTGRES_PASSWORD: ${SAMWAF_PG_PASSWORD:?Set SAMWAF_PG_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # 应用依赖数据库可接受连接，扩展注册和各库迁移由应用启动流程处理。
+      test: ["CMD-SHELL", "pg_isready -U samwaf -d samwaf_core"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  samwaf:
+    # 构建当前工作区的改动，不能替换成不含这些实现的上游发布镜像。
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: samwaf:tiered-postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # 只传连接目标和口令；服务端默认同时选择 PostgreSQL 数据库与 KV 后端。
+      SAMWAF_PG_HOST: postgres
+      SAMWAF_PG_USER: samwaf
+      SAMWAF_PG_PASSWORD: ${SAMWAF_PG_PASSWORD:?Set SAMWAF_PG_PASSWORD}
+    ports:
+      - "26666:26666"
+      - "80:80"
+      - "443:443"
+    volumes:
+      # 路径相对于本文件；data 挂载保留密钥及 L2，避免重建容器后产生空的持久层。
+      - ../conf:/app/conf
+      - ../data:/app/data
+      - ../logs:/app/logs
+      - ../ssl:/app/ssl
+    restart: unless-stopped
+volumes:
+  postgres_data:

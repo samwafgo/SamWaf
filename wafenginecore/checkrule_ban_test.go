@@ -7,6 +7,7 @@ import (
 	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/utils"
+	"context"
 	"testing"
 	"time"
 )
@@ -53,7 +54,12 @@ func checkRuleBanWithoutSeparateSwitch(t *testing.T) {
 	if !expires.Equal(after) {
 		t.Fatal("repeated matches must not renew the ban")
 	}
-	if hit, _ := matchRuleBan("other-site", log.NetSrcIp, log.SRC_IP, host.Host.IPMode); hit != "" {
+	// 合并查询保留站点隔离语义；同时检查后端错误，不能以错误结果证明“未封禁”。
+	other, lookupErr := lookupIPBans(context.Background(), "other-site", log.NetSrcIp, log.SRC_IP, host.Host.IPMode)
+	if lookupErr != nil {
+		t.Fatal(lookupErr)
+	}
+	if other.RuleKey != "" {
 		t.Fatal("ban must be scoped to the triggering host")
 	}
 

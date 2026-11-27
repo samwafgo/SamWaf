@@ -1,6 +1,7 @@
 package wafcli
 
-// 与 SamWafWeb host/constants.js INITIAL_DATA 保持一致；static_site_json 的四类默认值与引擎保持一致。
+// 复用控制台的站点初始字段；本分支 cache_json 使用 L1/L2 的有限默认预算。
+// 旧前端的 memory/file/all 值由后端兼容解释；静态站点四类安全默认值与引擎一致。
 const createDefaultsJSON = `{
   "ssl": 0,
   "remote_system": "默认",
@@ -21,7 +22,7 @@ const createDefaultsJSON = `{
   "is_enable_response_buffering": 1,
   "insecure_skip_verify": 0,
   "anti_leech_json": "{\"is_enable_anti_leech\":0,\"file_types\":\"gif|jpg|jpeg|png|bmp|swf\",\"valid_referers\":\"none;server_names\",\"action\":\"block\",\"redirect_url\":\"\"}",
-  "cache_json": "{\"is_enable_cache\":0,\"cache_location\":\"memory\",\"cache_dir\":\"./data/cache\",\"max_file_size_mb\":0,\"max_memory_size_mb\":0}",
+  "cache_json": "{\"is_enable_cache\":0,\"cache_location\":\"tiered\",\"cache_dir\":\"./data/cache\",\"max_file_size_mb\":32,\"max_memory_size_mb\":4,\"l1_capacity_mb\":64,\"l2_capacity_mb\":1024,\"heat_threshold\":3,\"heat_window_seconds\":5400,\"inactive_seconds\":86400,\"max_entries\":100000,\"lock_timeout_seconds\":5,\"min_free_mb\":64}",
   "response_compress_json": "{\"is_enable\":0,\"prefer\":\"zstd_first\",\"min_length\":256,\"include_types\":\"\",\"include_extensions\":\"\",\"exclude_extensions\":\"\",\"exclude_paths\":\"\",\"compress_when_static_assist\":0}",
   "cookie_security_json": "{\"is_enable\":0,\"http_only\":1,\"secure\":2,\"same_site\":\"Lax\",\"exclude_cookies\":\"\"}",
   "csrf_json": "{\"is_enable\":0,\"protect_methods\":\"POST,PUT,DELETE,PATCH\",\"allowed_origins\":\"\",\"allow_empty_ref\":1,\"exclude_paths\":\"\"}",

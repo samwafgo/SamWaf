@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"SamWaf/cache"
 	"SamWaf/enums"
 	"SamWaf/global"
 	"SamWaf/model/common/response"
@@ -81,6 +82,24 @@ func ReplayProtect() gin.HandlerFunc {
 			return
 		}
 		cacheKey := enums.CACHE_REPLAY_NONCE + nonce
+		// 多请求/Worker 共享 nonce 存储，必须原子占用，先查再写会让两个重放请求同时通过。
+		if store, ok := global.GCACHE_WAFCACHE.(cache.AtomicAdder); ok {
+			added, err := store.AddWithTTL(cacheKey, true, replayNonceTTL)
+			if err != nil {
+				// 后端暂不可用时拒绝本次操作，不能把「没查到」当作「尚未使用」。
+				response.BackendUnavailableWithMessage("服务暂时不可用，请稍后重试", c)
+				c.Abort()
+				return
+			}
+			if !added {
+				response.FailWithMessage("重复请求，已拒绝", c)
+				c.Abort()
+				return
+			}
+			c.Next()
+			return
+		}
+		// 仅兼容没有原子能力的旧适配器/测试替身；正常 PostgreSQL 后端走上面的原子路径。
 		if global.GCACHE_WAFCACHE.IsKeyExist(cacheKey) {
 			response.FailWithMessage("重复请求，已拒绝", c)
 			c.Abort()

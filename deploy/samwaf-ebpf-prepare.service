@@ -1,0 +1,15 @@
+[Unit]
+Description=Prepare SamWAF dedicated eBPF filesystem
+Before=samwaf.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/samwaf/ebpf.env
+ExecStart=/usr/local/libexec/samwaf-ebpf-prepare
+RemainAfterExit=yes
+NoNewPrivileges=yes
+# 挂载只由这个一次性进程完成；不能启用 PrivateMounts/ProtectSystem 造成挂载留在私有命名空间。
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_CHOWN CAP_FOWNER CAP_DAC_OVERRIDE
+
+[Install]
+WantedBy=multi-user.target

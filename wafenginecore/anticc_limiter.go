@@ -1,6 +1,7 @@
 package wafenginecore
 
 import (
+	"SamWaf/cache"
 	"SamWaf/common/zlog"
 	"SamWaf/global"
 	"SamWaf/model"
@@ -8,6 +9,8 @@ import (
 	"SamWaf/utils"
 	"SamWaf/wafenginecore/ccrule"
 	"SamWaf/webplugin"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 
 	"golang.org/x/time/rate"
@@ -49,6 +52,25 @@ func BuildIPRateLimiter(antiCC model.AntiCC, hostName string) *webplugin.IPRateL
 		limiter.Rule = &utils.RuleHelper{}
 		limiter.Rule.InitRuleEngine()
 		limiter.Rule.LoadRuleString(antiCC.RuleContent)
+	}
+	// PostgreSQL 内部完成令牌桶/精确滑动窗口，多个 Worker 不再各自拥有一份完整额度。
+	if shared, ok := global.GCACHE_WAFCACHE.(cache.SecurityCounterStore); ok {
+		mode := "rate"
+		if antiCC.LimitMode == "window" {
+			mode = "window"
+		}
+		scope := fmt.Sprintf("legacy|%s|%s|%d|%d", antiCC.Id, mode, window, antiCC.Limit)
+		limiter.SharedAllow = func(ip string) (bool, error) {
+			sum := sha256.Sum256([]byte(ip))
+			_, allowed, degraded, rejected, err := shared.SecurityCount(scope, hex.EncodeToString(sum[:]), mode, window, antiCC.Limit, 200000, 50000)
+			if err != nil {
+				return false, err
+			}
+			if degraded || rejected {
+				return false, cache.ErrCacheBackend
+			}
+			return allowed, nil
+		}
 	}
 	return limiter
 }

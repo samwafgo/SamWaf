@@ -289,7 +289,10 @@ func buildLogQuery(req request.WafAttackLogSearch, shardName string, ignoreTime 
 		}
 		// 历史分区不跑迁移，早年切出来的可能没有这些索引：有才强制，没有交给优化器
 		if strings.Contains(whereField, "unix_add_time") && !strings.Contains(whereField, "src_ip") {
-			if wafdb.ShardHasIndex(logDB, shardName, logTable, idxTime) {
+			if len(req.HostCode) > 0 && strings.HasPrefix(logTable, model.AccessLogTableName) &&
+				wafdb.ShardHasIndex(logDB, shardName, logTable, "idx_al_host_time") {
+				forceIndex = dialect.Get().ForceIndexClause(logTable, "idx_al_host_time")
+			} else if wafdb.ShardHasIndex(logDB, shardName, logTable, idxTime) {
 				forceIndex = dialect.Get().ForceIndexClause(logTable, idxTime)
 			}
 		} else if strings.Contains(whereField, "src_ip") {

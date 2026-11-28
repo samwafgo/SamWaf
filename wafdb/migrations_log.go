@@ -537,6 +537,25 @@ func RunLogDBMigrations(db *gorm.DB) error {
 			// 保留审计明细；旧版本仍可读取原有列。
 			Rollback: func(tx *gorm.DB) error { return nil },
 		},
+		{
+			ID: "202611280001_add_access_log_host_time_index",
+			Migrate: func(tx *gorm.DB) error {
+				if !tx.Migrator().HasTable(model.AccessLogTableName) {
+					return nil
+				}
+				start := time.Now()
+				if err := safeCreateIndex(tx, model.AccessLogTableName, "idx_al_host_time",
+					"CREATE INDEX IF NOT EXISTS idx_al_host_time ON access_log (tenant_id, user_code, host_code, unix_add_time desc)"); err != nil {
+					zlog.Warn("创建索引失败", "index", "idx_al_host_time", "error", err.Error())
+					return nil
+				}
+				zlog.Info("索引创建完成", "index", "idx_al_host_time", "耗时", time.Since(start).String())
+				return nil
+			},
+			Rollback: func(tx *gorm.DB) error {
+				return safeDropIndex(tx, model.AccessLogTableName, "idx_al_host_time")
+			},
+		},
 	})
 
 	// 执行迁移

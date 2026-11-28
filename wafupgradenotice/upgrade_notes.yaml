@@ -1776,3 +1776,31 @@ notes:
         and file export is now truncated at the same 'max recorded request body size' limit before
         enqueue.
       revert: No switch is provided. If an occasional large-body request is blocked by mistake, whitelist its path for the site or tune the rule as usual.
+
+  - id: v1_3_25_multipart_binary_body_sqli
+    version: v1.3.25
+    kind: notice
+    level: normal
+    page: /sys/SystemConfig
+    apply:
+      type: navigate
+    zh:
+      title: 文件上传与二进制请求体按内容类型分流检测，支持 SQL 注入指纹豁免
+      detail: >-
+        对 multipart/form-data 请求，SQL 注入、XSS、命令执行与目录穿越检测现提取非文件文本字段（含内嵌 JSON 字符串值）逐项检查，
+        带文件名的上传文件内容交由「文件上传检测」模块处理，不再把图片或附件的原始二进制字节整块送入文本检测；
+        声明且确认为二进制格式的请求体（如 image/jpeg、application/octet-stream 等，不含 SVG）同样跳过整块文本匹配。
+        URL 查询串与标准表单字段保持直接拦截，其余未归类的纯文本请求体统一遵循 body_detect_mode（观察/拦截/关闭）模式。
+        「参数设置」新增 sqli_fp_exclude 配置项，可填入逗号分隔的 SQL 注入指纹码（区分大小写，默认留空）按需豁免特定指纹。
+      revert: 默认无需调整配置；若填写了 sqli_fp_exclude，清空保存即可恢复全部默认指纹检测。
+    en:
+      title: Content-type-aware inspection for file uploads and binary bodies, plus SQLi fingerprint exclusions
+      detail: >-
+        For multipart/form-data requests, SQL injection, XSS, command execution and directory traversal checks now extract
+        and inspect non-file text fields (including embedded JSON string values), while uploaded file parts carrying a filename
+        are handled by Upload Security instead of feeding raw image or attachment bytes into text scanners. Request bodies
+        declared and verified as binary formats (such as image/jpeg or application/octet-stream, excluding SVG) likewise skip
+        whole-body text matching. Query strings and standard form fields continue to block directly, while unclassified plain-text
+        bodies follow body_detect_mode (observe, block or off). A new sqli_fp_exclude setting under Parameter Settings accepts
+        a comma-separated, case-sensitive list of SQLi fingerprints (empty by default) to exempt specific fingerprints when needed.
+      revert: No configuration change is required by default. Clear sqli_fp_exclude and save to restore all built-in fingerprints.

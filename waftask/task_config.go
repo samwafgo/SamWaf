@@ -437,6 +437,10 @@ func setConfigStringValue(name string, value string, change int) {
 		global.GCONFIG_BODY_DETECT_FIELD_EXCLUDE = value
 		wafenginecore.SetBodyDetectFieldExclude(value) // 同步解析成 RCU 排除集
 		break
+	case "sqli_fp_exclude":
+		global.GCONFIG_SQLI_FP_EXCLUDE = value
+		wafenginecore.SetSQLiFingerprintExclude(value) // 同步解析成 RCU 指纹豁免集
+		break
 	case "kafka_url":
 		global.GCONFIG_RECORD_KAFKA_URL = value
 		break
@@ -811,6 +815,7 @@ func TaskLoadSetting(initLoad bool) {
 	updateConfigStringItem(initLoad, "system", "ai_mode", global.GCONFIG_AI_MODE, "AI检测工作模式：observe(仅记录/观察) block(达拦截阈值则拦截)", "options", "observe|仅记录,block|拦截", configMap)
 	updateConfigStringItem(initLoad, "system", "body_detect_mode", global.GCONFIG_BODY_DETECT_MODE, "请求体深度检测模式(formValue/JSON 逐值 XSS/SQLi/RCE)：observe 观察(命中只记录不拦,默认) block 拦截(命中即拦) off 关闭。默认 observe 避免误伤正常 JSON/表单流量，观察日志确认无误后再切 block；查询串检测不受影响始终拦截", "options", "observe|观察(只记录),block|拦截,off|关闭", configMap)
 	updateConfigStringItem(initLoad, "system", "body_detect_field_exclude", global.GCONFIG_BODY_DETECT_FIELD_EXCLUDE, "请求体深检字段排除清单(逗号分隔字段名,不区分大小写)。这些字段名下的表单值/JSON值(匹配直接父键名)跳过 XSS/SQLi/RCE 深检，用于放行已知携带富文本/HTML/代码的合法字段(如 content,html,markdown)，压 block 模式误报。看观察日志里是哪些字段误报再填", "string", "", configMap)
+	updateConfigStringItem(initLoad, "system", "sqli_fp_exclude", global.GCONFIG_SQLI_FP_EXCLUDE, "SQL注入指纹豁免清单(逗号分隔,严格区分大小写,默认空)。若个别正常业务参数固定命中某条 libinjection 内置指纹(如 s)o1,son;n)，可在此填入指纹码精准豁免，无需关闭整站SQL注入防护", "string", "", configMap)
 	updateConfigIntItem(initLoad, "system", "rule_chain_mode", global.GCONFIG_RULE_CHAIN_MODE, "自定义规则在检测链中的位置（0默认：排在CC之后；1规则优先：排在黑名单之后、Bot/SQLI/XSS等之前，此时规则的放行动作才能跳过这些检测）", "int", "", configMap)
 
 	updateConfigIntItem(initLoad, "access", "access_enable", global.GCONFIG_ACCESS_ENABLE, "统一访问认证总开关：开启后所有被WAF代理的站点默认都需先登录才能访问（可在站点里单独强制开/关，也可配置免认证路径与IP组）。请先在【统一访问认证-访问账号】里建好账号再开启", "options", "0|关闭,1|开启", configMap)

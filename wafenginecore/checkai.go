@@ -38,12 +38,19 @@ func (waf *WafEngine) CheckAI(r *http.Request, weblogbean *innerbean.WebLog, for
 		return result
 	}
 
-	// 取请求关键字段做特征：path 与 query 分离，body 用解密后的明文
+	ensureWebLogBodyClassified(r, weblogbean, &formValue)
+
+	// 取请求关键字段做特征：path 与 query 分离；二进制体不喂原始乱码字节，multipart 只取提取出的文本部分
 	path := ""
 	if r != nil && r.URL != nil {
 		path = r.URL.Path
 	}
 	body := weblogbean.BODY
+	if weblogbean.IsBinaryBody {
+		body = ""
+	} else if weblogbean.IsMultipart {
+		body = weblogbean.MultipartText
+	}
 	if body == "" {
 		body = weblogbean.POST_FORM
 	}

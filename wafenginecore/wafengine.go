@@ -342,29 +342,8 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		formValues := url.Values{}
-		if strings.Contains(r.Header.Get("Content-Type"), "application/x-www-form-urlencoded") {
-			// 解码 x-www-form-urlencoded 数据
-			formValuest, err := url.ParseQuery(weblogbean.BODY)
-			if err == nil {
-				formValues = formValuest
-			} else {
-				fmt.Println("解码失败:", err)
-				fmt.Println("解码失败:", weblogbean.BODY)
-			}
-		}
-
-		// S1 归一化：为检测生成解码副本（原文保留用于落库/展示），覆盖 body、cookie
-		// 及多层编码的表单值绕过面；各 check 改吃这些解码副本。
-		weblogbean.BodyDecoded = wafhttpcore.NormalizeForDetection(weblogbean.BODY)
-		weblogbean.CookiesDecoded = wafhttpcore.NormalizeForDetection(weblogbean.COOKIES)
-		// JSON 体逐值提取（json 解析天然解 \uXXXX）+ 直接父键名，供 XSS/SQLi 逐值检测(避免整块喂
-		// libinjection 造成误报)与“按字段排除”(E)
-		weblogbean.BodyFields, weblogbean.BodyValues = wafhttpcore.ExtractJSONFieldValues(weblogbean.BODY)
-		for k, vals := range formValues {
-			for i, v := range vals {
-				formValues[k][i] = wafhttpcore.NormalizeForDetection(v)
-			}
-		}
+		truncatedAtBudget := cacheConfig.IsEnableCache != 1 && int64(len(bodyByte)) >= detectBodyReadLimit
+		classifyWebLogBody(r, &weblogbean, bodyByte, truncatedAtBudget, &formValues)
 
 		if target := httpsRedirectTarget(r, route, hostTarget.Host); target != "" {
 			zlog.Info(innerLogName, "jump https", "site", hostTarget.Host.Host)
@@ -794,8 +773,8 @@ func (waf *WafEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// 日志保存时候也是脱敏保存防止，数据库密码被破解，遭到敏感信息遭到泄露
-		if global.GCONFIG_RECORD_LOG_DESENSITIZE == 1 && weblogbean.BODY != "" {
+		// 日志保存时候也是脱敏保存防止，数据库密码被破解，遭到敏感信息遭到泄露（确认二进制流不做文本脱敏）
+		if global.GCONFIG_RECORD_LOG_DESENSITIZE == 1 && weblogbean.BODY != "" && !weblogbean.IsBinaryBody {
 			weblogbean.BODY = utils.DeSenTextByCustomMark(enums.DLP_MARK_RULE_LoginSensitiveInfoMaskRule, weblogbean.BODY)
 		}
 		remoteUrl, err := url.Parse(hostTarget.TargetHost)

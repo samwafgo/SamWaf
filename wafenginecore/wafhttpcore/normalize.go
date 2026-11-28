@@ -67,16 +67,29 @@ func NormalizeForXSSDetection(raw string) string {
 // 注意：不再对取出的值额外做 URL 解码——URL 编码的 JSON 值解开后会变回 JSON 结构被误判。
 // 非 JSON / 空 / 超限返回 nil,nil。
 func ExtractJSONFieldValues(body string) (fields, values []string) {
-	if body == "" || len(body) > maxJSONBodyForDetection {
-		return nil, nil
+	fields, values, _ = ExtractJSONFieldValuesComplete(body)
+	return fields, values
+}
+
+// ExtractJSONFieldValuesComplete 与 ExtractJSONFieldValues 相同，但额外返回 complete 指示是否完整提取了所有字符串叶节点
+// （未因超体积上限、解析错误或超 2000 值上限而提前截断）。
+func ExtractJSONFieldValuesComplete(body string) (fields, values []string, complete bool) {
+	s := strings.TrimSpace(body)
+	if len(s) == 0 || len(s) > maxJSONBodyForDetection {
+		return nil, nil, false
+	}
+	if s[0] != '{' && s[0] != '[' {
+		return nil, nil, false
 	}
 	var v interface{}
-	if err := json.Unmarshal([]byte(body), &v); err != nil {
-		return nil, nil // 非合法 JSON：正常非 JSON 体不参与，避免误报
+	if err := json.Unmarshal([]byte(s), &v); err != nil {
+		return nil, nil, false // 非合法 JSON：正常非 JSON 体不参与，避免误报
 	}
+	capped := false
 	var walk func(field string, x interface{})
 	walk = func(field string, x interface{}) {
 		if len(values) >= maxJSONValuesForDetection {
+			capped = true
 			return
 		}
 		switch t := x.(type) {
@@ -94,7 +107,7 @@ func ExtractJSONFieldValues(body string) (fields, values []string) {
 		}
 	}
 	walk("", v)
-	return fields, values
+	return fields, values, !capped
 }
 
 // ExtractJSONStringValues 仅取值（向后兼容）。

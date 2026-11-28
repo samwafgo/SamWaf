@@ -18,6 +18,8 @@ func (waf *WafEngine) CheckDirTraversal(r *http.Request, weblogbean *innerbean.W
 		Title:           "",
 		Content:         "",
 	}
+	ensureWebLogBodyClassified(r, weblogbean, &formValue)
+
 	block := func() detection.Result {
 		weblogbean.RISK_LEVEL = 2
 		result.IsBlock = true
@@ -38,13 +40,20 @@ func (waf *WafEngine) CheckDirTraversal(r *http.Request, weblogbean *innerbean.W
 		}
 	}
 
-	// 2) 请求体深检(表单值/JSON 体/整串)：受 body_detect_mode 门控(observe 默认只观察不拦)，与 CheckXss 一致
+	// 2) 请求体深检(表单值/JSON 体/非二进制整串)：受 body_detect_mode 门控(observe 默认只观察不拦)，与 CheckXss 一致
 	if bodyDetectEnabled() {
-		hit := wafhttpcore.HasTraversalOrLFI(weblogbean.BodyDecoded)
+		hit := false
+		if !weblogbean.IsMultipart && !weblogbean.IsBinaryBody {
+			hit = wafhttpcore.HasTraversalOrLFI(weblogbean.BodyDecoded)
+		}
 		if !hit {
 			for key, values := range formValue {
 				if isBodyFieldExcluded(key) { // E：已知富文本字段整体跳过
 					continue
+				}
+				if wafhttpcore.HasTraversalOrLFI(wafhttpcore.NormalizeForDetection(key)) {
+					hit = true
+					break
 				}
 				for _, v := range values {
 					if wafhttpcore.HasTraversalOrLFI(v) {

@@ -144,3 +144,42 @@ func TestIsXSSInQueryValues(t *testing.T) {
 		})
 	}
 }
+
+func TestSQLiFingerprintExclude(t *testing.T) {
+	defer SetSQLiFingerprintExclude("")
+
+	// Issue #1084 正常 JPEG 字节片段触发的弱指纹 s)o1
+	jpegSnippet := string([]byte{0x1c, 0x16, 0x16, 0x20, 0x2c, 0x20, 0x23, 0x26, 0x27, 0x29, 0x2a, 0x29, 0x19, 0x1f, 0x2d, 0x30})
+	hit, fp := IsSQLiInspect(jpegSnippet)
+	if !hit || fp == "" {
+		t.Fatalf("前置校验失败: 期望命中指纹, 实际 hit=%v fp=%q", hit, fp)
+	}
+
+	// 大小写敏感验证：配置大写 S)O1 不应误豁免小写 s)o1
+	SetSQLiFingerprintExclude("S)O1")
+	if !IsSQLiNotReturnPrint(jpegSnippet) {
+		t.Fatalf("指纹匹配应区分大小写，S)O1 不应豁免 %q", fp)
+	}
+
+	// 精确豁免该指纹后，对应输入静默放行，而真实 UNION 注入不受影响继续拦截
+	SetSQLiFingerprintExclude(" " + fp + " , son;n ")
+	hitAfter, fpAfter := IsSQLiInspect(jpegSnippet)
+	if hitAfter || fpAfter != fp {
+		t.Fatalf("豁免后期望 hit=false fp=%q, 实际 hit=%v fp=%q", fp, hitAfter, fpAfter)
+	}
+	if !IsSQLiNotReturnPrint("1' UNION SELECT username,password FROM users--") {
+		t.Fatal("豁免单个弱指纹后，真实 UNION SELECT 注入仍必须命中")
+	}
+
+	// [H4] 对抗护栏：禁止利用 Pass 1(QuoteNone) 凑出 s)o1 短路掩盖单引号上下文或分号后的真实注入
+	maskedPayloads := []string{
+		"' SELECT 1 -- ')=1",
+		"' UNION SELECT 1 WHERE 'a'=('a",
+		jpegSnippet + "; SELECT username,password FROM users",
+	}
+	for _, mp := range maskedPayloads {
+		if !IsSQLiNotReturnPrint(mp) {
+			t.Fatalf("[H4] 豁免 s)o1 不得放行掩蔽型真实 SQL 注入: %q", mp)
+		}
+	}
+}

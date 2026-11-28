@@ -51,7 +51,18 @@ func (waf *WafEngine) CheckSensitive(r *http.Request, weblogbean *innerbean.WebL
 
 		return result
 	}
-	matchBodyResult := waf.SensitiveManager.MultiPatternSearch([]rune(weblogbean.BODY), false)
+	ensureWebLogBodyClassified(r, weblogbean, &formValue)
+	if weblogbean.IsBinaryBody {
+		return result
+	}
+	bodyToScan := weblogbean.BODY
+	if weblogbean.IsMultipart {
+		bodyToScan = weblogbean.MultipartText
+	}
+	if bodyToScan == "" {
+		return result
+	}
+	matchBodyResult := waf.SensitiveManager.MultiPatternSearch([]rune(bodyToScan), false)
 	if len(matchBodyResult) > 0 {
 		sensitive := matchBodyResult[0].CustomData.(model.Sensitive)
 		if sensitive.CheckDirection == "out" {
@@ -67,7 +78,10 @@ func (waf *WafEngine) CheckSensitive(r *http.Request, weblogbean *innerbean.WebL
 			result.IsBlock = false
 			weblogbean.GUEST_IDENTIFICATION = "触发敏感词"
 			weblogbean.RULE = "敏感词检测：" + strings.Join(words, ",")
-			waf.ReplaceBodyContent(r, words, global.GWAF_HTTP_SENSITIVE_REPLACE_STRING)
+			// multipart 包含边界与文件二进制流，不能整包文本替换以免破坏上传文件
+			if !weblogbean.IsMultipart {
+				waf.ReplaceBodyContent(r, words, global.GWAF_HTTP_SENSITIVE_REPLACE_STRING)
+			}
 		}
 		return result
 	}

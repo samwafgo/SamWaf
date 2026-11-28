@@ -53,6 +53,8 @@ func ruleBanLog(log *innerbean.WebLog, responseCode int) *innerbean.WebLog {
 	recorded.SrcByteResBody = nil
 	recorded.SrcURL = nil
 	recorded.BodyDecoded = ""
+	recorded.MultipartText = ""
+	recorded.MultipartPlainFiles = nil
 	recorded.CookiesDecoded = ""
 	recorded.BodyValues = nil
 	recorded.BodyFields = nil

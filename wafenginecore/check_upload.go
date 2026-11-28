@@ -6,6 +6,7 @@ import (
 	"SamWaf/model"
 	"SamWaf/model/detection"
 	"SamWaf/model/wafenginmodel"
+	"SamWaf/wafenginecore/wafhttpcore"
 	"bytes"
 	"errors"
 	"io"
@@ -277,10 +278,26 @@ func (waf *WafEngine) CheckUpload(r *http.Request, weblogbean *innerbean.WebLog,
 	if m != http.MethodPost && m != http.MethodPut && m != http.MethodPatch {
 		return result
 	}
-	// 必须是 multipart/form-data 且能取到 boundary
-	mediaType, params, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
-	if err != nil || !strings.HasPrefix(mediaType, "multipart/") {
+	ctValues := r.Header.Values("Content-Type")
+	if len(ctValues) > 1 {
+		for _, v := range ctValues {
+			if strings.Contains(strings.ToLower(v), "multipart/") {
+				return uploadBlock(weblogbean, "文件上传检测-报文异常", "存在多个Content-Type请求头，已拦截")
+			}
+		}
 		return result
+	}
+	// 必须是 multipart/form-data 且能取到唯一无歧义的 boundary
+	rawCT := r.Header.Get("Content-Type")
+	mediaType, params, err := mime.ParseMediaType(rawCT)
+	if err != nil || !strings.HasPrefix(strings.ToLower(mediaType), "multipart/") {
+		if strings.Contains(strings.ToLower(rawCT), "multipart/") {
+			return uploadBlock(weblogbean, "文件上传检测-报文异常", "multipart请求头格式异常，已拦截")
+		}
+		return result
+	}
+	if wafhttpcore.HasAmbiguousMultipartHeader(ctValues) {
+		return uploadBlock(weblogbean, "文件上传检测-报文异常", "multipart边界参数存在歧义，已拦截")
 	}
 	boundary := params["boundary"]
 	if boundary == "" || r.Body == nil {
@@ -306,6 +323,10 @@ func (waf *WafEngine) CheckUpload(r *http.Request, weblogbean *innerbean.WebLog,
 			return result
 		}
 		return uploadBlock(weblogbean, "文件上传检测-上传体过大", "上传体超过可检测上限，已拦截")
+	}
+
+	if wafhttpcore.HasLeadingOrTrailingMultipartData(raw, boundary) {
+		return uploadBlock(weblogbean, "文件上传检测-报文异常", "multipart定界符前后存在异常数据，已拦截")
 	}
 
 	mr := multipart.NewReader(bytes.NewReader(raw), boundary)
@@ -347,12 +368,24 @@ func (waf *WafEngine) CheckUpload(r *http.Request, weblogbean *innerbean.WebLog,
 		if len(head) > uploadScanHeadBytes {
 			head = head[:uploadScanHeadBytes]
 		}
-		if cfg.CheckMagic == 1 && isUploadTypeMismatch(fn, declaredCT, head) {
+		cte := part.Header.Get("Content-Transfer-Encoding")
+		var decodedHead []byte
+		if cte != "" {
+			if dec, ok := wafhttpcore.DecodeMultipartTransferEncoding(cte, fileContent, uploadScanHeadBytes); ok {
+				decodedHead = dec
+			}
+		}
+		if cfg.CheckMagic == 1 && (isUploadTypeMismatch(fn, declaredCT, head) || (len(decodedHead) > 0 && isUploadTypeMismatch(fn, declaredCT, decodedHead))) {
 			return uploadBlock(weblogbean, "文件上传检测-类型不符", "文件真实内容与声明类型不符，已拦截")
 		}
 		if cfg.CheckContent == 1 {
 			if hit, sig := scanWebshell(head); hit {
 				return uploadBlock(weblogbean, "文件上传检测-Webshell", "检测到Webshell特征("+sig+")，已拦截")
+			}
+			if len(decodedHead) > 0 {
+				if hit, sig := scanWebshell(decodedHead); hit {
+					return uploadBlock(weblogbean, "文件上传检测-Webshell", "检测到Webshell特征("+sig+")，已拦截")
+				}
 			}
 		}
 	}

@@ -27,6 +27,7 @@ func (waf *WafEngine) CheckXss(r *http.Request, weblogbean *innerbean.WebLog, fo
 		Title:           "",
 		Content:         "",
 	}
+	ensureWebLogBodyClassified(r, weblogbean, &formValue)
 	// 查询串/表单串检测：始终强制拦截（非本次请求体误报来源）
 	xssHit := libinjection.IsXSSInQueryValues(weblogbean.RawQuery) ||
 		libinjection.IsXSSInQueryValues(weblogbean.POST_FORM)
@@ -71,6 +72,9 @@ func (waf *WafEngine) bodyXSSHit(formValue url.Values, bodyFields, bodyValues []
 	for key, vals := range formValue {
 		if isBodyFieldExcluded(key) { // E：已知富文本字段整体跳过
 			continue
+		}
+		if bodyValueIsXSS(key) {
+			return true
 		}
 		for _, v := range vals {
 			if bodyValueIsXSS(v) {

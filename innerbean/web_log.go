@@ -33,6 +33,13 @@ type WebLog struct {
 	RES_BODY           string `gorm:"type:text" json:"res_body"`  //返回信息
 	POST_FORM          string `gorm:"type:text" json:"post_form"` //提交的表单数据
 	// ── S1 检测归一化副本（gorm:"-" 不落库、json:"-" 不外传，仅供各 check 使用）──
+	BodyClassified       bool     `gorm:"-" json:"-"`                                                        //请求体是否已完成协议分流装配
+	IsMultipart          bool     `gorm:"-" json:"-"`                                                        //请求体为结构合法的 multipart/*（文本字段已入 formValues/BodyValues）
+	IsBinaryBody         bool     `gorm:"-" json:"-"`                                                        //请求体经 Content-Type 与字节分布双校验确认为二进制流
+	IsUrlEncodedForm     bool     `gorm:"-" json:"-"`                                                        //请求体为已完整解析入 formValues 的 x-www-form-urlencoded
+	HasAmbiguousBodyType bool     `gorm:"-" json:"-"`                                                        //多值 Content-Type 或畸形表单/multipart，强制保留第一阶段整串检测防降级绕过
+	MultipartText        string   `gorm:"-" json:"-"`                                                        //multipart 提取出的纯文本拼接副本（供 AI/敏感词只读检测，不含文件字节）
+	MultipartPlainFiles  []string `gorm:"-" json:"-"`                                                        //multipart 文件 part 中的纯文本/脚本片段（供 RCE 检出，不含二进制图片）
 	BodyDecoded          string   `gorm:"-" json:"-"`                                                        //body 多轮URL解码（RCE 等按整串匹配用）
 	CookiesDecoded       string   `gorm:"-" json:"-"`                                                        //cookie 多轮URL解码
 	BodyValues           []string `gorm:"-" json:"-"`                                                        //JSON 请求体逐值提取(已解码)，供 XSS/SQLi/RCE 逐值检测降误报

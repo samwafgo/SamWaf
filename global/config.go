@@ -80,6 +80,10 @@ var (
 	//合法字段(如 content,html,markdown)，压 block 模式误报(E)。观察日志里看是哪些字段误报再填。
 	GCONFIG_BODY_DETECT_FIELD_EXCLUDE string = ""
 
+	//SQL注入 libinjection 指纹豁免清单（逗号分隔，严格区分大小写，默认空）。
+	//用于精准摘除个别在特定业务参数上持续误报的内置指纹（如 s)o1,son;n），无需关闭整站 SQLi 防护。
+	GCONFIG_SQLI_FP_EXCLUDE string = ""
+
 	//自定义规则在检测链里的位置 0:默认(排在CC之后) 1:规则优先(排在黑名单之后、Bot/SQLI/XSS等之前)
 	//规则优先模式下，规则的放行动作(RF.Allow)才能跳过 Bot/SQLI/XSS/扫描/RCE/目录穿越/CC 这些检测
 	GCONFIG_RULE_CHAIN_MODE int64 = 0

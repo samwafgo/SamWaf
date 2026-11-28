@@ -49,6 +49,26 @@ func (receiver *WafNotifySenderService) SendMessageInfo(messageInfo interface{})
 	receiver.SendEvent(ev)
 }
 
+// dedupSubscriptionsByChannel 发送端按渠道维度防御性去重：
+// 同一消息类型下对同一渠道只保留排序最前的一条订阅，防止同一次事件重复投递。
+func dedupSubscriptionsByChannel(subs []model.NotifySubscription) []model.NotifySubscription {
+	if len(subs) <= 1 {
+		return subs
+	}
+	seen := make(map[string]struct{}, len(subs))
+	out := make([]model.NotifySubscription, 0, len(subs))
+	for _, sub := range subs {
+		if _, dup := seen[sub.ChannelId]; dup {
+			zlog.Warn("检测到同一渠道存在多条同类型订阅，已跳过重复项",
+				"channel_id", sub.ChannelId, "message_type", sub.MessageType, "skipped_id", sub.Id)
+			continue
+		}
+		seen[sub.ChannelId] = struct{}{}
+		out = append(out, sub)
+	}
+	return out
+}
+
 // SendEvent 按订阅逐个判定并投递
 //
 // 频控在这里逐订阅判定（而不是像老实现那样在入队前一刀切），
@@ -58,7 +78,7 @@ func (receiver *WafNotifySenderService) SendEvent(ev NotifyEvent) {
 		return
 	}
 
-	subscriptions := WafNotifySubscriptionServiceApp.GetSubscriptionsByMessageType(ev.MessageType)
+	subscriptions := dedupSubscriptionsByChannel(WafNotifySubscriptionServiceApp.GetSubscriptionsByMessageType(ev.MessageType))
 	if len(subscriptions) == 0 {
 		zlog.Debug(fmt.Sprintf("没有找到消息类型 %s 的订阅", ev.MessageType))
 		return
@@ -501,10 +521,19 @@ func (receiver *WafNotifySenderService) FormatAccessMessageFromBean(msg innerbea
 	return messageType, title, b.String()
 }
 
+// formatIPWithLocation 将纯 IP 与归属地拼接为展示文本（归属地为空时不拼括号）
+func formatIPWithLocation(ip, location string) string {
+	loc := strings.TrimSpace(location)
+	if loc == "" {
+		return ip
+	}
+	return fmt.Sprintf("%s (%s)", ip, loc)
+}
+
 // FormatAttackInfoMessageFromBean 格式化攻击信息消息（从Bean）
 func (receiver *WafNotifySenderService) FormatAttackInfoMessageFromBean(msg innerbean.AttackInfoMessageInfo) (string, string, string) {
 	messageType := "attack_info" // 攻击信息类型
-	title, content := receiver.FormatAttackInfoMessage(msg.AttackType, msg.Url, msg.Ip, msg.Time)
+	title, content := receiver.FormatAttackInfoMessage(msg.AttackType, msg.Url, formatIPWithLocation(msg.Ip, msg.Location), msg.Time)
 	if msg.Domain != "" {
 		content = "**域名:** " + msg.Domain + "\n\n" + content
 	}

@@ -151,6 +151,9 @@ func (q *notifyClassificationQueues) message(t *testing.T, log *innerbean.WebLog
 		if message.AttackType != log.RULE || message.Url != log.URL || message.OperaType != "攻击信息" {
 			t.Fatalf("attack notification differs from log: %+v", message)
 		}
+		if message.Location == "" {
+			t.Fatalf("attack notification missing IP location: %+v", message)
+		}
 		if _, err := time.ParseInLocation("2006-01-02 15:04:05", message.Time, time.Local); err != nil {
 			t.Fatalf("notification time = %q: %v", message.Time, err)
 		}

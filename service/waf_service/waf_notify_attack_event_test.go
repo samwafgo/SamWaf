@@ -71,9 +71,13 @@ func TestAttackNotifyPreviewMatchesDefault(t *testing.T) {
 	sample := SampleNotifyEvent(model.MSG_TYPE_ATTACK_INFO)
 	real := WafNotifySenderServiceApp.BuildNotifyEvent(innerbean.AttackInfoMessageInfo{
 		Domain: sample.Vars["Domain"], AttackType: sample.Vars["AttackType"],
-		Url: sample.Vars["Url"], Ip: sample.Vars["Ip"], Time: sample.Vars["Time"],
+		Url: sample.Vars["Url"], Ip: sample.Vars["Ip"],
+		Location: sample.Vars["Location"], Time: sample.Vars["Time"],
 	})
 	if sample.DefaultTitle != real.DefaultTitle || sample.DefaultContent != real.DefaultContent {
-		t.Fatal("preview and real default messages differ")
+		t.Fatalf("preview and real default messages differ:\nsample=%q\nreal=%q", sample.DefaultContent, real.DefaultContent)
+	}
+	if !strings.Contains(real.DefaultContent, sample.Vars["Location"]) {
+		t.Fatalf("default content should include IP location, got %q", real.DefaultContent)
 	}
 }

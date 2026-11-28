@@ -151,7 +151,7 @@ func (receiver *WafNotifySenderService) BuildNotifyEvent(messageInfo interface{}
 		ev.Vars["RuleInfo"] = msg.RuleInfo
 		ev.Vars["Ip"] = msg.Ip
 		ev.DedupParts[model.DedupKeyDomain] = msg.Domain
-		ev.DedupParts[model.DedupKeyIp] = msg.Ip
+		ev.DedupParts[model.DedupKeyIp] = extractLeadingIP(msg.Ip)
 		ev.DedupParts[model.DedupKeyRule] = msg.RuleInfo
 		ev.DedupParts[model.DedupKeyAttackType] = msg.OperaType
 		return ev
@@ -179,7 +179,7 @@ func (receiver *WafNotifySenderService) BuildNotifyEvent(messageInfo interface{}
 			ev.Vars["LastLocation"] = msg.LastLocation
 			ev.Vars["LastTime"] = msg.LastTime
 		}
-		ev.DedupParts[model.DedupKeyIp] = msg.Ip
+		ev.DedupParts[model.DedupKeyIp] = extractLeadingIP(msg.Ip)
 		return ev
 
 	case innerbean.AttackInfoMessageInfo:
@@ -188,11 +188,12 @@ func (receiver *WafNotifySenderService) BuildNotifyEvent(messageInfo interface{}
 		ev.Vars["AttackType"] = msg.AttackType
 		ev.Vars["Url"] = msg.Url
 		ev.Vars["Ip"] = msg.Ip
+		ev.Vars["Location"] = msg.Location
 		ev.Vars["Server"] = msg.Server
 		if msg.Time != "" {
 			ev.Vars["Time"] = msg.Time
 		}
-		ev.DedupParts[model.DedupKeyIp] = msg.Ip
+		ev.DedupParts[model.DedupKeyIp] = extractLeadingIP(msg.Ip)
 		ev.DedupParts[model.DedupKeyAttackType] = msg.AttackType
 		domain := msg.Domain
 		if _, host, found := strings.Cut(domain, "://"); found {

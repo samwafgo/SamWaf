@@ -12,6 +12,27 @@
 #   5. fresh_install: true 的条目只在"全新安装"时生成，不参与版本区间计算
 
 notes:
+  - id: v1_3_26_notify_dedup_title_location
+    version: v1.3.26
+    kind: notice
+    level: normal
+    page: /sys/wafnotifysubscription
+    apply:
+      type: navigate
+    zh:
+      title: 通知订阅去重加固、钉钉正文展示标题，内置攻击告警补充 IP 归属地
+      detail: >-
+        本次更新完善了通知订阅与推送展示体验：
+        1. 启动迁移自动清理同渠道同消息类型的历史重复订阅（保留最近编辑记录）并建立唯一索引，发送端同步按渠道维度去重，订阅页添加按钮增加防连点锁，避免单次事件向同一渠道重复推送；
+        2. 钉钉 Markdown 通知在正文顶部自动展示标题模板（含实例前缀与聚合合并条数），与前端预览及其他 IM 渠道观感保持一致；
+        3. 内置防护触发的「攻击信息」告警恢复展示 IP 归属地，同时新增模板变量 {{.Location}}（{{.Ip}} 保持纯 IP），此前自定义了攻击信息模板的用户可在模板中按需插入 {{.Location}}；通知过滤的「排除 IP」同步兼容带归属地后缀的历史事件格式。
+    en:
+      title: Deduplicated notify subscriptions, DingTalk heading display, and IP location for attack alerts
+      detail: >-
+        This release improves notification delivery and readability:
+        1. Startup migration deduplicates duplicate subscriptions sharing the same channel and message type (keeping the most recently updated entry) and adds a unique index, alongside sender-side channel deduplication and UI click guards so each event is delivered once per channel;
+        2. DingTalk Markdown messages now include the rendered title template (including instance prefix and aggregation count) at the top of the message body, matching preview and other IM channels;
+        3. Built-in attack notifications include IP geolocation in default messages and expose a new {{.Location}} template variable while keeping {{.Ip}} as a plain IP address; users with custom attack templates can insert {{.Location}} as needed. Exclude-IP filtering also normalizes addresses that carry a location suffix.
   - id: v1_3_26_threat_ip_tag_source
     version: v1.3.26
     kind: notice

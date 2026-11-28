@@ -800,9 +800,27 @@ func matchDomainList(list []string, domain string) bool {
 	return false
 }
 
+// extractLeadingIP 从纯 IP 或 "1.2.3.4 (归属地)" 形态的字符串中提取纯 IP。
+func extractLeadingIP(ipStr string) string {
+	s := strings.TrimSpace(ipStr)
+	if s == "" {
+		return ""
+	}
+	if net.ParseIP(s) != nil {
+		return s
+	}
+	if idx := strings.IndexAny(s, " \t(（"); idx > 0 {
+		head := strings.TrimSpace(s[:idx])
+		if net.ParseIP(head) != nil {
+			return head
+		}
+	}
+	return s
+}
+
 // matchIPList IP 匹配，支持单 IP 与 CIDR
 func matchIPList(list []string, ipStr string) bool {
-	ip := net.ParseIP(strings.TrimSpace(ipStr))
+	ip := net.ParseIP(extractLeadingIP(ipStr))
 	if ip == nil {
 		return false
 	}

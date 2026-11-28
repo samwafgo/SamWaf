@@ -36,6 +36,8 @@ func runCoreCases(t *testing.T, db *gorm.DB) {
 	runListEnableSwitchCases(t, db)
 	// 日志导出任务 user_code 缺列升级回归
 	runLogExportCases(t, db)
+	// 通知订阅去重迁移、唯一索引与租户隔离三库回归（#1080）
+	runNotifySubscriptionDedupCases(t, db)
 	// ————— 升级须知：生成幂等 / 状态流转 / 降级不生成 —————
 	runUpgradeNoticeCases(t, db)
 	// ————— 安全报告任务表与唯一键 —————

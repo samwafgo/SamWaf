@@ -201,17 +201,22 @@ func handleAttackInfoMessage(msg innerbean.AttackInfoMessageInfo) {
 	// 1. 交给通知订阅系统
 	waf_service.WafNotifySenderServiceApp.SendMessageInfo(msg)
 
+	ipDisplay := msg.Ip
+	if loc := strings.TrimSpace(msg.Location); loc != "" {
+		ipDisplay = fmt.Sprintf("%s (%s)", msg.Ip, loc)
+	}
+
 	if global.GWAF_NOTICE_ENABLE {
 		utils.NotifyHelperApp.SendRuleInfo(innerbean.RuleMessageInfo{
 			BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "命中保护规则", Server: msg.Server},
 			Domain:          msg.Domain,
 			RuleInfo:        msg.AttackType,
-			Ip:              msg.Ip,
+			Ip:              ipDisplay,
 		})
 	}
 
 	// 2. 发送到 WebSocket（实时推送）
-	wsContent := fmt.Sprintf("检测到 %s 攻击，来源IP: %s", msg.AttackType, msg.Ip)
+	wsContent := fmt.Sprintf("检测到 %s 攻击，来源IP: %s", msg.AttackType, ipDisplay)
 	sendToWebSocket("攻击告警", wsContent, nil, "Info")
 }
 

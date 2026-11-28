@@ -2495,6 +2495,13 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 			// 保留配置，旧版本忽略这两个字段。
 			Rollback: func(*gorm.DB) error { return nil },
 		},
+		{
+			ID:      "202611280001_dedup_and_unique_notify_subscriptions",
+			Migrate: dedupAndUniqueNotifySubscriptions,
+			Rollback: func(tx *gorm.DB) error {
+				return safeDropIndex(tx, "notify_subscriptions", "uni_notify_sub_tenant_user_ch_type")
+			},
+		},
 	})
 
 	// 执行迁移
@@ -2509,6 +2516,74 @@ func RunCoreDBMigrations(db *gorm.DB) error {
 
 	zlog.Info("core数据库迁移成功完成")
 	return nil
+}
+
+func dedupAndUniqueNotifySubscriptions(tx *gorm.DB) error {
+	if !tx.Migrator().HasTable(&model.NotifySubscription{}) {
+		return nil
+	}
+
+	type subRow struct {
+		ID          string `gorm:"column:id"`
+		TenantID    string `gorm:"column:tenant_id"`
+		UserCode    string `gorm:"column:user_code"`
+		ChannelID   string `gorm:"column:channel_id"`
+		MessageType string `gorm:"column:message_type"`
+	}
+	var rows []subRow
+	// 使用原生 SELECT 覆盖全部租户并由数据库比较时间列，兼容 SQLite/MySQL/PostgreSQL。
+	if err := tx.Raw(`
+		SELECT id, tenant_id, user_code, channel_id, message_type
+		FROM notify_subscriptions
+		ORDER BY update_time DESC, create_time DESC, id DESC
+	`).Scan(&rows).Error; err != nil {
+		return fmt.Errorf("查询通知订阅去重候选失败: %w", err)
+	}
+
+	type subKey struct {
+		tenantID    string
+		userCode    string
+		channelID   string
+		messageType string
+	}
+	seen := make(map[subKey]struct{}, len(rows))
+	dupGroupSeen := make(map[subKey]struct{})
+	var deleteIDs []string
+	for _, r := range rows {
+		k := subKey{
+			tenantID:    r.TenantID,
+			userCode:    r.UserCode,
+			channelID:   r.ChannelID,
+			messageType: r.MessageType,
+		}
+		if _, ok := seen[k]; ok {
+			dupGroupSeen[k] = struct{}{}
+			deleteIDs = append(deleteIDs, r.ID)
+			continue
+		}
+		seen[k] = struct{}{}
+	}
+
+	if len(deleteIDs) > 0 {
+		const batchSize = 500
+		for i := 0; i < len(deleteIDs); i += batchSize {
+			end := i + batchSize
+			if end > len(deleteIDs) {
+				end = len(deleteIDs)
+			}
+			if err := tx.Exec("DELETE FROM notify_subscriptions WHERE id IN ?", deleteIDs[i:end]).Error; err != nil {
+				return fmt.Errorf("清理重复通知订阅记录失败: %w", err)
+			}
+		}
+		zlog.Info("清理重复通知订阅记录完成", "重复组数", len(dupGroupSeen), "删除条数", len(deleteIDs))
+	}
+
+	return safeCreateIndex(
+		tx,
+		"notify_subscriptions",
+		"uni_notify_sub_tenant_user_ch_type",
+		"CREATE UNIQUE INDEX IF NOT EXISTS uni_notify_sub_tenant_user_ch_type ON notify_subscriptions (tenant_id, user_code, channel_id, message_type)",
+	)
 }
 
 func addTunnelProtectionColumns(tx *gorm.DB) error {

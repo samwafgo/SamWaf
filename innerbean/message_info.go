@@ -98,6 +98,7 @@ type AttackInfoMessageInfo struct {
 	AttackType string `json:"attack_type"` // 攻击类型
 	Url        string `json:"url"`         // 攻击URL
 	Ip         string `json:"ip"`          // 攻击IP
+	Location   string `json:"location"`    // IP归属地
 	Time       string `json:"time"`        // 攻击时间
 }
 

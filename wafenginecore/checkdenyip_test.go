@@ -11,6 +11,7 @@ import (
 	"SamWaf/innerbean"
 	"SamWaf/model"
 	"SamWaf/model/wafenginmodel"
+	"SamWaf/wafenginecore/ipset"
 	"net/http"
 	"testing"
 )
@@ -105,5 +106,46 @@ func TestCheckDenyIP_GlobalHostMissing_ShouldNotPanic(t *testing.T) {
 	// 局部名单不命中：走到全局分支，必须安全跳过而不是 panic
 	if isBlocked(t, waf, "codeA", "9.9.9.9") {
 		t.Errorf("没有任何名单命中时不应拦截")
+	}
+}
+
+// TestCheckDenyIP_ThreatIPIncludesChannelName 验证威胁情报拦截在 Title 中标明来源渠道，
+// 仅 system 层渠道不误入 WAF 拦截，且 inferAttackType 对含敏感关键词的渠道名不误判攻击类型。
+func TestCheckDenyIP_ThreatIPIncludesChannelName(t *testing.T) {
+	waf := newDenyIPTestEngine(t, true)
+	oldIdx := ipset.GetGlobalThreatIndex()
+	t.Cleanup(func() { ipset.SetGlobalThreatIndex(oldIdx) })
+
+	ipset.SetGlobalThreatIndex(&ipset.ThreatIndex{
+		WAFUnion: ipset.BuildMatchSet([]string{"203.0.113.5", "192.0.2.8"}),
+		Channels: []ipset.ThreatChannelMatcher{
+			{Code: "a_sys", Name: "System Only", LandTarget: "system", Set: ipset.BuildMatchSet([]string{"198.51.100.7"})},
+			{Code: "firehol", Name: "FireHOL Level1", LandTarget: "both", Set: ipset.BuildMatchSet([]string{"203.0.113.5"})},
+			{Code: "ipsum", Name: "SQL Bot Scanner", LandTarget: "waf", Set: ipset.BuildMatchSet([]string{"203.0.113.5", "192.0.2.8"})},
+		},
+	})
+
+	h, _ := waf.GetHostByCode("codeB")
+	req, _ := http.NewRequest(http.MethodGet, "http://b.com/", nil)
+
+	// 1. 仅 system 渠道的 IP 不能在 WAF 层被拦截
+	resSys := waf.CheckDenyIP(req, &innerbean.WebLog{NetSrcIp: "198.51.100.7", SRC_IP: "198.51.100.7"}, nil, h, waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME])
+	if resSys.IsBlock {
+		t.Fatalf("仅 system 渠道 IP 不应在 WAF 层拦截，实际 %+v", resSys)
+	}
+
+	// 2. 多渠道同时命中：按稳定顺序取首命中渠道名
+	resMulti := waf.CheckDenyIP(req, &innerbean.WebLog{NetSrcIp: "203.0.113.5", SRC_IP: "203.0.113.5"}, nil, h, waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME])
+	if !resMulti.IsBlock || resMulti.Title != "威胁情报IP:FireHOL Level1" {
+		t.Fatalf("期望拦截且 Title=威胁情报IP:FireHOL Level1，实际 %+v", resMulti)
+	}
+
+	// 3. 含 sql/bot/scan 关键词的渠道名：正常写入 Title，且 inferAttackType 必须短路返回空字符串
+	resKw := waf.CheckDenyIP(req, &innerbean.WebLog{NetSrcIp: "192.0.2.8", SRC_IP: "192.0.2.8"}, nil, h, waf.rt().HostTarget[global.GWAF_GLOBAL_HOST_NAME])
+	if !resKw.IsBlock || resKw.Title != "威胁情报IP:SQL Bot Scanner" {
+		t.Fatalf("期望拦截且 Title=威胁情报IP:SQL Bot Scanner，实际 %+v", resKw)
+	}
+	if at := inferAttackType(resKw.Title); at != "" {
+		t.Fatalf("inferAttackType(%q) 必须短路返回空字符串，实际 %q", resKw.Title, at)
 	}
 }

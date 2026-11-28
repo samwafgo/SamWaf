@@ -233,6 +233,16 @@ func TestNotifyFilter(t *testing.T) {
 	if MatchNotifyFilter(model.NotifyFilterConfig{ExcludeRules: []string{"规则B"}}, ruleEvent("api.example.com", "规则A,规则B,", "10.0.0.5")) {
 		t.Fatal("多规则并排除名单之一应被过滤")
 	}
+	// 威胁情报排除兼容：旧配置仅写「威胁情报IP」应同时排除带渠道后缀的新标签；写具体渠道则只排除该渠道
+	if MatchNotifyFilter(model.NotifyFilterConfig{ExcludeRules: []string{"威胁情报IP"}}, ruleEvent("api.example.com", "威胁情报IP:FireHOL Level1", "10.0.0.5")) {
+		t.Fatal("排除「威胁情报IP」应兼容匹配带渠道后缀的威胁情报标签")
+	}
+	if MatchNotifyFilter(model.NotifyFilterConfig{ExcludeRules: []string{"威胁情报IP:FireHOL Level1"}}, ruleEvent("api.example.com", "威胁情报IP:FireHOL Level1", "10.0.0.5")) {
+		t.Fatal("按具体渠道名排除威胁情报应被过滤")
+	}
+	if !MatchNotifyFilter(model.NotifyFilterConfig{ExcludeRules: []string{"威胁情报IP:FireHOL Level1"}}, ruleEvent("api.example.com", "威胁情报IP:IPsum", "10.0.0.5")) {
+		t.Fatal("排除单个威胁情报渠道不应误伤其他渠道")
+	}
 	if !MatchNotifyFilter(model.NotifyFilterConfig{Keywords: []string{"sql注入"}}, ev) {
 		t.Fatal("关键字应忽略大小写命中")
 	}

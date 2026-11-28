@@ -12,6 +12,31 @@
 #   5. fresh_install: true 的条目只在"全新安装"时生成，不参与版本区间计算
 
 notes:
+  - id: v1_3_26_threat_ip_tag_source
+    version: v1.3.26
+    kind: notice
+    level: normal
+    page: /waf-host/wafThreatIP
+    apply:
+      type: navigate
+    zh:
+      title: 威胁情报拦截标签携带来源渠道，IP 策略命中查询补充退榜与系统层诊断
+      detail: >-
+        威胁情报 IP 在 WAF 应用层拦截时，日志规则名与 IP 标签由笼统的「威胁情报IP」升级为「威胁情报IP:<渠道名>」
+        （如「威胁情报IP:FireHOL Level1」），首页排行与风险日志可直接识别是哪家订阅源命中并按渠道分组筛选。
+        历史已写入的「威胁情报IP」标签保持原样可读可删；通知订阅的「排除规则」继续填「威胁情报IP」时自动兼容覆盖全部威胁情报渠道，
+        也可按需精确排除单个渠道。同时「IP策略命中查询」覆盖仅系统防火墙落地的渠道，并在当前未命中时补充已停用渠道快照、
+        快照内内置自动豁免及历史威胁情报标签线索，方便区分退榜、停用与当前生效状态。
+    en:
+      title: Threat-intel tags now include the source feed, and IP policy lookup adds historical and system-layer diagnostics
+      detail: >-
+        When a threat-intel IP is blocked at the WAF layer, the log rule name and IP tag now record
+        "威胁情报IP:<feed name>" instead of a generic label, so dashboard rankings and risk logs identify
+        which subscription feed matched and group entries by feed. Existing historical tags remain readable
+        and removable; notification exclusion rules set to "威胁情报IP" still match all threat-intel feeds,
+        and individual feeds can also be excluded precisely. IP Policy Match Lookup now covers system-firewall-only
+        feeds and displays disabled-feed snapshots, built-in auto-exclusion matches for snapshot entries, and
+        historical threat-intel tag records when an IP is no longer on any active feed.
   - id: acme_directory_retry
     version: v1.3.26
     kind: notice

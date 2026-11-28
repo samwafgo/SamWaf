@@ -90,6 +90,12 @@ func inferAttackType(ruleTitle string) string {
 		return "ai_attack"
 	}
 
+	// 威胁情报IP：Title 格式为 "威胁情报IP:<渠道名>" 或旧版 "威胁情报IP"，
+	// 需在 CC/SQL/Bot/Scan 等关键词之前短路，避免渠道名误命中其他攻击类型。
+	if strings.HasPrefix(ruleTitle, "威胁情报ip") {
+		return ""
+	}
+
 	// CC攻击
 	if strings.Contains(ruleTitle, "cc") || strings.Contains(ruleTitle, "频次") || strings.Contains(ruleTitle, "rate limit") {
 		return "cc_attack"

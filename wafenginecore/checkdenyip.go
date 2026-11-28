@@ -49,11 +49,11 @@ func (waf *WafEngine) CheckDenyIP(r *http.Request, weblogbean *innerbean.WebLog,
 			return result
 		}
 	}
-	//威胁情报订阅大集合（全局并集，跨渠道；对所有站点始终生效）
-	if ipset.GetGlobalThreatMatcher().Contains(parsedIp) {
+	//威胁情报订阅大集合（全局并集快速否定，命中后定位来源渠道写入规则标题；对所有站点始终生效）
+	if matched, hitChannels := ipset.GetGlobalThreatIndex().MatchWAF(parsedIp); matched {
 		weblogbean.RISK_LEVEL = 1
 		result.IsBlock = true
-		result.Title = "威胁情报IP"
+		result.Title = ipset.FormatThreatIPRule(hitChannels)
 		result.Content = "您的访问被阻止了威胁情报IP限制"
 		return result
 	}

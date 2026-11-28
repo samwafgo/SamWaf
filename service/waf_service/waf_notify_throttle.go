@@ -727,7 +727,7 @@ func MatchNotifyFilter(filter model.NotifyFilterConfig, ev NotifyEvent) bool {
 					continue
 				}
 				for _, item := range filter.ExcludeRules {
-					if strings.ToLower(strings.TrimSpace(item)) == seg {
+					if matchExcludeRule(item, seg) {
 						return false
 					}
 				}
@@ -758,6 +758,22 @@ func MatchNotifyFilter(filter model.NotifyFilterConfig, ev NotifyEvent) bool {
 	}
 
 	return true
+}
+
+// matchExcludeRule 规则排除单条比对：完整匹配（忽略大小写），同时兼容旧配置里仅写
+// 「威胁情报IP」时自动覆盖新版带渠道后缀的「威胁情报IP:<渠道名>」。
+func matchExcludeRule(excludeItem, ruleSegment string) bool {
+	want := strings.ToLower(strings.TrimSpace(excludeItem))
+	if want == "" {
+		return false
+	}
+	if want == ruleSegment {
+		return true
+	}
+	if want == "威胁情报ip" && strings.HasPrefix(ruleSegment, "威胁情报ip:") {
+		return true
+	}
+	return false
 }
 
 // matchDomainList 域名匹配，支持 *.a.com 形式的通配

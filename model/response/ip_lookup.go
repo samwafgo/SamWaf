@@ -15,6 +15,13 @@ type IPLookupHit struct {
 	SystemLayer bool `json:"system_layer"`
 }
 
+// IPLookupHistoryTag 历史触发记录（来自 ip_tags 累计表），用于在当前未命中时解释为何界面仍带历史威胁情报标签。
+type IPLookupHistoryTag struct {
+	Tag        string `json:"tag"`         // 历史触发标签，如「威胁情报IP」或「威胁情报IP:FireHOL Level1」
+	Count      int64  `json:"count"`       // 累计次数
+	LatestTime string `json:"latest_time"` // 最近触发时间
+}
+
 // IPLookupResp IP 归属查询结果。
 // hits 为空表示这个 IP 目前不在任何名单里。
 type IPLookupResp struct {
@@ -25,4 +32,6 @@ type IPLookupResp struct {
 	Hits      []IPLookupHit `json:"hits"`
 	Sources   []string      `json:"sources"`  // 本次实际查了哪些源，便于前端说明覆盖范围
 	Degraded  []string      `json:"degraded"` // 查询过程中失败/跳过的源(如快照解压失败)，避免把「查不到」误报成「不在名单里」
+	// HistoryThreatTags 当前未命中启用中的威胁情报时，补充该 IP 在 ip_tags 中留存的历史威胁情报标签线索。
+	HistoryThreatTags []IPLookupHistoryTag `json:"history_threat_tags,omitempty"`
 }

@@ -779,40 +779,62 @@ func shortSha(s string) string {
 	return s
 }
 
-// RebuildWAFUnion 由所有"启用且落地含 waf"的渠道快照重建全局威胁情报并集，编译 MatchSet 后原子发布。
+// RebuildWAFUnion 由所有启用渠道快照重建威胁情报内存索引（含 WAF 层并集 + 全启用渠道分集），原子发布。
+//   - WAFUnion 仅并入落地层含 waf(waf/both) 的渠道，保证系统层专用渠道不会误入 WAF 应用层拦截；
+//   - Channels 按 Code 升序保存全部启用渠道（含 system 层）的有效集，供引擎命中溯源与 IP 策略命中查询共享，
+//     避免命中查询重复解压编译快照，同时修复仅 system 层渠道被早退跳过的问题。
 func (r *WafThreatIPService) RebuildWAFUnion() {
 	var channels []model.ThreatIPChannel
-	global.GWAF_LOCAL_DB.Where("enable = 1").Find(&channels)
+	global.GWAF_LOCAL_DB.Where("enable = 1").Order("code ASC").Find(&channels)
 
-	// 排除名单同样作用于 WAF 层：它的语义是"这个 IP 不是威胁"，
+	// 排除名单同样作用于 WAF 层与命中查询内存分集：它的语义是"这个 IP 不是威胁"，
 	// 而不是"这个 IP 别进防火墙"，两层心智必须一致。
-	// 并集本来每次就全量重建、没有 sha 缓存，多一道过滤是白送的。
 	exclude := WafThreatIPExcludeServiceApp.Get()
 
+	buildStart := time.Now()
 	uniq := make(map[string]struct{})
+	chMatchers := make([]ipset.ThreatChannelMatcher, 0, len(channels))
 	excluded := 0
 	for _, ch := range channels {
-		if ch.LandTarget != model.ThreatLandWAF && ch.LandTarget != model.ThreatLandBoth {
-			continue
-		}
 		ips, _ := r.loadSnapshot(ch.Code)
 		res := exclude.Filter(ips)
 		excluded += res.Excluded
-		for _, ip := range res.Effective {
-			uniq[ip] = struct{}{}
+
+		var chSet *ipset.MatchSet
+		if len(res.Effective) > 0 {
+			chSet = ipset.BuildMatchSet(res.Effective)
+		}
+		chMatchers = append(chMatchers, ipset.ThreatChannelMatcher{
+			Code:       ch.Code,
+			Name:       ch.Name,
+			LandTarget: ch.LandTarget,
+			Set:        chSet,
+		})
+
+		if ch.LandTarget == model.ThreatLandWAF || ch.LandTarget == model.ThreatLandBoth {
+			for _, ip := range res.Effective {
+				uniq[ip] = struct{}{}
+			}
 		}
 	}
-	if len(uniq) == 0 {
-		ipset.SetGlobalThreatMatcher(nil)
+	if len(chMatchers) == 0 {
+		ipset.SetGlobalThreatIndex(nil)
 		return
 	}
-	items := make([]string, 0, len(uniq))
-	for ip := range uniq {
-		items = append(items, ip)
+
+	var wafUnion *ipset.MatchSet
+	if len(uniq) > 0 {
+		items := make([]string, 0, len(uniq))
+		for ip := range uniq {
+			items = append(items, ip)
+		}
+		wafUnion = ipset.BuildMatchSet(items)
 	}
-	buildStart := time.Now()
-	ipset.SetGlobalThreatMatcher(ipset.BuildMatchSet(items))
-	zlog.Info("威胁情报 WAF 并集已重建", "total", len(items), "excluded", excluded,
+	ipset.SetGlobalThreatIndex(&ipset.ThreatIndex{
+		WAFUnion: wafUnion,
+		Channels: chMatchers,
+	})
+	zlog.Info("威胁情报内存索引已重建", "channels", len(chMatchers), "waf_total", len(uniq), "excluded", excluded,
 		"elapsed", time.Since(buildStart).Round(time.Millisecond).String())
 }
 

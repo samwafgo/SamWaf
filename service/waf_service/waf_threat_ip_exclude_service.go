@@ -298,6 +298,27 @@ func (e *ExcludeSet) MatchedEntry(ip net.IP) *ExcludeHit {
 	return nil
 }
 
+// MatchedBuiltinEntry 找出命中 ip 的内置自动排除条目（Id == ""，如管理端白名单/内网段/活跃会话），
+// 没有则返回 nil。仅在确认 ip 确实出现在某启用渠道原始快照里时才由 IP 策略命中查询调用，
+// 避免对普通内网地址产生噪音。
+func (e *ExcludeSet) MatchedBuiltinEntry(ip net.IP) *ExcludeHit {
+	if e.IsEmpty() || ip == nil {
+		return nil
+	}
+	if e.fast != nil && !e.fast.Contains(ip) {
+		return nil
+	}
+	for i := range e.entries {
+		if e.entries[i].Id != "" {
+			continue
+		}
+		if e.entries[i].pat.Match(ip) {
+			return &ExcludeHit{Raw: e.entries[i].Raw, Reason: e.entries[i].Reason}
+		}
+	}
+	return nil
+}
+
 // ExcludeHit 一次排除命中的对外描述
 type ExcludeHit struct {
 	Id     string

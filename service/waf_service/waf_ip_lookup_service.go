@@ -43,7 +43,6 @@ type cachedMatcher struct {
 
 var (
 	lookupMatcherMu sync.Mutex
-	threatMatchers  = map[string]*cachedMatcher{}
 	cdnMatchers     = map[string]*cachedMatcher{}
 )
 
@@ -392,96 +391,90 @@ func (r *WafIPLookupService) groupRefs() map[string]groupRef {
 	return refs
 }
 
-// matchThreatIP 威胁情报动辄十万条，逐渠道解压比对很贵。
-// 先用引擎那份全局并集(ipset 常数级判定)问一句「在不在」，不在就直接收工；
-// 只有确实命中了才展开各渠道快照去定位是哪一家收录的。
+// matchThreatIP 查该 IP 的威胁情报命中状态与未命中时的诊断线索：
+//  1. 优先复用与引擎共享的 ThreatIndex 内存分集（覆盖 waf/both/system 全部启用渠道，O(1) 无重复编译），
+//     修复仅系统防火墙层(system)渠道被 WAF 并集早退吞掉的问题；
+//  2. 若当前启用渠道未命中，补充三类诊断线索：
+//     - 内置自动排除（仅当 IP 确实出现在某启用渠道原始快照内时才报，避免对普通内网 IP 造噪音）
+//     - 已停用渠道留存快照（Effect="none"，标明当前未生效）
+//     - ip_tags 历史威胁情报标签（解释为何首页/日志仍带标签但当前已退榜或渠道已变）
 func (r *WafIPLookupService) matchThreatIP(ip string, parsed net.IP, resp *response2.IPLookupResp) {
 	// 排除名单必须参与进来：查询结果要回答的是"这个 IP 现在会不会被拦"，
 	// 用户排除完再来查却还显示 block，只会让他以为排除没生效。
 	exclude := WafThreatIPExcludeServiceApp.Get()
 
-	// 被豁免的情况要显式报出来，而且必须在"全局并集里没有"这个早退**之前**判——
-	// 排除生效后并集里本来就查不到它了，放在早退之后就永远不会执行。
-	// 不报的话用户看到的是"什么都没查到"，分不清是"不在情报里"还是"在情报里但已豁免"。
-	if hit := exclude.MatchedEntry(parsed); hit != nil {
+	// 被落库排除条目豁免的情况显式报出（手工/固化条目）。
+	dbExcluded := exclude.MatchedEntry(parsed)
+	if dbExcluded != nil {
 		resp.Hits = append(resp.Hits, response2.IPLookupHit{
 			Source:     srcThreatExclude,
 			SourceName: "威胁情报排除名单",
-			Scope:      hit.ScopeText(),
-			Matched:    hit.Raw,
+			Scope:      dbExcluded.ScopeText(),
+			Matched:    dbExcluded.Raw,
 			Effect:     "allow",
 			Detail:     "该地址已被误报排除名单豁免，威胁情报不会拦截它（其它名单仍可能拦截）",
 		})
 	}
 
-	matcher := ipset.GetGlobalThreatMatcher()
-	if matcher == nil || !matcher.Contains(parsed) {
-		return
-	}
-
-	var channels []model.ThreatIPChannel
-	if err := global.GWAF_LOCAL_DB.Where("enable = ?", 1).Find(&channels).Error; err != nil {
-		resp.Degraded = append(resp.Degraded, srcThreatIP)
-		return
-	}
-
-	// 缓存 key 必须带上排除集指纹：排除名单变了但快照 sha 没变，
-	// 只按快照 sha 失效的话缓存不会重建，查询结果会一直停留在排除之前。
-	excludeSha := exclude.Sha()
-
 	found := false
-	for _, ch := range channels {
-		// 只读表头拿 sha，命中缓存就完全不用解压
-		var meta model.ThreatIPSnapshot
-		if err := global.GWAF_LOCAL_DB.Select("sha256").Where("channel_code = ?", ch.Code).First(&meta).Error; err != nil {
-			continue
-		}
-		decodeFailed := false
-		set := matcherFor(threatMatchers, ch.Code, meta.Sha256+"_"+excludeSha, func() []string {
-			var snap model.ThreatIPSnapshot
-			if err := global.GWAF_LOCAL_DB.Where("channel_code = ?", ch.Code).First(&snap).Error; err != nil {
-				return nil
+	idx := ipset.GetGlobalThreatIndex()
+	if idx != nil && len(idx.Channels) > 0 {
+		// 快路径：直接遍历内存分集（覆盖 waf / both / system 全部启用渠道），零 DB 解压开销
+		for _, ch := range idx.Channels {
+			if ch.Set == nil || !ch.Set.Contains(parsed) {
+				continue
 			}
-			ips, derr := threatip.DecodeSnapshot(snap.Payload)
-			if derr != nil {
-				decodeFailed = true
-				return nil
+			entry := r.matchedThreatEntry(ch.Code, parsed, exclude)
+			found = true
+			resp.Hits = append(resp.Hits, response2.IPLookupHit{
+				Source:      srcThreatIP,
+				SourceName:  "威胁情报IP",
+				Scope:       ch.Name,
+				Matched:     entry,
+				Effect:      "block",
+				Detail:      "落地层：" + landTargetText(ch.LandTarget),
+				SystemLayer: landsOnSystem(ch.LandTarget),
+			})
+		}
+	} else {
+		// 冷启动或测试未建 ThreatIndex 时的 DB 回退路径（同样覆盖 system 层渠道）
+		if global.GWAF_LOCAL_DB != nil && global.GWAF_LOCAL_DB.Migrator().HasTable(&model.ThreatIPChannel{}) {
+			var channels []model.ThreatIPChannel
+			if err := global.GWAF_LOCAL_DB.Where("enable = ?", 1).Order("code ASC").Find(&channels).Error; err != nil {
+				resp.Degraded = append(resp.Degraded, srcThreatIP)
+				return
 			}
-			return exclude.Filter(ips).Effective
-		})
-		if decodeFailed {
-			resp.Degraded = append(resp.Degraded, srcThreatIP)
-			continue
-		}
-		if set == nil || !set.Contains(parsed) {
-			continue
-		}
-
-		// 到这儿才解压一次去定位具体命中的那条规则——命中很罕见，这份开销可以接受。
-		// entry 就是"实际命中的那条原文"，可能是个网段(如 1.2.3.0/24)；
-		// 前端的「排除此项」按钮直接拿它预填，用户不必自己判断该排单 IP 还是整段。
-		entry := ""
-		var snap model.ThreatIPSnapshot
-		if err := global.GWAF_LOCAL_DB.Where("channel_code = ?", ch.Code).First(&snap).Error; err == nil {
-			if ips, derr := threatip.DecodeSnapshot(snap.Payload); derr == nil {
-				entry = matchedEntryIn(exclude.Filter(ips).Effective, parsed)
+			for _, ch := range channels {
+				ips, ok, decodeFailed := r.loadThreatSnapshotIPs(ch.Code)
+				if decodeFailed {
+					resp.Degraded = append(resp.Degraded, srcThreatIP)
+					continue
+				}
+				if !ok {
+					continue
+				}
+				entry := matchedEntryIn(exclude.Filter(ips).Effective, parsed)
+				if entry == "" {
+					continue
+				}
+				found = true
+				resp.Hits = append(resp.Hits, response2.IPLookupHit{
+					Source:      srcThreatIP,
+					SourceName:  "威胁情报IP",
+					Scope:       ch.Name,
+					Matched:     entry,
+					Effect:      "block",
+					Detail:      "落地层：" + landTargetText(ch.LandTarget),
+					SystemLayer: landsOnSystem(ch.LandTarget),
+				})
 			}
 		}
-		found = true
-		resp.Hits = append(resp.Hits, response2.IPLookupHit{
-			Source:      srcThreatIP,
-			SourceName:  "威胁情报IP",
-			Scope:       ch.Name,
-			Matched:     entry,
-			Effect:      "block",
-			Detail:      "落地层：" + landTargetText(ch.LandTarget),
-			SystemLayer: landsOnSystem(ch.LandTarget),
-		})
 	}
 
-	// 并集说命中、逐渠道却找不到出处：多半是快照与已落地集合不同步(渠道刚停用/刚删)。
-	// 这种情况必须如实告诉用户「确实会被拦」，不能因为定位不到渠道就当没命中。
-	if !found {
+	// 并集说命中、逐渠道却找不到出处（如仅通过 SetGlobalThreatMatcher 发布或快照正在切换）：
+	// 必须如实告诉用户「确实会被拦」，不能因为定位不到渠道就当没命中。
+	if !found && idx != nil && idx.WAFUnion != nil && idx.WAFUnion.Contains(parsed) {
+		found = true
 		resp.Hits = append(resp.Hits, response2.IPLookupHit{
 			Source:      srcThreatIP,
 			SourceName:  "威胁情报IP",
@@ -491,6 +484,152 @@ func (r *WafIPLookupService) matchThreatIP(ip string, parsed net.IP, resp *respo
 			SystemLayer: true,
 		})
 	}
+
+	if found {
+		return
+	}
+
+	// ---- 未命中任何启用渠道有效集时的诊断补齐 ----
+
+	// 1. 内置自动排除（管理端白名单/内网/活跃管理会话）：仅当 IP 确实出现在某启用渠道原始快照里时才报，
+	//    避免查普通内网地址时凭空报出 10.0.0.0/8 制造噪音。
+	if dbExcluded == nil {
+		if builtinHit := exclude.MatchedBuiltinEntry(parsed); builtinHit != nil {
+			if rawChannels := r.rawSnapshotMatchedChannels(parsed); len(rawChannels) > 0 {
+				resp.Hits = append(resp.Hits, response2.IPLookupHit{
+					Source:     srcThreatExclude,
+					SourceName: "威胁情报排除名单",
+					Scope:      builtinHit.ScopeText(),
+					Matched:    builtinHit.Raw,
+					Effect:     "allow",
+					Detail:     fmt.Sprintf("该地址在渠道「%s」原始快照内，已被内置规则自动豁免，威胁情报不会拦截它（其它名单仍可能拦截）", strings.Join(rawChannels, "、")),
+				})
+			}
+		}
+	}
+
+	// 2. 已停用渠道的留存快照提示（Effect="none"，仅解释历史收录来源，不触发拦截结论）
+	r.matchDisabledThreatChannels(parsed, resp)
+
+	// 3. ip_tags 历史威胁情报标签线索（解释「首页/风险日志挂着威胁情报IP，但现在查不到」）
+	if history := r.lookupHistoryThreatTags(ip); len(history) > 0 {
+		resp.HistoryThreatTags = history
+	}
+}
+
+// loadThreatSnapshotIPs 读取并解压某渠道快照原文。
+func (r *WafIPLookupService) loadThreatSnapshotIPs(code string) (ips []string, exists bool, decodeFailed bool) {
+	if global.GWAF_LOCAL_DB == nil || !global.GWAF_LOCAL_DB.Migrator().HasTable(&model.ThreatIPSnapshot{}) {
+		return nil, false, false
+	}
+	var snap model.ThreatIPSnapshot
+	if err := global.GWAF_LOCAL_DB.Where("channel_code = ?", code).First(&snap).Error; err != nil {
+		return nil, false, false
+	}
+	decoded, derr := threatip.DecodeSnapshot(snap.Payload)
+	if derr != nil {
+		return nil, true, true
+	}
+	return decoded, true, false
+}
+
+// matchedThreatEntry 命中之后解压一次快照，找出实际命中的那条规则原文（供前端「排除此项」预填）。
+func (r *WafIPLookupService) matchedThreatEntry(code string, parsed net.IP, exclude *ExcludeSet) string {
+	ips, ok, decodeFailed := r.loadThreatSnapshotIPs(code)
+	if !ok || decodeFailed {
+		return ""
+	}
+	return matchedEntryIn(exclude.Filter(ips).Effective, parsed)
+}
+
+// rawSnapshotMatchedChannels 查启用渠道的原始快照（过滤排除名单之前），返回收录了 parsed 的渠道名。
+func (r *WafIPLookupService) rawSnapshotMatchedChannels(parsed net.IP) []string {
+	if global.GWAF_LOCAL_DB == nil || !global.GWAF_LOCAL_DB.Migrator().HasTable(&model.ThreatIPChannel{}) {
+		return nil
+	}
+	var channels []model.ThreatIPChannel
+	if err := global.GWAF_LOCAL_DB.Where("enable = ?", 1).Order("code ASC").Find(&channels).Error; err != nil {
+		return nil
+	}
+	var matched []string
+	for _, ch := range channels {
+		ips, ok, decodeFailed := r.loadThreatSnapshotIPs(ch.Code)
+		if !ok || decodeFailed {
+			continue
+		}
+		if matchedEntryIn(ips, parsed) != "" {
+			name := ch.Name
+			if name == "" {
+				name = ch.Code
+			}
+			matched = append(matched, name)
+		}
+	}
+	return matched
+}
+
+// matchDisabledThreatChannels 检查已停用渠道的留存快照，命中时以 Effect="none" 给出线索。
+func (r *WafIPLookupService) matchDisabledThreatChannels(parsed net.IP, resp *response2.IPLookupResp) {
+	if global.GWAF_LOCAL_DB == nil || !global.GWAF_LOCAL_DB.Migrator().HasTable(&model.ThreatIPChannel{}) {
+		return
+	}
+	var channels []model.ThreatIPChannel
+	if err := global.GWAF_LOCAL_DB.Where("enable = ?", 0).Order("code ASC").Find(&channels).Error; err != nil {
+		return
+	}
+	for _, ch := range channels {
+		ips, ok, decodeFailed := r.loadThreatSnapshotIPs(ch.Code)
+		if !ok || decodeFailed {
+			continue
+		}
+		entry := matchedEntryIn(ips, parsed)
+		if entry == "" {
+			continue
+		}
+		name := ch.Name
+		if name == "" {
+			name = ch.Code
+		}
+		resp.Hits = append(resp.Hits, response2.IPLookupHit{
+			Source:      srcThreatIP,
+			SourceName:  "威胁情报IP(已停用)",
+			Scope:       name,
+			Matched:     entry,
+			Effect:      "none",
+			Detail:      "该渠道当前已停用，历史快照仍收录该地址，当前不会拦截",
+			SystemLayer: false,
+		})
+	}
+}
+
+// lookupHistoryThreatTags 查询 ip_tags 中该 IP 留存的历史威胁情报标签（单 IP 走复合索引）。
+func (r *WafIPLookupService) lookupHistoryThreatTags(ip string) []response2.IPLookupHistoryTag {
+	ipTagDB := global.GetIPTagDB()
+	if ipTagDB == nil || !ipTagDB.Migrator().HasTable(&model.IPTag{}) {
+		return nil
+	}
+	var rows []model.IPTag
+	err := ipTagDB.Where(
+		"tenant_id = ? AND user_code = ? AND ip = ? AND (ip_tag = ? OR ip_tag LIKE ?)",
+		global.GWAF_TENANT_ID, global.GWAF_USER_CODE, ip,
+		ipset.ThreatIPRulePrefix, ipset.ThreatIPRulePrefix+":%",
+	).Order("cnt DESC, update_time DESC").Limit(10).Find(&rows).Error
+	if err != nil || len(rows) == 0 {
+		return nil
+	}
+	out := make([]response2.IPLookupHistoryTag, 0, len(rows))
+	for _, row := range rows {
+		latest := ""
+		if t := time.Time(row.UPDATE_TIME); !t.IsZero() {
+			latest = t.Format("2006-01-02 15:04:05")
+		}
+		out = append(out, response2.IPLookupHistoryTag{
+			Tag:        row.IPTag,
+			Count:      row.Cnt,
+			LatestTime: latest,
+		})
+	}
+	return out
 }
 
 // landsOnSystem 落地层是否含系统防火墙(system/both)。

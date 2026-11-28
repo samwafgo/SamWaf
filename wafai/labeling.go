@@ -88,6 +88,12 @@ func WeakLabel(action, rule string, logOnlyMode int) (WeakLabelVerdict, string) 
 		return VerdictDrop, ""
 	}
 
+	// 威胁情报IP 属于策略型拦截，渠道名可由用户自定义（可能含 scan/sql/xss/bot 等词），
+	// 必须在 payloadRuleKeywords 之前短路，避免把纯 IP 拦截误当成载荷型攻击正样本。
+	if strings.HasPrefix(ruleL, "威胁情报ip") {
+		return VerdictDrop, ""
+	}
+
 	for _, p := range payloadRuleKeywords {
 		if strings.Contains(ruleL, p.kw) {
 			return VerdictAttack, p.attackType

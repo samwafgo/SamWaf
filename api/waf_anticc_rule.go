@@ -274,7 +274,7 @@ func (w *WafAntiCCRuleApi) RecommendThresholdApi(c *gin.Context) {
 		response.FailWithMessage("参数过长", c)
 		return
 	}
-	response.OkWithDetailed(wafCCThresholdService.RecommendApi(req), "获取成功", c)
+	response.OkWithDetailed(wafCCThresholdService.RecommendApiWithCtx(c.Request.Context(), req), "获取成功", c)
 }
 
 // GetHitsApi 一条规则的命中看板：触发总数、按动作分布、TOP N 客户端。

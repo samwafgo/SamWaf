@@ -16,6 +16,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"text/template"
 	"time"
 )
@@ -45,12 +46,17 @@ func renderTemplate(templateContent string, data map[string]interface{}) ([]byte
 
 func enqueueBlockNotify(weblog *innerbean.WebLog, ruleName string, messageType ...string) {
 	if len(messageType) > 0 && messageType[0] == model.MSG_TYPE_ATTACK_INFO {
+		location := ""
+		if strings.TrimSpace(weblog.SRC_IP) != "" {
+			location = utils.FormatIPLocation(weblog.SRC_IP)
+		}
 		global.GQEQUE_MESSAGE_DB.Enqueue(innerbean.AttackInfoMessageInfo{
 			BaseMessageInfo: innerbean.BaseMessageInfo{OperaType: "攻击信息", Server: global.GWAF_CUSTOM_SERVER_NAME},
 			Domain:          weblog.HOST,
 			AttackType:      ruleName,
 			Url:             weblog.URL,
 			Ip:              weblog.SRC_IP,
+			Location:        location,
 			Time:            time.Now().Format("2006-01-02 15:04:05"),
 		})
 		return

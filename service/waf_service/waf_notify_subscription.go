@@ -8,8 +8,25 @@ import (
 	"SamWaf/model/baseorm"
 	"SamWaf/model/request"
 	"SamWaf/wafdb/dialect"
+	"errors"
+	"strings"
 	"time"
 )
+
+// ErrNotifySubscriptionExists 同一渠道与消息类型已存在订阅
+var ErrNotifySubscriptionExists = errors.New("该渠道已订阅此消息类型")
+
+func isUniqueConstraintErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "unique constraint failed") ||
+		strings.Contains(msg, "duplicate entry") ||
+		strings.Contains(msg, "error 1062") ||
+		strings.Contains(msg, "duplicate key value") ||
+		strings.Contains(msg, "sqlstate 23505")
+}
 
 type WafNotifySubscriptionService struct{}
 
@@ -32,12 +49,31 @@ func (receiver *WafNotifySubscriptionService) AddApi(req request.WafNotifySubscr
 		FilterJSON:  req.FilterJSON,
 		Remarks:     req.Remarks,
 	}
-	return global.GWAF_LOCAL_DB.Create(bean).Error
+	if err := global.GWAF_LOCAL_DB.Create(bean).Error; err != nil {
+		if isUniqueConstraintErr(err) {
+			return ErrNotifySubscriptionExists
+		}
+		return err
+	}
+	return nil
 }
 
 // CheckIsExistApi 检查是否存在
 func (receiver *WafNotifySubscriptionService) CheckIsExistApi(req request.WafNotifySubscriptionAddReq) error {
-	return global.GWAF_LOCAL_DB.First(&model.NotifySubscription{}, "channel_id = ? and message_type = ? ", req.ChannelId, req.MessageType).Error
+	return global.GWAF_LOCAL_DB.First(
+		&model.NotifySubscription{},
+		"channel_id = ? and message_type = ? and tenant_id = ? and user_code = ?",
+		req.ChannelId, req.MessageType, global.GWAF_TENANT_ID, global.GWAF_USER_CODE,
+	).Error
+}
+
+// CheckIsExistExcludeId 检查除自身外是否存在同渠道同消息类型订阅
+func (receiver *WafNotifySubscriptionService) CheckIsExistExcludeId(id, channelId, messageType string) error {
+	return global.GWAF_LOCAL_DB.First(
+		&model.NotifySubscription{},
+		"channel_id = ? and message_type = ? and id <> ? and tenant_id = ? and user_code = ?",
+		channelId, messageType, id, global.GWAF_TENANT_ID, global.GWAF_USER_CODE,
+	).Error
 }
 
 // ModifyApi 修改通知订阅
@@ -51,7 +87,13 @@ func (receiver *WafNotifySubscriptionService) ModifyApi(req request.WafNotifySub
 		"Remarks":     req.Remarks,
 		"UPDATE_TIME": customtype.JsonTime(time.Now()),
 	}
-	return global.GWAF_LOCAL_DB.Model(model.NotifySubscription{}).Where("id = ?", req.Id).Updates(editMap).Error
+	err := global.GWAF_LOCAL_DB.Model(model.NotifySubscription{}).
+		Where("id = ? and tenant_id = ? and user_code = ?", req.Id, global.GWAF_TENANT_ID, global.GWAF_USER_CODE).
+		Updates(editMap).Error
+	if isUniqueConstraintErr(err) {
+		return ErrNotifySubscriptionExists
+	}
+	return err
 }
 
 // GetDetailApi 获取详情
@@ -101,7 +143,9 @@ func (receiver *WafNotifySubscriptionService) GetListApi(req request.WafNotifySu
 
 // DelApi 删除
 func (receiver *WafNotifySubscriptionService) DelApi(req request.WafNotifySubscriptionDelReq) error {
-	return global.GWAF_LOCAL_DB.Where("id = ?", req.Id).Delete(&model.NotifySubscription{}).Error
+	return global.GWAF_LOCAL_DB.
+		Where("id = ? and tenant_id = ? and user_code = ?", req.Id, global.GWAF_TENANT_ID, global.GWAF_USER_CODE).
+		Delete(&model.NotifySubscription{}).Error
 }
 
 // GetById 按主键取订阅
@@ -125,7 +169,9 @@ func (receiver *WafNotifySubscriptionService) SaveConfigApi(id, throttleMode, th
 		"ContentTemplate": contentTemplate,
 		"UPDATE_TIME":     customtype.JsonTime(time.Now()),
 	}
-	return global.GWAF_LOCAL_DB.Model(model.NotifySubscription{}).Where("id = ?", id).Updates(editMap).Error
+	return global.GWAF_LOCAL_DB.Model(model.NotifySubscription{}).
+		Where("id = ? and tenant_id = ? and user_code = ?", id, global.GWAF_TENANT_ID, global.GWAF_USER_CODE).
+		Updates(editMap).Error
 }
 
 // SaveConfigPartialApi 按需保存部分配置（批量套用时使用）
@@ -134,7 +180,9 @@ func (receiver *WafNotifySubscriptionService) SaveConfigPartialApi(id string, ed
 		return nil
 	}
 	editMap["UPDATE_TIME"] = customtype.JsonTime(time.Now())
-	return global.GWAF_LOCAL_DB.Model(model.NotifySubscription{}).Where("id = ?", id).Updates(editMap).Error
+	return global.GWAF_LOCAL_DB.Model(model.NotifySubscription{}).
+		Where("id = ? and tenant_id = ? and user_code = ?", id, global.GWAF_TENANT_ID, global.GWAF_USER_CODE).
+		Updates(editMap).Error
 }
 
 // GetSubscriptionsByChannelType 取某类渠道下的全部订阅（批量套用配置用）
@@ -163,6 +211,8 @@ func (receiver *WafNotifySubscriptionService) GetSubscriptionsByMessageTypeAll(m
 // GetSubscriptionsByMessageType 根据消息类型获取订阅
 func (receiver *WafNotifySubscriptionService) GetSubscriptionsByMessageType(messageType string) []model.NotifySubscription {
 	var subscriptions []model.NotifySubscription
-	global.GWAF_LOCAL_DB.Where("message_type = ? and "+dialect.Q("status")+" = ?", messageType, 1).Find(&subscriptions)
+	global.GWAF_LOCAL_DB.Where("message_type = ? and "+dialect.Q("status")+" = ?", messageType, 1).
+		Order("update_time desc, create_time desc, id desc").
+		Find(&subscriptions)
 	return subscriptions
 }

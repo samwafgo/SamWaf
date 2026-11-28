@@ -245,6 +245,7 @@ var notifyTypeVars = map[string][]NotifyTemplateVar{
 		{Name: "AttackType", Desc: "攻击类型", Example: "SQL注入"},
 		{Name: "Url", Desc: "攻击URL", Example: "https://www.example.com/api?id=1"},
 		{Name: "Ip", Desc: "攻击IP", Example: "1.2.3.4"},
+		{Name: "Location", Desc: "IP归属地", Example: "中国 广东 深圳 电信"},
 	},
 	model.MSG_TYPE_IP_BAN: {
 		{Name: "Ip", Desc: "被封禁IP", Example: "1.2.3.4"},
@@ -353,7 +354,7 @@ func buildSampleDefaultMessage(messageType string, vars map[string]string) (stri
 		return "管理端登录来源变化告警",
 			buildManageLoginAbnormalContent(vars["Username"], vars["Ip"], vars["Time"], vars["LastIp"], vars["LastLocation"], vars["LastTime"])
 	case model.MSG_TYPE_ATTACK_INFO:
-		title, content := s.FormatAttackInfoMessage(vars["AttackType"], vars["Url"], vars["Ip"], vars["Time"])
+		title, content := s.FormatAttackInfoMessage(vars["AttackType"], vars["Url"], formatIPWithLocation(vars["Ip"], vars["Location"]), vars["Time"])
 		if vars["Domain"] != "" {
 			content = "**域名:** " + vars["Domain"] + "\n\n" + content
 		}

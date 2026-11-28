@@ -32,6 +32,8 @@ func (w *WafNotifySubscriptionApi) AddApi(c *gin.Context) {
 			err = wafNotifySubscriptionService.AddApi(req)
 			if err == nil {
 				response.OkWithMessage("添加成功", c)
+			} else if errors.Is(err, waf_service.ErrNotifySubscriptionExists) {
+				response.FailWithMessage("该渠道已订阅此消息类型", c)
 			} else {
 				response.FailWithMessage("添加失败", c)
 			}
@@ -115,8 +117,17 @@ func (w *WafNotifySubscriptionApi) ModifyApi(c *gin.Context) {
 	var req request.WafNotifySubscriptionEditReq
 	err := c.ShouldBindJSON(&req)
 	if err == nil {
+		existErr := wafNotifySubscriptionService.CheckIsExistExcludeId(req.Id, req.ChannelId, req.MessageType)
+		if existErr == nil || !errors.Is(existErr, gorm.ErrRecordNotFound) {
+			response.FailWithMessage("该渠道已订阅此消息类型", c)
+			return
+		}
 		err = wafNotifySubscriptionService.ModifyApi(req)
 		if err != nil {
+			if errors.Is(err, waf_service.ErrNotifySubscriptionExists) {
+				response.FailWithMessage("该渠道已订阅此消息类型", c)
+				return
+			}
 			response.FailWithMessage("编辑发生错误", c)
 		} else {
 			response.OkWithMessage("编辑成功", c)

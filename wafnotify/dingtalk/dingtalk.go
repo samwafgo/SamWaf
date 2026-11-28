@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -35,13 +36,45 @@ type DingTalkMessage struct {
 	Text     map[string]interface{} `json:"text,omitempty"`
 }
 
+func cleanMarkdownTitle(title string) string {
+	return strings.TrimSpace(strings.NewReplacer("\r\n", " ", "\r", " ", "\n", " ").Replace(title))
+}
+
+// formatMarkdownText 为钉钉 Markdown 消息正文补充顶部标题。
+// 钉钉协议中 markdown.title 仅用于会话列表摘要预览，聊天气泡只渲染 markdown.text。
+func formatMarkdownText(title, content string) string {
+	cleanTitle := cleanMarkdownTitle(title)
+	if cleanTitle == "" {
+		return content
+	}
+	trimmedContent := strings.TrimSpace(content)
+	if trimmedContent == "" {
+		return "### " + cleanTitle
+	}
+	firstLine := trimmedContent
+	if idx := strings.IndexAny(firstLine, "\r\n"); idx >= 0 {
+		firstLine = firstLine[:idx]
+	}
+	if strings.HasPrefix(firstLine, "#") {
+		heading := strings.TrimLeft(firstLine, "#")
+		if len(heading) < len(firstLine) && strings.HasPrefix(heading, " ") && strings.TrimSpace(heading) == cleanTitle {
+			return content
+		}
+	}
+	return fmt.Sprintf("### %s\n\n%s", cleanTitle, content)
+}
+
 // SendMarkdown 发送Markdown消息
 func (d *DingTalkNotifier) SendMarkdown(title, content string) error {
+	cleanTitle := cleanMarkdownTitle(title)
+	if cleanTitle == "" {
+		cleanTitle = title
+	}
 	message := DingTalkMessage{
 		MsgType: "markdown",
 		Markdown: map[string]interface{}{
-			"title": title,
-			"text":  content,
+			"title": cleanTitle,
+			"text":  formatMarkdownText(title, content),
 		},
 	}
 	return d.send(message)
@@ -74,7 +107,7 @@ func (d *DingTalkNotifier) send(message DingTalkMessage) error {
 
 	// 发送HTTP请求
 	// N5：经带跳转校验的安全客户端发送，防止 302 跳转到内网/云元数据(SSRF)
-	resp, err := utils.SafeOutboundHTTPClient(30 * time.Second).Post(urlWithSign, "application/json", bytes.NewBuffer(payload))
+	resp, err := utils.SafeOutboundHTTPClient(30*time.Second).Post(urlWithSign, "application/json", bytes.NewBuffer(payload))
 	if err != nil {
 		return fmt.Errorf("发送HTTP请求失败: %v", err)
 	}
